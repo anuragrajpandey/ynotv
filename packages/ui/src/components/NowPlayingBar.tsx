@@ -5,6 +5,8 @@ import { invoke } from '@tauri-apps/api/core';
 import type { StoredChannel } from '../db';
 import type { VodPlayInfo } from '../types/media';
 import { useCurrentProgram, parseCategoryIds } from '../hooks/useChannels';
+import { normalizeBoolean } from '../utils/db-helpers';
+import { FavoriteButton } from './FavoriteButton';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MetadataBadge } from './MetadataBadge';
 import { scheduleRecording, getDvrSettings, updatePlayingStream, detectScheduleConflicts, db, type DvrSchedule } from '../db';
@@ -903,6 +905,14 @@ export function NowPlayingBar({
                       </div>
                     )}
                   </div>
+                )}
+
+                {channel && channel.stream_id !== 'vod' && !channel.stream_id?.startsWith('recording_') && (
+                  <FavoriteButton
+                    streamId={channel.stream_id}
+                    isFavorite={normalizeBoolean(channel.is_favorite)}
+                    svg
+                  />
                 )}
 
                 {!isVod && !vodInfo && onToggleTransparentGuide && (

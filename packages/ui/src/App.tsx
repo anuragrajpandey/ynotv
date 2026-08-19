@@ -5192,9 +5192,14 @@ function useTmdbPresencePoster(
         const isPreviewView = activeView === 'guide' || activeView === 'sports';
         const isPageOverlayView = activeView !== 'guide' && activeView !== 'sports' && activeView !== 'none';
         const hasPreviewRect = !!previewVideoRect;
+        // The Sports hub is a frosted-glass surface in v3 (and fully transparent
+        // in OLED), so it needs the liquid-glass backdrop behind it to stay
+        // opaque. Without `activeView === 'sports'` here, disabling the video
+        // preview while a channel is playing left nothing painted behind the
+        // hub and the fullscreen MPV video showed straight through the page.
         const shouldRenderGlassBg = liveTvDesign === 'v3' && (
           isPageOverlayView ||
-          (isPreviewView && !guideTransparent && (!currentChannel || hasPreviewRect)) ||
+          (isPreviewView && !guideTransparent && (!currentChannel || hasPreviewRect || activeView === 'sports')) ||
           (activeView === 'none' && !currentChannel)
         );
 
