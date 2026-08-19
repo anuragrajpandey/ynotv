@@ -2,6 +2,7 @@ import { useLiveQuery } from './useSqliteLiveQuery';
 import { db, getLastCategory, setLastCategory, getFavoriteSourceOrder } from '../db';
 import type { StoredChannel, StoredCategory, SourceMeta, StoredProgram } from '../db';
 import { decompressEpgDescription } from '../utils/compression';
+import { epgTimeMs, pickCurrentProgram, EPG_WINDOW_BACK_MS, EPG_WINDOW_FWD_MS } from '../utils/epgTime';
 import { getRecentChannels, onRecentChannelsUpdate } from '../utils/recentChannels';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSourceVersion } from '../contexts/SourceVersionContext';
@@ -1892,10 +1893,26 @@ export function useCategoriesWithCounts(): CategoryWithCount[] {
  * because the EPG queries are time-based (start <= now < end) but the live-query
  * hook only re-runs on channel changes or DB events, so without this the overlay
  * would keep showing the previous programme after it ends.
+ *
+ * Some EPG providers also ship overlapping programmes (a filler block spanning a
+ * whole morning alongside the real show, or near-duplicate rows shifted by an
+ * hour). When a newer programme starts mid-way through the one already resolved,
+ * the boundary timer armed at the old programme's end won't fire for a long
+ * time, so a periodic re-query is needed too — otherwise the overlay keeps
+ * showing the programme that was current when it last queried (the "previous"
+ * one). 60s matches the guide's own current-time tick.
  */
 function useBoundaryRefresh(): [number, (boundaryTime: Date | string | number | null | undefined) => void] {
   const [refreshTick, setRefreshTick] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Periodic re-query so schedule changes that don't align with the current
+  // programme's end (e.g. an overlapping programme starting mid-air) are
+  // picked up within a minute instead of at the stale programme's boundary.
+  useEffect(() => {
+    const interval = setInterval(() => setRefreshTick((t) => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const scheduleBoundaryRefresh = useCallback((boundaryTime: Date | string | number | null | undefined) => {
     if (timerRef.current) {
@@ -1932,18 +1949,19 @@ export function useCurrentProgram(streamId: string | null): StoredProgram | null
   const program = useLiveQuery(
     async () => {
       if (!streamId) return null;
-      const now = new Date().toISOString();
+      const now = Date.now();
+      const fromIso = new Date(now - EPG_WINDOW_BACK_MS).toISOString();
+      const toIso = new Date(now + EPG_WINDOW_FWD_MS).toISOString();
 
       // Query programs_effective so overrides + custom programs are reflected
       const dbInstance = await (db as any).dbPromise;
       const rows = await dbInstance.select(
         `SELECT * FROM programs_effective
-         WHERE stream_id = ? AND start <= ? AND end > ?
-         ORDER BY start DESC LIMIT 1`,
-        [streamId, now, now]
+         WHERE stream_id = ? AND start < ? AND end > ?`,
+        [streamId, toIso, fromIso]
       ) as StoredProgram[];
 
-      const prog = rows[0] ?? null;
+      const prog = pickCurrentProgram(rows, now);
       if (prog) {
         return {
           ...prog,
@@ -1973,26 +1991,33 @@ export function useNextProgram(streamId: string | null): StoredProgram | null {
   const program = useLiveQuery(
     async () => {
       if (!streamId) return null;
-      const now = new Date().toISOString();
+      const now = Date.now();
+      const fromIso = new Date(now - EPG_WINDOW_BACK_MS).toISOString();
+      const toIso = new Date(now + EPG_WINDOW_FWD_MS).toISOString();
       const dbInstance = await (db as any).dbPromise;
-
-      const currentRows = await dbInstance.select(
-        `SELECT * FROM programs_effective
-         WHERE stream_id = ? AND start <= ? AND end > ?
-         ORDER BY start DESC LIMIT 1`,
-        [streamId, now, now]
-      ) as StoredProgram[];
-
-      const afterTime = currentRows[0]?.end ?? now;
 
       const rows = await dbInstance.select(
         `SELECT * FROM programs_effective
-         WHERE stream_id = ? AND start >= ?
-         ORDER BY start ASC LIMIT 1`,
-        [streamId, afterTime]
+         WHERE stream_id = ? AND start < ? AND end > ?`,
+        [streamId, toIso, fromIso]
       ) as StoredProgram[];
 
-      const prog = rows[0] ?? null;
+      // Reference point for "next": the end of the programme currently airing,
+      // falling back to now when nothing is airing.
+      const current = pickCurrentProgram(rows, now);
+      const afterMs = current ? epgTimeMs(current.end) : now;
+
+      // Next programme = the one with the earliest start at/after that point.
+      let prog: StoredProgram | null = null;
+      let nextStartMs = Infinity;
+      for (const row of rows) {
+        const startMs = epgTimeMs(row.start);
+        if (Number.isFinite(startMs) && startMs >= afterMs && startMs < nextStartMs) {
+          prog = row;
+          nextStartMs = startMs;
+        }
+      }
+
       if (prog) {
         return {
           ...prog,
@@ -2081,7 +2106,9 @@ export function usePrograms(streamIds: string[]): Map<string, StoredProgram | nu
   const programs = useLiveQuery(
     async () => {
       if (streamIds.length === 0) return new Map();
-      const now = new Date().toISOString();
+      const now = Date.now();
+      const fromIso = new Date(now - EPG_WINDOW_BACK_MS).toISOString();
+      const toIso = new Date(now + EPG_WINDOW_FWD_MS).toISOString();
       const result = new Map<string, StoredProgram | null>();
       for (const id of streamIds) result.set(id, null);
 
@@ -2093,15 +2120,22 @@ export function usePrograms(streamIds: string[]): Map<string, StoredProgram | nu
         const rows = await dbInstance.select(
           `SELECT * FROM programs_effective
            WHERE stream_id IN (${placeholders})
-             AND start <= ? AND end > ?
-           ORDER BY start DESC`,
-          [...chunk, now, now]
+             AND start < ? AND end > ?`,
+          [...chunk, toIso, fromIso]
         ) as StoredProgram[];
         allPrograms.push(...rows);
       }
 
+      // Latest-start programme covering `now` per channel, picked in JS so
+      // mixed timestamp formats compare correctly.
+      const bestStart = new Map<string, number>();
       for (const prog of allPrograms) {
-        if (!result.get(prog.stream_id)) {
+        const startMs = epgTimeMs(prog.start);
+        const endMs = epgTimeMs(prog.end);
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs > now || endMs <= now) continue;
+        const prev = bestStart.get(prog.stream_id);
+        if (prev === undefined || startMs > prev) {
+          bestStart.set(prog.stream_id, startMs);
           result.set(prog.stream_id, prog);
         }
       }
