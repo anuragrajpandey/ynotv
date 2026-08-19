@@ -39,6 +39,7 @@ export const SPORT_CONFIG: Record<string, SportConfig> = {
   'soccer-usa.nwsl.cup': { sport: 'soccer', league: 'usa.nwsl.cup', name: 'NWSL Challenge Cup', category: 'soccer' },
   'soccer-uefa.champions': { sport: 'soccer', league: 'uefa.champions', name: 'Champions League', category: 'soccer' },
   'soccer-uefa.europa': { sport: 'soccer', league: 'uefa.europa', name: 'Europa League', category: 'soccer' },
+  'soccer-uefa.europa.conf': { sport: 'soccer', league: 'uefa.europa.conf', name: 'Conference League', category: 'soccer' },
   'soccer-mex.1': { sport: 'soccer', league: 'mex.1', name: 'Liga MX', category: 'soccer' },
   'soccer-ned.1': { sport: 'soccer', league: 'ned.1', name: 'Eredivisie', category: 'soccer' },
   'soccer-por.1': { sport: 'soccer', league: 'por.1', name: 'Primeira Liga', category: 'soccer' },
