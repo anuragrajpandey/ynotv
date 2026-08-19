@@ -4515,6 +4515,11 @@
     "cancelProbeAndClose": "जाँच रद्द करें और बंद करें",
     "guideButtonTitle": "स्ट्रीम जाँच और स्वास्थ्य जांच",
     "guideButtonLabel": "स्ट्रीम जाँच",
-    "rerunDeadTitle": "वर्तमान स्कैन के केवल मृत और विफल स्ट्रीम फिर से जाँचें"
+    "rerunDeadTitle": "वर्तमान स्कैन के केवल मृत और विफल स्ट्रीम फिर से जाँचें",
+    "measureBitrate": "Measure Video/Audio Bitrate",
+    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "colVideoBitrate": "V. Bitrate",
+    "colAudioBitrate": "A. Bitrate",
+    "kbpsValue": "{{count}} kbps"
   }
 }

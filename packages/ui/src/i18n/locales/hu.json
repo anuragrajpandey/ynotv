@@ -4515,6 +4515,11 @@
     "cancelProbeAndClose": "Teszt megszakítása és bezárás",
     "guideButtonTitle": "Stream-teszt és állapotellenőrzés",
     "guideButtonLabel": "Stream-teszt",
-    "rerunDeadTitle": "Csak az aktuális vizsgálat halott és hibás streamjeinek újratesztelése"
+    "rerunDeadTitle": "Csak az aktuális vizsgálat halott és hibás streamjeinek újratesztelése",
+    "measureBitrate": "Measure Video/Audio Bitrate",
+    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "colVideoBitrate": "V. Bitrate",
+    "colAudioBitrate": "A. Bitrate",
+    "kbpsValue": "{{count}} kbps"
   }
 }

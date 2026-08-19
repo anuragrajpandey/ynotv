@@ -4515,6 +4515,11 @@
     "cancelProbeAndClose": "Testi İptal Et ve Kapat",
     "guideButtonTitle": "Yayın Testi ve Sağlık Kontrolü",
     "guideButtonLabel": "Yayın Testi",
-    "rerunDeadTitle": "Yalnızca geçerli taramadaki ölü ve başarısız yayınları yeniden test et"
+    "rerunDeadTitle": "Yalnızca geçerli taramadaki ölü ve başarısız yayınları yeniden test et",
+    "measureBitrate": "Measure Video/Audio Bitrate",
+    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "colVideoBitrate": "V. Bitrate",
+    "colAudioBitrate": "A. Bitrate",
+    "kbpsValue": "{{count}} kbps"
   }
 }

@@ -4515,6 +4515,11 @@
     "cancelProbeAndClose": "جانچ منسوخ کریں اور بند کریں",
     "guideButtonTitle": "اسٹریم جانچ اور صحت کی تصدیق",
     "guideButtonLabel": "اسٹریم جانچ",
-    "rerunDeadTitle": "موجودہ اسکین کے صرف مردہ اور ناکام اسٹریمز دوبارہ جانچیں"
+    "rerunDeadTitle": "موجودہ اسکین کے صرف مردہ اور ناکام اسٹریمز دوبارہ جانچیں",
+    "measureBitrate": "Measure Video/Audio Bitrate",
+    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "colVideoBitrate": "V. Bitrate",
+    "colAudioBitrate": "A. Bitrate",
+    "kbpsValue": "{{count}} kbps"
   }
 }

@@ -4515,6 +4515,11 @@
     "cancelProbeAndClose": "Annulla analisi e chiudi",
     "guideButtonTitle": "Analisi flusso e controllo salute",
     "guideButtonLabel": "Analisi flusso",
-    "rerunDeadTitle": "Ritesta solo i flussi morti o falliti dell'analisi corrente"
+    "rerunDeadTitle": "Ritesta solo i flussi morti o falliti dell'analisi corrente",
+    "measureBitrate": "Measure Video/Audio Bitrate",
+    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "colVideoBitrate": "V. Bitrate",
+    "colAudioBitrate": "A. Bitrate",
+    "kbpsValue": "{{count}} kbps"
   }
 }

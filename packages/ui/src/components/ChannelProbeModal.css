@@ -34,7 +34,7 @@
   border-radius: 16px;
   color: var(--text-primary, #f1f5f9);
   width: 100%;
-  max-width: 1040px;
+  max-width: 1280px;
   height: 90vh;
   max-height: 840px;
   display: flex;
@@ -785,7 +785,7 @@
 .cpm-table-scroll {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 .cpm-table {

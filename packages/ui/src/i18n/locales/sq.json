@@ -4515,6 +4515,11 @@
     "cancelProbeAndClose": "Anulo testin dhe mbyll",
     "guideButtonTitle": "Test transmetimi dhe kontroll shëndeti",
     "guideButtonLabel": "Test transmetimi",
-    "rerunDeadTitle": "Ritesto vetëm transmetimet e vdekura ose të dështuara nga skanimi aktual"
+    "rerunDeadTitle": "Ritesto vetëm transmetimet e vdekura ose të dështuara nga skanimi aktual",
+    "measureBitrate": "Measure Video/Audio Bitrate",
+    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "colVideoBitrate": "V. Bitrate",
+    "colAudioBitrate": "A. Bitrate",
+    "kbpsValue": "{{count}} kbps"
   }
 }

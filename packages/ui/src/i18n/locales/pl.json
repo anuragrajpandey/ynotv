@@ -4515,6 +4515,11 @@
     "cancelProbeAndClose": "Anuluj test i zamknij",
     "guideButtonTitle": "Test strumienia i sprawdzanie stanu",
     "guideButtonLabel": "Test strumienia",
-    "rerunDeadTitle": "Przetestuj ponownie tylko martwe i nieudane strumienie z bieżącego skanu"
+    "rerunDeadTitle": "Przetestuj ponownie tylko martwe i nieudane strumienie z bieżącego skanu",
+    "measureBitrate": "Measure Video/Audio Bitrate",
+    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "colVideoBitrate": "V. Bitrate",
+    "colAudioBitrate": "A. Bitrate",
+    "kbpsValue": "{{count}} kbps"
   }
 }

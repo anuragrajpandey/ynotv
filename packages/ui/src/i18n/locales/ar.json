@@ -4515,6 +4515,11 @@
     "cancelProbeAndClose": "إلغاء الفحص والإغلاق",
     "guideButtonTitle": "فحص البث والتحقق من الصحة",
     "guideButtonLabel": "فحص البث",
-    "rerunDeadTitle": "إعادة اختبار البثوث الميتة أو الفاشلة فقط من الفحص الحالي"
+    "rerunDeadTitle": "إعادة اختبار البثوث الميتة أو الفاشلة فقط من الفحص الحالي",
+    "measureBitrate": "Measure Video/Audio Bitrate",
+    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "colVideoBitrate": "V. Bitrate",
+    "colAudioBitrate": "A. Bitrate",
+    "kbpsValue": "{{count}} kbps"
   }
 }

@@ -4515,6 +4515,11 @@
     "cancelProbeAndClose": "Otkaži test i zatvori",
     "guideButtonTitle": "Test streama i provjera zdravlja",
     "guideButtonLabel": "Test streama",
-    "rerunDeadTitle": "Ponovno testiraj samo mrtve i neuspjele streamove iz trenutnog skeniranja"
+    "rerunDeadTitle": "Ponovno testiraj samo mrtve i neuspjele streamove iz trenutnog skeniranja",
+    "measureBitrate": "Measure Video/Audio Bitrate",
+    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "colVideoBitrate": "V. Bitrate",
+    "colAudioBitrate": "A. Bitrate",
+    "kbpsValue": "{{count}} kbps"
   }
 }

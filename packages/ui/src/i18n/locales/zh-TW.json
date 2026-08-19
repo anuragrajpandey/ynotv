@@ -4515,6 +4515,11 @@
     "cancelProbeAndClose": "取消偵測並關閉",
     "guideButtonTitle": "串流偵測與健康檢查",
     "guideButtonLabel": "串流偵測",
-    "rerunDeadTitle": "僅重新測試目前掃描中死亡或失敗的串流"
+    "rerunDeadTitle": "僅重新測試目前掃描中死亡或失敗的串流",
+    "measureBitrate": "Measure Video/Audio Bitrate",
+    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "colVideoBitrate": "V. Bitrate",
+    "colAudioBitrate": "A. Bitrate",
+    "kbpsValue": "{{count}} kbps"
   }
 }

@@ -32,6 +32,8 @@ export interface ProbeOptions {
   max_retries?: number;
   capture_screenshots?: boolean;
   screenshots_dir?: string;
+  measure_bitrate?: boolean;
+  bitrate_sample_secs?: number;
   auto_save_badges?: boolean;
 }
 
@@ -55,6 +57,8 @@ export interface ProbeChannelResult {
   audio_channels?: string;
   quality_label?: string;
   bitrate_kbps?: number;
+  video_bitrate_kbps?: number;
+  audio_bitrate_kbps?: number;
   screenshot_path?: string;
   error_reason?: string;
 }
@@ -133,12 +137,14 @@ export async function checkProbeFfmpegStatus(): Promise<FfmpegStatus> {
 export async function probeSingleStream(
   url: string,
   userAgent?: string,
-  timeoutSecs?: number
+  timeoutSecs?: number,
+  measureBitrate?: boolean
 ): Promise<ProbeChannelResult> {
   return await invoke<ProbeChannelResult>('probe_single_stream', {
     url,
     userAgent,
     timeoutSecs,
+    measureBitrate,
   });
 }
 
@@ -217,6 +223,8 @@ export async function startChannelProbe(
         max_retries: options.max_retries ?? 3,
         capture_screenshots: options.capture_screenshots ?? false,
         screenshots_dir: options.screenshots_dir,
+        measure_bitrate: options.measure_bitrate ?? false,
+        bitrate_sample_secs: options.bitrate_sample_secs ?? 8.0,
         auto_save_badges: options.auto_save_badges ?? true,
       },
     });

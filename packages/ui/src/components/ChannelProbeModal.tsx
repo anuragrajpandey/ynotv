@@ -30,7 +30,7 @@ export interface ChannelProbeModalProps {
 
 type TabFilter = 'all' | 'alive' | 'dead' | 'geoblocked' | 'drm' | '4k' | '1080p' | '720p' | 'sd';
 type ScopeFilter = 'enabled' | 'missing-badges' | 'dead-only' | 'all-including-dead';
-type SortColumn = 'status' | 'name' | 'quality' | 'fps' | 'video_codec' | 'audio_channels' | 'latency_ms';
+type SortColumn = 'status' | 'name' | 'quality' | 'fps' | 'video_codec' | 'audio_channels' | 'video_bitrate' | 'audio_bitrate' | 'latency_ms';
 type SortDirection = 'asc' | 'desc';
 
 function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
@@ -83,7 +83,15 @@ export function ChannelProbeModal({
   const [timeoutSecs, setTimeoutSecs] = useState<number>(8);
   const [maxRetries, setMaxRetries] = useState<number>(3);
   const [autoSaveBadges, setAutoSaveBadges] = useState<boolean>(true);
+  const [measureBitrate, setMeasureBitrate] = useState<boolean>(() =>
+    localStorage.getItem('ynotv:probeMeasureBitrate') === 'true'
+  );
   const [ffmpegStatus, setFfmpegStatus] = useState<FfmpegStatus | null>(null);
+
+  // Persist the "Measure Bitrate" toggle so it survives relaunches
+  useEffect(() => {
+    localStorage.setItem('ynotv:probeMeasureBitrate', String(measureBitrate));
+  }, [measureBitrate]);
 
   // Scan state
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -324,6 +332,7 @@ export function ChannelProbeModal({
           concurrency,
           timeout_secs: timeoutSecs,
           max_retries: maxRetries,
+          measure_bitrate: measureBitrate,
           auto_save_badges: autoSaveBadges,
         },
         {
@@ -361,7 +370,7 @@ export function ChannelProbeModal({
       console.error('[ChannelProbeModal] Failed to launch probe:', err);
       setIsScanning(false);
     }
-  }, [channels, isScanning, sources, concurrency, timeoutSecs, maxRetries, autoSaveBadges]);
+  }, [channels, isScanning, sources, concurrency, timeoutSecs, maxRetries, autoSaveBadges, measureBitrate]);
 
   // Re-run probe on only dead/failing streams from the current scan
   const handleRerunDeadStreams = useCallback(async () => {
@@ -439,6 +448,7 @@ export function ChannelProbeModal({
           concurrency,
           timeout_secs: timeoutSecs,
           max_retries: maxRetries,
+          measure_bitrate: measureBitrate,
           auto_save_badges: autoSaveBadges,
         },
         {
@@ -476,7 +486,7 @@ export function ChannelProbeModal({
       console.error('[ChannelProbeModal] Failed to launch dead rerun:', err);
       setIsScanning(false);
     }
-  }, [results, channels, isScanning, sources, concurrency, timeoutSecs, maxRetries, autoSaveBadges]);
+  }, [results, channels, isScanning, sources, concurrency, timeoutSecs, maxRetries, autoSaveBadges, measureBitrate]);
 
   // Pause / Resume / Stop
   const handleTogglePause = useCallback(async () => {
@@ -558,7 +568,7 @@ export function ChannelProbeModal({
           }
         }
 
-        const probed = await probeSingleStream(streamUrl, userAgent, timeoutSecs);
+        const probed = await probeSingleStream(streamUrl, userAgent, timeoutSecs, measureBitrate);
         const updated: ProbeChannelResult = {
           ...result,
           ...probed,
@@ -581,7 +591,7 @@ export function ChannelProbeModal({
         setReprobingStreamId(null);
       }
     },
-    [sources, timeoutSecs, autoSaveBadges]
+    [sources, timeoutSecs, autoSaveBadges, measureBitrate]
   );
 
 
@@ -679,14 +689,16 @@ export function ChannelProbeModal({
           if (res?.canceled) return;
         }
       } else if (format === 'csv') {
-        const headers = ['Name', 'Status', 'Resolution', 'FPS', 'Video Codec', 'Audio Layout', 'Latency (ms)', 'Error', 'URL'];
+        const headers = ['Name', 'Status', 'Resolution', 'FPS', 'Video Codec', 'Video Bitrate (kbps)', 'Audio Layout', 'Audio Bitrate (kbps)', 'Latency (ms)', 'Error', 'URL'];
         const rows = results.map((r) => [
           `"${(r.name || '').replace(/"/g, '""')}"`,
           r.status,
           r.quality_label || r.resolution || '',
           r.fps || '',
           r.video_codec || '',
+          r.video_bitrate_kbps ?? '',
           r.audio_channels || '',
+          r.audio_bitrate_kbps ?? '',
           r.latency_ms ?? '',
           `"${(r.error_reason || '').replace(/"/g, '""')}"`,
           `"${(r.url || '').replace(/"/g, '""')}"`,
@@ -882,7 +894,10 @@ export function ChannelProbeModal({
         const matchCat = (r.category_name || '').toLowerCase().includes(q);
         const matchRes = (r.quality_label || r.resolution || '').toLowerCase().includes(q);
         const matchCodec = (r.video_codec || '').toLowerCase().includes(q);
-        if (!matchName && !matchCat && !matchRes && !matchCodec) return false;
+        const matchBitrate =
+          (r.video_bitrate_kbps ? String(Math.round(r.video_bitrate_kbps)) : '').includes(q) ||
+          (r.audio_bitrate_kbps ? String(Math.round(r.audio_bitrate_kbps)) : '').includes(q);
+        if (!matchName && !matchCat && !matchRes && !matchCodec && !matchBitrate) return false;
       }
 
       return true;
@@ -945,6 +960,14 @@ export function ChannelProbeModal({
         case 'audio_channels':
           valA = (a.audio_channels || '').toLowerCase();
           valB = (b.audio_channels || '').toLowerCase();
+          break;
+        case 'video_bitrate':
+          valA = a.video_bitrate_kbps ?? -1;
+          valB = b.video_bitrate_kbps ?? -1;
+          break;
+        case 'audio_bitrate':
+          valA = a.audio_bitrate_kbps ?? -1;
+          valB = b.audio_bitrate_kbps ?? -1;
           break;
         case 'latency_ms':
           valA = a.latency_ms ?? 999999;
@@ -1289,6 +1312,16 @@ export function ChannelProbeModal({
                 {t('autoSaveBadges')}
               </label>
 
+              <label className="cpm-option-item" title={t('measureBitrateTitle')}>
+                <input
+                  type="checkbox"
+                  checked={measureBitrate}
+                  disabled={!ffmpegStatus?.available}
+                  onChange={(e) => setMeasureBitrate(e.target.checked)}
+                />
+                {t('measureBitrate')}
+              </label>
+
               <div
                 className="cpm-slider-item"
                 title={concurrency > 1 ? t('concurrencyWarning') : t('concurrencySafe')}
@@ -1553,6 +1586,18 @@ export function ChannelProbeModal({
                         <SortIcon active={sortColumn === 'audio_channels'} direction={sortDirection} />
                       </div>
                     </th>
+                    <th className="cpm-th-sortable" onClick={() => handleSort('video_bitrate')} style={{ width: '80px' }}>
+                      <div className="cpm-th-content">
+                        <span>{t('colVideoBitrate')}</span>
+                        <SortIcon active={sortColumn === 'video_bitrate'} direction={sortDirection} />
+                      </div>
+                    </th>
+                    <th className="cpm-th-sortable" onClick={() => handleSort('audio_bitrate')} style={{ width: '80px' }}>
+                      <div className="cpm-th-content">
+                        <span>{t('colAudioBitrate')}</span>
+                        <SortIcon active={sortColumn === 'audio_bitrate'} direction={sortDirection} />
+                      </div>
+                    </th>
                     <th className="cpm-th-sortable" onClick={() => handleSort('latency_ms')} style={{ width: '85px' }}>
                       <div className="cpm-th-content">
                         <span>{t('colLatency')}</span>
@@ -1616,8 +1661,26 @@ export function ChannelProbeModal({
                           )}
                         </td>
                         <td>
-                          {res.audio_channels ? (
-                            <span>{res.audio_channels}</span>
+                          {res.audio_codec || res.audio_channels ? (
+                            <span>
+                              {res.audio_codec ? res.audio_codec : ''}
+                              {res.audio_codec && res.audio_channels ? ' · ' : ''}
+                              {res.audio_channels ? res.audio_channels : ''}
+                            </span>
+                          ) : (
+                            <span className="cpm-badge-muted">-</span>
+                          )}
+                        </td>
+                        <td>
+                          {res.video_bitrate_kbps ? (
+                            <span>{t('kbpsValue', { count: Math.round(res.video_bitrate_kbps) })}</span>
+                          ) : (
+                            <span className="cpm-badge-muted">-</span>
+                          )}
+                        </td>
+                        <td>
+                          {res.audio_bitrate_kbps ? (
+                            <span>{t('kbpsValue', { count: Math.round(res.audio_bitrate_kbps) })}</span>
                           ) : (
                             <span className="cpm-badge-muted">-</span>
                           )}
