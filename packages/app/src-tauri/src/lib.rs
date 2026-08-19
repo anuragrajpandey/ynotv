@@ -4537,8 +4537,14 @@ pub fn run() {
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     // If minimize-to-tray is enabled, hide instead of closing so
                     // playback/recordings can keep running in the background.
+                    // Check the in-memory flag (seeded by the frontend on startup
+                    // and on toggle) AND the persisted setting as a fallback, so
+                    // close-to-tray works even if the frontend handshake missed.
                     #[cfg(desktop)]
-                    if tray::minimize_to_tray_enabled(&window.app_handle()) {
+                    if tray::minimize_to_tray_enabled(&window.app_handle())
+                        || tray::minimize_to_tray_from_store(&window.app_handle())
+                    {
+                        info!("[Tray] Minimize-to-tray enabled; hiding window instead of closing.");
                         api.prevent_close();
                         let _ = window.hide();
                         return;

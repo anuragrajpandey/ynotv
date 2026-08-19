@@ -4040,9 +4040,13 @@ function useTmdbPresencePoster(
         const settings = result.data || {};
 
         // Seed the Rust minimize-to-tray flag so close-to-tray works before the
-        // user ever opens Settings in this session.
+        // user ever opens Settings in this session. (The Rust close handler also
+        // reads the persisted setting directly as a fallback, so a failure here
+        // is logged rather than silently breaking close-to-tray.)
         if (typeof settings.minimizeToTray === 'boolean') {
-          invoke('set_minimize_to_tray', { enabled: settings.minimizeToTray }).catch(() => {});
+          invoke('set_minimize_to_tray', { enabled: settings.minimizeToTray }).catch((err) =>
+            console.warn('[Tray] Failed to seed minimize-to-tray flag on startup:', err)
+          );
         }
 
         const requestedWidth = settings.startupWidth || 1920;

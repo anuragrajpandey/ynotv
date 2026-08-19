@@ -61,6 +61,20 @@ export async function initAppCloseListener() {
         const appWindow = getCurrentWindow();
         appCloseListenerUnlisten = await appWindow.onCloseRequested(async (event) => {
             console.log('[Bridge] Close requested - calling save callbacks');
+            // Minimize-to-tray: when the Rust side decides to hide the window to
+            // the tray, the JS onCloseRequested wrapper would otherwise destroy()
+            // the window right after this callback (it only skips destroy when
+            // preventDefault() was called). Read the persisted setting so the
+            // window survives and playback/recordings keep running.
+            try {
+                const s = await getStore();
+                const settings = (await s.get('settings')) as Record<string, any> | null;
+                if (settings?.minimizeToTray === true) {
+                    event.preventDefault();
+                }
+            } catch (err) {
+                console.error('[Bridge] Failed to read minimizeToTray on close:', err);
+            }
             if (onAppCloseCallback) {
                 try {
                     await onAppCloseCallback();
