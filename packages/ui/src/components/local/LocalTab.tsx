@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { VirtuosoGrid } from 'react-virtuoso';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import type { IdentifyResolution, LocalEntry, LocalGroup, LocalSortKey, ScannedFile, SortDir } from '../../services/local-library/types';
+import type { FolderType, IdentifyResolution, LocalEntry, LocalGroup, LocalSortKey, ScannedFile, SortDir } from '../../services/local-library/types';
 import {
   addLocalEntries,
   groupLocal,
@@ -16,11 +16,20 @@ import {
   useLocalLibrary,
   localEntryToVodPlayInfo,
   addScannedFolder,
+  findScannedFolder,
   ensureLocalLibraryLoaded,
   persistLocalEntryIncremental,
+  hasUndo,
+  onUndoChange,
+  undoLocalChange,
 } from '../../services/local-library/local-library';
 import { countNfoFor, clearSidecarCache } from '../../services/local-library/sidecars';
-import { buildNfoEntry, buildTmdbEntry } from '../../services/local-library/scan';
+import {
+  buildNfoEntryForFolder,
+  buildTmdbEntry,
+  buildTmdbEntryForFolder,
+  clearTmdbMatchCache,
+} from '../../services/local-library/scan';
 import {
   readScanStateSync,
   loadScanState,
@@ -40,7 +49,7 @@ import { LocalEpisodesModal } from './LocalEpisodesModal';
 import { LocalDetail } from './LocalDetail';
 import { LocalFoldersModal } from './LocalFoldersModal';
 import { IdentifyModal } from './IdentifyModal';
-import { BatchMatchModal } from './BatchMatchModal';
+import { ReviewUnmatchedModal } from './ReviewUnmatchedModal';
 import { ScanModeModal, type ScanMode } from './ScanModeModal';
 import type { VodPlayInfo } from '../../types/media';
 import './LocalTab.css';
@@ -216,12 +225,19 @@ export function LocalTab({
   const [pendingScanFiles, setPendingScanFiles] = useState<ScannedFile[] | null>(null);
   const [pendingNfoCount, setPendingNfoCount] = useState<number>(0);
   const [pendingFolderPath, setPendingFolderPath] = useState<string | null>(null);
+  const [pendingFolderType, setPendingFolderType] = useState<FolderType | undefined>(undefined);
   const [scanModalOpen, setScanModalOpen] = useState(false);
   const [foldersModalOpen, setFoldersModalOpen] = useState(false);
 
   // Modals / Details state
   const [identifyTarget, setIdentifyTarget] = useState<LocalEntry[] | null>(null);
-  const [batchMatchTargets, setBatchMatchTargets] = useState<LocalEntry[] | null>(null);
+  const [reviewTargets, setReviewTargets] = useState<LocalGroup[] | null>(null);
+  // Queue of entry-lists to identify one after another (used when the user
+  // picks several review groups to match at once).
+  const identifyQueueRef = useRef<LocalEntry[][] | null>(null);
+  // True between a successful identify resolve and its following onClose, so
+  // the close handler knows not to wipe the next queued target.
+  const resolvingRef = useRef(false);
   const [episodesModalTarget, setEpisodesModalTarget] = useState<{ head: LocalEntry; episodes: LocalEntry[] } | null>(null);
   const [selectedDetailGroup, setSelectedDetailGroup] = useState<LocalGroup | null>(null);
 
@@ -230,6 +246,29 @@ export function LocalTab({
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  }, []);
+
+  // Undo toast: appears after a user-initiated edit/removal and lets them
+  // revert it. Auto-dismisses; background changes (auto-sync, rescan, imports)
+  // never trigger it.
+  const [undoVisible, setUndoVisible] = useState(false);
+  const undoHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleUndoChange = useCallback(() => {
+    setUndoVisible(true);
+    if (undoHideTimerRef.current) clearTimeout(undoHideTimerRef.current);
+    undoHideTimerRef.current = setTimeout(() => setUndoVisible(false), 7000);
+  }, []);
+  useEffect(() => {
+    const off = onUndoChange(handleUndoChange);
+    return () => {
+      off();
+      if (undoHideTimerRef.current) clearTimeout(undoHideTimerRef.current);
+    };
+  }, [handleUndoChange]);
+
+  const handleUndo = useCallback(() => {
+    undoLocalChange();
+    setUndoVisible(false);
   }, []);
 
   // Background folder sync on mount / interval
@@ -264,7 +303,7 @@ export function LocalTab({
         }
         const folders = readScannedFolders();
         const stillTracked = folders.some(
-          (f) => f.replace(/\\/g, '/').toLowerCase() === state.folderPath.replace(/\\/g, '/').toLowerCase(),
+          (f) => f.path.replace(/\\/g, '/').toLowerCase() === state.folderPath.replace(/\\/g, '/').toLowerCase(),
         );
         if (!stillTracked) {
           clearScanState();
@@ -283,7 +322,17 @@ export function LocalTab({
   // Counts
   const movieCount = useMemo(() => groups.filter((g) => g.kind === 'movie').length, [groups]);
   const seriesCount = useMemo(() => groups.filter((g) => g.kind === 'show').length, [groups]);
-  const needsReviewList = useMemo(() => items.filter((e) => e.needsReview), [items]);
+  // Review is per SERIES FOLDER, never per file: a show group is one review
+  // unit (all its episodes share the same folder-derived title and one TMDB
+  // lookup), so a 500-episode unmatched folder counts as a single item.
+  const reviewGroups = useMemo(() => {
+    return groups.filter((g) => {
+      if (g.kind === 'movie') {
+        return !!(g.entry.needsReview || (!g.entry.tmdbId && !g.entry.imdbId));
+      }
+      return g.episodes.some((e) => e.needsReview || (!e.tmdbId && !e.imdbId));
+    });
+  }, [groups]);
 
   // Keep selected detail group fresh if underlying items update
   const currentDetailGroup = useMemo(() => {
@@ -339,14 +388,22 @@ export function LocalTab({
     }
   }, [onOpenDetail]);
 
-  // Folder picking & scan initiation
-  const handleAddFolder = useCallback(async () => {
+  // Folder picking & scan initiation. `type` says whether the folder holds
+  // movies or structured series folders; it drives both the scan strategy and
+  // how the folder is stored.
+  const handleAddFolder = useCallback(async (type: FolderType = 'mixed') => {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
+      const dialogTitle =
+        type === 'show'
+          ? t('selectSeriesFolderDialogTitle', 'Select a folder of Series (each series in its own subfolder)')
+          : type === 'movie'
+            ? t('selectMovieFolderDialogTitle', 'Select a folder of Movies')
+            : t('selectFolderDialogTitle', 'Select Folder with Movies or Shows');
       const selected = await open({
         directory: true,
         multiple: false,
-        title: t('selectFolderDialogTitle', 'Select Folder with Movies or Shows'),
+        title: dialogTitle,
       });
       if (!selected || typeof selected !== 'string') return;
 
@@ -361,8 +418,9 @@ export function LocalTab({
         return;
       }
 
-      addScannedFolder(selected);
+      addScannedFolder(selected, type);
       setPendingFolderPath(selected);
+      setPendingFolderType(type);
 
       const nfos = await countNfoFor(files.map((f) => f.path));
       if (nfos > 0) {
@@ -371,7 +429,10 @@ export function LocalTab({
         setScanModalOpen(true);
         setWalking(false);
       } else {
-        await executeScan(files, 'tmdb', { folderPath: selected });
+        await executeScan(files, 'tmdb', { folderPath: selected, folderType: type });
+        // Clear the "walking" flag once the scan finishes so the Add buttons
+        // stop showing "Scanning...".
+        setWalking(false);
       }
     } catch (err: any) {
       console.error('[LocalTab] Folder scan failed:', err);
@@ -384,13 +445,15 @@ export function LocalTab({
     try {
       clearSidecarCache();
       await ensureLocalLibraryLoaded();
+      const folder = findScannedFolder(folderPath);
+      const folderType = folder?.type ?? 'mixed';
       const files = await invoke<ScannedFile[]>('scan_local_folder', { folder: folderPath });
       if (!files || files.length === 0) {
         showToast(t('noVideoFilesFound'));
         return;
       }
-      addScannedFolder(folderPath);
-      await executeScan(files, 'tmdb', { folderPath });
+      addScannedFolder(folderPath, folderType);
+      await executeScan(files, 'tmdb', { folderPath, folderType });
     } catch (err: any) {
       console.error('[LocalTab] Rescan failed:', err);
       showToast(err?.message || t('rescanFailed'));
@@ -479,6 +542,7 @@ export function LocalTab({
     files: ScannedFile[],
     mode: ScanMode,
     folderPath: string | null,
+    folderType?: FolderType,
     total = files.length,
     baseDone = 0,
   ) => {
@@ -532,8 +596,8 @@ export function LocalTab({
           try {
             const entry =
               mode === 'nfo'
-                ? await buildNfoEntry(file, info, tmdbToken, signal)
-                : await buildTmdbEntry(file, info, tmdbToken, signal);
+                ? await buildNfoEntryForFolder(file, folderType, folderPath, tmdbToken, signal)
+                : await buildTmdbEntryForFolder(file, folderType, folderPath, tmdbToken, signal);
             if (signal.aborted) return;
             built[idx] = entry;
             // Crash-safe checkpoint: persist each completed entry to SQLite as
@@ -583,6 +647,7 @@ export function LocalTab({
     setRateEta(null);
     setPendingScanFiles(null);
     setPendingFolderPath(null);
+    setPendingFolderType(undefined);
     showToast(
       signal.aborted
         ? t('scanCancelled', 'Scan cancelled. Already scanned items were kept.')
@@ -593,10 +658,17 @@ export function LocalTab({
   const executeScan = (
     files: ScannedFile[],
     mode: ScanMode,
-    opts?: { folderPath?: string | null; total?: number; baseDone?: number },
+    opts?: { folderPath?: string | null; folderType?: FolderType; total?: number; baseDone?: number },
   ): Promise<void> =>
     enqueueScan(() =>
-      runScan(files, mode, opts?.folderPath ?? null, opts?.total ?? files.length, opts?.baseDone ?? 0),
+      runScan(
+        files,
+        mode,
+        opts?.folderPath ?? null,
+        opts?.folderType,
+        opts?.total ?? files.length,
+        opts?.baseDone ?? 0,
+      ),
     );
 
   // Re-run TMDB matching only for entries that are still ambiguous/unmatched,
@@ -655,8 +727,9 @@ export function LocalTab({
     pausedRef.current = false;
     setPaused(false);
 
-    // Apply whatever completed before the cancel.
-    updateLocalEntries(Array.from(freshById.keys()), (entry) => freshById.get(entry.id) ?? {});
+    // Apply whatever completed before the cancel. noUndo: re-running TMDB
+    // matching over many titles isn't a single reversible user edit.
+    updateLocalEntries(Array.from(freshById.keys()), (entry) => freshById.get(entry.id) ?? {}, { noUndo: true });
     setRescanningMissing(false);
     setScanProgress(null);
     setRateEta(null);
@@ -730,9 +803,11 @@ export function LocalTab({
         clearScanFiles();
         return;
       }
-      addScannedFolder(target.folderPath);
+      const folderType = findScannedFolder(target.folderPath)?.type ?? 'mixed';
+      addScannedFolder(target.folderPath, folderType);
       await executeScan(files, 'tmdb', {
         folderPath: target.folderPath,
+        folderType,
         total,
         baseDone: total - files.length,
       });
@@ -750,12 +825,19 @@ export function LocalTab({
   const handleScanModePick = (mode: ScanMode) => {
     setScanModalOpen(false);
     if (pendingScanFiles) {
-      void executeScan(pendingScanFiles, mode, { folderPath: pendingFolderPath });
+      void executeScan(pendingScanFiles, mode, {
+        folderPath: pendingFolderPath,
+        folderType: pendingFolderType,
+      });
     }
   };
 
   // Identify resolution
   const handleIdentifyResolved = useCallback((ids: string[], resolution: IdentifyResolution) => {
+    resolvingRef.current = true;
+    // A manual fix overrides whatever TMDB matched — drop the per-title match
+    // cache so a later re-scan re-queries instead of resurrecting the old match.
+    clearTmdbMatchCache();
     updateLocalEntries(ids, (entry) => {
       const epInfo = extractEpisodeNumber(entry.filename);
       const epNum = entry.episode ?? epInfo?.episode ?? null;
@@ -775,6 +857,8 @@ export function LocalTab({
         season: resolution.type === 'show' ? seasonNum : null,
         episode: resolution.type === 'show' ? epNum : null,
         needsReview: false,
+        // Manual match — freeze it so a re-scan can't overwrite it.
+        metadataLocked: true,
       };
     });
     setSelectedIds(new Set());
@@ -784,7 +868,25 @@ export function LocalTab({
         ? t('matchedFilesAs', { count: ids.length, title: resolution.title })
         : t('matchUpdated')
     );
+
+    // If the user selected several review groups to match, advance to the next
+    // one now that this group is resolved; otherwise close the modal.
+    const q = identifyQueueRef.current;
+    if (q && q.length > 0) {
+      identifyQueueRef.current = q.slice(1);
+      setIdentifyTarget(q[0]);
+    } else {
+      identifyQueueRef.current = null;
+      setIdentifyTarget(null);
+    }
   }, [showToast, t]);
+
+  // Match one or more review groups: identify each series/movie one at a time.
+  const openReviewMatch = useCallback((groups: LocalGroup[]) => {
+    const lists = groups.map((g) => (g.kind === 'movie' ? [g.entry] : g.episodes));
+    identifyQueueRef.current = lists.length > 1 ? lists.slice(1) : null;
+    setIdentifyTarget(lists[0] ?? null);
+  }, []);
 
   // Selection handlers
   const handleToggleSelectId = useCallback((id: string) => {
@@ -843,6 +945,11 @@ export function LocalTab({
     }
     showToast(t('markedItemsWatched', { count: selectedItems.length }));
   }, [selectedIds, items, showToast, t]);
+
+  // Effective filter (locked to a tab when opened from elsewhere) — drives
+  // which Add button is shown: Movies tab shows only "Add Movies", Series
+  // tab only "Add Series".
+  const effFilter = lockFilter ? initialFilter : activeFilter;
 
   // Memoized context for the virtualized grid — only the visible items
   // re-render when this changes (selection, handlers), not the whole list.
@@ -990,34 +1097,52 @@ export function LocalTab({
             </button>
           )}
 
-          {/* Add Folder Button */}
-          <button
-            type="button"
-            className="local-btn local-btn--primary"
-            onClick={handleAddFolder}
-            disabled={walking}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              <line x1="12" y1="11" x2="12" y2="17" />
-              <line x1="9" y1="14" x2="15" y2="14" />
-            </svg>
-            {scanning || walking ? t('scanning', 'Scanning...') : t('addFolder', 'Add folder')}
-          </button>
+          {/* Add Folder Buttons — only the type matching the active tab */}
+          <div className="local-add-folder-group">
+            {effFilter !== 'series' && (
+              <button
+                type="button"
+                className="local-btn local-btn--primary"
+                onClick={() => void handleAddFolder('movie')}
+                disabled={walking}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  <line x1="12" y1="11" x2="12" y2="17" />
+                  <line x1="9" y1="14" x2="15" y2="14" />
+                </svg>
+                {scanning || walking ? t('scanning', 'Scanning...') : t('addMovies', 'Add Movies')}
+              </button>
+            )}
+            {effFilter !== 'movies' && (
+              <button
+                type="button"
+                className="local-btn local-btn--primary"
+                onClick={() => void handleAddFolder('show')}
+                disabled={walking}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  <line x1="12" y1="11" x2="12" y2="17" />
+                  <line x1="9" y1="14" x2="15" y2="14" />
+                </svg>
+                {scanning || walking ? t('scanning', 'Scanning...') : t('addSeries', 'Add Series')}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Needs Review Alert Banner */}
-      {needsReviewList.length > 0 && !selectMode && (
+      {/* Needs Review Alert Banner — one unit per unmatched series/movie */}
+      {reviewGroups.length > 0 && !selectMode && (
         <div className="local-review-banner">
           <div
             className="local-review-banner__left"
             onClick={() => {
-              const first = needsReviewList[0];
-              const matchingEpisodes = items.filter(
-                (i) => i.type === 'show' && i.title === first.title,
-              );
-              setIdentifyTarget(matchingEpisodes.length > 0 ? matchingEpisodes : [first]);
+              const first = reviewGroups[0];
+              if (!first) return;
+              identifyQueueRef.current = null;
+              setIdentifyTarget(first.kind === 'movie' ? [first.entry] : first.episodes);
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1027,26 +1152,25 @@ export function LocalTab({
             </svg>
             <span className="local-review-banner__text">
               {t('needsReviewBanner', '{{count}} titles need review — help us identify them.', {
-                count: needsReviewList.length,
+                count: reviewGroups.length,
               })}
             </span>
           </div>
 
           <div className="local-review-banner__actions">
-            {needsReviewList.length > 1 && (
+            {reviewGroups.length > 1 && (
               <button
                 type="button"
                 className="local-review-banner__btn local-review-banner__btn--batch"
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Open a checkbox selection first so the user picks exactly
-                  // which unmatched files to match into one series, instead of
-                  // batching the entire needs-review list.
-                  setBatchMatchTargets(needsReviewList);
+                  // Open the review list (grouped per series folder) so the
+                  // user can pick which unmatched series to match or remove.
+                  setReviewTargets(reviewGroups);
                 }}
-                title={t('batchReviewAll', 'Choose which files to batch match into one series')}
+                title={t('batchReviewAll', 'Review and manage unmatched items')}
               >
-                {t('batchReview', 'Batch Match Series')}
+                {t('batchReview', 'Review Unmatched')}
               </button>
             )}
             <button
@@ -1054,11 +1178,10 @@ export function LocalTab({
               className="local-review-banner__btn"
               onClick={(e) => {
                 e.stopPropagation();
-                const first = needsReviewList[0];
-                const matchingEpisodes = items.filter(
-                  (i) => i.type === 'show' && i.title === first.title,
-                );
-                setIdentifyTarget(matchingEpisodes.length > 0 ? matchingEpisodes : [first]);
+                const first = reviewGroups[0];
+                if (!first) return;
+                identifyQueueRef.current = null;
+                setIdentifyTarget(first.kind === 'movie' ? [first.entry] : first.episodes);
               }}
             >
               {t('review', 'Review')}
@@ -1243,19 +1366,36 @@ export function LocalTab({
             {t('emptyLocalTitle', 'Add files from your computer')}
           </h3>
           <p className="local-empty-state__desc">
-            {t('emptyLocalDesc', 'Point ynoTV at a folder. We scan it for movies and shows, parse titles from filenames, and enrich them with TMDB so they look the same as everything else here. We just remember the path; nothing is copied or moved.')}
+            {t('emptyLocalDesc', 'Point ynoTV at a folder. Add a Movies folder for films, or a Series folder laid out as one subfolder per show (with optional Season subfolders). We parse titles and enrich them with TMDB so they look the same as everything else here. We just remember the path; nothing is copied or moved.')}
           </p>
-          <button
-            type="button"
-            className="local-btn local-btn--primary"
-            style={{ padding: '0 24px', height: '42px', fontSize: '13.5px' }}
-            onClick={handleAddFolder}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-            {t('chooseFolder', 'Choose folder')}
-          </button>
+          <div className="local-empty-state__actions">
+            {effFilter !== 'series' && (
+              <button
+                type="button"
+                className="local-btn local-btn--primary"
+                style={{ padding: '0 24px', height: '42px', fontSize: '13.5px' }}
+                onClick={() => void handleAddFolder('movie')}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+                {t('chooseMovieFolder', 'Add Movies folder')}
+              </button>
+            )}
+            {effFilter !== 'movies' && (
+              <button
+                type="button"
+                className="local-btn local-btn--primary"
+                style={{ padding: '0 24px', height: '42px', fontSize: '13.5px' }}
+                onClick={() => void handleAddFolder('show')}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+                {t('chooseSeriesFolder', 'Add Series folder')}
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <VirtuosoGrid
@@ -1289,14 +1429,19 @@ export function LocalTab({
         />
       )}
 
-      {/* Batch match file selection modal */}
-      {batchMatchTargets && (
-        <BatchMatchModal
-          items={batchMatchTargets}
-          onClose={() => setBatchMatchTargets(null)}
-          onConfirm={(selected) => {
-            setBatchMatchTargets(null);
-            setIdentifyTarget(selected);
+      {/* Review unmatched items modal (per-series rows, match or remove) */}
+      {reviewTargets && (
+        <ReviewUnmatchedModal
+          groups={reviewTargets}
+          onClose={() => setReviewTargets(null)}
+          onMatch={(selected) => {
+            setReviewTargets(null);
+            openReviewMatch(selected);
+          }}
+          onRemove={(ids) => {
+            removeLocalEntries(ids);
+            setReviewTargets(null);
+            showToast(t('removedSelectedItems', 'Removed selected items'));
           }}
         />
       )}
@@ -1305,7 +1450,17 @@ export function LocalTab({
       {identifyTarget && (
         <IdentifyModal
           target={identifyTarget}
-          onClose={() => setIdentifyTarget(null)}
+          onClose={() => {
+            if (resolvingRef.current) {
+              // Close right after a successful resolve: the next queued group
+              // (or null) was already set — don't clobber it.
+              resolvingRef.current = false;
+              return;
+            }
+            // Cancelling mid-queue discards the remaining review groups.
+            identifyQueueRef.current = null;
+            setIdentifyTarget(null);
+          }}
           onResolved={handleIdentifyResolved}
         />
       )}
@@ -1319,6 +1474,7 @@ export function LocalTab({
           setScanModalOpen(false);
           setPendingScanFiles(null);
           setPendingFolderPath(null);
+          setPendingFolderType(undefined);
         }}
       />
 
@@ -1327,9 +1483,9 @@ export function LocalTab({
         isOpen={foldersModalOpen}
         onClose={() => setFoldersModalOpen(false)}
         onRescanFolder={handleRescanSpecificFolder}
-        onAddNewFolder={async () => {
+        onAddNewFolder={async (type) => {
           setFoldersModalOpen(false);
-          await handleAddFolder();
+          await handleAddFolder(type);
         }}
       />
 
@@ -1346,6 +1502,37 @@ export function LocalTab({
             showToast(t('itemRemoved'));
           }}
         />
+      )}
+
+      {/* Undo bar — appears after a user edit/removal */}
+      {undoVisible && hasUndo() && (
+        <div className="local-undo-bar">
+          <span className="local-undo-bar__text">
+            {t('undoToastText', 'Change made — undo it?')}
+          </span>
+          <button
+            type="button"
+            className="local-undo-bar__btn"
+            onClick={handleUndo}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '5px' }}>
+              <path d="M3 7v6h6" />
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+            </svg>
+            {t('undoToastAction', 'Undo')}
+          </button>
+          <button
+            type="button"
+            className="local-undo-bar__dismiss"
+            onClick={() => setUndoVisible(false)}
+            title={t('dismiss', 'Dismiss')}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
       )}
 
       {/* Toast Notification */}

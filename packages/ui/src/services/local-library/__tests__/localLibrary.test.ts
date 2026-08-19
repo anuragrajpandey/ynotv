@@ -32,8 +32,8 @@ describe('Local Library - Filename Parser', () => {
   });
 
   it('parses TV show filenames with Season 1 Episode 2 format', () => {
-    const res = parseFilename('Stranger Things Season 1 Episode 3 2160p UHD.mkv');
-    expect(res.title).toBe('Stranger Things');
+    const res = parseFilename('Neon Harbor Season 1 Episode 3 2160p UHD.mkv');
+    expect(res.title).toBe('Neon Harbor');
     expect(res.type).toBe('show');
     expect(res.season).toBe(1);
     expect(res.episode).toBe(3);
@@ -115,6 +115,110 @@ describe('Local Library - Grouping & Sorting', () => {
     const sortedAsc = sortGroups(groups, 'rating', 'asc');
     expect(sortedAsc[0].kind === 'movie' ? sortedAsc[0].entry.title : sortedAsc[0].head.title).toBe('Avatar');
   });
+
+  it('collapses all unmatched episodes of a series folder into ONE review group', () => {
+    // A failed series-folder scan marks every episode needsReview with the
+    // same folder-derived title — so 500 episodes of one show must count as a
+    // single review unit, not 500 files.
+    const entries: LocalEntry[] = [];
+    for (let i = 1; i <= 500; i++) {
+      entries.push({
+        id: `a-${i}`,
+        path: `T:/Series/Night.Shift/Night.Shift.S01E${String(i).padStart(2, '0')}.mkv`,
+        filename: `Night.Shift.S01E${String(i).padStart(2, '0')}.mkv`,
+        title: 'Night Shift',
+        year: null,
+        type: 'show',
+        season: 1,
+        episode: i,
+        addedAt: i,
+        needsReview: true,
+      });
+    }
+    for (let i = 1; i <= 16; i++) {
+      entries.push({
+        id: `q-${i}`,
+        path: `T:/Series/Starlit Cove/Starlit.Cove.S01E${String(i).padStart(2, '0')}.mkv`,
+        filename: `Starlit.Cove.S01E${String(i).padStart(2, '0')}.mkv`,
+        title: 'Starlit Cove',
+        year: null,
+        type: 'show',
+        season: 1,
+        episode: i,
+        addedAt: 1000 + i,
+        needsReview: true,
+      });
+    }
+
+    const groups = groupLocal(entries);
+    // Two series folders -> exactly two review units, regardless of 516 files.
+    expect(groups).toHaveLength(2);
+    const showGroups = groups.filter((g) => g.kind === 'show');
+    expect(showGroups).toHaveLength(2);
+    if (showGroups[0].kind === 'show' && showGroups[1].kind === 'show') {
+      const titles = [showGroups[0].head.title, showGroups[1].head.title].sort();
+      expect(titles).toEqual(['Night Shift', 'Starlit Cove']);
+      expect(showGroups[0].episodes.length + showGroups[1].episodes.length).toBe(516);
+      // Every episode in each group is a review item.
+      expect(showGroups.every((g) => g.episodes.every((e) => e.needsReview))).toBe(true);
+    }
+  });
+
+  it('merges episodes from two separate folders of the same show into one series, in the right seasons', () => {
+    // Folder A holds Season 1, Folder B holds Season 2 — both matched to the
+    // same TMDB series (same tmdbId), with season/episode from the filenames.
+    const entries: LocalEntry[] = [
+      {
+        id: 'A/S01E01.mkv',
+        path: 'T:/Shows/Neon Harbor/Season 1/Neon.Harbor.S01E01.mkv',
+        filename: 'Neon.Harbor.S01E01.mkv',
+        title: 'Neon Harbor',
+        year: 2016,
+        type: 'show',
+        season: 1,
+        episode: 1,
+        tmdbId: 66732,
+        addedAt: 1000,
+      },
+      {
+        id: 'A/S01E02.mkv',
+        path: 'T:/Shows/Neon Harbor/Season 1/Neon.Harbor.S01E02.mkv',
+        filename: 'Neon.Harbor.S01E02.mkv',
+        title: 'Neon Harbor',
+        year: 2016,
+        type: 'show',
+        season: 1,
+        episode: 2,
+        tmdbId: 66732,
+        addedAt: 2000,
+      },
+      {
+        id: 'B/S02E01.mkv',
+        path: 'U:/More Shows/Neon Harbor/Season 2/Neon.Harbor.S02E01.mkv',
+        filename: 'Neon.Harbor.S02E01.mkv',
+        title: 'Neon Harbor',
+        year: 2016,
+        type: 'show',
+        season: 2,
+        episode: 1,
+        tmdbId: 66732,
+        addedAt: 3000,
+      },
+    ];
+
+    const groups = groupLocal(entries);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].kind).toBe('show');
+    if (groups[0].kind === 'show') {
+      expect(groups[0].episodes).toHaveLength(3);
+      // Sorted by season then episode regardless of add order / folder.
+      expect(groups[0].episodes.map((e) => `${e.season}:${e.episode}`)).toEqual([
+        '1:1',
+        '1:2',
+        '2:1',
+      ]);
+    }
+  });
 });
 
 describe('Local Library - NFO Parser', () => {
@@ -159,16 +263,18 @@ describe('Local Library - NFO Parser', () => {
 });
 
 describe('Local Library - Folder Management', () => {
-  it('adds and removes scanned folders properly', async () => {
+  it('adds typed folders and removes them properly', async () => {
     const { addScannedFolder, readScannedFolders, removeScannedFolder, addLocalEntries, readLocalLibrary } = await import('../local-library');
 
-    addScannedFolder('C:/Media/Movies');
-    expect(readScannedFolders()).toContain('C:/Media/Movies');
+    addScannedFolder('T:/Media/Movies', 'movie');
+    addScannedFolder('T:/Media/TV', 'show');
+    expect(readScannedFolders().some((f) => f.path === 'T:/Media/Movies' && f.type === 'movie')).toBe(true);
+    expect(readScannedFolders().some((f) => f.path === 'T:/Media/TV' && f.type === 'show')).toBe(true);
 
     addLocalEntries([
       {
-        id: 'C:/Media/Movies/Alien.1979.mkv',
-        path: 'C:/Media/Movies/Alien.1979.mkv',
+        id: 'T:/Media/Movies/Alien.1979.mkv',
+        path: 'T:/Media/Movies/Alien.1979.mkv',
         filename: 'Alien.1979.mkv',
         title: 'Alien',
         year: 1979,
@@ -178,16 +284,170 @@ describe('Local Library - Folder Management', () => {
     ]);
     expect(readLocalLibrary().some((e) => e.title === 'Alien')).toBe(true);
 
-    removeScannedFolder('C:/Media/Movies');
-    expect(readScannedFolders()).not.toContain('C:/Media/Movies');
+    removeScannedFolder('T:/Media/Movies');
+    expect(readScannedFolders().some((f) => f.path === 'T:/Media/Movies')).toBe(false);
     expect(readLocalLibrary().some((e) => e.title === 'Alien')).toBe(false);
+  });
+
+  it('defaults legacy folders to mixed type', async () => {
+    const { addScannedFolder, readScannedFolders } = await import('../local-library');
+    addScannedFolder('T:/Legacy');
+    const folder = readScannedFolders().find((f) => f.path === 'T:/Legacy');
+    expect(folder?.type).toBe('mixed');
+  });
+});
+
+describe('Local Library - Series Path Parsing', () => {
+  it('parses a series folder with Season subfolders', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    const info = parseSeriesPath(
+      'T:/TV/Breaking Bad/Season 2/Breaking.Bad.S02E03.mkv',
+      'T:/TV',
+    );
+    expect(info).toEqual({
+      title: 'Breaking Bad',
+      year: null,
+      season: 2,
+      episode: 3,
+      resolution: null,
+    });
+  });
+
+  it('parses flat episodes inside a series folder', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    const info = parseSeriesPath(
+      'T:/TV/The Office US/The.Office.US.S01E01.1080p.mkv',
+      'T:/TV',
+    );
+    expect(info?.title).toBe('The Office US');
+    expect(info?.season).toBe(1);
+    expect(info?.episode).toBe(1);
+    expect(info?.resolution).toBe('1080p');
+  });
+
+  it('handles a single series folder as the scan root', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    // Root itself is a series with Season subfolders.
+    const nested = parseSeriesPath(
+      'T:/TV/Severance/Season 1/Severance.S01E02.mkv',
+      'T:/TV/Severance',
+    );
+    expect(nested?.title).toBe('Severance');
+    expect(nested?.season).toBe(1);
+    expect(nested?.episode).toBe(2);
+
+    // Root itself is a series with flat episodes.
+    const flat = parseSeriesPath('T:/TV/Severance/Severance.S01E01.mkv', 'T:/TV/Severance');
+    expect(flat?.title).toBe('Severance');
+    expect(flat?.season).toBe(1);
+    expect(flat?.episode).toBe(1);
+  });
+
+  it('extracts a trailing year from the series folder name', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    const info = parseSeriesPath(
+      'T:/TV/Breaking Bad (2008)/Season 1/Breaking.Bad.S01E01.mkv',
+      'T:/TV',
+    );
+    expect(info?.title).toBe('Breaking Bad');
+    expect(info?.year).toBe(2008);
+  });
+
+  it('maps Specials subfolders to season 0', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    const info = parseSeriesPath(
+      'T:/TV/Show/Specials/Show.S00E01.mkv',
+      'T:/TV',
+    );
+    expect(info?.season).toBe(0);
+  });
+
+  it('strips release metadata from release-style folder names', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    const info = parseSeriesPath(
+      'T:/Series/Night.Shift.S01.1080p.DSNP.WEB-DL.DDP5.1.H.264-APEX/Night.Shift.S01E01.mkv',
+      'T:/Series',
+    );
+    expect(info?.title).toBe('Night Shift');
+    expect(info?.season).toBe(1);
+    expect(info?.episode).toBe(1);
+  });
+
+  it('extracts a mid-name year and strips codecs from release-style folders', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    const info = parseSeriesPath(
+      'T:/Series/Ember.2026.S01.1080p.WEB-DL.AAC2.0.H.264-MrHulk/Ember.S01E01.mkv',
+      'T:/Series',
+    );
+    expect(info?.title).toBe('Ember');
+    expect(info?.year).toBe(2026);
+  });
+
+  it('strips leading bracket tags and release groups', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    const info = parseSeriesPath(
+      'T:/Series/[SBS] The.Outsider.2012.S01.1080p.WEB-DL.H264.AAC-AppleTor/The.Outsider.S01E01.mkv',
+      'T:/Series',
+    );
+    expect(info?.title).toBe('The Outsider');
+    expect(info?.year).toBe(2012);
+  });
+
+  it('detects per-season release subfolders via Sxx in the path', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    const info = parseSeriesPath(
+      'T:/Series/Night Owl Bar/Night.Owl.Bar.S01.1080.AMZN.WEB-DL.DDP2.0.H.264-GBK/Night.Owl.Bar.S01E01.mkv',
+      'T:/Series',
+    );
+    expect(info?.title).toBe('Night Owl Bar');
+    expect(info?.season).toBe(1);
+  });
+
+  it('keeps clean names untouched', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    const info = parseSeriesPath(
+      'T:/Series/Starlit Cove/Season 1/Starlit.Cove.S01E01.mkv',
+      'T:/Series',
+    );
+    expect(info?.title).toBe('Starlit Cove');
+    expect(info?.season).toBe(1);
+  });
+
+  it('cuts a release-style folder name at the season marker', async () => {
+    const { parseSeriesPath } = await import('../scan');
+    const info = parseSeriesPath(
+      'T:/Series/Silver.Harbor.2024.S01.1080p.VIKI.WEB-DL.AAC2.0.H.264-GROUP/Silver.Harbor.S01E01.mkv',
+      'T:/Series',
+    );
+    expect(info?.title).toBe('Silver Harbor');
+    expect(info?.year).toBe(2024);
+    expect(info?.season).toBe(1);
+    expect(info?.episode).toBe(1);
+  });
+
+  it('keeps CJK titles and strips the rest of a release folder name', async () => {
+    const { parseTitleFolder } = await import('../scan');
+    expect(parseTitleFolder('明月.Bright.Moon.S01.2024.2160p.IQ.WEB-DL.H265.DDP5.1-GROUP')).toEqual({
+      title: '明月 Bright Moon',
+      year: 2024,
+    });
+  });
+
+  it('does not truncate hyphenated English titles', async () => {
+    const { parseTitleFolder } = await import('../scan');
+    expect(parseTitleFolder('Wild-Flower 2023')).toEqual({ title: 'Wild Flower', year: 2023 });
+  });
+
+  it('leaves a plain title folder untouched', async () => {
+    const { parseTitleFolder } = await import('../scan');
+    expect(parseTitleFolder('Lakeside')).toEqual({ title: 'Lakeside', year: null });
   });
 });
 
 describe('Local Library - Episode Navigation', () => {
   const ep = (id: string, season: number, episode: number): LocalEntry => ({
     id,
-    path: `Z:/Media/Show/S${season}E${episode}.mkv`,
+    path: `T:/Media/Show/S${season}E${episode}.mkv`,
     filename: `S${season}E${episode}.mkv`,
     title: 'Show',
     year: 2020,
@@ -215,6 +475,72 @@ describe('Local Library - Episode Navigation', () => {
     expect(getLocalEpisodeList('does-not-exist')).toBeNull();
     addLocalEntries([{ ...ep('m1', 1, 1), id: 'm1', type: 'movie', season: null, episode: null }]);
     expect(getLocalEpisodeList('m1')).toBeNull();
+  });
+});
+
+describe('Local Library - Undo & Locked Overrides', () => {
+  it('undo restores removed entries', async () => {
+    const { addLocalEntries, removeLocalEntries, readLocalLibrary, undoLocalChange, hasUndo } = await import('../local-library');
+    addLocalEntries([{
+      id: 'u1', path: 'T:/movie1.mkv', filename: 'movie1.mkv', title: 'Movie 1', year: 2020, type: 'movie', addedAt: 1,
+    }]);
+    expect(readLocalLibrary().some((e) => e.id === 'u1')).toBe(true);
+    removeLocalEntries(['u1']);
+    expect(readLocalLibrary().some((e) => e.id === 'u1')).toBe(false);
+    expect(hasUndo()).toBe(true);
+    expect(undoLocalChange()).toBe(true);
+    expect(readLocalLibrary().some((e) => e.id === 'u1')).toBe(true);
+  });
+
+  it('undo restores edited season/episode', async () => {
+    const { addLocalEntries, updateLocalEntries, readLocalLibrary, undoLocalChange, hasUndo } = await import('../local-library');
+    addLocalEntries([{
+      id: 'u2', path: 'T:/show.mkv', filename: 'show.mkv', title: 'Show', year: 2020, type: 'show', season: 1, episode: 1, addedAt: 1,
+    }]);
+    updateLocalEntries(['u2'], { season: 5, episode: 9, metadataLocked: true });
+    expect(readLocalLibrary().find((e) => e.id === 'u2')?.episode).toBe(9);
+    expect(undoLocalChange()).toBe(true);
+    expect(hasUndo()).toBe(false);
+    const restored = readLocalLibrary().find((e) => e.id === 'u2');
+    expect(restored?.season).toBe(1);
+    expect(restored?.episode).toBe(1);
+    expect(restored?.metadataLocked).toBeUndefined();
+  });
+
+  it('locked entries keep manual season/episode/title across a re-scan (addLocalEntries merge)', async () => {
+    const { addLocalEntries, readLocalLibrary, updateLocalEntries } = await import('../local-library');
+    addLocalEntries([{
+      id: 'l1', path: 'T:/Shows/Show/Show.S01E02.mkv', filename: 'Show.S01E02.mkv', title: 'Show', year: 2020, type: 'show', season: 1, episode: 2, tmdbId: 123, addedAt: 1,
+    }]);
+    // User fixes the misdetected season/episode.
+    updateLocalEntries(['l1'], { season: 2, episode: 5, metadataLocked: true });
+
+    // A re-scan rebuilds the entry from scratch with the original (wrong) parse.
+    addLocalEntries([{
+      id: 'l1', path: 'T:/Shows/Show/Show.S01E02.mkv', filename: 'Show.S01E02.mkv', title: 'Show', year: 2020, type: 'show', season: 1, episode: 2, tmdbId: 999, addedAt: 999,
+    }]);
+
+    const after = readLocalLibrary().find((e) => e.id === 'l1')!;
+    expect(after.season).toBe(2); // user override kept
+    expect(after.episode).toBe(5); // user override kept
+    expect(after.tmdbId).toBe(123); // match identity kept
+    expect(after.metadataLocked).toBe(true);
+    expect(after.addedAt).toBe(1); // not bumped to "Recently Added"
+  });
+
+  it('unlocked entries are still overwritten by a re-scan', async () => {
+    const { addLocalEntries, readLocalLibrary } = await import('../local-library');
+    addLocalEntries([{
+      id: 'u3', path: 'T:/Shows/Other Show/Show.S01E02.mkv', filename: 'Show.S01E02.mkv', title: 'Show', year: 2020, type: 'show', season: 1, episode: 2, tmdbId: 123, addedAt: 1,
+    }]);
+    addLocalEntries([{
+      id: 'u3', path: 'T:/Shows/Other Show/Show.S01E02.mkv', filename: 'Show.S01E02.mkv', title: 'Show', year: 2020, type: 'show', season: 3, episode: 7, tmdbId: 999, addedAt: 999,
+    }]);
+    const after = readLocalLibrary().find((e) => e.id === 'u3')!;
+    expect(after.season).toBe(3);
+    expect(after.episode).toBe(7);
+    expect(after.tmdbId).toBe(999);
+    expect(after.addedAt).toBe(999);
   });
 });
 
@@ -246,7 +572,7 @@ describe('Local Library - Auto Sync', () => {
     const { removeScannedFolder } = await import('../local-library');
     // The folder-management test above added a folder to the shared in-memory
     // store — clear it so this test exercises the "no folders" path.
-    removeScannedFolder('C:/Media/Movies');
+    removeScannedFolder('T:/Media/Movies');
     const res = await syncLocalFolders(null, true);
     expect(res).toEqual({ added: 0, removed: 0 });
   });
@@ -256,8 +582,8 @@ describe('Local Library - VOD Stored Converters', () => {
   it('converts LocalEntry to StoredMovie correctly', async () => {
     const { localEntryToStoredMovie } = await import('../local-library');
     const movieEntry: LocalEntry = {
-      id: 'C:/Movies/Gladiator.2000.mkv',
-      path: 'C:/Movies/Gladiator.2000.mkv',
+      id: 'T:/Movies/Gladiator.2000.mkv',
+      path: 'T:/Movies/Gladiator.2000.mkv',
       filename: 'Gladiator.2000.mkv',
       title: 'Gladiator',
       year: 2000,
@@ -272,14 +598,14 @@ describe('Local Library - VOD Stored Converters', () => {
     };
 
     const stored = localEntryToStoredMovie(movieEntry);
-    expect(stored.stream_id).toBe('local_C:/Movies/Gladiator.2000.mkv');
+    expect(stored.stream_id).toBe('local_T:/Movies/Gladiator.2000.mkv');
     expect(stored.source_id).toBe('local');
     expect(stored.title).toBe('Gladiator');
     expect(stored.name).toBe('Gladiator');
     expect(stored.year).toBe('2000');
     expect(stored.rating).toBe('8.5');
     expect(stored.duration).toBe(155 * 60);
-    expect(stored.direct_url).toBe('C:/Movies/Gladiator.2000.mkv');
+    expect(stored.direct_url).toBe('T:/Movies/Gladiator.2000.mkv');
     expect(stored.tmdb_id).toBe(98);
     expect(stored.imdb_id).toBe('tt0172495');
     expect(stored.stream_icon).toBe('https://image.tmdb.org/t/p/w500/poster.jpg');
@@ -289,8 +615,8 @@ describe('Local Library - VOD Stored Converters', () => {
   it('converts LocalGroup to StoredSeries correctly', async () => {
     const { localGroupToStoredSeries, localEntryToStoredEpisode } = await import('../local-library');
     const headEntry: LocalEntry = {
-      id: 'C:/Shows/Dark/S01E01.mkv',
-      path: 'C:/Shows/Dark/S01E01.mkv',
+      id: 'T:/Shows/Dark/S01E01.mkv',
+      path: 'T:/Shows/Dark/S01E01.mkv',
       filename: 'Dark.S01E01.mkv',
       title: 'Dark',
       year: 2017,
@@ -305,8 +631,8 @@ describe('Local Library - VOD Stored Converters', () => {
     };
 
     const ep2Entry: LocalEntry = {
-      id: 'C:/Shows/Dark/S01E02.mkv',
-      path: 'C:/Shows/Dark/S01E02.mkv',
+      id: 'T:/Shows/Dark/S01E02.mkv',
+      path: 'T:/Shows/Dark/S01E02.mkv',
       filename: 'Dark.S01E02.mkv',
       title: 'Lies',
       year: 2017,
@@ -337,7 +663,7 @@ describe('Local Library - VOD Stored Converters', () => {
     expect(ep1Stored.season_num).toBe(1);
     expect(ep1Stored.episode_num).toBe(1);
     expect(ep1Stored.title).toBe('Episode 1');
-    expect(ep1Stored.direct_url).toBe('C:/Shows/Dark/S01E01.mkv');
+    expect(ep1Stored.direct_url).toBe('T:/Shows/Dark/S01E01.mkv');
 
     const ep2Stored = localEntryToStoredEpisode(ep2Entry, storedSeries.series_id, storedSeries.title);
     expect(ep2Stored.title).toBe('Lies');
@@ -351,7 +677,7 @@ describe('Local Library - VOD Stored Converters', () => {
     const library: LocalEntry[] = [
       {
         id: '1',
-        path: 'C:/Movies/Inception.2010.mkv',
+        path: 'T:/Movies/Inception.2010.mkv',
         filename: 'Inception.2010.mkv',
         title: 'Inception',
         year: 2010,
@@ -360,7 +686,7 @@ describe('Local Library - VOD Stored Converters', () => {
       },
       {
         id: '2',
-        path: 'C:/Movies/Interstellar.2014.mkv',
+        path: 'T:/Movies/Interstellar.2014.mkv',
         filename: 'Interstellar.2014.mkv',
         title: 'Interstellar',
         year: 2014,
@@ -369,7 +695,7 @@ describe('Local Library - VOD Stored Converters', () => {
       },
       {
         id: '3',
-        path: 'C:/Shows/Severance/S01E01.mkv',
+        path: 'T:/Shows/Severance/S01E01.mkv',
         filename: 'Severance.S01E01.mkv',
         title: 'Severance',
         year: 2022,
@@ -405,7 +731,7 @@ describe('Local Library - VOD Stored Converters', () => {
   it('extracts episode and season numbers from various filename conventions', async () => {
     const { extractEpisodeNumber } = await import('../local-library');
 
-    expect(extractEpisodeNumber('S1E24 LCLA ENG SUB.mp4')).toEqual({ season: 1, episode: 24 });
+    expect(extractEpisodeNumber('S1E24 DRAMA ENG SUB.mp4')).toEqual({ season: 1, episode: 24 });
     expect(extractEpisodeNumber('Show.Name.S02E08.720p.mkv')).toEqual({ season: 2, episode: 8 });
     expect(extractEpisodeNumber('Drama_EP12_1080p.mp4')).toEqual({ season: 1, episode: 12 });
     expect(extractEpisodeNumber('Drama.Ep.05.mkv')).toEqual({ season: 1, episode: 5 });
@@ -418,9 +744,9 @@ describe('Local Library - VOD Stored Converters', () => {
     const unassignedFiles: LocalEntry[] = [
       {
         id: '1',
-        path: '/dramas/S1E01 LCLA.mp4',
-        filename: 'S1E01 LCLA.mp4',
-        title: 'S1E01 LCLA',
+        path: '/dramas/S1E01 DRAMA.mp4',
+        filename: 'S1E01 DRAMA.mp4',
+        title: 'S1E01 DRAMA',
         year: null,
         type: 'movie',
         needsReview: true,
@@ -428,9 +754,9 @@ describe('Local Library - VOD Stored Converters', () => {
       },
       {
         id: '2',
-        path: '/dramas/S1E02 LCLA.mp4',
-        filename: 'S1E02 LCLA.mp4',
-        title: 'S1E02 LCLA',
+        path: '/dramas/S1E02 DRAMA.mp4',
+        filename: 'S1E02 DRAMA.mp4',
+        title: 'S1E02 DRAMA',
         year: null,
         type: 'movie',
         needsReview: true,
@@ -438,9 +764,9 @@ describe('Local Library - VOD Stored Converters', () => {
       },
       {
         id: '3',
-        path: '/dramas/S1E03 LCLA.mp4',
-        filename: 'S1E03 LCLA.mp4',
-        title: 'S1E03 LCLA',
+        path: '/dramas/S1E03 DRAMA.mp4',
+        filename: 'S1E03 DRAMA.mp4',
+        title: 'S1E03 DRAMA',
         year: null,
         type: 'movie',
         needsReview: true,
@@ -454,7 +780,7 @@ describe('Local Library - VOD Stored Converters', () => {
       return {
         ...f,
         tmdbId: 99999,
-        title: 'Moonlight Mystique',
+        title: 'Golden Harbor',
         type: 'show' as const,
         season: ep?.season ?? 1,
         episode: ep?.episode ?? 1,
@@ -467,7 +793,7 @@ describe('Local Library - VOD Stored Converters', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].kind).toBe('show');
     if (groups[0].kind === 'show') {
-      expect(groups[0].head.title).toBe('Moonlight Mystique');
+      expect(groups[0].head.title).toBe('Golden Harbor');
       expect(groups[0].episodes).toHaveLength(3);
       expect(groups[0].episodes[0].episode).toBe(1);
       expect(groups[0].episodes[1].episode).toBe(2);

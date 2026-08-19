@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import type { FolderType, LibraryFolder } from '../../services/local-library/types';
 import {
   useScannedFolders,
   useLocalLibrary,
@@ -11,7 +12,7 @@ interface LocalFoldersModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRescanFolder: (folder: string) => Promise<void>;
-  onAddNewFolder: () => Promise<void>;
+  onAddNewFolder: (type: FolderType) => Promise<void>;
 }
 
 export const LocalFoldersModal = memo(function LocalFoldersModal({
@@ -30,7 +31,7 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
   const folderStats = useMemo(() => {
     const statsMap = new Map<string, { total: number; movies: number; episodes: number }>();
     for (const folder of configuredFolders) {
-      const normFolder = folder.replace(/\\/g, '/').toLowerCase();
+      const normFolder = folder.path.replace(/\\/g, '/').toLowerCase();
       const prefix = normFolder.endsWith('/') ? normFolder : `${normFolder}/`;
       let total = 0;
       let movies = 0;
@@ -43,7 +44,7 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
           else episodes += 1;
         }
       }
-      statsMap.set(folder, { total, movies, episodes });
+      statsMap.set(folder.path, { total, movies, episodes });
     }
     return statsMap;
   }, [configuredFolders, library]);
@@ -77,6 +78,15 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
     }
   }, [confirmDeleteFolder]);
 
+  const typeLabel = useCallback(
+    (type: FolderType): string => {
+      if (type === 'movie') return t('folderTypeMovie', 'Movies');
+      if (type === 'show') return t('folderTypeSeries', 'Series');
+      return t('folderTypeMixed', 'Mixed');
+    },
+    [t],
+  );
+
   if (!isOpen) return null;
 
   return (
@@ -109,14 +119,14 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {configuredFolders.map((folder) => {
-                const stats = folderStats.get(folder) || { total: 0, movies: 0, episodes: 0 };
-                const isRescanning = rescanningFolder === folder;
-                const isConfirming = confirmDeleteFolder === folder;
+              {configuredFolders.map((folder: LibraryFolder) => {
+                const stats = folderStats.get(folder.path) || { total: 0, movies: 0, episodes: 0 };
+                const isRescanning = rescanningFolder === folder.path;
+                const isConfirming = confirmDeleteFolder === folder.path;
 
                 return (
                   <div
-                    key={folder}
+                    key={folder.path}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -145,11 +155,27 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                           }}
-                          title={folder}
+                          title={folder.path}
                         >
-                          {folder}
+                          {folder.path}
                         </span>
                         <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              marginRight: '8px',
+                              padding: '1px 8px',
+                              borderRadius: '999px',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.4px',
+                              color: 'var(--accent-primary, #00d4ff)',
+                              border: '1px solid var(--accent-primary, #00d4ff)',
+                            }}
+                          >
+                            {typeLabel(folder.type)}
+                          </span>
                           {stats.total} {t('items', 'items')} ({stats.movies} {t('movies', 'movies')}, {stats.episodes} {t('episodes', 'episodes')})
                         </span>
                       </div>
@@ -160,7 +186,7 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
                         type="button"
                         className="local-btn local-btn--secondary"
                         style={{ height: '30px', padding: '0 10px', fontSize: '12px' }}
-                        onClick={() => handleRescan(folder)}
+                        onClick={() => handleRescan(folder.path)}
                         disabled={isRescanning}
                         title={t('rescan', 'Rescan folder')}
                       >
@@ -175,7 +201,7 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
                         type="button"
                         className="local-btn local-btn--secondary"
                         style={{ height: '30px', padding: '0 8px' }}
-                        onClick={() => handleOpenExplorer(folder)}
+                        onClick={() => handleOpenExplorer(folder.path)}
                         title={t('openFolder', 'Open in Explorer')}
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -189,7 +215,7 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
                         type="button"
                         className={`local-btn ${isConfirming ? 'local-btn--primary' : 'local-btn--secondary'}`}
                         style={{ height: '30px', padding: '0 10px', fontSize: '12px', ...(isConfirming ? { background: '#ef4444', color: '#ffffff' } : { color: '#ef4444' }) }}
-                        onClick={() => handleRemove(folder)}
+                        onClick={() => handleRemove(folder.path)}
                         title={isConfirming ? t('confirmRemoveFolder', 'Click again to remove all files in this folder') : t('removeFolder', 'Remove folder')}
                       >
                         {isConfirming ? t('confirm', 'Confirm') : t('remove', 'Remove')}
@@ -205,14 +231,26 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
             <button
               type="button"
               className="local-btn local-btn--primary"
-              onClick={onAddNewFolder}
+              onClick={() => void onAddNewFolder('movie')}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 <line x1="12" y1="11" x2="12" y2="17" />
                 <line x1="9" y1="14" x2="15" y2="14" />
               </svg>
-              {t('addFolder', 'Add folder')}
+              {t('addMoviesFolder', 'Add Movies folder')}
+            </button>
+            <button
+              type="button"
+              className="local-btn local-btn--primary"
+              onClick={() => void onAddNewFolder('show')}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                <line x1="12" y1="11" x2="12" y2="17" />
+                <line x1="9" y1="14" x2="15" y2="14" />
+              </svg>
+              {t('addSeriesFolder', 'Add Series folder')}
             </button>
           </div>
         </div>

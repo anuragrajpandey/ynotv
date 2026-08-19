@@ -14,7 +14,9 @@ import {
   type CachedCastMember as CastMember,
   type CachedSeasonEpisode as TmdbSeasonEpisode,
 } from '../../services/local-library/metadata-cache';
+import { updateLocalEntries } from '../../services/local-library/local-library';
 import { useActiveTmdbToken } from '../../hooks/useTmdbLists';
+import { EditEpisodeMetadataModal } from './EditEpisodeMetadataModal';
 import './LocalDetail.css';
 
 interface LocalDetailProps {
@@ -31,12 +33,14 @@ function LocalEpisodeCard({
   tmdbEpisode,
   seriesBackdrop,
   onPlay,
+  onContextMenu,
 }: {
   episode: LocalEntry;
   seriesTitle: string;
   tmdbEpisode?: TmdbSeasonEpisode | null;
   seriesBackdrop?: string | null;
   onPlay: (episode: LocalEntry) => void;
+  onContextMenu: (e: React.MouseEvent, episode: LocalEntry) => void;
 }) {
   const { t } = useTranslation('vod');
   const watchStatus = useLocalEpisodeWatchStatus(episode);
@@ -96,6 +100,7 @@ function LocalEpisodeCard({
     <div
       className="local-detail__episode-card"
       onClick={() => onPlay(episode)}
+      onContextMenu={(e) => onContextMenu(e, episode)}
       title={`${displayTitle} (${episode.filename})`}
     >
       {/* 16:9 Thumbnail Screen Cap */}
@@ -238,6 +243,8 @@ export const LocalDetail = memo(function LocalDetail({
   const [cast, setCast] = useState<CastMember[]>([]);
   const [seasonEpisodesMap, setSeasonEpisodesMap] = useState<Map<number, TmdbSeasonEpisode>>(new Map());
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; entry: LocalEntry } | null>(null);
+  const [editTarget, setEditTarget] = useState<LocalEntry | null>(null);
 
   // Group series episodes by season
   const seasonsMap = useMemo(() => {
@@ -263,14 +270,36 @@ export const LocalDetail = memo(function LocalDetail({
     }
   }, [seasonsList, seasonsMap, selectedSeason]);
 
-  // Escape key handler
+  // Escape key handler — close the context menu / edit modal before the page
+  const handleCloseContextMenu = useCallback(() => setCtxMenu(null), []);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (ctxMenu) setCtxMenu(null);
+        else if (editTarget) setEditTarget(null);
+        else onClose();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [ctxMenu, editTarget, onClose]);
+
+  const handleEpisodeContextMenu = useCallback((e: React.MouseEvent, entry: LocalEntry) => {
+    e.preventDefault();
+    setEditTarget(null);
+    setCtxMenu({ x: e.clientX, y: e.clientY, entry });
+  }, []);
+
+  const handleEditSave = useCallback(
+    (patch: { season: number | null; episode: number; title: string }) => {
+      if (!editTarget) return;
+      // Lock the entry so a re-scan or auto-sync can't overwrite the manual
+      // season/episode/title.
+      updateLocalEntries([editTarget.id], { ...patch, metadataLocked: true });
+      setEditTarget(null);
+    },
+    [editTarget],
+  );
 
   // Fetch & Cache TMDB Cast
   useEffect(() => {
@@ -549,6 +578,7 @@ export const LocalDetail = memo(function LocalDetail({
                 tmdbEpisode={seasonEpisodesMap.get(ep.episode ?? 1)}
                 seriesBackdrop={backdropSrc}
                 onPlay={(selectedEp) => onPlay(selectedEp, { key: group.key, head })}
+                onContextMenu={handleEpisodeContextMenu}
               />
             ))}
           </div>
@@ -581,6 +611,61 @@ export const LocalDetail = memo(function LocalDetail({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Right-click context menu on an episode card */}
+      {ctxMenu && (
+        <>
+          <div
+            className="local-ctx-overlay"
+            onClick={handleCloseContextMenu}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              handleCloseContextMenu();
+            }}
+          />
+          <div
+            className="local-ctx-menu"
+            style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          >
+            <button
+              type="button"
+              className="local-ctx-menu__item"
+              onClick={() => {
+                setEditTarget(ctxMenu.entry);
+                handleCloseContextMenu();
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+              {t('editMetadata', 'Edit metadata')}
+            </button>
+            <button
+              type="button"
+              className="local-ctx-menu__item"
+              onClick={() => {
+                const entry = ctxMenu.entry;
+                handleCloseContextMenu();
+                onFixMatch([entry]);
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5" />
+              </svg>
+              {t('fixMatch', 'Fix match')}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Edit episode metadata modal */}
+      {editTarget && (
+        <EditEpisodeMetadataModal
+          entry={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={handleEditSave}
+        />
       )}
     </div>
   );

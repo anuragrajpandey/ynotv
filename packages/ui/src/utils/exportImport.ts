@@ -27,7 +27,7 @@ import {
     removeLocalEntries,
     saveScannedFolders
 } from '../services/local-library/local-library';
-import type { LocalEntry } from '../services/local-library/types';
+import type { LibraryFolder, LocalEntry } from '../services/local-library/types';
 
 export interface ExportData {
     version: number;
@@ -193,8 +193,8 @@ export interface ExportData {
     stremioWatchHistory?: any;
     /** Stremio library (was not exported before; added alongside the SQLite migration). */
     stremioLibrary?: any;
-    /** Local VOD library: scanned entries + configured folders. */
-    localLibrary?: { entries: LocalEntry[]; folders: string[] };
+    /** Local VOD library: scanned entries + configured folders (typed). */
+    localLibrary?: { entries: LocalEntry[]; folders: LibraryFolder[] | string[] };
     // v6 additions (Playlist Editor data)
     customPlaylists?: CustomPlaylist[];
     playlistCategoryLinks?: PlaylistCategoryLink[];
@@ -763,9 +763,16 @@ export async function importAllData(): Promise<{ success: boolean; error?: strin
             try {
                 const { entries = [], folders = [] } = data.localLibrary;
                 await ensureLocalLibraryLoaded();
-                removeLocalEntries(readLocalLibrary().map((e) => e.id));
+                // noUndo: a whole-library import replace isn't a reversible single step.
+                removeLocalEntries(readLocalLibrary().map((e) => e.id), { noUndo: true });
                 addLocalEntries(entries);
-                saveScannedFolders(folders);
+                // Backups made before folders were typed store a plain string[];
+                // those become 'mixed' folders so their scan behaviour is unchanged.
+                saveScannedFolders(
+                    folders.map((f) =>
+                        typeof f === 'string' ? { path: f, type: 'mixed' as const } : f,
+                    ),
+                );
             } catch (e) {
                 console.warn('[Import] Failed to restore local library:', e);
             }

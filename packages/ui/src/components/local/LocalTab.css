@@ -149,6 +149,12 @@
   gap: 10px;
 }
 
+.local-add-folder-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .local-select-dropdown {
   height: 36px;
   background: var(--surface-color, rgba(40, 40, 40, 0.6));
@@ -327,6 +333,12 @@
   line-height: 1.6;
   color: var(--text-secondary, rgba(255, 255, 255, 0.65));
   margin: 0;
+}
+
+.local-empty-state__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 /* Grid Layout — virtualized (react-virtuoso): only visible items are mounted,
@@ -882,6 +894,69 @@
     opacity: 1;
     transform: translate(-50%, 0);
   }
+}
+
+/* Undo bar — appears after a user-initiated edit/removal */
+.local-undo-bar {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(24, 24, 26, 0.97);
+  color: var(--text-primary, #ffffff);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 8px 10px 8px 18px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  z-index: 1600;
+  animation: localToastFade 0.2s ease;
+}
+
+.local-undo-bar__text {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+  font-weight: 500;
+}
+
+.local-undo-bar__btn {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent-primary, #00d4ff);
+  color: #000000;
+  border: none;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.local-undo-bar__btn:hover {
+  filter: brightness(1.1);
+}
+
+.local-undo-bar__dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, rgba(255, 255, 255, 0.6));
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.local-undo-bar__dismiss:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary, #ffffff);
 }
 
 .local-spin {

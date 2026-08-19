@@ -26,6 +26,13 @@ export type LocalEntry = {
   needsReview?: boolean;
   source?: 'tmdb' | 'nfo';
   localArt?: LocalArt;
+  /**
+   * True when the user manually edited this entry (Fix match, or season/
+   * episode/title via the edit modal). Locked entries keep their manual
+   * season/episode/title and match identity when a re-scan or auto-sync
+   * rebuilds them, so overrides survive re-scans.
+   */
+  metadataLocked?: boolean;
 };
 
 export type ParsedFilename = {
@@ -74,3 +81,36 @@ export type LocalGroup =
 
 export type LocalSortKey = 'added' | 'name' | 'rating' | 'year';
 export type SortDir = 'asc' | 'desc';
+
+/**
+ * What a configured scan folder is expected to contain.
+ *
+ * - 'movie': every file is a movie (parsed from its filename, one TMDB lookup
+ *   per file).
+ * - 'show': the folder holds series, structured as `<Series Name>/` with either
+ *   `Season N/` subfolders or all episodes flat inside the series folder. Each
+ *   series does ONE TMDB lookup (shared by every episode via the per-title
+ *   cache) — matches Plex/Jellyfin conventions.
+ * - 'mixed': legacy folders added before folders were typed. Falls back to the
+ *   old per-file parsing/matching so existing libraries keep working.
+ */
+export type FolderType = 'movie' | 'show' | 'mixed';
+
+export type LibraryFolder = {
+  path: string;
+  type: FolderType;
+};
+
+/** Info derived from a file's path inside a series scan root. */
+export type SeriesPathInfo = {
+  /** Series title parsed from the series folder name. */
+  title: string;
+  /** Year parsed from the series folder name (e.g. "Breaking Bad (2008)"). */
+  year: number | null;
+  /** Season from a `Season N` / `S0N` / `Specials` subfolder, else from filename. */
+  season: number | null;
+  /** Episode number parsed from the filename. */
+  episode: number | null;
+  /** Resolution parsed from the filename. */
+  resolution: string | null;
+};

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import type { LocalEntry, LocalGroup, LocalSortKey, ParsedFilename, SortDir } from './types';
+import type { FolderType, LibraryFolder, LocalEntry, LocalGroup, LocalSortKey, ParsedFilename, SortDir } from './types';
 import type { VodPlayInfo } from '../../types/media';
 import type { StoredMovie, StoredSeries, StoredEpisode } from '../../db';
 import { db, type LocalEntryRow } from '../../db';
@@ -71,6 +71,7 @@ function entryToRow(e: LocalEntry): LocalEntryRow {
     needsReview: e.needsReview ?? null,
     source: e.source ?? null,
     localArt: e.localArt ?? null,
+    metadataLocked: e.metadataLocked ?? null,
   };
 }
 
@@ -97,7 +98,56 @@ function rowToEntry(r: LocalEntryRow): LocalEntry {
     needsReview: r.needsReview === true ? true : undefined,
     source: (r.source as 'tmdb' | 'nfo') ?? undefined,
     localArt: r.localArt ?? undefined,
+    metadataLocked: r.metadataLocked === true ? true : undefined,
   };
+}
+
+// Undo history for user-initiated edits/removals. Background operations
+// (auto-sync cleanup, rescan-missing, import) pass { noUndo: true } so the
+// stack only ever holds actions the user can meaningfully revert.
+type UndoAction = { kind: 'update' | 'remove'; entries: LocalEntry[] };
+const undoStack: UndoAction[] = [];
+const undoListeners = new Set<() => void>();
+
+function pushUndo(action: UndoAction): void {
+  undoStack.push(action);
+  if (undoStack.length > 20) undoStack.shift();
+  for (const l of undoListeners) l();
+}
+
+/** Whether an undoable change is available. */
+export function hasUndo(): boolean {
+  return undoStack.length > 0;
+}
+
+/** Subscribe to changes to the undo stack (e.g. to show an undo toast). */
+export function onUndoChange(listener: () => void): () => void {
+  undoListeners.add(listener);
+  return () => {
+    undoListeners.delete(listener);
+  };
+}
+
+/**
+ * Revert the last user-initiated edit or removal. Removed entries are
+ * re-inserted; edited entries are restored to their pre-edit state. Returns
+ * false when there is nothing to undo.
+ */
+export function undoLocalChange(): boolean {
+  const action = undoStack.pop();
+  if (!action) return false;
+  if (action.kind === 'remove') {
+    const byId = new Map(entriesCache.map((e) => [e.id, e]));
+    for (const e of action.entries) byId.set(e.id, e);
+    entriesCache = sortEntries(Array.from(byId.values()));
+    persistRows(action.entries.map(entryToRow));
+  } else {
+    const byId = new Map(action.entries.map((e) => [e.id, e]));
+    entriesCache = sortEntries(entriesCache.map((e) => byId.get(e.id) ?? e));
+    persistRows(action.entries.map(entryToRow));
+  }
+  for (const s of subs) s();
+  return true;
 }
 
 // Authoritative in-memory cache (sorted newest-first like the original blob).
@@ -111,15 +161,30 @@ function readEntries(): LocalEntry[] {
   return entriesCache;
 }
 
-function readFolders(): string[] {
-  const raw = readAppKvSync(FOLDERS_KEY);
+function normalizeFolders(raw: string | null): LibraryFolder[] {
   if (!raw) return [];
   try {
     const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? (arr as string[]) : [];
+    if (!Array.isArray(arr)) return [];
+    // Folders were historically stored as a plain string[]; a folder added
+    // before typing gets the 'mixed' type so its per-file scan behaviour is
+    // unchanged. New entries are { path, type }.
+    return arr.map((f) => {
+      if (typeof f === 'string') return { path: f, type: 'mixed' as const };
+      if (f && typeof f.path === 'string') {
+        const type: FolderType =
+          f.type === 'movie' || f.type === 'show' || f.type === 'mixed' ? f.type : 'mixed';
+        return { path: f.path, type };
+      }
+      return null;
+    }).filter((f): f is LibraryFolder => f != null);
   } catch {
     return [];
   }
+}
+
+function readFolders(): LibraryFolder[] {
+  return normalizeFolders(readAppKvSync(FOLDERS_KEY));
 }
 
 /** Persist folders to the SQLite app_kv store (async, errors logged). */
@@ -130,7 +195,7 @@ function persistToKv(key: string, json: string): void {
   }
 }
 
-function writeFolders(folders: string[]): void {
+function writeFolders(folders: LibraryFolder[]): void {
   persistToKv(FOLDERS_KEY, JSON.stringify(folders));
   for (const s of subs) s();
 }
@@ -180,10 +245,8 @@ export function ensureLocalLibraryLoaded(): Promise<void> {
       await loadAppKv(FOLDERS_KEY).catch(() => null);
 
       let loadedEntries: LocalEntry[] = [];
-      let tableRows = 0;
       try {
         const rows = await db.localEntries.toArray();
-        tableRows = rows.length;
         if (rows.length > 0) {
           loadedEntries = rows.map(rowToEntry);
         }
@@ -191,42 +254,16 @@ export function ensureLocalLibraryLoaded(): Promise<void> {
         console.warn('[LocalLibrary] Failed to read local_entries table:', e);
       }
 
-      // TEMP DIAGNOSTIC — remove after migration retest. Shows where the data
-      // actually is so a missing library can be traced to its source.
-      try {
-        const [kvEntries, kvFolders] = await Promise.all([
-          db.appKv.get(KEY).catch(() => null),
-          db.appKv.get(FOLDERS_KEY).catch(() => null),
-        ]);
-        console.log(
-          '[LocalMigration] boot state',
-          'lsEntries=' + (localStorage.getItem(KEY) ?? '').length,
-          'lsFolders=' + (localStorage.getItem(FOLDERS_KEY) ?? '').length,
-          'kvEntries=' + (kvEntries?.value?.length ?? 0),
-          'kvFolders=' + (kvFolders?.value?.length ?? 0),
-          'tableRows=' + tableRows,
-        );
-      } catch {
-        /* ignore */
-      }
-
       if (loadedEntries.length === 0) {
         // First run after upgrade: migrate the legacy JSON blob(s) into the table.
         const raw = await loadAppKv(KEY).catch(() => null);
         const legacy = parseEntries(raw) ?? parseEntries(readAppKvSync(KEY)) ?? [];
         if (legacy.length > 0) {
-          console.log('[LocalMigration] migrating legacy entries blob → local_entries:', legacy.length);
           loadedEntries = legacy;
           persistRows(legacy.map(entryToRow));
           void db.appKv.delete(KEY).catch(() => {});
         }
       }
-
-      console.log(
-        '[LocalMigration] result',
-        'loadedEntries=' + loadedEntries.length,
-        'folders=' + JSON.stringify(readFolders()),
-      );
 
       // Merge with anything a mutation already wrote this session (mutations
       // win on conflict; persisted rows we haven't seen yet are preserved).
@@ -252,40 +289,67 @@ export function ensureLocalLibraryLoaded(): Promise<void> {
   return loadedPromise;
 }
 
-export function readScannedFolders(): string[] {
+export function readScannedFolders(): LibraryFolder[] {
   return readFolders();
 }
 
-export function saveScannedFolders(folders: string[]): void {
+export function saveScannedFolders(folders: LibraryFolder[]): void {
   writeFolders(folders);
 }
 
-export function addScannedFolder(folder: string): void {
+/**
+ * Register a scan root. `type` describes what the folder contains: 'movie'
+ * (every file is a movie), 'show' (structured series folders, matched once per
+ * series), or 'mixed' (legacy per-file matching). Defaults to 'mixed' for
+ * callers that predate typed folders.
+ */
+export function addScannedFolder(folder: string, type: FolderType = 'mixed'): void {
   const norm = folder.trim();
   if (!norm) return;
   const existing = readFolders();
-  if (!existing.some((f) => f.toLowerCase() === norm.toLowerCase())) {
-    writeFolders([...existing, norm]);
+  const normKey = norm.replace(/\\/g, '/').toLowerCase();
+  const idx = existing.findIndex((f) => f.path.replace(/\\/g, '/').toLowerCase() === normKey);
+  if (idx >= 0) {
+    // Already tracked — upgrade the type if the caller is more specific.
+    if (type !== 'mixed' && existing[idx].type === 'mixed') {
+      const next = existing.slice();
+      next[idx] = { ...next[idx], type };
+      writeFolders(next);
+    }
+    return;
   }
+  writeFolders([...existing, { path: norm, type }]);
+}
+
+/** Look up a configured scan root by path (case- and separator-insensitive). */
+export function findScannedFolder(path: string): LibraryFolder | undefined {
+  const normKey = path.replace(/\\/g, '/').toLowerCase();
+  return readFolders().find(
+    (f) => f.path.replace(/\\/g, '/').toLowerCase() === normKey,
+  );
 }
 
 export function removeScannedFolder(folder: string): void {
   const norm = folder.replace(/\\/g, '/').toLowerCase();
-  const nextFolders = readFolders().filter((f) => f.replace(/\\/g, '/').toLowerCase() !== norm);
+  const nextFolders = readFolders().filter(
+    (f) => f.path.replace(/\\/g, '/').toLowerCase() !== norm,
+  );
   writeFolders(nextFolders);
 
   // Remove all entries residing under this folder (incremental row deletes).
+  // noUndo: undoing would restore the entries without re-adding the folder,
+  // leaving them orphaned — so folder removal is not undoable.
   const prefix = norm.endsWith('/') ? norm : `${norm}/`;
   const removedIds: string[] = [];
   for (const e of entriesCache) {
     const p = e.path.replace(/\\/g, '/').toLowerCase();
     if (p.startsWith(prefix) || p === norm) removedIds.push(e.id);
   }
-  removeLocalEntries(removedIds);
+  removeLocalEntries(removedIds, { noUndo: true });
 }
 
-export function useScannedFolders(): string[] {
-  const [folders, setFolders] = useState<string[]>(() => readFolders());
+export function useScannedFolders(): LibraryFolder[] {
+  const [folders, setFolders] = useState<LibraryFolder[]>(() => readFolders());
   useEffect(() => {
     ensureLocalLibraryLoaded().catch(() => {});
     const tick = () => setFolders(readFolders());
@@ -301,15 +365,55 @@ export function readLocalLibrary(): LocalEntry[] {
   return readEntries();
 }
 
+/**
+ * When a re-scan rebuilds an entry whose path already exists as a user-locked
+ * entry, keep the manual overrides (season/episode/title) and the match
+ * identity (tmdbId/imdbId + metadata that came with it) instead of letting the
+ * fresh parse clobber them. The file identity (path/filename/resolution) still
+ * refreshes, and addedAt is preserved so a re-scan doesn't bump the item to
+ * "Recently Added".
+ */
+function mergeLockedEntry(existing: LocalEntry, fresh: LocalEntry): LocalEntry {
+  if (!existing.metadataLocked) return fresh;
+  return {
+    ...fresh,
+    title: existing.title,
+    year: existing.year,
+    type: existing.type,
+    tmdbId: existing.tmdbId,
+    imdbId: existing.imdbId,
+    season: existing.season,
+    episode: existing.episode,
+    poster: existing.poster,
+    backdrop: existing.backdrop,
+    logo: existing.logo,
+    overview: existing.overview,
+    rating: existing.rating,
+    runtime: existing.runtime,
+    needsReview: existing.needsReview,
+    metadataLocked: true,
+    addedAt: existing.addedAt,
+  };
+}
+
 export function addLocalEntries(entries: LocalEntry[]): void {
   if (entries.length === 0) return;
   const byPath = new Map(entriesCache.map((e) => [e.path, e]));
   const changed: LocalEntry[] = [];
   for (const e of entries) {
     const prev = byPath.get(e.path);
-    byPath.set(e.path, e);
-    if (!prev || prev.id !== e.id || prev.addedAt !== e.addedAt || prev.title !== e.title) {
-      changed.push(e);
+    const merged = prev ? mergeLockedEntry(prev, e) : e;
+    byPath.set(e.path, merged);
+    if (
+      !prev ||
+      prev.id !== merged.id ||
+      prev.addedAt !== merged.addedAt ||
+      prev.title !== merged.title ||
+      prev.season !== merged.season ||
+      prev.episode !== merged.episode ||
+      prev.metadataLocked !== merged.metadataLocked
+    ) {
+      changed.push(merged);
     }
   }
   entriesCache = sortEntries(Array.from(byPath.values()));
@@ -321,11 +425,13 @@ export function removeLocalEntry(id: string): void {
   removeLocalEntries([id]);
 }
 
-export function removeLocalEntries(ids: string[]): void {
+export function removeLocalEntries(ids: string[], opts?: { noUndo?: boolean }): void {
   if (ids.length === 0) return;
   const idSet = new Set(ids);
+  const removed = entriesCache.filter((e) => idSet.has(e.id));
   const next = entriesCache.filter((e) => !idSet.has(e.id));
   if (next.length === entriesCache.length) return;
+  if (!opts?.noUndo) pushUndo({ kind: 'remove', entries: removed });
   entriesCache = next;
   persistRemove(Array.from(idSet));
   for (const s of subs) s();
@@ -334,18 +440,22 @@ export function removeLocalEntries(ids: string[]): void {
 export function updateLocalEntries(
   ids: string[],
   patch: Partial<LocalEntry> | ((entry: LocalEntry) => Partial<LocalEntry>),
+  opts?: { noUndo?: boolean },
 ): void {
   if (ids.length === 0) return;
   const idSet = new Set(ids);
+  const before: LocalEntry[] = [];
   const changed: LocalEntry[] = [];
   const next = entriesCache.map((e) => {
     if (!idSet.has(e.id)) return e;
+    before.push(e);
     const p = typeof patch === 'function' ? patch(e) : patch;
     const updated = { ...e, ...p };
     changed.push(updated);
     return updated;
   });
   if (changed.length === 0) return;
+  if (!opts?.noUndo) pushUndo({ kind: 'update', entries: before });
   entriesCache = next;
   persistRows(changed.map(entryToRow));
   for (const s of subs) s();
