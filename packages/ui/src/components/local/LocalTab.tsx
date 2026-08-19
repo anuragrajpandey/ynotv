@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { VirtuosoGrid } from 'react-virtuoso';
+import { VirtuosoGrid, type VirtuosoGridHandle } from 'react-virtuoso';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import type { FolderType, IdentifyResolution, LocalEntry, LocalGroup, LocalSortKey, ScannedFile, SortDir } from '../../services/local-library/types';
@@ -15,6 +15,9 @@ import {
   updateLocalEntries,
   useLocalLibrary,
   localEntryToVodPlayInfo,
+  localEntryToStoredMovie,
+  localGroupToStoredSeries,
+  localEntryToStoredEpisode,
   addScannedFolder,
   findScannedFolder,
   ensureLocalLibraryLoaded,
@@ -41,6 +44,8 @@ import {
 } from '../../services/local-library/scan-state';
 import { markLocalMovieWatched, markLocalEpisodeWatched } from '../../services/local-library/local-watch';
 import { useActiveTmdbToken } from '../../hooks/useTmdbLists';
+import { useVodFavoritesStore } from '../../stores/vodFavoritesStore';
+import { useAlphabetIndex, useCurrentLetter } from '../../hooks/useVod';
 import { PosterSizeSlider } from '../PosterSizeSlider';
 import { useAutoLocalSync } from '../../services/local-library/auto-sync';
 import { LocalMovieCard } from './LocalMovieCard';
@@ -51,6 +56,9 @@ import { LocalFoldersModal } from './LocalFoldersModal';
 import { IdentifyModal } from './IdentifyModal';
 import { ReviewUnmatchedModal } from './ReviewUnmatchedModal';
 import { ScanModeModal, type ScanMode } from './ScanModeModal';
+import { AlphabetRail } from '../vod/AlphabetRail';
+import { AddToPlaylistModal } from '../vod/AddToPlaylistModal';
+import type { StoredEpisode, StoredMovie, StoredSeries } from '../../db';
 import type { VodPlayInfo } from '../../types/media';
 import './LocalTab.css';
 
@@ -105,7 +113,13 @@ interface LocalGridContext {
   handleOpenDetail: (g: LocalGroup) => void;
   openIdentify: (target: LocalEntry[]) => void;
   openEpisodes: (target: { head: LocalEntry; episodes: LocalEntry[] }) => void;
+  onAddToPlaylist: (target: AddToPlaylistTarget) => void;
 }
+
+type AddToPlaylistTarget =
+  | { kind: 'movie'; entry: LocalEntry }
+  | { kind: 'show'; key: string; head: LocalEntry; episodes: LocalEntry[] };
+
 
 // Stable item renderer for the virtualized grid (defined outside render so
 // Virtuoso only mounts items that are actually on screen — at 50k+ entries the
@@ -126,6 +140,7 @@ const LocalGridItem = (
         onPlay={context.handlePlayEntry}
         onOpenDetail={() => context.handleOpenDetail(g)}
         onFixMatch={(entry) => context.openIdentify([entry])}
+        onAddToPlaylist={(entry) => context.onAddToPlaylist({ kind: 'movie', entry })}
       />
     );
   }
@@ -133,12 +148,14 @@ const LocalGridItem = (
     <LocalShowGroupCard
       head={g.head}
       episodes={g.episodes}
+      seriesKey={g.key}
       selectMode={context.selectMode}
       isSelected={g.episodes.every((e) => context.selectedIds.has(e.id))}
       onToggleSelect={context.handleToggleSelectGroup}
       onOpenEpisodes={(head, episodes) => context.openEpisodes({ head, episodes })}
       onOpenDetail={() => context.handleOpenDetail(g)}
       onFixMatch={(episodes) => context.openIdentify(episodes)}
+      onAddToPlaylist={(head, episodes) => context.onAddToPlaylist({ kind: 'show', key: g.key, head, episodes })}
     />
   );
 };
@@ -163,16 +180,33 @@ export function LocalTab({
   const { t } = useTranslation('vod');
   const items = useLocalLibrary();
   const tmdbToken = useActiveTmdbToken();
+  const favorites = useVodFavoritesStore((s) => s.favorites);
 
-  const [activeFilter, setActiveFilter] = useState<'all' | 'movies' | 'series'>(initialFilter);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'movies' | 'series' | 'favorites'>(initialFilter);
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const searchQuery = searchQueryProp !== undefined ? searchQueryProp : internalSearchQuery;
   const handleSearchChange = useCallback((query: string) => {
     setInternalSearchQuery(query);
     onSearchChange?.(query);
   }, [onSearchChange]);
-  const [sortKey, setSortKey] = useState<LocalSortKey>('added');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [sortKey, setSortKey] = useState<LocalSortKey>(() => {
+    try {
+      const saved = localStorage.getItem('localSortKey');
+      return saved === 'name' || saved === 'rating' || saved === 'year' || saved === 'added' ? saved : 'added';
+    } catch {
+      return 'added';
+    }
+  });
+  const [sortDir, setSortDir] = useState<SortDir>(() => {
+    try {
+      const saved = localStorage.getItem('localSortDir');
+      return saved === 'asc' || saved === 'desc' ? saved : 'desc';
+    } catch {
+      return 'desc';
+    }
+  });
+  const virtuosoRef = useRef<VirtuosoGridHandle>(null);
+  const [visibleRange, setVisibleRange] = useState({ startIndex: 0, endIndex: 0 });
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -191,6 +225,17 @@ export function LocalTab({
     setPosterSize(newSize);
     try {
       localStorage.setItem('localPosterSize', String(newSize));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleSortChange = useCallback((key: LocalSortKey, dir: SortDir) => {
+    setSortKey(key);
+    setSortDir(dir);
+    try {
+      localStorage.setItem('localSortKey', key);
+      localStorage.setItem('localSortDir', dir);
     } catch {
       /* ignore */
     }
@@ -240,6 +285,7 @@ export function LocalTab({
   const resolvingRef = useRef(false);
   const [episodesModalTarget, setEpisodesModalTarget] = useState<{ head: LocalEntry; episodes: LocalEntry[] } | null>(null);
   const [selectedDetailGroup, setSelectedDetailGroup] = useState<LocalGroup | null>(null);
+  const [addToPlaylistTarget, setAddToPlaylistTarget] = useState<AddToPlaylistTarget | null>(null);
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -322,6 +368,16 @@ export function LocalTab({
   // Counts
   const movieCount = useMemo(() => groups.filter((g) => g.kind === 'movie').length, [groups]);
   const seriesCount = useMemo(() => groups.filter((g) => g.kind === 'show').length, [groups]);
+  // A group is "favorited" when its local media id (`local_<path>` for movies,
+  // `local_<show key>` for series) exists in the VOD favorites store.
+  const isGroupFavorited = useCallback(
+    (g: LocalGroup) =>
+      g.kind === 'movie'
+        ? favorites.some((f) => f.id === `local_${g.entry.id}` && f.type === 'movie')
+        : favorites.some((f) => f.id === `local_${g.key}` && f.type === 'series'),
+    [favorites],
+  );
+  const favoriteCount = useMemo(() => groups.filter(isGroupFavorited).length, [groups, isGroupFavorited]);
   // Review is per SERIES FOLDER, never per file: a show group is one review
   // unit (all its episodes share the same folder-derived title and one TMDB
   // lookup), so a 500-episode unmatched folder counts as a single item.
@@ -354,6 +410,8 @@ export function LocalTab({
       list = list.filter((g) => g.kind === 'movie');
     } else if (effFilter === 'series') {
       list = list.filter((g) => g.kind === 'show');
+    } else if (effFilter === 'favorites') {
+      list = list.filter(isGroupFavorited);
     }
 
     if (searchQuery.trim()) {
@@ -365,7 +423,25 @@ export function LocalTab({
     }
 
     return sortGroups(list, sortKey, sortDir);
-  }, [groups, lockFilter, initialFilter, activeFilter, searchQuery, sortKey, sortDir]);
+  }, [groups, lockFilter, initialFilter, activeFilter, searchQuery, sortKey, sortDir, isGroupFavorited]);
+
+  // Alphabet #-Z quick jump rail (only meaningful in name order).
+  const groupNames = useMemo(
+    () => filteredGroups.map((g) => ({ name: (g.kind === 'movie' ? g.entry.title : g.head.title) || '' })),
+    [filteredGroups],
+  );
+  const alphabetIndex = useAlphabetIndex(groupNames);
+  const availableLetters = useMemo(() => new Set(alphabetIndex.keys()), [alphabetIndex]);
+  const currentLetter = useCurrentLetter(groupNames, visibleRange.startIndex);
+  const handleLetterSelect = useCallback(
+    (letter: string) => {
+      const index = alphabetIndex.get(letter);
+      if (index !== undefined && virtuosoRef.current) {
+        virtuosoRef.current.scrollToIndex({ index, align: 'start' });
+      }
+    },
+    [alphabetIndex],
+  );
 
   // Play handler
   const handlePlayEntry = useCallback((entry: LocalEntry, seriesGroup?: { key: string; head: LocalEntry }) => {
@@ -953,6 +1029,10 @@ export function LocalTab({
 
   // Memoized context for the virtualized grid — only the visible items
   // re-render when this changes (selection, handlers), not the whole list.
+  const handleAddToPlaylist = useCallback((target: AddToPlaylistTarget) => {
+    setAddToPlaylistTarget(target);
+  }, []);
+
   const gridContext = useMemo<LocalGridContext>(
     () => ({
       selectMode,
@@ -963,9 +1043,40 @@ export function LocalTab({
       handleOpenDetail,
       openIdentify: setIdentifyTarget,
       openEpisodes: setEpisodesModalTarget,
+      onAddToPlaylist: handleAddToPlaylist,
     }),
-    [selectMode, selectedIds, handleToggleSelectId, handleToggleSelectGroup, handlePlayEntry, handleOpenDetail],
+    [selectMode, selectedIds, handleToggleSelectId, handleToggleSelectGroup, handlePlayEntry, handleOpenDetail, handleAddToPlaylist],
   );
+
+  // Convert a LocalTab target into the props AddToPlaylistModal expects, so
+  // local movies/series use the exact same playlist flow as provider VOD.
+  const addToPlaylistModalProps = useMemo(() => {
+    if (!addToPlaylistTarget) return null;
+    if (addToPlaylistTarget.kind === 'movie') {
+      const movie = localEntryToStoredMovie(addToPlaylistTarget.entry);
+      return {
+        movie,
+        series: null as StoredSeries | null,
+        seasons: {} as Record<number, StoredEpisode[]>,
+        // stream_icon is a converted asset URL (local file paths need
+        // convertFileSrc to render as <img>), so use it for the poster.
+        posterUrl: movie.stream_icon || null,
+      };
+    }
+    const { key, head, episodes } = addToPlaylistTarget;
+    const series = localGroupToStoredSeries({ key, head, episodes });
+    const seasons: Record<number, StoredEpisode[]> = {};
+    for (const ep of episodes) {
+      const s = ep.season ?? 1;
+      (seasons[s] ??= []).push(localEntryToStoredEpisode(ep, series.series_id, head.title));
+    }
+    return {
+      movie: null as StoredMovie | null,
+      series,
+      seasons,
+      posterUrl: series.cover || null,
+    };
+  }, [addToPlaylistTarget]);
 
   return (
     <div className="local-tab-container">
@@ -997,6 +1108,18 @@ export function LocalTab({
               >
                 {t('series', 'Series')}
                 <span className="local-type-pill__count">{seriesCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`local-type-pill ${activeFilter === 'favorites' ? 'active' : ''}`}
+                onClick={() => setActiveFilter('favorites')}
+                title={t('favoritesFilterTitle', 'Show only favorited local titles')}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill={activeFilter === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {t('favorites', 'Favorites')}
+                <span className="local-type-pill__count">{favoriteCount}</span>
               </button>
             </div>
           )}
@@ -1038,8 +1161,7 @@ export function LocalTab({
             value={`${sortKey}_${sortDir}`}
             onChange={(e) => {
               const [key, dir] = e.target.value.split('_') as [LocalSortKey, SortDir];
-              setSortKey(key);
-              setSortDir(dir);
+              handleSortChange(key, dir);
             }}
           >
             <option value="added_desc">{t('recentlyAdded', 'Recently Added')}</option>
@@ -1353,7 +1475,31 @@ export function LocalTab({
       )}
 
       {/* Main Content: Grid or Empty State */}
-      {items.length === 0 && !scanning && !walking ? (
+      {effFilter === 'favorites' && favoriteCount === 0 && !scanning && !walking ? (
+        <div className="local-empty-state">
+          <div className="local-empty-state__icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h3 className="local-empty-state__title">
+            {t('noLocalFavoritesTitle', 'No favorites yet')}
+          </h3>
+          <p className="local-empty-state__desc">
+            {t('noLocalFavoritesDesc', 'Tap the heart on any local movie or series poster to add it here.')}
+          </p>
+          <div className="local-empty-state__actions">
+            <button
+              type="button"
+              className="local-btn local-btn--secondary"
+              style={{ padding: '0 24px', height: '42px', fontSize: '13.5px' }}
+              onClick={() => setActiveFilter('all')}
+            >
+              {t('browseAllLocal', 'Browse all local titles')}
+            </button>
+          </div>
+        </div>
+      ) : items.length === 0 && !scanning && !walking ? (
         <div className="local-empty-state">
           <div className="local-empty-state__icon">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -1399,6 +1545,7 @@ export function LocalTab({
         </div>
       ) : (
         <VirtuosoGrid
+          ref={virtuosoRef}
           className="local-grid"
           style={
             {
@@ -1411,8 +1558,32 @@ export function LocalTab({
           computeItemKey={(_, g) => (g.kind === 'movie' ? g.entry.id : g.key)}
           itemContent={LocalGridItem}
           overscan={150}
+          rangeChanged={(range) => setVisibleRange(range)}
           listClassName="local-grid-list"
           itemClassName="local-grid-item"
+        />
+      )}
+
+      {/* A-Z quick jump rail (name order only, like the category view) */}
+      {filteredGroups.length > 0 && sortKey === 'name' && (
+        <AlphabetRail
+          currentLetter={currentLetter}
+          availableLetters={availableLetters}
+          onLetterSelect={handleLetterSelect}
+          count={filteredGroups.length}
+        />
+      )}
+
+      {/* Add to Playlist Modal (local movies/series use the same flow as VOD) */}
+      {addToPlaylistTarget && addToPlaylistModalProps && (
+        <AddToPlaylistModal
+          isOpen={true}
+          onClose={() => setAddToPlaylistTarget(null)}
+          movie={addToPlaylistModalProps.movie}
+          series={addToPlaylistModalProps.series}
+          seasons={addToPlaylistModalProps.seasons}
+          posterUrl={addToPlaylistModalProps.posterUrl}
+          sourceName="Local"
         />
       )}
 
@@ -1500,6 +1671,13 @@ export function LocalTab({
             removeLocalEntries(ids);
             setSelectedDetailGroup(null);
             showToast(t('itemRemoved'));
+          }}
+          onAddToPlaylist={(group) => {
+            if (group.kind === 'movie') {
+              setAddToPlaylistTarget({ kind: 'movie', entry: group.entry });
+            } else {
+              setAddToPlaylistTarget({ kind: 'show', key: group.key, head: group.head, episodes: group.episodes });
+            }
           }}
         />
       )}

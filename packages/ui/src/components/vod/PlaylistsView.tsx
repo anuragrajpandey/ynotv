@@ -21,6 +21,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useVodPlaylistStore, type Playlist, type PlaylistItem } from '../../stores/vodPlaylistStore';
 import { useEnabledSources, useSourceNameMap } from '../../hooks/useChannels';
 import { usePlaylistItemsProgress, type PlaylistItemProgress } from '../../hooks/usePlaylistProgress';
+import { usePlaylistItemResolutions } from '../../hooks/usePlaylistItemResolution';
 import { findLastWatchedItem, isPlaylistItemHidden, sortPlaylistsByLastPlayed } from '../../utils/playlistPlayback';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
@@ -87,7 +88,9 @@ function SortablePlaylistItem({
     touchAction: 'none',
   };
 
-  const sourceName = (showSourceName && (item.sourceName || sourceNameMap?.get(item.sourceId || ''))) || null;
+  // Prefer the live source-name map (updates when a source is renamed) over
+  // the snapshot stored when the item was added.
+  const sourceName = (showSourceName && (sourceNameMap?.get(item.sourceId || '') || item.sourceName)) || null;
 
   return (
     <div
@@ -262,6 +265,24 @@ export function PlaylistsView({ onPlayPlaylistItem }: PlaylistsViewProps) {
     toggleShowSourceName,
   } = useVodPlaylistStore();
 
+  // Live-resolved items (fresh titles/posters/stream URLs from the current
+  // source rows) so playlists don't show stale snapshots after re-syncs or
+  // metadata edits. Falls back to the stored snapshot per item.
+  const allPlaylistItems = React.useMemo(() => {
+    const seen = new Set<string>();
+    const items: PlaylistItem[] = [];
+    for (const pl of playlists) {
+      for (const item of pl.items) {
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          items.push(item);
+        }
+      }
+    }
+    return items;
+  }, [playlists]);
+  const resolvedById = usePlaylistItemResolutions(allPlaylistItems);
+
   const [showHiddenItems, setShowHiddenItems] = useState(false);
 
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
@@ -310,20 +331,6 @@ export function PlaylistsView({ onPlayPlaylistItem }: PlaylistsViewProps) {
   // Saved playback progress for every playlist's items — one shared map keyed
   // by item id (batched: 2 queries regardless of playlist size), used by both
   // the overview cards' watched counts and the open playlist's rows.
-  const allPlaylistItems = React.useMemo(() => {
-    const seen = new Set<string>();
-    const items: PlaylistItem[] = [];
-    for (const pl of playlists) {
-      for (const item of pl.items) {
-        if (!seen.has(item.id)) {
-          seen.add(item.id);
-          items.push(item);
-        }
-      }
-    }
-    return items;
-  }, [playlists]);
-
   const itemProgress = usePlaylistItemsProgress(allPlaylistItems);
 
   // Overview grid order: most recently played playlists float to the front
@@ -502,7 +509,7 @@ export function PlaylistsView({ onPlayPlaylistItem }: PlaylistsViewProps) {
         ) : (
           <div className="playlists-grid">
             {sortedPlaylists.map((pl) => {
-              const posters = getCardPosters(pl.items);
+              const posters = getCardPosters(pl.items.map((i) => resolvedById.get(i.id) ?? i));
               const watchedCount = pl.items.filter((i) => itemProgress.get(i.id)?.completed).length;
               const lastWatched = findLastWatchedItem(pl.items, itemProgress);
               const lastWatchedProgress = lastWatched ? itemProgress.get(lastWatched.id) : null;
@@ -750,7 +757,9 @@ export function PlaylistsView({ onPlayPlaylistItem }: PlaylistsViewProps) {
                         return (
                           <SortablePlaylistItem
                             key={item.id}
-                            item={item}
+                            // Render the live-resolved item so re-synced titles,
+                            // posters, and source names show up immediately.
+                            item={resolvedById.get(item.id) ?? item}
                             index={realIdx}
                             playlist={selectedPlaylist}
                             showSourceName={selectedPlaylist.showSourceName ?? true}

@@ -612,6 +612,74 @@ describe('Local Library - VOD Stored Converters', () => {
     expect(stored.plot).toBe('A former Roman General sets out to exact vengeance.');
   });
 
+describe('Local Library - Playlist & Favorite Cleanup', () => {
+  it('removes movie favorites/playlist items when the movie is removed', async () => {
+    const { addLocalEntries, removeLocalEntries } = await import('../local-library');
+    const { useVodFavoritesStore } = await import('../../../stores/vodFavoritesStore');
+    const { useVodPlaylistStore } = await import('../../../stores/vodPlaylistStore');
+
+    const movieId = 'T:/Cleanup/Gladiator.2000.mkv';
+    addLocalEntries([{
+      id: movieId, path: movieId, filename: 'Gladiator.2000.mkv', title: 'Gladiator', year: 2000, type: 'movie', addedAt: 1,
+    }]);
+
+    const fav = useVodFavoritesStore.getState();
+    const pl = useVodPlaylistStore.getState();
+    const playlist = pl.createPlaylist('Cleanup Test');
+
+    fav.addFavorite({ id: `local_${movieId}`, type: 'movie', title: 'Gladiator' });
+    pl.addItemToPlaylist(playlist.id, {
+      itemType: 'movie',
+      mediaId: `local_${movieId}`,
+      title: 'Gladiator',
+      directUrl: movieId,
+      sourceId: 'local',
+    });
+
+    expect(useVodFavoritesStore.getState().isFavorite(`local_${movieId}`, 'movie')).toBe(true);
+    expect(useVodPlaylistStore.getState().playlists[0].items).toHaveLength(1);
+
+    removeLocalEntries([movieId]);
+
+    expect(useVodFavoritesStore.getState().isFavorite(`local_${movieId}`, 'movie')).toBe(false);
+    expect(useVodPlaylistStore.getState().playlists[0].items).toHaveLength(0);
+  });
+
+  it('keeps the series favorite when a single episode is removed, drops it with the last episode', async () => {
+    const { addLocalEntries, removeLocalEntries } = await import('../local-library');
+    const { useVodFavoritesStore } = await import('../../../stores/vodFavoritesStore');
+    const { useVodPlaylistStore } = await import('../../../stores/vodPlaylistStore');
+
+    const ep1 = 'T:/Cleanup/Show/S01E01.mkv';
+    const ep2 = 'T:/Cleanup/Show/S01E02.mkv';
+    addLocalEntries([
+      { id: ep1, path: ep1, filename: 'S01E01.mkv', title: 'Cleanup Show', year: 2020, type: 'show', season: 1, episode: 1, addedAt: 1 },
+      { id: ep2, path: ep2, filename: 'S01E02.mkv', title: 'Cleanup Show', year: 2020, type: 'show', season: 1, episode: 2, addedAt: 2 },
+    ]);
+
+    const seriesId = 'local_cleanup show';
+    const fav = useVodFavoritesStore.getState();
+    const pl = useVodPlaylistStore.getState();
+    const playlist = pl.createPlaylist('Cleanup Show Playlist');
+
+    fav.addFavorite({ id: seriesId, type: 'series', title: 'Cleanup Show' });
+    pl.addItemsToPlaylist(playlist.id, [
+      { itemType: 'episode', mediaId: ep1, seriesId, title: 'Cleanup Show - S01E01', directUrl: ep1, sourceId: 'local', seasonNum: 1, episodeNum: 1 },
+      { itemType: 'episode', mediaId: ep2, seriesId, title: 'Cleanup Show - S01E02', directUrl: ep2, sourceId: 'local', seasonNum: 1, episodeNum: 2 },
+    ]);
+
+    // Removing one episode keeps the show favorite but drops that episode.
+    removeLocalEntries([ep1]);
+    expect(useVodFavoritesStore.getState().isFavorite(seriesId, 'series')).toBe(true);
+    expect(useVodPlaylistStore.getState().playlists[0].items.map((i) => i.mediaId)).toEqual([ep2]);
+
+    // Removing the last episode removes the show favorite and the last item.
+    removeLocalEntries([ep2]);
+    expect(useVodFavoritesStore.getState().isFavorite(seriesId, 'series')).toBe(false);
+    expect(useVodPlaylistStore.getState().playlists[0].items).toHaveLength(0);
+  });
+});
+
   it('converts LocalGroup to StoredSeries correctly', async () => {
     const { localGroupToStoredSeries, localEntryToStoredEpisode } = await import('../local-library');
     const headEntry: LocalEntry = {

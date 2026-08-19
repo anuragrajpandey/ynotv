@@ -12,7 +12,13 @@ import { FavoritesView } from './vod/FavoritesView';
 import { PlaylistsView } from './vod/PlaylistsView';
 import { useActivePlaylistStore } from '../stores/activePlaylistStore';
 import type { PlaylistItem, Playlist } from '../stores/vodPlaylistStore';
-import { isPlaylistItemHidden, playlistItemToVodInfo, recordPlaylistItemWatch } from '../utils/playlistPlayback';
+import {
+  isPlaylistItemHidden,
+  playlistItemToVodInfo,
+  recordPlaylistItemWatch,
+  resolvePlaylistItem,
+  applyPlaylistResolutions,
+} from '../utils/playlistPlayback';
 import { MovieDetail } from './vod/MovieDetail';
 import { SeriesDetail } from './vod/SeriesDetail';
 import { SourceContextMenu } from './SourceContextMenu';
@@ -56,7 +62,14 @@ import { removeFromRecentlyWatched, recordVodWatch, recordEpisodeWatch, getEpiso
 import { type MediaItem, type VodType, type VodPlayInfo } from '../types/media';
 import { type VodPlayerMode } from './vod/SplitPlayButton';
 import { LocalTab } from './local/LocalTab';
-import { readLocalLibrary, groupLocal, localEntryToStoredEpisode } from '../services/local-library/local-library';
+import {
+  readLocalLibrary,
+  groupLocal,
+  localEntryToStoredEpisode,
+  localEntryToStoredMovie,
+  localGroupToStoredSeries,
+  ensureLocalLibraryLoaded,
+} from '../services/local-library/local-library';
 import './VodPage.css';
 
 // Carousel row type for virtualization (all data pre-fetched)
@@ -286,6 +299,9 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
     const loadItems = async () => {
       setFavoritesLoading(true);
       try {
+        // Local library entries live in their own table (not vodMovies/
+        // vodSeries), so load them before diffing favorites.
+        await ensureLocalLibraryLoaded();
         const dbInstance = await (db as any).dbPromise;
         const ids = favoritesList.map(f => f.id);
         const placeholders = ids.map(() => '?').join(',');
@@ -295,26 +311,41 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
             `SELECT * FROM vodMovies WHERE stream_id IN (${placeholders})`,
             ids
           );
+          // Local library movies are keyed by `local_<path>`; favorites whose
+          // ids match are loaded from the local library (never source-filtered).
+          const localMovies: StoredMovie[] = readLocalLibrary()
+            .filter(
+              (e) => e.type === 'movie' && favoritesList.some((f) => f.id === `local_${e.id}`)
+            )
+            .map((e) => localEntryToStoredMovie(e));
           if (!cancelled) {
             const filteredItems = enabledSourceIds
               ? items.filter(item => enabledSourceIds.has(item.source_id))
               : items;
+            const merged = [...filteredItems, ...localMovies];
             const orderMap = new Map(ids.map((id, i) => [id, i]));
-            filteredItems.sort((a, b) => (orderMap.get(a.stream_id) ?? 0) - (orderMap.get(b.stream_id) ?? 0));
-            setFavoriteItems(filteredItems);
+            merged.sort((a, b) => (orderMap.get(a.stream_id) ?? Infinity) - (orderMap.get(b.stream_id) ?? Infinity));
+            setFavoriteItems(merged);
           }
         } else {
           const items: StoredSeries[] = await dbInstance.select(
             `SELECT * FROM vodSeries WHERE series_id IN (${placeholders})`,
             ids
           );
+          const localSeries: StoredSeries[] = [];
+          for (const g of groupLocal(readLocalLibrary())) {
+            if (g.kind === 'show' && favoritesList.some((f) => f.id === `local_${g.key}`)) {
+              localSeries.push(localGroupToStoredSeries(g));
+            }
+          }
           if (!cancelled) {
             const filteredItems = enabledSourceIds
               ? items.filter(item => enabledSourceIds.has(item.source_id))
               : items;
+            const merged = [...filteredItems, ...localSeries];
             const orderMap = new Map(ids.map((id, i) => [id, i]));
-            filteredItems.sort((a, b) => (orderMap.get(a.series_id) ?? 0) - (orderMap.get(b.series_id) ?? 0));
-            setFavoriteItems(filteredItems);
+            merged.sort((a, b) => (orderMap.get(a.series_id) ?? Infinity) - (orderMap.get(b.series_id) ?? Infinity));
+            setFavoriteItems(merged);
           }
         }
       } catch (error) {
@@ -332,12 +363,23 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
   // VOD categories
   const { categories } = useVodCategories(type);
 
-  const handlePlayPlaylistItem = useCallback((item: PlaylistItem, playlist: Playlist, isShuffle?: boolean) => {
+  const handlePlayPlaylistItem = useCallback(async (item: PlaylistItem, playlist: Playlist, isShuffle?: boolean) => {
+    // Resolve every item against the CURRENT source rows before queuing, so a
+    // re-sync or credential change (new stream URLs) or a metadata edit is
+    // picked up at play time instead of playing a stale snapshot. Item ids are
+    // preserved, so queue positions and progress tracking are unchanged.
+    const resolved = await Promise.all(playlist.items.map((i) => resolvePlaylistItem(i)));
+    // Persist the fresh metadata back into the store (and prune permanently-
+    // gone items), so exports/imports carry up-to-date data.
+    applyPlaylistResolutions(resolved);
+    const resolvedById = new Map(resolved.map((i) => [i.id, i]));
+    const resolvedItem = resolvedById.get(item.id) ?? item;
+
     // Skip items whose source was removed/disabled so the queue never tries to
     // play an unavailable stream. Keeps the played item's own queue position.
     const queueItems = enabledSourceIds
-      ? playlist.items.filter((i) => !isPlaylistItemHidden(i, enabledSourceIds))
-      : playlist.items;
+      ? resolved.filter((i) => !isPlaylistItemHidden(i, enabledSourceIds))
+      : resolved;
     useActivePlaylistStore.getState().startPlayback(
       playlist.id,
       playlist.name,
@@ -348,9 +390,9 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
 
     // Record the watch (Recent rail + episode progress) like normal VOD
     // playback does, so playlist plays show up and resume properly.
-    void recordPlaylistItemWatch(item);
-    onPlay?.(playlistItemToVodInfo(item), vodPlayerMode);
-  }, [onPlay, vodPlayerMode]);
+    void recordPlaylistItemWatch(resolvedItem);
+    onPlay?.(playlistItemToVodInfo(resolvedItem), vodPlayerMode);
+  }, [onPlay, vodPlayerMode, enabledSourceIds]);
 
   // Get selected category name for VodBrowse
   const selectedCategory = categories.find(c => c.category_id === selectedCategoryId);

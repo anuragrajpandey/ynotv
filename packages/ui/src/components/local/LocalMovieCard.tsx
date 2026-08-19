@@ -4,6 +4,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import type { LocalEntry } from '../../services/local-library/types';
 import { removeLocalEntry } from '../../services/local-library/local-library';
 import { useLocalMovieWatchStatus, markLocalMovieWatched } from '../../services/local-library/local-watch';
+import { useVodFavoritesStore } from '../../stores/vodFavoritesStore';
 
 interface LocalMovieCardProps {
   entry: LocalEntry;
@@ -13,6 +14,7 @@ interface LocalMovieCardProps {
   onPlay: (entry: LocalEntry) => void;
   onOpenDetail?: (entry: LocalEntry) => void;
   onFixMatch: (entry: LocalEntry) => void;
+  onAddToPlaylist: (entry: LocalEntry) => void;
 }
 
 export const LocalMovieCard = memo(function LocalMovieCard({
@@ -23,10 +25,15 @@ export const LocalMovieCard = memo(function LocalMovieCard({
   onPlay,
   onOpenDetail,
   onFixMatch,
+  onAddToPlaylist,
 }: LocalMovieCardProps) {
   const { t } = useTranslation('vod');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const watchStatus = useLocalMovieWatchStatus(entry);
+  const favoriteId = `local_${entry.id}`;
+  const isFavorite = useVodFavoritesStore((s) =>
+    s.favorites.some((f) => f.id === favoriteId && f.type === 'movie'),
+  );
 
   const posterRaw = entry.poster || entry.localArt?.poster;
   const posterSrc = posterRaw
@@ -34,6 +41,9 @@ export const LocalMovieCard = memo(function LocalMovieCard({
       ? posterRaw
       : convertFileSrc(posterRaw))
     : null;
+
+  // Rating - only show if it's a meaningful value (not 0, not NaN)
+  const rating = entry.rating != null && entry.rating > 0 ? entry.rating : null;
 
   const handleCardClick = useCallback(() => {
     if (selectMode) {
@@ -54,6 +64,27 @@ export const LocalMovieCard = memo(function LocalMovieCard({
     e.stopPropagation();
     await markLocalMovieWatched(entry, !watchStatus.completed);
   }, [entry, watchStatus.completed]);
+
+  const handleToggleFavorite = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const favStore = useVodFavoritesStore.getState();
+    if (isFavorite) {
+      favStore.removeFavorite(favoriteId, 'movie');
+    } else {
+      favStore.addFavorite({
+        id: favoriteId,
+        type: 'movie',
+        title: entry.title || entry.filename,
+        poster: entry.poster || entry.localArt?.poster || undefined,
+        year: entry.year != null ? String(entry.year) : undefined,
+      });
+    }
+  }, [isFavorite, favoriteId, entry.title, entry.filename, entry.poster, entry.localArt, entry.year]);
+
+  const handleAddToPlaylist = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAddToPlaylist(entry);
+  }, [entry, onAddToPlaylist]);
 
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -97,10 +128,23 @@ export const LocalMovieCard = memo(function LocalMovieCard({
 
         {/* Watched Badge */}
         {watchStatus.completed && !selectMode && (
-          <span className="local-watched-badge" title={t('watched', 'Watched')}>
+          <span
+            className={`local-watched-badge${rating ? ' local-watched-badge--below-rating' : ''}`}
+            title={t('watched', 'Watched')}
+          >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
               <polyline points="20 6 9 17 4 12" />
             </svg>
+          </span>
+        )}
+
+        {/* Rating Badge */}
+        {rating && !selectMode && (
+          <span className="local-rating-badge" title={t('rating', 'Rating')}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+            {rating.toFixed(1)}
           </span>
         )}
 
@@ -199,6 +243,33 @@ export const LocalMovieCard = memo(function LocalMovieCard({
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                className={`local-card__action-btn ${isFavorite ? 'favorited' : ''}`}
+                onClick={handleToggleFavorite}
+                title={isFavorite ? t('removeFavorite', 'Remove from favorites') : t('addFavorite', 'Add to favorites')}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                className="local-card__action-btn"
+                onClick={handleAddToPlaylist}
+                title={t('addToPlaylist', 'Add to playlist')}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6" />
+                  <line x1="8" y1="12" x2="21" y2="12" />
+                  <line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" />
+                  <line x1="3" y1="12" x2="3.01" y2="12" />
+                  <line x1="3" y1="18" x2="3.01" y2="18" />
                 </svg>
               </button>
 

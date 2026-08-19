@@ -5,6 +5,8 @@ import type { VodPlayInfo } from '../../types/media';
 import type { StoredMovie, StoredSeries, StoredEpisode } from '../../db';
 import { db, type LocalEntryRow } from '../../db';
 import { readAppKvSync, loadAppKv, writeAppKv } from '../appKv';
+import { useVodFavoritesStore } from '../../stores/vodFavoritesStore';
+import { useVodPlaylistStore } from '../../stores/vodPlaylistStore';
 
 function toAssetUrl(urlOrPath: string | null | undefined): string | undefined {
   if (!urlOrPath) return undefined;
@@ -425,6 +427,68 @@ export function removeLocalEntry(id: string): void {
   removeLocalEntries([id]);
 }
 
+/** Key used to group a series' episodes (mirrors groupLocal). */
+function localShowKey(e: LocalEntry): string {
+  return (
+    e.imdbId ||
+    (e.tmdbId ? `tmdb_${e.tmdbId}` : null) ||
+    e.title ||
+    e.filename
+  ).toLowerCase();
+}
+
+/**
+ * Drop favorites and playlist entries that referenced the removed local files.
+ * Movies match by their `local_<id>` media id; a series favorite is only
+ * removed when every episode of the show is gone from the library (removing a
+ * single episode keeps the show). Playlist items match by the file path stored
+ * in directUrl, plus mediaId/seriesId as a fallback.
+ */
+function cleanupRemovedReferences(removed: LocalEntry[], remaining: LocalEntry[]): void {
+  if (removed.length === 0) return;
+
+  const remainingShowKeys = new Set(
+    remaining.filter((e) => e.type === 'show').map((e) => localShowKey(e)),
+  );
+  const removedPaths = new Set(removed.map((e) => e.path.toLowerCase()));
+  const removedMediaIds = new Set<string>();
+  const removedSeriesIds = new Set<string>();
+  const removedFavs: Array<{ id: string; type: 'movie' | 'series' }> = [];
+
+  for (const e of removed) {
+    if (e.type === 'movie') {
+      const mediaId = `local_${e.id}`;
+      removedMediaIds.add(mediaId);
+      removedFavs.push({ id: mediaId, type: 'movie' });
+    } else {
+      const key = localShowKey(e);
+      if (!remainingShowKeys.has(key)) {
+        const seriesId = `local_${key}`;
+        removedSeriesIds.add(seriesId);
+        removedFavs.push({ id: seriesId, type: 'series' });
+      }
+    }
+  }
+
+  const favStore = useVodFavoritesStore.getState();
+  for (const f of removedFavs) {
+    if (favStore.isFavorite(f.id, f.type)) favStore.removeFavorite(f.id, f.type);
+  }
+
+  const plStore = useVodPlaylistStore.getState();
+  for (const p of plStore.playlists) {
+    const removedItems = p.items.filter(
+      (it) =>
+        (it.directUrl && removedPaths.has(it.directUrl.toLowerCase())) ||
+        (it.mediaId && removedMediaIds.has(it.mediaId)) ||
+        (it.seriesId && removedSeriesIds.has(it.seriesId)),
+    );
+    if (removedItems.length > 0) {
+      plStore.removeItemsFromPlaylist(p.id, removedItems.map((it) => it.id));
+    }
+  }
+}
+
 export function removeLocalEntries(ids: string[], opts?: { noUndo?: boolean }): void {
   if (ids.length === 0) return;
   const idSet = new Set(ids);
@@ -434,6 +498,7 @@ export function removeLocalEntries(ids: string[], opts?: { noUndo?: boolean }): 
   if (!opts?.noUndo) pushUndo({ kind: 'remove', entries: removed });
   entriesCache = next;
   persistRemove(Array.from(idSet));
+  cleanupRemovedReferences(removed, next);
   for (const s of subs) s();
 }
 

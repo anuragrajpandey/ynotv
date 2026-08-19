@@ -16,6 +16,7 @@ import {
 } from '../../services/local-library/metadata-cache';
 import { updateLocalEntries } from '../../services/local-library/local-library';
 import { useActiveTmdbToken } from '../../hooks/useTmdbLists';
+import { useVodFavoritesStore } from '../../stores/vodFavoritesStore';
 import { EditEpisodeMetadataModal } from './EditEpisodeMetadataModal';
 import './LocalDetail.css';
 
@@ -25,6 +26,7 @@ interface LocalDetailProps {
   onPlay: (entry: LocalEntry, seriesGroup?: { key: string; head: LocalEntry }) => void;
   onFixMatch: (entries: LocalEntry[]) => void;
   onRemove: (ids: string[]) => void;
+  onAddToPlaylist: (group: LocalGroup) => void;
 }
 
 function LocalEpisodeCard({
@@ -228,6 +230,7 @@ export const LocalDetail = memo(function LocalDetail({
   onPlay,
   onFixMatch,
   onRemove,
+  onAddToPlaylist,
 }: LocalDetailProps) {
   const { t } = useTranslation('vod');
   const tmdbToken = useActiveTmdbToken();
@@ -236,6 +239,11 @@ export const LocalDetail = memo(function LocalDetail({
   const head = isMovie ? group.entry : group.head;
   const episodes = isMovie ? [] : group.episodes;
   const allEntries = isMovie ? [group.entry] : episodes;
+
+  const favoriteId = group.kind === 'movie' ? `local_${group.entry.id}` : `local_${group.key}`;
+  const isFavorite = useVodFavoritesStore((s) =>
+    s.favorites.some((f) => f.id === favoriteId && f.type === (group.kind === 'movie' ? 'movie' : 'series')),
+  );
 
   const movieWatchStatus = useLocalMovieWatchStatus(isMovie ? group.entry : null);
 
@@ -383,6 +391,25 @@ export const LocalDetail = memo(function LocalDetail({
     await markLocalMovieWatched(head, !movieWatchStatus.completed);
   }, [isMovie, head, movieWatchStatus.completed]);
 
+  const handleToggleFavorite = useCallback(() => {
+    const favStore = useVodFavoritesStore.getState();
+    if (isFavorite) {
+      favStore.removeFavorite(favoriteId, isMovie ? 'movie' : 'series');
+    } else {
+      favStore.addFavorite({
+        id: favoriteId,
+        type: isMovie ? 'movie' : 'series',
+        title: head.title || head.filename,
+        poster: head.poster || head.localArt?.poster || undefined,
+        year: head.year != null ? String(head.year) : undefined,
+      });
+    }
+  }, [isFavorite, favoriteId, isMovie, head.title, head.filename, head.poster, head.localArt, head.year]);
+
+  const handleAddToPlaylist = useCallback(() => {
+    onAddToPlaylist(group);
+  }, [group, onAddToPlaylist]);
+
   const handleDelete = useCallback(() => {
     if (confirmDelete) {
       onRemove(allEntries.map((e) => e.id));
@@ -495,6 +522,34 @@ export const LocalDetail = memo(function LocalDetail({
                     : t('markWatched', 'Mark as watched')}
                 </button>
               )}
+
+              <button
+                type="button"
+                className={`local-detail__action-btn ${isFavorite ? 'favorited' : ''}`}
+                onClick={handleToggleFavorite}
+                title={isFavorite ? t('removeFavorite', 'Remove from favorites') : t('addFavorite', 'Add to favorites')}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {isFavorite ? t('removeFavorite', 'Remove from favorites') : t('addFavorite', 'Add to favorites')}
+              </button>
+
+              <button
+                type="button"
+                className="local-detail__action-btn"
+                onClick={handleAddToPlaylist}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6" />
+                  <line x1="8" y1="12" x2="21" y2="12" />
+                  <line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" />
+                  <line x1="3" y1="12" x2="3.01" y2="12" />
+                  <line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
+                {t('addToPlaylist', 'Add to playlist')}
+              </button>
 
               <button
                 type="button"
