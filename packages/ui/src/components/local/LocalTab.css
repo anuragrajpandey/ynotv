@@ -1103,6 +1103,51 @@
   text-overflow: ellipsis;
 }
 
+/* Per-row actions in the review list (Skip / Remove) */
+.local-batch-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.local-batch-row:hover .local-batch-row__actions,
+.local-batch-row.selected .local-batch-row__actions {
+  opacity: 1;
+}
+
+.local-row-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #ffffff);
+  white-space: nowrap;
+  transition: background 0.12s ease;
+}
+
+.local-row-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.local-row-btn--remove {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.local-row-btn--remove:hover {
+  background: rgba(239, 68, 68, 0.24);
+}
+
 .local-modal-footer {
   display: flex;
   justify-content: flex-end;

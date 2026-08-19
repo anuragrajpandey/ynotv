@@ -104,6 +104,25 @@ export function clearTmdbMatchCache(): void {
 }
 
 /**
+ * Drop a single (title, year, type) entry from the match cache so the next
+ * lookup re-queries TMDB (used by "Refresh Metadata" — the cache only holds
+ * confident matches, but one may hold a stale/broken poster).
+ */
+export function invalidateTmdbMatchCache(
+  title: string,
+  year: number | null,
+  type: 'movie' | 'show',
+): void {
+  const key = tmdbMatchCacheKey(title, year, type);
+  tmdbMatchMemory.delete(key);
+  const stored = loadTmdbMatchStorage();
+  if (stored[key]) {
+    delete stored[key];
+    persistTmdbMatchStorage();
+  }
+}
+
+/**
  * TMDB lookup that reuses a cached confident match for the same
  * (title, year, type) and only caches new confident matches. A low-confidence
  * or failed lookup is never cached so re-matching can improve.

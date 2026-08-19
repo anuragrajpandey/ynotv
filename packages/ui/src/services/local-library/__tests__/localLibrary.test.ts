@@ -542,6 +542,43 @@ describe('Local Library - Undo & Locked Overrides', () => {
     expect(after.tmdbId).toBe(999);
     expect(after.addedAt).toBe(999);
   });
+
+  it('skipped entries keep their parsed identity across a re-scan (no auto-match)', async () => {
+    const { addLocalEntries, readLocalLibrary, updateLocalEntries } = await import('../local-library');
+    addLocalEntries([{
+      id: 's1', path: 'T:/Skipped Movie.mkv', filename: 'Skipped Movie.mkv', title: 'Skipped Movie', year: 2021, type: 'movie', addedAt: 1, needsReview: true,
+    }]);
+    // User skips matching from the review flow.
+    updateLocalEntries(['s1'], { needsReview: false, reviewSkipped: true });
+
+    // A re-scan rebuilds the entry and a TMDB lookup would have matched it.
+    addLocalEntries([{
+      id: 's1', path: 'T:/Skipped Movie.mkv', filename: 'Skipped Movie.mkv', title: 'Matched Title', year: 1999, type: 'movie', tmdbId: 777, imdbId: 'tt0777', poster: 'http://x/p.jpg', addedAt: 999,
+    }]);
+
+    const after = readLocalLibrary().find((e) => e.id === 's1')!;
+    expect(after.reviewSkipped).toBe(true); // skip survives the re-scan
+    expect(after.tmdbId).toBeUndefined(); // no metadata attached
+    expect(after.title).toBe('Skipped Movie'); // parsed identity kept
+    expect(after.needsReview).toBe(false); // still excluded from review
+  });
+
+  it('reviewSkipped flag round-trips through the store and undo restores it', async () => {
+    const { addLocalEntries, readLocalLibrary, updateLocalEntries, undoLocalChange } = await import('../local-library');
+    addLocalEntries([{
+      id: 's2', path: 'T:/Skip Round Trip.mkv', filename: 'Skip Round Trip.mkv', title: 'Skip Round Trip', year: 2022, type: 'movie', addedAt: 1, needsReview: true,
+    }]);
+    expect(readLocalLibrary().find((e) => e.id === 's2')?.reviewSkipped).toBeUndefined();
+    // Skip from the review flow.
+    updateLocalEntries(['s2'], { needsReview: false, reviewSkipped: true });
+    expect(readLocalLibrary().find((e) => e.id === 's2')?.reviewSkipped).toBe(true);
+    expect(readLocalLibrary().find((e) => e.id === 's2')?.needsReview).toBe(false);
+    // Undo restores the pre-skip state.
+    expect(undoLocalChange()).toBe(true);
+    const restored = readLocalLibrary().find((e) => e.id === 's2')!;
+    expect(restored.reviewSkipped).toBeUndefined();
+    expect(restored.needsReview).toBe(true);
+  });
 });
 
 describe('Local Library - Metadata Cache', () => {

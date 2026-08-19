@@ -32,6 +32,7 @@ import {
   buildTmdbEntry,
   buildTmdbEntryForFolder,
   clearTmdbMatchCache,
+  invalidateTmdbMatchCache,
 } from '../../services/local-library/scan';
 import {
   readScanStateSync,
@@ -112,6 +113,9 @@ interface LocalGridContext {
   handlePlayEntry: (entry: LocalEntry, seriesGroup?: { key: string; head: LocalEntry }) => void;
   handleOpenDetail: (g: LocalGroup) => void;
   openIdentify: (target: LocalEntry[]) => void;
+  refreshMetadata: (entries: LocalEntry[]) => void;
+  markPosterFailed: (id: string) => void;
+  clearPosterFailed: (id: string) => void;
   openEpisodes: (target: { head: LocalEntry; episodes: LocalEntry[] }) => void;
   onAddToPlaylist: (target: AddToPlaylistTarget) => void;
 }
@@ -140,6 +144,9 @@ const LocalGridItem = (
         onPlay={context.handlePlayEntry}
         onOpenDetail={() => context.handleOpenDetail(g)}
         onFixMatch={(entry) => context.openIdentify([entry])}
+        onRefreshMetadata={(entry) => context.refreshMetadata([entry])}
+        onPosterError={() => context.markPosterFailed(g.entry.id)}
+        onPosterLoad={() => context.clearPosterFailed(g.entry.id)}
         onAddToPlaylist={(entry) => context.onAddToPlaylist({ kind: 'movie', entry })}
       />
     );
@@ -155,6 +162,9 @@ const LocalGridItem = (
       onOpenEpisodes={(head, episodes) => context.openEpisodes({ head, episodes })}
       onOpenDetail={() => context.handleOpenDetail(g)}
       onFixMatch={(episodes) => context.openIdentify(episodes)}
+      onRefreshMetadata={(episodes) => context.refreshMetadata(episodes)}
+      onPosterError={() => context.markPosterFailed(g.head.id)}
+      onPosterLoad={() => context.clearPosterFailed(g.head.id)}
       onAddToPlaylist={(head, episodes) => context.onAddToPlaylist({ kind: 'show', key: g.key, head, episodes })}
     />
   );
@@ -182,7 +192,9 @@ export function LocalTab({
   const tmdbToken = useActiveTmdbToken();
   const favorites = useVodFavoritesStore((s) => s.favorites);
 
-  const [activeFilter, setActiveFilter] = useState<'all' | 'movies' | 'series' | 'favorites'>(initialFilter);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'movies' | 'series' | 'favorites' | 'unmatched'>(
+    initialFilter,
+  );
   const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const searchQuery = searchQueryProp !== undefined ? searchQueryProp : internalSearchQuery;
   const handleSearchChange = useCallback((query: string) => {
@@ -253,6 +265,10 @@ export function LocalTab({
   const [queuedCount, setQueuedCount] = useState(0);
   const [interruptedScan, setInterruptedScan] = useState<{ folderPath: string; current: number; total: number } | null>(null);
   const [rescanningMissing, setRescanningMissing] = useState(false);
+  // Entry ids whose poster <img> failed to load this session (matched titles
+  // with a broken/stale TMDB poster URL). These feed the "No Metadata" filter
+  // so broken posters are discoverable even though the URL is truthy.
+  const [posterFailures, setPosterFailures] = useState<Set<string>>(() => new Set());
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   const scanAbortRef = useRef<AbortController | null>(null);
@@ -378,15 +394,57 @@ export function LocalTab({
     [favorites],
   );
   const favoriteCount = useMemo(() => groups.filter(isGroupFavorited).length, [groups, isGroupFavorited]);
+  // A group counts as "missing metadata" when it has no match identity (no
+  // TMDB/IMDB id) or its poster/art never loaded — the cards show the poster
+  // fallback for these. Used by the "No Metadata" filter so a full-drive scan
+  // can be spot-checked in one click.
+  const markPosterFailed = useCallback((id: string) => {
+    setPosterFailures((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+  const clearPosterFailed = useCallback((id: string) => {
+    setPosterFailures((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+  const groupMissingMetadata = useCallback(
+    (g: LocalGroup): boolean => {
+      const e = g.kind === 'movie' ? g.entry : g.head;
+      const ids = g.kind === 'movie' ? [g.entry.id] : g.episodes.map((ep) => ep.id);
+      return (
+        (!e.tmdbId && !e.imdbId) ||
+        !(e.poster || e.localArt?.poster) ||
+        ids.some((id) => posterFailures.has(id))
+      );
+    },
+    [posterFailures],
+  );
+  const unmatchedCount = useMemo(
+    () => groups.filter(groupMissingMetadata).length,
+    [groups, groupMissingMetadata],
+  );
   // Review is per SERIES FOLDER, never per file: a show group is one review
   // unit (all its episodes share the same folder-derived title and one TMDB
   // lookup), so a 500-episode unmatched folder counts as a single item.
+  // Items the user chose to skip are excluded and never re-added to the queue.
   const reviewGroups = useMemo(() => {
     return groups.filter((g) => {
       if (g.kind === 'movie') {
-        return !!(g.entry.needsReview || (!g.entry.tmdbId && !g.entry.imdbId));
+        return (
+          !g.entry.reviewSkipped &&
+          !!(g.entry.needsReview || (!g.entry.tmdbId && !g.entry.imdbId))
+        );
       }
-      return g.episodes.some((e) => e.needsReview || (!e.tmdbId && !e.imdbId));
+      return g.episodes.some(
+        (e) => !e.reviewSkipped && (e.needsReview || (!e.tmdbId && !e.imdbId)),
+      );
     });
   }, [groups]);
 
@@ -403,7 +461,9 @@ export function LocalTab({
 
   // Filter & Sort
   const filteredGroups = useMemo(() => {
-    const effFilter = lockFilter ? initialFilter : activeFilter;
+    // The "No Metadata" pill is an explicit user choice: it overrides the
+    // locked type filter (Movies/Series tab) so it works everywhere.
+    const effFilter = activeFilter === 'unmatched' ? 'unmatched' : lockFilter ? initialFilter : activeFilter;
     let list = groups;
 
     if (effFilter === 'movies') {
@@ -412,6 +472,8 @@ export function LocalTab({
       list = list.filter((g) => g.kind === 'show');
     } else if (effFilter === 'favorites') {
       list = list.filter(isGroupFavorited);
+    } else if (effFilter === 'unmatched') {
+      list = list.filter(groupMissingMetadata);
     }
 
     if (searchQuery.trim()) {
@@ -423,7 +485,7 @@ export function LocalTab({
     }
 
     return sortGroups(list, sortKey, sortDir);
-  }, [groups, lockFilter, initialFilter, activeFilter, searchQuery, sortKey, sortDir, isGroupFavorited]);
+  }, [groups, lockFilter, initialFilter, activeFilter, searchQuery, sortKey, sortDir, isGroupFavorited, groupMissingMetadata]);
 
   // Alphabet #-Z quick jump rail (only meaningful in name order).
   const groupNames = useMemo(
@@ -817,7 +879,9 @@ export function LocalTab({
   };
 
   const handleRescanMissing = useCallback(() => {
-    const missing = items.filter((e) => e.needsReview || (!e.tmdbId && !e.imdbId));
+    const missing = items.filter(
+      (e) => !e.reviewSkipped && (e.needsReview || (!e.tmdbId && !e.imdbId)),
+    );
     if (missing.length === 0) {
       showToast(t('noMissingMetadata', 'All titles already have metadata.'));
       return;
@@ -830,6 +894,36 @@ export function LocalTab({
     }
     void enqueueScan(() => runRescanMissing(missing));
   }, [items, tmdbToken, showToast, t, enqueueScan]);
+
+  // Bulk "Refresh All": like Rescan Missing, but ALSO invalidates the per-title
+  // match cache so a lookup that failed, rate-limited, or returned a broken
+  // poster is genuinely re-fetched. Covers every title missing metadata or a
+  // poster (same condition as the "No Metadata" filter), skipping items the
+  // user chose to skip.
+  const handleRefreshAllMissing = useCallback(() => {
+    const missing = items.filter(
+      (e) =>
+        !e.reviewSkipped &&
+        ((!e.tmdbId && !e.imdbId) ||
+          !(e.poster || e.localArt?.poster) ||
+          posterFailures.has(e.id)),
+    );
+    if (missing.length === 0) {
+      showToast(t('noMissingMetadata', 'All titles already have metadata.'));
+      return;
+    }
+    if (!tmdbToken) {
+      showToast(
+        t('rescanNeedsTmdb', 'Rescanning missing metadata requires a TMDB API key (Settings → TMDB).'),
+      );
+      return;
+    }
+    for (const e of missing) {
+      const parsed = parseFilename(e.filename);
+      invalidateTmdbMatchCache(parsed.title, parsed.year, parsed.type);
+    }
+    void enqueueScan(() => runRescanMissing(missing));
+  }, [items, tmdbToken, showToast, t, enqueueScan, posterFailures]);
 
   const handleCancelScan = useCallback(() => {
     scanAbortRef.current?.abort();
@@ -908,6 +1002,19 @@ export function LocalTab({
     }
   };
 
+  // Advance to the next queued review group after a resolve/skip/remove;
+  // closes the modal when the queue is exhausted.
+  const advanceIdentifyQueue = useCallback(() => {
+    const q = identifyQueueRef.current;
+    if (q && q.length > 0) {
+      identifyQueueRef.current = q.slice(1);
+      setIdentifyTarget(q[0]);
+    } else {
+      identifyQueueRef.current = null;
+      setIdentifyTarget(null);
+    }
+  }, []);
+
   // Identify resolution
   const handleIdentifyResolved = useCallback((ids: string[], resolution: IdentifyResolution) => {
     resolvingRef.current = true;
@@ -933,6 +1040,8 @@ export function LocalTab({
         season: resolution.type === 'show' ? seasonNum : null,
         episode: resolution.type === 'show' ? epNum : null,
         needsReview: false,
+        // A manual match also un-skips the item (the user decided to match it).
+        reviewSkipped: false,
         // Manual match — freeze it so a re-scan can't overwrite it.
         metadataLocked: true,
       };
@@ -945,17 +1054,8 @@ export function LocalTab({
         : t('matchUpdated')
     );
 
-    // If the user selected several review groups to match, advance to the next
-    // one now that this group is resolved; otherwise close the modal.
-    const q = identifyQueueRef.current;
-    if (q && q.length > 0) {
-      identifyQueueRef.current = q.slice(1);
-      setIdentifyTarget(q[0]);
-    } else {
-      identifyQueueRef.current = null;
-      setIdentifyTarget(null);
-    }
-  }, [showToast, t]);
+    advanceIdentifyQueue();
+  }, [showToast, t, advanceIdentifyQueue]);
 
   // Match one or more review groups: identify each series/movie one at a time.
   const openReviewMatch = useCallback((groups: LocalGroup[]) => {
@@ -963,6 +1063,70 @@ export function LocalTab({
     identifyQueueRef.current = lists.length > 1 ? lists.slice(1) : null;
     setIdentifyTarget(lists[0] ?? null);
   }, []);
+
+  // Skip metadata matching for the given review group(s): the items stay in
+  // the library with their parsed title but stop appearing in the review
+  // queue and are never re-matched by scans.
+  const handleReviewSkip = useCallback(
+    (ids: string[]) => {
+      updateLocalEntries(ids, { needsReview: false, reviewSkipped: true });
+      showToast(t('reviewSkipToast', 'Skipped — will not be matched'));
+    },
+    [showToast, t],
+  );
+
+  // Skip/Remove from the Identify modal (the banner's "Review" flow): act on
+  // the current review unit, then advance to the next queued group (or close).
+  const handleIdentifySkip = useCallback(
+    (ids: string[]) => {
+      handleReviewSkip(ids);
+      advanceIdentifyQueue();
+    },
+    [handleReviewSkip, advanceIdentifyQueue],
+  );
+
+  const handleIdentifyRemove = useCallback(
+    (ids: string[]) => {
+      removeLocalEntries(ids);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      showToast(t('removedSelectedItems', 'Removed selected items'));
+      advanceIdentifyQueue();
+    },
+    [removeLocalEntries, showToast, t, advanceIdentifyQueue],
+  );
+
+  // Refresh Metadata: force a fresh TMDB lookup for the given entries (used
+  // by the card button when metadata/posters didn't load). The per-title
+  // match cache is invalidated first so a stale or broken result is re-fetched,
+  // then matching re-runs through the same scan queue as rescan-missing.
+  const handleRefreshMetadata = useCallback(
+    (entries: LocalEntry[]) => {
+      if (entries.length === 0) return;
+      if (!tmdbToken) {
+        showToast(
+          t('rescanNeedsTmdb', 'Refreshing metadata requires a TMDB API key (Settings → TMDB).'),
+        );
+        return;
+      }
+      for (const e of entries) {
+        const parsed = parseFilename(e.filename);
+        invalidateTmdbMatchCache(parsed.title, parsed.year, parsed.type);
+      }
+      // Drop any recorded poster failures — the refreshed entries get a fresh
+      // poster URL, and onLoad/onError will re-report the truth.
+      setPosterFailures((prev) => {
+        const next = new Set(prev);
+        for (const e of entries) next.delete(e.id);
+        return next;
+      });
+      void enqueueScan(() => runRescanMissing(entries));
+    },
+    [tmdbToken, enqueueScan, showToast, t],
+  );
 
   // Selection handlers
   const handleToggleSelectId = useCallback((id: string) => {
@@ -1025,7 +1189,7 @@ export function LocalTab({
   // Effective filter (locked to a tab when opened from elsewhere) — drives
   // which Add button is shown: Movies tab shows only "Add Movies", Series
   // tab only "Add Series".
-  const effFilter = lockFilter ? initialFilter : activeFilter;
+  const effFilter = activeFilter === 'unmatched' ? 'unmatched' : lockFilter ? initialFilter : activeFilter;
 
   // Memoized context for the virtualized grid — only the visible items
   // re-render when this changes (selection, handlers), not the whole list.
@@ -1042,10 +1206,13 @@ export function LocalTab({
       handlePlayEntry,
       handleOpenDetail,
       openIdentify: setIdentifyTarget,
+      refreshMetadata: handleRefreshMetadata,
+      markPosterFailed,
+      clearPosterFailed,
       openEpisodes: setEpisodesModalTarget,
       onAddToPlaylist: handleAddToPlaylist,
     }),
-    [selectMode, selectedIds, handleToggleSelectId, handleToggleSelectGroup, handlePlayEntry, handleOpenDetail, handleAddToPlaylist],
+    [selectMode, selectedIds, handleToggleSelectId, handleToggleSelectGroup, handlePlayEntry, handleOpenDetail, handleRefreshMetadata, markPosterFailed, clearPosterFailed, handleAddToPlaylist],
   );
 
   // Convert a LocalTab target into the props AddToPlaylistModal expects, so
@@ -1155,6 +1322,23 @@ export function LocalTab({
         </div>
 
         <div className="local-toolbar__right">
+          {/* Missing metadata toggle — one click shows only titles whose
+              metadata/posters never loaded (count updates live). */}
+          <button
+            type="button"
+            className={`local-type-pill ${activeFilter === 'unmatched' ? 'active' : ''}`}
+            onClick={() => setActiveFilter((prev) => (prev === 'unmatched' ? 'all' : 'unmatched'))}
+            title={t('unmatchedFilterTitle', 'Show only titles whose metadata or posters never loaded — fix them with the Refresh Metadata / Refresh All buttons')}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            {t('noMetadata', 'No Metadata')}
+            <span className="local-type-pill__count">{unmatchedCount}</span>
+          </button>
+
           {/* Sort Dropdown */}
           <select
             className="local-select-dropdown"
@@ -1202,21 +1386,36 @@ export function LocalTab({
             </button>
           )}
 
-          {/* Rescan Missing Metadata Button */}
+          {/* Rescan Missing Metadata Buttons */}
           {items.length > 0 && (
-            <button
-              type="button"
-              className="local-btn local-btn--secondary"
-              onClick={() => void handleRescanMissing()}
-              disabled={rescanningMissing || scanning}
-              title={t('rescanMissingTitle', 'Re-run TMDB matching for titles with missing or ambiguous metadata')}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                <polyline points="21 3 21 9 15 9" />
-              </svg>
-              {rescanningMissing ? t('scanning', 'Scanning...') : t('rescanMissing', 'Rescan Missing')}
-            </button>
+            <>
+              <button
+                type="button"
+                className="local-btn local-btn--secondary"
+                onClick={() => void handleRescanMissing()}
+                disabled={rescanningMissing || scanning}
+                title={t('rescanMissingTitle', 'Re-run TMDB matching for titles with missing or ambiguous metadata')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <polyline points="21 3 21 9 15 9" />
+                </svg>
+                {rescanningMissing ? t('scanning', 'Scanning...') : t('rescanMissing', 'Rescan Missing')}
+              </button>
+              <button
+                type="button"
+                className="local-btn local-btn--secondary"
+                onClick={() => void handleRefreshAllMissing()}
+                disabled={rescanningMissing || scanning}
+                title={t('refreshAllTitle', 'Re-run TMDB matching for every title with missing metadata or posters, bypassing cached matches')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M1 4v6h6" />
+                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                </svg>
+                {rescanningMissing ? t('scanning', 'Scanning...') : t('refreshAllMetadata', 'Refresh All')}
+              </button>
+            </>
           )}
 
           {/* Add Folder Buttons — only the type matching the active tab */}
@@ -1400,7 +1599,22 @@ export function LocalTab({
         </div>
       )}
 
-      {/* Scan Progress Alert (folder scan or rescan-missing) */}
+      {/* Folder walk in progress — no counts yet because the file list hasn't
+          been enumerated (the walk is the fast part, matching follows). */}
+      {walking && (
+        <div className="local-scan-progress">
+          <div style={{ flex: 1 }}>
+            <div className="local-scan-progress__row">
+              <span className="local-scan-waiting__spinner" style={{ marginRight: '8px' }} />
+              <span>{t('walkingFolder', 'Scanning folder for media files…')}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scan Progress Alert (folder scan or rescan-missing). The folder-scan
+          bar counts each file as it is enriched, so this IS the metadata-
+          matching progress (the walk above is the only phase without counts). */}
       {(scanning || rescanningMissing) && scanProgress && (
         <div className="local-scan-progress">
           <div style={{ flex: 1 }}>
@@ -1410,7 +1624,7 @@ export function LocalTab({
                   ? t('scanPaused', 'Scan paused')
                   : rescanningMissing
                     ? t('rescanningMetadataFiles', 'Refreshing metadata...')
-                    : t('scanningMediaFiles', 'Scanning media files...')}
+                    : t('scanningAndMatching', 'Scanning & matching metadata…')}
               </span>
               <span className="local-scan-progress__stats">
                 {scanProgress.current} / {scanProgress.total}
@@ -1475,7 +1689,33 @@ export function LocalTab({
       )}
 
       {/* Main Content: Grid or Empty State */}
-      {effFilter === 'favorites' && favoriteCount === 0 && !scanning && !walking ? (
+      {effFilter === 'unmatched' && unmatchedCount === 0 && !scanning && !walking ? (
+        <div className="local-empty-state">
+          <div className="local-empty-state__icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <h3 className="local-empty-state__title">
+            {t('noMissingMetadataTitle', 'Nothing is missing')}
+          </h3>
+          <p className="local-empty-state__desc">
+            {t('noMissingMetadataDesc', 'Every title has metadata and a poster. If a title ever fails to load its poster, it will show up here — just click Refresh All in the toolbar to re-match it.')}
+          </p>
+          <div className="local-empty-state__actions">
+            <button
+              type="button"
+              className="local-btn local-btn--secondary"
+              style={{ padding: '0 24px', height: '42px', fontSize: '13.5px' }}
+              onClick={() => setActiveFilter('all')}
+            >
+              {t('browseAllLocal', 'Browse all local titles')}
+            </button>
+          </div>
+        </div>
+      ) : effFilter === 'favorites' && favoriteCount === 0 && !scanning && !walking ? (
         <div className="local-empty-state">
           <div className="local-empty-state__icon">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -1600,7 +1840,10 @@ export function LocalTab({
         />
       )}
 
-      {/* Review unmatched items modal (per-series rows, match or remove) */}
+      {/* Review unmatched items modal (per-series rows, match / remove / skip).
+          The modal keeps its own working list, so removing or skipping one row
+          advances to the next item without closing; it closes itself when the
+          list is exhausted. */}
       {reviewTargets && (
         <ReviewUnmatchedModal
           groups={reviewTargets}
@@ -1611,9 +1854,9 @@ export function LocalTab({
           }}
           onRemove={(ids) => {
             removeLocalEntries(ids);
-            setReviewTargets(null);
             showToast(t('removedSelectedItems', 'Removed selected items'));
           }}
+          onSkip={handleReviewSkip}
         />
       )}
 
@@ -1633,6 +1876,8 @@ export function LocalTab({
             setIdentifyTarget(null);
           }}
           onResolved={handleIdentifyResolved}
+          onSkip={handleIdentifySkip}
+          onRemove={handleIdentifyRemove}
         />
       )}
 
@@ -1667,6 +1912,7 @@ export function LocalTab({
           onClose={() => setSelectedDetailGroup(null)}
           onPlay={(entry, seriesGroup) => handlePlayEntry(entry, seriesGroup)}
           onFixMatch={(target) => setIdentifyTarget(target)}
+          onRefreshMetadata={handleRefreshMetadata}
           onRemove={(ids) => {
             removeLocalEntries(ids);
             setSelectedDetailGroup(null);

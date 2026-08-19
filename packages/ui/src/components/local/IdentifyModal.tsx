@@ -7,6 +7,8 @@ interface IdentifyModalProps {
   target: LocalEntry[] | null;
   onClose: () => void;
   onResolved: (ids: string[], resolution: IdentifyResolution) => void;
+  onSkip: (ids: string[]) => void;
+  onRemove: (ids: string[]) => void;
 }
 
 type Candidate = {
@@ -56,6 +58,8 @@ export const IdentifyModal = memo(function IdentifyModal({
   target,
   onClose,
   onResolved,
+  onSkip,
+  onRemove,
 }: IdentifyModalProps) {
   const { t } = useTranslation('vod');
   const tmdbToken = useActiveTmdbToken();
@@ -307,6 +311,38 @@ export const IdentifyModal = memo(function IdentifyModal({
               ))}
             </div>
           )}
+        </div>
+
+        {/* Footer: skip matching for this item, or remove it from the library.
+            Both advance to the next review item when reviewing from the banner. */}
+        <div className="local-modal-footer">
+          <button
+            type="button"
+            className="local-btn local-btn--secondary"
+            style={{ color: '#ef4444' }}
+            onClick={() => onRemove(target.map((e) => e.id))}
+            disabled={picking != null}
+            title={t('reviewRemoveRow', 'Remove this item from the library')}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '5px' }}>
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            {t('remove', 'Remove')}
+          </button>
+          <button
+            type="button"
+            className="local-btn local-btn--secondary"
+            onClick={() => onSkip(target.map((e) => e.id))}
+            disabled={picking != null}
+            title={t('reviewSkipRow', 'Skip matching this item')}
+          >
+            {t('skip', 'Skip')}
+          </button>
+          <span style={{ flex: 1 }} />
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            {t('identifyFooterHint', 'Skip keeps the item but stops matching it')}
+          </span>
         </div>
       </div>
     </div>

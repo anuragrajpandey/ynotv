@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from 'react';
+import { useState, useMemo, useEffect, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Virtuoso } from 'react-virtuoso';
 import type { LocalGroup } from '../../services/local-library/types';
@@ -8,6 +8,7 @@ interface ReviewUnmatchedModalProps {
   onClose: () => void;
   onMatch: (groups: LocalGroup[]) => void;
   onRemove: (ids: string[]) => void;
+  onSkip: (ids: string[]) => void;
 }
 
 /** Longest common parent directory of a set of paths (the series folder). */
@@ -43,6 +44,11 @@ function groupKey(g: LocalGroup): string {
   return g.kind === 'movie' ? g.entry.id : g.key;
 }
 
+/** Every entry id in a review unit (a single movie, or all episodes of a show). */
+function groupIds(g: LocalGroup): string[] {
+  return g.kind === 'movie' ? [g.entry.id] : g.episodes.map((e) => e.id);
+}
+
 /**
  * Review step for unmatched items. Since folders are scanned as series (one
  * TMDB lookup per show), review is per SERIES FOLDER — one row per unmatched
@@ -54,8 +60,13 @@ export const ReviewUnmatchedModal = memo(function ReviewUnmatchedModal({
   onClose,
   onMatch,
   onRemove,
+  onSkip,
 }: ReviewUnmatchedModalProps) {
   const { t } = useTranslation('vod');
+  // Local working list: removing/skipping a row drops it immediately so the
+  // user moves on to the next item; the parent's `groups` snapshot only
+  // changes when the modal is reopened.
+  const [working, setWorking] = useState<LocalGroup[]>(groups);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(
     () => new Set(groups.map(groupKey)),
   );
@@ -63,13 +74,13 @@ export const ReviewUnmatchedModal = memo(function ReviewUnmatchedModal({
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return groups;
-    return groups.filter((g) => {
+    if (!q) return working;
+    return working.filter((g) => {
       const title = (g.kind === 'movie' ? g.entry.title : g.head.title || '').toLowerCase();
       const folder = groupFolder(g).toLowerCase();
       return title.includes(q) || folder.includes(q);
     });
-  }, [groups, filter]);
+  }, [working, filter]);
   const hasFilter = filter.trim().length > 0;
 
   const toggle = (key: string) => {
@@ -82,9 +93,51 @@ export const ReviewUnmatchedModal = memo(function ReviewUnmatchedModal({
   };
 
   const selected = useMemo(
-    () => groups.filter((g) => selectedKeys.has(groupKey(g))),
-    [groups, selectedKeys],
+    () => working.filter((g) => selectedKeys.has(groupKey(g))),
+    [working, selectedKeys],
   );
+
+  // Drop rows after a per-row or batch remove/skip; prune their keys from the
+  // selection.
+  const dropKeys = (keys: Set<string>) => {
+    setWorking((prev) => prev.filter((g) => !keys.has(groupKey(g))));
+    setSelectedKeys((prev) => {
+      const pruned = new Set(prev);
+      for (const k of keys) pruned.delete(k);
+      return pruned;
+    });
+  };
+
+  // Close the modal once every review unit has been handled.
+  useEffect(() => {
+    if (working.length === 0 && groups.length > 0) {
+      onClose();
+    }
+  }, [working, groups, onClose]);
+
+  const removeGroup = (g: LocalGroup) => {
+    const ids = groupIds(g);
+    if (ids.length > 0) onRemove(ids);
+    dropKeys(new Set([groupKey(g)]));
+  };
+
+  const skipGroup = (g: LocalGroup) => {
+    const ids = groupIds(g);
+    if (ids.length > 0) onSkip(ids);
+    dropKeys(new Set([groupKey(g)]));
+  };
+
+  const removeSelected = () => {
+    const ids = selected.flatMap(groupIds);
+    if (ids.length > 0) onRemove(ids);
+    dropKeys(selectedKeys);
+  };
+
+  const skipSelected = () => {
+    const ids = selected.flatMap(groupIds);
+    if (ids.length > 0) onSkip(ids);
+    dropKeys(selectedKeys);
+  };
 
   return (
     <div className="local-modal-overlay" onClick={onClose}>
@@ -133,7 +186,7 @@ export const ReviewUnmatchedModal = memo(function ReviewUnmatchedModal({
           <div className="local-batch-toolbar">
             <span className="local-batch-toolbar__count">
               {selectedKeys.size} {t('selected', 'selected')}
-              {hasFilter && filtered.length !== groups.length && (
+              {hasFilter && filtered.length !== working.length && (
                 <span className="local-batch-toolbar__matching">
                   · {t('matching', '{{count}} matching', { count: filtered.length })}
                 </span>
@@ -153,8 +206,8 @@ export const ReviewUnmatchedModal = memo(function ReviewUnmatchedModal({
               <button
                 type="button"
                 className="local-btn local-btn--secondary"
-                onClick={() => setSelectedKeys(new Set(groups.map(groupKey)))}
-                disabled={selectedKeys.size === groups.length}
+                onClick={() => setSelectedKeys(new Set(working.map(groupKey)))}
+                disabled={selectedKeys.size === working.length}
               >
                 {t('selectAll', 'Select All')}
               </button>
@@ -205,6 +258,35 @@ export const ReviewUnmatchedModal = memo(function ReviewUnmatchedModal({
                       {folder ? ` · ${folder}` : ''}
                     </span>
                   </div>
+                  {/* Per-row actions: remove from library, or skip matching and move to the next item */}
+                  <div className="local-batch-row__actions">
+                    <button
+                      type="button"
+                      className="local-row-btn local-row-btn--skip"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        skipGroup(g);
+                      }}
+                      title={t('reviewSkipRow', 'Skip matching this item')}
+                    >
+                      {t('skip', 'Skip')}
+                    </button>
+                    <button
+                      type="button"
+                      className="local-row-btn local-row-btn--remove"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeGroup(g);
+                      }}
+                      title={t('reviewRemoveRow', 'Remove this item from the library')}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                      {t('remove', 'Remove')}
+                    </button>
+                  </div>
                 </div>
               );
             }}
@@ -212,19 +294,24 @@ export const ReviewUnmatchedModal = memo(function ReviewUnmatchedModal({
           />
         </div>
 
-        {/* Footer actions: match the selected series, or remove them */}
+        {/* Footer actions: match the selected series, skip them, or remove them */}
         <div className="local-modal-footer">
           <button
             type="button"
             className="local-btn local-btn--secondary"
             style={{ color: '#ef4444' }}
-            onClick={() => {
-              const ids = selected.flatMap((g) => (g.kind === 'movie' ? [g.entry.id] : g.episodes.map((e) => e.id)));
-              if (ids.length > 0) onRemove(ids);
-            }}
+            onClick={removeSelected}
             disabled={selectedKeys.size === 0}
           >
             {t('removeSelected', 'Remove selected')}
+          </button>
+          <button
+            type="button"
+            className="local-btn local-btn--secondary"
+            onClick={skipSelected}
+            disabled={selectedKeys.size === 0}
+          >
+            {t('skipSelected', 'Skip selected')}
           </button>
           <span style={{ flex: 1 }} />
           <button type="button" className="local-btn local-btn--secondary" onClick={onClose}>

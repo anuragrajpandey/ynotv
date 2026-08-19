@@ -424,6 +424,7 @@ export interface LocalEntryRow {
   source: 'tmdb' | 'nfo' | null;
   localArt: { poster?: string; logo?: string; backdrop?: string } | null;
   metadataLocked: boolean | null;
+  reviewSkipped: boolean | null;
 }
 
 class YnotvDatabase extends SqliteDatabase {
@@ -1112,10 +1113,12 @@ class YnotvDatabase extends SqliteDatabase {
         needsReview INTEGER,
         source TEXT,
         localArt TEXT,
-        metadataLocked INTEGER
+        metadataLocked INTEGER,
+        reviewSkipped INTEGER
       )`);
-    // Migration for installs created before metadataLocked existed.
+    // Migrations for installs created before these columns existed.
     try { await db.execute('ALTER TABLE local_entries ADD COLUMN metadataLocked INTEGER'); } catch { /* already exists */ }
+    try { await db.execute('ALTER TABLE local_entries ADD COLUMN reviewSkipped INTEGER'); } catch { /* already exists */ }
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_local_entries_path ON local_entries(path)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_local_entries_title ON local_entries(title COLLATE NOCASE)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_team_channel_links_league ON team_channel_links(league_id)`);

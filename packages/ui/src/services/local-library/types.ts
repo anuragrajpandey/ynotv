@@ -24,6 +24,13 @@ export type LocalEntry = {
   episode?: number | null;
   addedAt: number;
   needsReview?: boolean;
+  /**
+   * True when the user skipped metadata matching for this item from the
+   * review flow. Skipped items stay in the library with their parsed title
+   * but are excluded from the review queue/banner and are never re-matched
+   * by scans (a manual "Fix match" clears this flag).
+   */
+  reviewSkipped?: boolean;
   source?: 'tmdb' | 'nfo';
   localArt?: LocalArt;
   /**

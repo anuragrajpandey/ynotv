@@ -4,6 +4,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import type { LocalEntry } from '../../services/local-library/types';
 import { removeLocalEntries } from '../../services/local-library/local-library';
 import { useVodFavoritesStore } from '../../stores/vodFavoritesStore';
+import { usePosterRetry } from './usePosterRetry';
 
 interface LocalShowGroupCardProps {
   head: LocalEntry;
@@ -15,6 +16,9 @@ interface LocalShowGroupCardProps {
   onOpenEpisodes: (head: LocalEntry, episodes: LocalEntry[]) => void;
   onOpenDetail?: (head: LocalEntry) => void;
   onFixMatch: (episodes: LocalEntry[]) => void;
+  onRefreshMetadata: (episodes: LocalEntry[]) => void;
+  onPosterError?: () => void;
+  onPosterLoad?: () => void;
   onAddToPlaylist: (head: LocalEntry, episodes: LocalEntry[]) => void;
 }
 
@@ -28,6 +32,9 @@ export const LocalShowGroupCard = memo(function LocalShowGroupCard({
   onOpenEpisodes,
   onOpenDetail,
   onFixMatch,
+  onRefreshMetadata,
+  onPosterError,
+  onPosterLoad,
   onAddToPlaylist,
 }: LocalShowGroupCardProps) {
   const { t } = useTranslation('vod');
@@ -43,6 +50,7 @@ export const LocalShowGroupCard = memo(function LocalShowGroupCard({
       ? posterRaw
       : convertFileSrc(posterRaw))
     : null;
+  const { retryKey, handleError, handleLoad } = usePosterRetry(onPosterError, onPosterLoad, posterSrc);
 
   const episodeIds = episodes.map((e) => e.id);
   const needsReview = episodes.some((e) => e.needsReview);
@@ -107,10 +115,13 @@ export const LocalShowGroupCard = memo(function LocalShowGroupCard({
       >
         {posterSrc ? (
           <img
+            key={retryKey}
             src={posterSrc}
             alt={head.title}
             className="local-card__poster-img"
             loading="lazy"
+            onError={handleError}
+            onLoad={handleLoad}
           />
         ) : (
           <div className="local-card__poster-fallback">
@@ -199,23 +210,20 @@ export const LocalShowGroupCard = memo(function LocalShowGroupCard({
 
             {/* Action buttons on hover */}
             <div className="local-card__action-btns">
-              {onOpenDetail && (
-                <button
-                  type="button"
-                  className="local-card__action-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenDetail(head);
-                  }}
-                  title={t('moreInfo', 'More info')}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="16" x2="12" y2="12" />
-                    <line x1="12" y1="8" x2="12.01" y2="8" />
-                  </svg>
-                </button>
-              )}
+              <button
+                type="button"
+                className="local-card__action-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRefreshMetadata(episodes);
+                }}
+                title={t('refreshMetadata', 'Refresh metadata')}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M23 4v6h-6M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+              </button>
 
               <button
                 type="button"

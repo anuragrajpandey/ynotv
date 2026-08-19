@@ -5,6 +5,7 @@ import type { LocalEntry } from '../../services/local-library/types';
 import { removeLocalEntry } from '../../services/local-library/local-library';
 import { useLocalMovieWatchStatus, markLocalMovieWatched } from '../../services/local-library/local-watch';
 import { useVodFavoritesStore } from '../../stores/vodFavoritesStore';
+import { usePosterRetry } from './usePosterRetry';
 
 interface LocalMovieCardProps {
   entry: LocalEntry;
@@ -14,6 +15,9 @@ interface LocalMovieCardProps {
   onPlay: (entry: LocalEntry) => void;
   onOpenDetail?: (entry: LocalEntry) => void;
   onFixMatch: (entry: LocalEntry) => void;
+  onRefreshMetadata: (entry: LocalEntry) => void;
+  onPosterError?: () => void;
+  onPosterLoad?: () => void;
   onAddToPlaylist: (entry: LocalEntry) => void;
 }
 
@@ -25,6 +29,9 @@ export const LocalMovieCard = memo(function LocalMovieCard({
   onPlay,
   onOpenDetail,
   onFixMatch,
+  onRefreshMetadata,
+  onPosterError,
+  onPosterLoad,
   onAddToPlaylist,
 }: LocalMovieCardProps) {
   const { t } = useTranslation('vod');
@@ -41,6 +48,7 @@ export const LocalMovieCard = memo(function LocalMovieCard({
       ? posterRaw
       : convertFileSrc(posterRaw))
     : null;
+  const { retryKey, handleError, handleLoad } = usePosterRetry(onPosterError, onPosterLoad, posterSrc);
 
   // Rating - only show if it's a meaningful value (not 0, not NaN)
   const rating = entry.rating != null && entry.rating > 0 ? entry.rating : null;
@@ -107,10 +115,13 @@ export const LocalMovieCard = memo(function LocalMovieCard({
       >
         {posterSrc ? (
           <img
+            key={retryKey}
             src={posterSrc}
             alt={entry.title}
             className="local-card__poster-img"
             loading="lazy"
+            onError={handleError}
+            onLoad={handleLoad}
           />
         ) : (
           <div className="local-card__poster-fallback">
@@ -203,23 +214,20 @@ export const LocalMovieCard = memo(function LocalMovieCard({
 
             {/* Quick Action Buttons */}
             <div className="local-card__action-btns">
-              {onOpenDetail && (
-                <button
-                  type="button"
-                  className="local-card__action-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenDetail(entry);
-                  }}
-                  title={t('moreInfo', 'More info')}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="16" x2="12" y2="12" />
-                    <line x1="12" y1="8" x2="12.01" y2="8" />
-                  </svg>
-                </button>
-              )}
+              <button
+                type="button"
+                className="local-card__action-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRefreshMetadata(entry);
+                }}
+                title={t('refreshMetadata', 'Refresh metadata')}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M23 4v6h-6M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+              </button>
 
               <button
                 type="button"

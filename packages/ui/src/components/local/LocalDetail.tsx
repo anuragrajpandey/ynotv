@@ -25,6 +25,7 @@ interface LocalDetailProps {
   onClose: () => void;
   onPlay: (entry: LocalEntry, seriesGroup?: { key: string; head: LocalEntry }) => void;
   onFixMatch: (entries: LocalEntry[]) => void;
+  onRefreshMetadata: (entries: LocalEntry[]) => void;
   onRemove: (ids: string[]) => void;
   onAddToPlaylist: (group: LocalGroup) => void;
 }
@@ -229,6 +230,7 @@ export const LocalDetail = memo(function LocalDetail({
   onClose,
   onPlay,
   onFixMatch,
+  onRefreshMetadata,
   onRemove,
   onAddToPlaylist,
 }: LocalDetailProps) {
@@ -560,6 +562,19 @@ export const LocalDetail = memo(function LocalDetail({
                   <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5" />
                 </svg>
                 {t('fixMatch', 'Fix match')}
+              </button>
+
+              <button
+                type="button"
+                className="local-detail__action-btn"
+                onClick={() => onRefreshMetadata(allEntries)}
+                title={t('refreshMetadataDetailTitle', 'Re-run TMDB matching for this title, bypassing cached results')}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <polyline points="21 3 21 9 15 9" />
+                </svg>
+                {t('refreshMetadata', 'Refresh Metadata')}
               </button>
 
               <button

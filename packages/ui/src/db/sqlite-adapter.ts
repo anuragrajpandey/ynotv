@@ -75,7 +75,7 @@ const BOOLEAN_FIELDS: Record<string, string[]> = {
     'categories': ['enabled'],
     'vodCategories': ['enabled'],
     'watchlist': ['reminder_enabled', 'autoswitch_enabled', 'reminder_shown', 'autoswitch_triggered'],
-    'local_entries': ['needsReview', 'metadataLocked'],
+    'local_entries': ['needsReview', 'metadataLocked', 'reviewSkipped'],
 };
 
 // JSON fields that are stored as serialized strings but should be parsed objects

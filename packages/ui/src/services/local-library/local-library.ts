@@ -74,6 +74,7 @@ function entryToRow(e: LocalEntry): LocalEntryRow {
     source: e.source ?? null,
     localArt: e.localArt ?? null,
     metadataLocked: e.metadataLocked ?? null,
+    reviewSkipped: e.reviewSkipped ?? null,
   };
 }
 
@@ -101,6 +102,7 @@ function rowToEntry(r: LocalEntryRow): LocalEntry {
     source: (r.source as 'tmdb' | 'nfo') ?? undefined,
     localArt: r.localArt ?? undefined,
     metadataLocked: r.metadataLocked === true ? true : undefined,
+    reviewSkipped: r.reviewSkipped === true ? true : undefined,
   };
 }
 
@@ -373,10 +375,12 @@ export function readLocalLibrary(): LocalEntry[] {
  * identity (tmdbId/imdbId + metadata that came with it) instead of letting the
  * fresh parse clobber them. The file identity (path/filename/resolution) still
  * refreshes, and addedAt is preserved so a re-scan doesn't bump the item to
- * "Recently Added".
+ * "Recently Added". Skipped entries are treated the same way in the opposite
+ * direction: the user asked for this item NOT to be matched, so a fresh scan
+ * must not attach metadata to it — its parsed identity is kept as-is.
  */
 function mergeLockedEntry(existing: LocalEntry, fresh: LocalEntry): LocalEntry {
-  if (!existing.metadataLocked) return fresh;
+  if (!existing.metadataLocked && !existing.reviewSkipped) return fresh;
   return {
     ...fresh,
     title: existing.title,
@@ -393,7 +397,8 @@ function mergeLockedEntry(existing: LocalEntry, fresh: LocalEntry): LocalEntry {
     rating: existing.rating,
     runtime: existing.runtime,
     needsReview: existing.needsReview,
-    metadataLocked: true,
+    reviewSkipped: existing.reviewSkipped,
+    metadataLocked: existing.metadataLocked,
     addedAt: existing.addedAt,
   };
 }
