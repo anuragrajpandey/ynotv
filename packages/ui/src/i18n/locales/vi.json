@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "Kiểm tra luồng phát và đánh giá tình trạng",
     "guideButtonLabel": "Kiểm tra luồng phát",
     "rerunDeadTitle": "Chỉ kiểm tra lại luồng phát chết hoặc lỗi từ lần quét hiện tại",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
+    "measureBitrate": "Đo bitrate video/âm thanh",
+    "measureBitrateTitle": "Ghi lại luồng phát trong vài giây để đo bitrate video và truy vấn bitrate âm thanh. Thêm vài giây cho mỗi kênh.",
+    "colVideoBitrate": "Bitrate V.",
+    "colAudioBitrate": "Bitrate Â.",
     "kbpsValue": "{{count}} kbps"
   }
 }

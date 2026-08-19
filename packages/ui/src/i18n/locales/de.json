@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "Stream-Test und Zustandsprüfung",
     "guideButtonLabel": "Stream-Test",
     "rerunDeadTitle": "Nur tote und fehlgeschlagene Streams des aktuellen Scans erneut testen",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
+    "measureBitrate": "Video-/Audio-Bitrate messen",
+    "measureBitrateTitle": "Den Stream für einige Sekunden erfassen, um die Video-Bitrate zu messen und die Audio-Bitrate abzufragen. Dauert einige Sekunden länger pro Kanal.",
+    "colVideoBitrate": "V.-Bitrate",
+    "colAudioBitrate": "A.-Bitrate",
     "kbpsValue": "{{count}} kbps"
   }
 }

@@ -4516,8 +4516,8 @@
     "guideButtonTitle": "Test streama i provjera zdravlja",
     "guideButtonLabel": "Test streama",
     "rerunDeadTitle": "Ponovo testiraj samo mrtve i neuspjele streamove iz trenutnog skeniranja",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
+    "measureBitrate": "Izmjeri bitrate videa/audija",
+    "measureBitrateTitle": "Snimajte stream nekoliko sekundi radi mjerenja bitratea videa i provjere bitratea audija. Dodaje nekoliko sekundi po kanalu.",
     "colVideoBitrate": "V. Bitrate",
     "colAudioBitrate": "A. Bitrate",
     "kbpsValue": "{{count}} kbps"

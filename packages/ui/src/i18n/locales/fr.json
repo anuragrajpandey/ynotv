@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "Test de flux et vérification de santé",
     "guideButtonLabel": "Test de flux",
     "rerunDeadTitle": "Retester uniquement les flux morts ou en échec de l'analyse actuelle",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
+    "measureBitrate": "Mesurer le débit vidéo/audio",
+    "measureBitrateTitle": "Capture le flux pendant quelques secondes pour mesurer le débit vidéo et obtenir le débit audio. Ajoute quelques secondes par chaîne.",
+    "colVideoBitrate": "Débit V.",
+    "colAudioBitrate": "Débit A.",
     "kbpsValue": "{{count}} kbps"
   }
 }

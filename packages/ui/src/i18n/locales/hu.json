@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "Stream-teszt és állapotellenőrzés",
     "guideButtonLabel": "Stream-teszt",
     "rerunDeadTitle": "Csak az aktuális vizsgálat halott és hibás streamjeinek újratesztelése",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
+    "measureBitrate": "Videó/hang bitráta mérése",
+    "measureBitrateTitle": "A stream rögzítése néhány másodpercig a videó bitrátájának méréséhez és a hang bitrátájának lekérdezéséhez. Csatornánként néhány másodperccel tovább tart.",
+    "colVideoBitrate": "V. bitráta",
+    "colAudioBitrate": "H. bitráta",
     "kbpsValue": "{{count}} kbps"
   }
 }

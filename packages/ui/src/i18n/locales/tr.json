@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "Yayın Testi ve Sağlık Kontrolü",
     "guideButtonLabel": "Yayın Testi",
     "rerunDeadTitle": "Yalnızca geçerli taramadaki ölü ve başarısız yayınları yeniden test et",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
+    "measureBitrate": "Video/Ses Bit Hızını Ölç",
+    "measureBitrateTitle": "Video bit hızını ölçmek ve ses bit hızını sorgulamak için yayını birkaç saniye yakalayın. Kanal başına birkaç saniye ekler.",
+    "colVideoBitrate": "V. Bit Hızı",
+    "colAudioBitrate": "S. Bit Hızı",
     "kbpsValue": "{{count}} kbps"
   }
 }

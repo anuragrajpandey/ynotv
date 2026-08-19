@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "流检测与健康检查",
     "guideButtonLabel": "流检测",
     "rerunDeadTitle": "仅重新测试当前扫描中死亡或失败的流",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
+    "measureBitrate": "测量视频/音频码率",
+    "measureBitrateTitle": "捕获流数秒以测量视频码率并查询音频码率。每个频道会增加几秒时间。",
+    "colVideoBitrate": "视频码率",
+    "colAudioBitrate": "音频码率",
     "kbpsValue": "{{count}} kbps"
   }
 }

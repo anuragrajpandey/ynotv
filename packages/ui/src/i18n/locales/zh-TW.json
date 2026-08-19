@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "串流偵測與健康檢查",
     "guideButtonLabel": "串流偵測",
     "rerunDeadTitle": "僅重新測試目前掃描中死亡或失敗的串流",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
+    "measureBitrate": "測量視訊/音訊位元速率",
+    "measureBitrateTitle": "擷取串流數秒以測量視訊位元速率並查詢音訊位元速率。每個頻道會增加數秒時間。",
+    "colVideoBitrate": "視訊位元速率",
+    "colAudioBitrate": "音訊位元速率",
     "kbpsValue": "{{count}} kbps"
   }
 }

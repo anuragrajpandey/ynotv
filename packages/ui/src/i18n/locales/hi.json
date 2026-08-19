@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "स्ट्रीम जाँच और स्वास्थ्य जांच",
     "guideButtonLabel": "स्ट्रीम जाँच",
     "rerunDeadTitle": "वर्तमान स्कैन के केवल मृत और विफल स्ट्रीम फिर से जाँचें",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
+    "measureBitrate": "वीडियो/ऑडियो बिटरेट मापें",
+    "measureBitrateTitle": "वीडियो बिटरेट मापने और ऑडियो बिटरेट जानने के लिए कुछ सेकंड के लिए स्ट्रीम कैप्चर करें। प्रति चैनल कुछ सेकंड जुड़ते हैं।",
+    "colVideoBitrate": "V. बिटरेट",
+    "colAudioBitrate": "A. बिटरेट",
     "kbpsValue": "{{count}} kbps"
   }
 }

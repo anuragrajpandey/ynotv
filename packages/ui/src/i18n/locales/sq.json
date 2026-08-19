@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "Test transmetimi dhe kontroll shëndeti",
     "guideButtonLabel": "Test transmetimi",
     "rerunDeadTitle": "Ritesto vetëm transmetimet e vdekura ose të dështuara nga skanimi aktual",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
+    "measureBitrate": "Mat shpejtësinë e të dhënave (bitrate) video/audio",
+    "measureBitrateTitle": "Regjistro transmetimin për disa sekonda për të matur bitrate-in e videos dhe për të marrë bitrate-in e audios. Shton disa sekonda për kanal.",
+    "colVideoBitrate": "Bitrate V.",
+    "colAudioBitrate": "Bitrate A.",
     "kbpsValue": "{{count}} kbps"
   }
 }

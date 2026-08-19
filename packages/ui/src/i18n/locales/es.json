@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "Prueba de flujo y comprobación de salud",
     "guideButtonLabel": "Prueba de flujo",
     "rerunDeadTitle": "Reprobar solo los flujos muertos o con errores del análisis actual",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
+    "measureBitrate": "Medir tasa de bits de vídeo/audio",
+    "measureBitrateTitle": "Captura el flujo durante unos segundos para medir la tasa de bits de vídeo y consultar la de audio. Añade unos segundos por canal.",
+    "colVideoBitrate": "Bitrate V.",
+    "colAudioBitrate": "Bitrate A.",
     "kbpsValue": "{{count}} kbps"
   }
 }

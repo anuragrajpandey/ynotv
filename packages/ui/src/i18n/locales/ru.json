@@ -4516,10 +4516,10 @@
     "guideButtonTitle": "Проверка потока и оценка состояния",
     "guideButtonLabel": "Проверка потока",
     "rerunDeadTitle": "Перепроверить только мертвые и неработающие потоки из текущего сканирования",
-    "measureBitrate": "Measure Video/Audio Bitrate",
-    "measureBitrateTitle": "Capture the stream for a few seconds to measure video bitrate and query audio bitrate. Adds a few seconds per channel.",
-    "colVideoBitrate": "V. Bitrate",
-    "colAudioBitrate": "A. Bitrate",
-    "kbpsValue": "{{count}} kbps"
+    "measureBitrate": "Измерять битрейт видео/аудио",
+    "measureBitrateTitle": "Захватывать поток на несколько секунд для измерения битрейта видео и запроса битрейта аудио. Добавляет несколько секунд на канал.",
+    "colVideoBitrate": "Битрейт В.",
+    "colAudioBitrate": "Битрейт А.",
+    "kbpsValue": "{{count}} кбит/с"
   }
 }
