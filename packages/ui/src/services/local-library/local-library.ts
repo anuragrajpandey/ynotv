@@ -565,38 +565,92 @@ const TV_RX =
   /\bs(\d{1,2})[\s._-]*e(\d{1,3})\b|\b(\d{1,2})x(\d{1,3})\b|\bseason[\s._-]*(\d{1,2})[\s._-]*(?:episode|ep)[\s._-]*(\d{1,3})\b/i;
 const YEAR_RX = /\b(19\d{2}|20\d{2})\b/;
 
+// ---------------------------------------------------------------------------
+// Movie title cleaning — faithful port of Jellyfin's Emby.Naming
+// (VideoResolver.CleanDateTime -> CleanStringParser.TryClean). Movie titles are
+// derived exactly as Jellyfin derives them, so matching/trimming behavior is
+// identical to the reference media manager. Series titles keep their own
+// parser below and are NOT routed through this.
+// ---------------------------------------------------------------------------
+// CleanDateTimeParser.Clean: first matching regex wins; the name is everything
+// before the year (trimmed), the year is group 2.
+const CLEAN_DATE_TIME_RX = [
+  /(.+[^_\,\.\(\)\[\]\-])[_\\.\(\)\[\]\-](19[0-9]{2}|20[0-9]{2})(?![0-9]+|\W[0-9]{2}\W[0-9]{2})([ _\,\.\(\)\[\]\-][^0-9]|).*(19[0-9]{2}|20[0-9]{2})*/i,
+  /(.+[^_\,\.\(\)\[\]\-])[ _\.\(\)\[\]\-]+(19[0-9]{2}|20[0-9]{2})(?![0-9]+|\W[0-9]{2}\W[0-9]{2})([ _\,\.\(\)\[\]\-][^0-9]|).*(19[0-9]{2}|20[0-9]{2})*/i,
+];
+// CleanStringParser.TryClean: applied in order, each matching regex replaces
+// the name; the result keeps the original name when nothing matches.
+const CLEAN_STRINGS_RX = [
+  /^\s*(?<cleaned>.+?)[ _\,\.\(\)\[\]\-](3d|sbs|tab|hsbs|htab|mvc|HDR|HDC|UHD|UltraHD|4k|ac3|dts|custom|dc|divx|divx5|dsr|dsrip|dutch|dvd|dvdrip|dvdscr|dvdscreener|screener|dvdivx|cam|fragment|fs|hdtv|hdrip|hdtvrip|internal|limited|multi|subs|ntsc|ogg|ogm|pal|pdtv|proper|repack|rerip|retail|cd[1-9]|r5|bd5|bd|se|svcd|swedish|german|read.nfo|nfofix|unrated|ws|web-dl|telesync|ts|telecine|tc|brrip|bdrip|480p|480i|576p|576i|720p|720i|1080p|1080i|2160p|hrhd|hrhdtv|hddvd|bluray|blu-ray|x264|x265|h264|h265|xvid|xvidvd|xxx|www.www|AAC|DTS)(?=[ _\,\.\(\)\[\]\-]|$)/i,
+  /^\s*(?<cleaned>.+?)((\s*\[[^\]]+\]\s*)+)(\.[^\s]+)?$/i,
+  /^\s*(?<cleaned>.+?)\WE[0-9]+(-|~)E?[0-9]+(\W|$)/i,
+  /^\s*\[[^\]]+\](?!\.\w+$)\s*(?<cleaned>.+)/i,
+  /^\s*(?<cleaned>.+?)\s+-\s+[0-9]+\s*$/i,
+  /^\s*(?<cleaned>.+?)(([-._ ](trailer|sample))|-(scene|clip|behindthescenes|deleted|deletedscene|featurette|short|interview|other|extra))$/i,
+];
+
+/** CleanDateTimeParser.Clean — name + year, exactly as Jellyfin extracts them. */
+function cleanDateTime(name: string): { name: string; year: number | null } {
+  for (const rx of CLEAN_DATE_TIME_RX) {
+    const m = name.match(rx);
+    if (m && m[1] && m[2]) {
+      const year = parseInt(m[2], 10);
+      if (Number.isFinite(year)) return { name: m[1].trimEnd(), year };
+    }
+  }
+  return { name, year: null };
+}
+
+/** CleanStringParser.TryClean — applies every regex in order; keeps the name
+ * when none match, so the result is Jellyfin's cleaned name verbatim. */
+function cleanString(name: string): string {
+  let out = name;
+  for (const rx of CLEAN_STRINGS_RX) {
+    const m = out.match(rx);
+    if (m && m.groups?.cleaned) out = m.groups.cleaned.trim();
+  }
+  return out;
+}
+
 export function parseFilename(filename: string): ParsedFilename {
   const stem = filename.replace(/\.(mkv|mp4|m4v|mov|avi|wmv|webm|ts|m2ts|mpg|mpeg|flv|ogv)$/i, '');
   const tv = stem.match(TV_RX);
   const season = tv ? parseInt(tv[1] ?? tv[3] ?? tv[5], 10) : null;
   const episode = tv ? parseInt(tv[2] ?? tv[4] ?? tv[6], 10) : null;
-  const yearMatch = stem.match(YEAR_RX);
-  const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
   const resMatch = stem.match(/\b(2160p|1080p|720p|480p|4k|uhd)\b/i);
   const resolution = resMatch ? resMatch[1].toLowerCase() : null;
-  let title = stem;
-  if (tv) title = title.slice(0, tv.index);
-  if (yearMatch && yearMatch.index != null && yearMatch.index < title.length) {
-    title = title.slice(0, yearMatch.index);
+
+  if (tv) {
+    // ---- Series path: unchanged (our own TV-marker handling) ----
+    const yearMatch = stem.match(YEAR_RX);
+    const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
+    let title = stem.slice(0, tv.index);
+    if (yearMatch && yearMatch.index != null && yearMatch.index < title.length) {
+      title = title.slice(0, yearMatch.index);
+    }
+    title = title
+      .replace(/[._]+/g, ' ')
+      .replace(NOISE_RX, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/[\[\(\{].*?[\]\)\}]/g, '')
+      .replace(/[\[\](){}]/g, ' ')
+      .replace(/[\s\-–—_]+$/g, '')
+      .replace(/^[\s\-–—_]+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return { title: title || stem, year, type: 'show', season, episode, resolution };
   }
-  title = title
-    .replace(/[._]+/g, ' ')
-    .replace(NOISE_RX, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/[\[\(\{].*?[\]\)\}]/g, '')
-    .replace(/[\[\](){}]/g, ' ')
-    .replace(/[\s\-–—_]+$/g, '')
-    .replace(/^[\s\-–—_]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!title) title = stem;
+
+  // ---- Movie path: exactly Jellyfin's CleanDateTime + CleanStrings ----
+  const dt = cleanDateTime(stem);
+  const cleaned = cleanString(dt.name);
   return {
-    title,
-    year,
-    type: tv ? 'show' : 'movie',
-    season,
-    episode,
+    title: cleaned || dt.name || stem,
+    year: dt.year,
+    type: 'movie',
+    season: null,
+    episode: null,
     resolution,
   };
 }

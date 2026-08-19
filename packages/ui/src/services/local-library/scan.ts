@@ -458,6 +458,57 @@ function seriesParsedInfo(file: ScannedFile, rootPath: string): ParsedFilename |
   };
 }
 
+// ---------------------------------------------------------------------------
+// Movie title fallback to the folder name
+// ---------------------------------------------------------------------------
+// A movie file whose name carries no title information ("disc1.mkv",
+// "movie.mkv", "untitled.mkv") says nothing about the film, so the parent
+// folder name — which in a per-movie layout IS the title
+// ("Pulp Fiction/disc1.mkv") — is used instead, mirroring how Jellyfin names
+// folder-based movies. Well-named files are never touched, and the scan root
+// itself is considered too ("Add Movies folder" pointed straight at a
+// per-movie folder). The fallback runs BEFORE the TMDB lookup so the lookup
+// searches the folder-derived title and matches properly.
+
+const GENERIC_MOVIE_NAME_RX =
+  /^(?:disc|cd|dvd|part|pt|movie|movies|films?|video|videos?|title|untitled|unknown|file|new|copy|clip|sample|trailer|episode|ep|scene|media|library|downloads?|collection|complete|series|shows?|season|special)(?:\s*[-_.]?\s*\d*)?$/i;
+
+/** True when a name is a generic file/folder label, not a movie title. */
+export function isGenericMovieName(name: string): boolean {
+  const n = name.trim();
+  return /^\d+$/.test(n) || GENERIC_MOVIE_NAME_RX.test(n);
+}
+
+function dirnameOf(p: string): string {
+  const norm = p.replace(/\\/g, '/').replace(/\/+$/, '');
+  const i = norm.lastIndexOf('/');
+  return i >= 0 ? norm.slice(0, i) : '';
+}
+
+/**
+ * Derive a movie file's parsed identity. Uses the filename (cleaned exactly
+ * like Jellyfin); when the filename yields a generic/meaningless title, falls
+ * back to the cleaned parent folder name (or the scan root when it looks like
+ * a per-movie folder).
+ */
+export function movieFileInfo(path: string, filename: string, rootPath: string | null): ParsedFilename {
+  const parsed: ParsedFilename = { ...parseFilename(filename), type: 'movie', season: null, episode: null };
+  if (!isGenericMovieName(parsed.title)) return parsed;
+
+  const candidates = new Set<string>();
+  const dir = dirnameOf(path);
+  if (dir) candidates.add(dir);
+  if (rootPath) candidates.add(rootPath);
+
+  for (const c of candidates) {
+    const name = baseName(c);
+    if (!name || isGenericMovieName(name)) continue;
+    const { title, year } = parseTitleFolder(name);
+    if (title) return { ...parsed, title, year };
+  }
+  return parsed;
+}
+
 /**
  * Build a TMDB entry honouring the scan folder's type:
  * - 'show'  -> series title from the folder path (one cached lookup per series).
@@ -475,7 +526,7 @@ export async function buildTmdbEntryForFolder(
   if (folderType === 'show' && rootPath) {
     info = seriesParsedInfo(file, rootPath) ?? parseFilename(file.filename);
   } else if (folderType === 'movie') {
-    info = { ...parseFilename(file.filename), type: 'movie', season: null, episode: null };
+    info = movieFileInfo(file.path, file.filename, rootPath);
   } else {
     info = parseFilename(file.filename);
   }
@@ -494,7 +545,7 @@ export async function buildNfoEntryForFolder(
   if (folderType === 'show' && rootPath) {
     info = seriesParsedInfo(file, rootPath) ?? parseFilename(file.filename);
   } else if (folderType === 'movie') {
-    info = { ...parseFilename(file.filename), type: 'movie', season: null, episode: null };
+    info = movieFileInfo(file.path, file.filename, rootPath);
   } else {
     info = parseFilename(file.filename);
   }

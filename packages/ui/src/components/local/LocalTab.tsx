@@ -47,6 +47,7 @@ import { markLocalMovieWatched, markLocalEpisodeWatched } from '../../services/l
 import { useActiveTmdbToken } from '../../hooks/useTmdbLists';
 import { useVodFavoritesStore } from '../../stores/vodFavoritesStore';
 import { useAlphabetIndex, useCurrentLetter } from '../../hooks/useVod';
+import { preloadPosters, cancelPosterPreload } from './posterPreload';
 import { PosterSizeSlider } from '../PosterSizeSlider';
 import { useAutoLocalSync } from '../../services/local-library/auto-sync';
 import { LocalMovieCard } from './LocalMovieCard';
@@ -675,6 +676,29 @@ export function LocalTab({
     const id = setInterval(update, 500);
     return () => clearInterval(id);
   }, [scanning, rescanningMissing]);
+
+  // When a scan / rescan finishes, warm the browser cache for the first few
+  // rows of posters during idle time (small batches per requestIdleCallback
+  // slice, low fetch priority) so the freshly-populated grid's initial fill
+  // doesn't burst the image CDN. Only the currently-rendered, sorted order is
+  // preloaded — that's exactly what the grid mounts first.
+  const prevScanBusyRef = useRef(false);
+  useEffect(() => {
+    const busy = scanning || rescanningMissing;
+    if (prevScanBusyRef.current && !busy && !walking && document.querySelector('.local-grid')) {
+      const urls: string[] = [];
+      for (const g of filteredGroups) {
+        const e = g.kind === 'movie' ? g.entry : g.head;
+        const poster = e.poster || e.localArt?.poster;
+        if (poster) urls.push(poster);
+      }
+      preloadPosters(urls);
+    }
+    prevScanBusyRef.current = busy;
+  }, [scanning, rescanningMissing, walking, filteredGroups]);
+  // Cancel any trickling preload when the tab unmounts (a new scan completion
+  // supersedes an old run anyway via the run id inside preloadPosters).
+  useEffect(() => () => cancelPosterPreload(), []);
 
   const runScan = async (
     files: ScannedFile[],
@@ -1460,10 +1484,9 @@ export function LocalTab({
           <div
             className="local-review-banner__left"
             onClick={() => {
-              const first = reviewGroups[0];
-              if (!first) return;
-              identifyQueueRef.current = null;
-              setIdentifyTarget(first.kind === 'movie' ? [first.entry] : first.episodes);
+              // Queue the whole review list: after matching one title the next
+              // one pops up instead of the modal closing.
+              openReviewMatch(reviewGroups);
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1499,10 +1522,7 @@ export function LocalTab({
               className="local-review-banner__btn"
               onClick={(e) => {
                 e.stopPropagation();
-                const first = reviewGroups[0];
-                if (!first) return;
-                identifyQueueRef.current = null;
-                setIdentifyTarget(first.kind === 'movie' ? [first.entry] : first.episodes);
+                openReviewMatch(reviewGroups);
               }}
             >
               {t('review', 'Review')}

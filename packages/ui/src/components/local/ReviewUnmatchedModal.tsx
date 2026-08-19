@@ -140,7 +140,9 @@ export const ReviewUnmatchedModal = memo(function ReviewUnmatchedModal({
   };
 
   return (
-    <div className="local-modal-overlay" onClick={onClose}>
+    // No overlay-click-to-close: dismissing the review list mid-way would
+    // discard the user's place, and mis-clicks are common around modals.
+    <div className="local-modal-overlay">
       <div
         className="local-modal-content"
         style={{ maxWidth: '620px' }}

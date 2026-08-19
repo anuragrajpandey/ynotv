@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseFilename, groupLocal, sortGroups, getLocalEpisodeList, addLocalEntries } from '../local-library';
+import { movieFileInfo, isGenericMovieName } from '../scan';
 import { parseNfo } from '../sidecars';
 import type { LocalEntry } from '../types';
 
@@ -46,6 +47,77 @@ describe('Local Library - Filename Parser', () => {
     expect(res.year).toBe(2014);
     expect(res.type).toBe('movie');
     expect(res.resolution).toBe('1080p');
+  });
+
+  it('trims movie titles exactly like Jellyfin (CleanDateTime + CleanStrings)', () => {
+    const cases: [string, string, number | null][] = [
+      // Standard release naming: year cut removes the whole release tail.
+      ['The.Matrix.1999.1080p.BluRay.x264-GROUP.mkv', 'The.Matrix', 1999],
+      ['Avatar.2009.EXTENDED.1080p.BluRay.x264.mkv', 'Avatar', 2009],
+      ['Dune.Part.Two.2024.2160p.HDR10.HEVC.DV.mkv', 'Dune.Part.Two', 2024],
+      ['Star.Wars.Episode.IV.A.New.Hope.1977.720p.mkv', 'Star.Wars.Episode.IV.A.New.Hope', 1977],
+      // Jellyfin cuts at the first noise token even without a year.
+      ['Movie.WEB-DL.APEX.mkv', 'Movie', null],
+      ['Movie.Trailer.mkv', 'Movie', null],
+      ['Movie.Sample.mkv', 'Movie', null],
+      ['Movie - 123.mkv', 'Movie', null],
+      // Dots are kept, exactly like Jellyfin (TMDB replaces the title on match).
+      ['Casino.Royale.2006.720p.BluRay.DTS.x264-EVO.mkv', 'Casino.Royale', 2006],
+      ['The.Godfather.1972.1080p.BluRay.Remux.mkv', 'The.Godfather', 1972],
+      // Over-trimming is faithful to Jellyfin ("limited" is a noise token).
+      ['The.Limited.Series.2018.1080p.mkv', 'The', 2018],
+      ['Toy.Story.3D.2010.1080p.mkv', 'Toy.Story', 2010],
+      // Tokens at position 0 cannot trigger Jellyfin's cut, so real titles survive.
+      ['xXx.2002.1080p.mkv', 'xXx', 2002],
+      ['Cam.2018.1080p.mkv', 'Cam', 2018],
+      ['Dual.2022.1080p.mkv', 'Dual', 2022],
+    ];
+    for (const [input, title, year] of cases) {
+      const res = parseFilename(input);
+      expect(res.title).toBe(title);
+      expect(res.year).toBe(year);
+      expect(res.type).toBe('movie');
+    }
+  });
+});
+
+describe('Local Library - Movie folder fallback', () => {
+  it('falls back to the parent folder for generic filenames', () => {
+    const res = movieFileInfo('/m/Movies/Pulp Fiction/disc1.mkv', 'disc1.mkv', '/m/Movies');
+    expect(res.title).toBe('Pulp Fiction');
+    expect(res.year).toBeNull();
+    expect(res.type).toBe('movie');
+  });
+
+  it('uses the scan root when it is a per-movie folder (with year)', () => {
+    const res = movieFileInfo('/m/Movies/The Matrix (1999)/movie.mkv', 'movie.mkv', '/m/Movies/The Matrix (1999)');
+    expect(res.title).toBe('The Matrix');
+    expect(res.year).toBe(1999);
+  });
+
+  it('handles Windows paths', () => {
+    const res = movieFileInfo('C:\\Movies\\Pulp Fiction\\untitled.mkv', 'untitled.mkv', 'C:\\Movies');
+    expect(res.title).toBe('Pulp Fiction');
+  });
+
+  it('keeps well-named files untouched', () => {
+    const res = movieFileInfo('/m/Movies/Inception/Inception.2010.1080p.mkv', 'Inception.2010.1080p.mkv', '/m/Movies');
+    expect(res.title).toBe('Inception');
+    expect(res.year).toBe(2010);
+  });
+
+  it('does not fall back to a generic parent folder', () => {
+    const res = movieFileInfo('/m/Movies/disc1.mkv', 'disc1.mkv', '/m/Movies');
+    expect(res.title).toBe('disc1');
+  });
+
+  it('isGenericMovieName recognizes file/folder labels', () => {
+    expect(isGenericMovieName('disc1')).toBe(true);
+    expect(isGenericMovieName('movie')).toBe(true);
+    expect(isGenericMovieName('Movies')).toBe(true);
+    expect(isGenericMovieName('123')).toBe(true);
+    expect(isGenericMovieName('Pulp Fiction')).toBe(false);
+    expect(isGenericMovieName('The Matrix')).toBe(false);
   });
 });
 

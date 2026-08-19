@@ -170,7 +170,9 @@ export const IdentifyModal = memo(function IdentifyModal({
   };
 
   return (
-    <div className="local-modal-overlay" onClick={onClose}>
+    // No overlay-click-to-close: dismissing mid-queue would discard the
+    // remaining review items, and users often mis-click around the modal.
+    <div className="local-modal-overlay">
       <div
         className="local-modal-content"
         style={{ maxWidth: '620px' }}
