@@ -68,6 +68,7 @@ import {
   useSetIncludeAllChannelsToPlaylist
 } from './stores/uiStore';
 import { getAdjacentEpisode, recordVodWatch, recordEpisodeWatch, getEpisodeProgress } from './db';
+import { getLocalEpisodeList, localEntryToVodPlayInfo } from './services/local-library/local-library';
 import { useVodPlaylistStore } from './stores/vodPlaylistStore';
 import { useActivePlaylistStore, isActivePlaylistItem } from './stores/activePlaylistStore';
 import { PlaylistQueueModal } from './components/vod/PlaylistQueueModal';
@@ -3505,6 +3506,48 @@ function useTmdbPresencePoster(
             return;
           }
         }
+      } else if (vodInfo.source_id === 'local') {
+        // Local series: episodes live in the local library (not the VOD DB), so
+        // resolve adjacency from the in-memory library. Boundaries do not fall
+        // through to channel navigation — the player greys out the buttons.
+        const episodes = getLocalEpisodeList(vodInfo.episodeId);
+        const currentIdx = episodes
+          ? episodes.findIndex((ep) => ep.id === vodInfo.episodeId)
+          : -1;
+        const prevEpisode = currentIdx > 0 ? episodes![currentIdx - 1] : null;
+        if (prevEpisode) {
+          const seriesKey = (
+            prevEpisode.imdbId ||
+            (prevEpisode.tmdbId ? `tmdb_${prevEpisode.tmdbId}` : null) ||
+            prevEpisode.title ||
+            ''
+          ).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+          const head = episodes!.find((e) => e.poster) ?? episodes![0];
+          const progress = await getEpisodeProgress(prevEpisode.id);
+          const resumePosition = progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+          void recordVodWatch(
+            vodInfo.seriesId,
+            'series',
+            vodInfo.source_id || '',
+            vodInfo.title,
+            undefined,
+            prevEpisode.season ?? 1,
+            prevEpisode.episode ?? 1,
+            prevEpisode.title || `Episode ${prevEpisode.episode}`
+          );
+          void recordEpisodeWatch(
+            prevEpisode.id,
+            vodInfo.seriesId,
+            vodInfo.source_id || '',
+            prevEpisode.season ?? 1,
+            prevEpisode.episode ?? 1,
+            prevEpisode.title || `Episode ${prevEpisode.episode}`,
+            resumePosition,
+            prevEpisode.runtime ? prevEpisode.runtime * 60 : 0
+          );
+          await handlePlayVod(localEntryToVodPlayInfo(prevEpisode, { key: seriesKey, head }));
+        }
+        return;
       } else {
         // VOD series: navigate via DB episodes
         const prevEpisode = await getAdjacentEpisode(
@@ -3625,6 +3668,54 @@ function useTmdbPresencePoster(
             return;
           }
         }
+      } else if (vodInfo.source_id === 'local') {
+        // Local series: episodes live in the local library (not the VOD DB), so
+        // resolve adjacency from the in-memory library. End of the last season
+        // rolls to the next season's first episode naturally via the flat
+        // (season, episode) ordering; the final episode does not fall through
+        // to channel navigation.
+        const episodes = getLocalEpisodeList(vodInfo.episodeId);
+        const currentIdx = episodes
+          ? episodes.findIndex((ep) => ep.id === vodInfo.episodeId)
+          : -1;
+        const nextEpisode = currentIdx >= 0 && episodes && currentIdx < episodes.length - 1 ? episodes[currentIdx + 1] : null;
+        if (nextEpisode) {
+          const seriesKey = (
+            nextEpisode.imdbId ||
+            (nextEpisode.tmdbId ? `tmdb_${nextEpisode.tmdbId}` : null) ||
+            nextEpisode.title ||
+            ''
+          ).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+          const head = episodes!.find((e) => e.poster) ?? episodes![0];
+          const progress = await getEpisodeProgress(nextEpisode.id);
+          const resumePosition = progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+          const curDur = durationRef.current;
+          const curPos = positionRef.current;
+          const curPercent = curDur > 0 ? Math.min(100, (curPos / curDur) * 100) : lastKnownProgressPercentRef.current;
+          scrobbler.stopScrobble(curPercent).catch(console.error);
+          void recordVodWatch(
+            vodInfo.seriesId,
+            'series',
+            vodInfo.source_id || '',
+            vodInfo.title,
+            undefined,
+            nextEpisode.season ?? 1,
+            nextEpisode.episode ?? 1,
+            nextEpisode.title || `Episode ${nextEpisode.episode}`
+          );
+          void recordEpisodeWatch(
+            nextEpisode.id,
+            vodInfo.seriesId,
+            vodInfo.source_id || '',
+            nextEpisode.season ?? 1,
+            nextEpisode.episode ?? 1,
+            nextEpisode.title || `Episode ${nextEpisode.episode}`,
+            resumePosition,
+            nextEpisode.runtime ? nextEpisode.runtime * 60 : 0
+          );
+          await handlePlayVod(localEntryToVodPlayInfo(nextEpisode, { key: seriesKey, head }));
+        }
+        return;
       } else {
         // VOD series: navigate via DB episodes
         const nextEpisode = await getAdjacentEpisode(
@@ -4572,7 +4663,7 @@ function useTmdbPresencePoster(
           />
         )}
 
-        {!currentChannel && !error && !isRestoring && activeView !== 'guide' && activeView !== 'sports' && (
+        {!currentChannel && !error && !isRestoring && activeView === 'none' && (
           <div className="placeholder">
             <Logo className="placeholder__logo" />
             {(channelSyncing || vodSyncing || tmdbMatching) ? (
@@ -4848,7 +4939,7 @@ function useTmdbPresencePoster(
         visible={
           showControls &&
           !pipMode &&
-          activeView !== 'guide' &&
+          activeView === 'none' &&
           !categoriesOpen &&
           multiviewLayout !== '2x2' &&
           multiviewLayout !== 'bigbottom'

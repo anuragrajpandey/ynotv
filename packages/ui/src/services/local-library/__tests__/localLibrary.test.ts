@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseFilename, groupLocal, sortGroups } from '../local-library';
+import { parseFilename, groupLocal, sortGroups, getLocalEpisodeList, addLocalEntries } from '../local-library';
 import { parseNfo } from '../sidecars';
 import type { LocalEntry } from '../types';
 
@@ -181,6 +181,40 @@ describe('Local Library - Folder Management', () => {
     removeScannedFolder('C:/Media/Movies');
     expect(readScannedFolders()).not.toContain('C:/Media/Movies');
     expect(readLocalLibrary().some((e) => e.title === 'Alien')).toBe(false);
+  });
+});
+
+describe('Local Library - Episode Navigation', () => {
+  const ep = (id: string, season: number, episode: number): LocalEntry => ({
+    id,
+    path: `Z:/Media/Show/S${season}E${episode}.mkv`,
+    filename: `S${season}E${episode}.mkv`,
+    title: 'Show',
+    year: 2020,
+    type: 'show',
+    season,
+    episode,
+    addedAt: 1,
+    needsReview: false,
+  });
+
+  it('orders episodes by season then episode (next season rolls to its first episode)', () => {
+    // Seed out of order on purpose: S2E1, S1E2, S1E1.
+    addLocalEntries([ep('s2e1', 2, 1), ep('s1e2', 1, 2), ep('s1e1', 1, 1)]);
+    const list = getLocalEpisodeList('s1e2');
+    expect(list?.map((e) => e.id)).toEqual(['s1e1', 's1e2', 's2e1']);
+
+    // First episode: no previous. Last episode of S1: next is S2E1 (first of
+    // the following season) via the flat ordering.
+    const idx = list!.findIndex((e) => e.id === 's1e2');
+    expect(idx).toBe(1);
+    expect(getLocalEpisodeList('s1e1')!.length).toBe(3);
+  });
+
+  it('returns null for unknown or non-series episode ids', () => {
+    expect(getLocalEpisodeList('does-not-exist')).toBeNull();
+    addLocalEntries([{ ...ep('m1', 1, 1), id: 'm1', type: 'movie', season: null, episode: null }]);
+    expect(getLocalEpisodeList('m1')).toBeNull();
   });
 });
 

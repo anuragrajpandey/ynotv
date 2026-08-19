@@ -727,13 +727,22 @@ html.disable-theme-backdrop-blur * {
   -webkit-backdrop-filter: none !important;
 }
 
-/* ==========================================================================
-   THEME OPTIMIZATION OVERRIDES
-   ========================================================================== */
-/* 1. Disable Glass Backdrop Blur */
-html.disable-theme-backdrop-blur * {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+/* With the blur gone, glass surfaces can no longer mask the layers sitting
+   behind them, so anything meant for the hero screen would show sharp
+   through the transparent page panels (Movies/Series/DVR/Sports/Stremio/
+   Nuvio/Calendar): the hero SVG placeholder, the channel info overlay, and
+   the floating overlay widgets (Recent/Favorites/What's Next bar, live
+   sports ticker, live game sidebar). Actively hide them on non-hero views.
+   The guide is excluded so its own overlay behavior (channel-info during
+   transparent-guide zapping, live game sidebar) keeps working. */
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .placeholder,
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .channel-info-overlay,
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .widget-bar,
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .live-sports-overlay,
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .slg-tab-trigger,
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .slg-drawer {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* 2. Scroll Turbo — active only while scrolling (see utils/scrollTurbo.ts).

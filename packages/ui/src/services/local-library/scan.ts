@@ -32,10 +32,16 @@ export async function buildTmdbEntry(
   f: ScannedFile,
   parsed: ParsedFilename,
   tmdbToken: string | null,
+  signal?: AbortSignal,
 ): Promise<LocalEntry> {
   let tmdb: TmdbLookup = {};
   if (tmdbToken) {
-    tmdb = await tmdbLookup(tmdbToken, parsed.title, parsed.year, parsed.type).catch(() => ({}));
+    tmdb = await tmdbLookup(tmdbToken, parsed.title, parsed.year, parsed.type, signal).catch(
+      (e: unknown) => {
+        if (e instanceof DOMException && e.name === 'AbortError') throw e;
+        return {};
+      },
+    );
   }
   const needsReview = tmdbToken ? lowConfidence(parsed, tmdb) : false;
   const identified = tmdb.tmdbId != null && !needsReview;
@@ -66,6 +72,7 @@ export async function buildNfoEntry(
   f: ScannedFile,
   parsed: ParsedFilename,
   tmdbToken: string | null,
+  signal?: AbortSignal,
 ): Promise<LocalEntry> {
   const nfoPath = await findNfo(f.path);
   const nfo = nfoPath ? await readNfo(nfoPath) : null;
@@ -99,7 +106,10 @@ export async function buildNfoEntry(
   let runtime = meta?.runtime ?? null;
 
   if (tmdbToken && !tmdbId) {
-    const look = await tmdbLookup(tmdbToken, title, year, parsed.type).catch(() => ({} as TmdbLookup));
+    const look = await tmdbLookup(tmdbToken, title, year, parsed.type, signal).catch((e: unknown) => {
+      if (e instanceof DOMException && e.name === 'AbortError') throw e;
+      return {} as TmdbLookup;
+    });
     if (look.tmdbId) tmdbId = look.tmdbId;
     if (!imdbId && look.imdbId) imdbId = look.imdbId;
     if (!art.poster && look.poster) poster = look.poster;
@@ -186,6 +196,7 @@ export async function tmdbLookup(
   title: string,
   year: number | null,
   type: 'movie' | 'show',
+  signal?: AbortSignal,
 ): Promise<TmdbLookup> {
   const path = type === 'movie' ? 'movie' : 'tv';
   const { headers, queryParam } = getTmdbHeadersAndParams(token);
@@ -194,7 +205,7 @@ export async function tmdbLookup(
   if (year && type === 'movie') params.set('year', String(year));
   if (year && type === 'show') params.set('first_air_date_year', String(year));
 
-  const r = await rateLimitedFetch(`https://api.themoviedb.org/3/search/${path}?${params}`, { headers });
+  const r = await rateLimitedFetch(`https://api.themoviedb.org/3/search/${path}?${params}`, { headers, signal });
   if (!r.ok) return {};
   const json = await r.json();
   const top = json.results?.[0];
@@ -212,7 +223,7 @@ export async function tmdbLookup(
   try {
     const dparams = new URLSearchParams({ append_to_response: 'external_ids' });
     if (queryParam) dparams.set(queryParam.key, queryParam.value);
-    const dr = await rateLimitedFetch(`https://api.themoviedb.org/3/${path}/${top.id}?${dparams}`, { headers });
+    const dr = await rateLimitedFetch(`https://api.themoviedb.org/3/${path}/${top.id}?${dparams}`, { headers, signal });
     if (dr.ok) {
       const dj = await dr.json();
       const imdb = dj.imdb_id ?? dj.external_ids?.imdb_id;
@@ -226,7 +237,8 @@ export async function tmdbLookup(
         backdrop = `https://image.tmdb.org/t/p/w1280${dj.backdrop_path}`;
       }
     }
-  } catch {
+  } catch (e: unknown) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
     /* noop */
   }
 

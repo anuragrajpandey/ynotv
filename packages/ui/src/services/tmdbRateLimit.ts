@@ -14,8 +14,18 @@ const BURST = 40;
 let tokens = BURST;
 let lastRefill = Date.now();
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    }, { once: true });
+  });
+}
+
+function throwIfAborted(signal?: AbortSignal | null): void {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 }
 
 /** Acquire one request token, blocking until the bucket refills. */
@@ -43,22 +53,28 @@ export async function rateLimitedFetch(
   init?: RequestInit,
   retries = 3,
 ): Promise<Response> {
+  const signal = init?.signal;
   for (let attempt = 0; ; attempt++) {
     await acquireToken();
+    throwIfAborted(signal);
 
     let res: Response;
     try {
       res = await fetch(input, init);
     } catch (e) {
+      // Abort requested — never retry, surface immediately.
+      if (signal?.aborted) throw e;
       // Network-level failure (offline, DNS, timeout) — retry with backoff.
       if (attempt >= retries) throw e;
-      await sleep(500 * 2 ** attempt);
+      await sleep(500 * 2 ** attempt, signal);
+      throwIfAborted(signal);
       continue;
     }
 
     if (!RETRYABLE_STATUS.has(res.status) || attempt >= retries) return res;
 
     const retryAfter = Number(res.headers.get('retry-after') ?? 0);
-    await sleep(retryAfter > 0 ? retryAfter * 1000 : 500 * 2 ** attempt);
+    await sleep(retryAfter > 0 ? retryAfter * 1000 : 500 * 2 ** attempt, signal);
+    throwIfAborted(signal);
   }
 }

@@ -1,4 +1,4 @@
-import { type ChangeEvent, useEffect, useState, useRef, useCallback } from 'react';
+import { type ChangeEvent, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
@@ -15,6 +15,7 @@ import { SourcePickerModal } from './SourcePickerModal';
 import type { StremioStream, StremioStreamBadge } from '../types/stremio';
 import type { VisualizerMode } from './AudioVisualizer';
 import { useActivePlaylistStore, isActivePlaylistItem } from '../stores/activePlaylistStore';
+import { getLocalEpisodeList } from '../services/local-library/local-library';
 import { TeamChannelOverlay } from './sports/TeamChannelOverlay';
 import { FailoverChannelOverlay } from './FailoverChannelOverlay';
 import './NowPlayingBar.css';
@@ -194,6 +195,19 @@ export function NowPlayingBar({
   const showPrevNav = isPlaylistActive ? !!onPlaylistPreviousItem : !!(onChannelUp && (!isVod || vodInfo?.type === 'series'));
   const showNextNav = isPlaylistActive ? !!onPlaylistNextItem : !!(onChannelDown && (!isVod || vodInfo?.type === 'series'));
   const isEpisodeNav = !isPlaylistActive && isVod && vodInfo?.type === 'series';
+
+  // Local series episodes live in the local library (not the VOD DB), so the
+  // boundaries are resolved here to grey out prev/next at the series start/end.
+  // Non-boundary clicks still go through onChannelUp/onChannelDown, which
+  // App.tsx resolves against the local library (next season's first episode is
+  // reached naturally via the flat season→episode ordering).
+  const localEpisodeNav = useMemo(() => {
+    if (!isEpisodeNav || vodInfo?.source_id !== 'local') return null;
+    const episodes = getLocalEpisodeList(vodInfo.episodeId);
+    if (!episodes) return null;
+    const idx = episodes.findIndex((ep) => ep.id === vodInfo.episodeId);
+    return { canPrev: idx > 0, canNext: idx >= 0 && idx < episodes.length - 1 };
+  }, [isEpisodeNav, vodInfo]);
   const handleNavPrev = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -812,7 +826,7 @@ export function NowPlayingBar({
                   <button
                     className="npb-clean-sm-btn"
                     onClick={handleNavPrev}
-                    disabled={!canControl}
+                    disabled={!canControl || (localEpisodeNav !== null && !localEpisodeNav.canPrev)}
                     title={isPlaylistActive ? t('previousPlaylistItem') : (isEpisodeNav ? t('previousEpisode') : t('previousChannel'))}
                   >
                     {isPlaylistActive || isEpisodeNav ? <PrevIcon /> : <ChannelUpIcon />}
@@ -823,7 +837,7 @@ export function NowPlayingBar({
                   <button
                     className="npb-clean-sm-btn"
                     onClick={handleNavNext}
-                    disabled={!canControl}
+                    disabled={!canControl || (localEpisodeNav !== null && !localEpisodeNav.canNext)}
                     title={isPlaylistActive ? t('nextPlaylistItem') : (isEpisodeNav ? t('nextEpisode') : t('nextChannel'))}
                   >
                     {isPlaylistActive || isEpisodeNav ? <NextIcon /> : <ChannelDownIcon />}
@@ -1321,7 +1335,7 @@ export function NowPlayingBar({
                   <button
                     className="npb-btn npb-channel-up-btn"
                     onClick={handleNavPrev}
-                    disabled={!canControl}
+                    disabled={!canControl || (localEpisodeNav !== null && !localEpisodeNav.canPrev)}
                     title={isPlaylistActive ? t('previousPlaylistItem') : (isEpisodeNav ? t('previousEpisode') : t('previousChannelUp'))}
                   >
                     {isPlaylistActive || isEpisodeNav ? <PrevIcon /> : <ChannelUpIcon />}
@@ -1331,7 +1345,7 @@ export function NowPlayingBar({
                   <button
                     className="npb-btn npb-channel-down-btn"
                     onClick={handleNavNext}
-                    disabled={!canControl}
+                    disabled={!canControl || (localEpisodeNav !== null && !localEpisodeNav.canNext)}
                     title={isPlaylistActive ? t('nextPlaylistItem') : (isEpisodeNav ? t('nextEpisode') : t('nextChannelDown'))}
                   >
                     {isPlaylistActive || isEpisodeNav ? <NextIcon /> : <ChannelDownIcon />}

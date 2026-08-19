@@ -143,6 +143,19 @@ function persistRows(rows: LocalEntryRow[]): void {
   });
 }
 
+/**
+ * Persist a single entry row immediately (crash-safe checkpoint). The folder
+ * scan writes each completed entry to SQLite as it finishes, so a mid-scan
+ * crash or restart loses at most the in-flight file — a resume skips everything
+ * already persisted instead of re-scanning it. Deliberately does not touch the
+ * in-memory cache or subscribers (that happens once via addLocalEntries).
+ */
+export function persistLocalEntryIncremental(entry: LocalEntry): void {
+  void db.localEntries.put(entryToRow(entry)).catch((e) => {
+    console.warn('[LocalLibrary] Failed to persist entry checkpoint:', e);
+  });
+}
+
 /** Delete rows by id (incremental). */
 function persistRemove(ids: string[]): void {
   if (ids.length === 0) return;
@@ -167,8 +180,10 @@ export function ensureLocalLibraryLoaded(): Promise<void> {
       await loadAppKv(FOLDERS_KEY).catch(() => null);
 
       let loadedEntries: LocalEntry[] = [];
+      let tableRows = 0;
       try {
         const rows = await db.localEntries.toArray();
+        tableRows = rows.length;
         if (rows.length > 0) {
           loadedEntries = rows.map(rowToEntry);
         }
@@ -176,16 +191,42 @@ export function ensureLocalLibraryLoaded(): Promise<void> {
         console.warn('[LocalLibrary] Failed to read local_entries table:', e);
       }
 
+      // TEMP DIAGNOSTIC — remove after migration retest. Shows where the data
+      // actually is so a missing library can be traced to its source.
+      try {
+        const [kvEntries, kvFolders] = await Promise.all([
+          db.appKv.get(KEY).catch(() => null),
+          db.appKv.get(FOLDERS_KEY).catch(() => null),
+        ]);
+        console.log(
+          '[LocalMigration] boot state',
+          'lsEntries=' + (localStorage.getItem(KEY) ?? '').length,
+          'lsFolders=' + (localStorage.getItem(FOLDERS_KEY) ?? '').length,
+          'kvEntries=' + (kvEntries?.value?.length ?? 0),
+          'kvFolders=' + (kvFolders?.value?.length ?? 0),
+          'tableRows=' + tableRows,
+        );
+      } catch {
+        /* ignore */
+      }
+
       if (loadedEntries.length === 0) {
         // First run after upgrade: migrate the legacy JSON blob(s) into the table.
         const raw = await loadAppKv(KEY).catch(() => null);
         const legacy = parseEntries(raw) ?? parseEntries(readAppKvSync(KEY)) ?? [];
         if (legacy.length > 0) {
+          console.log('[LocalMigration] migrating legacy entries blob → local_entries:', legacy.length);
           loadedEntries = legacy;
           persistRows(legacy.map(entryToRow));
           void db.appKv.delete(KEY).catch(() => {});
         }
       }
+
+      console.log(
+        '[LocalMigration] result',
+        'loadedEntries=' + loadedEntries.length,
+        'folders=' + JSON.stringify(readFolders()),
+      );
 
       // Merge with anything a mutation already wrote this session (mutations
       // win on conflict; persisted rows we haven't seen yet are preserved).
@@ -464,6 +505,33 @@ export function sortGroups(
     return mul * (tA - tB);
   });
   return list;
+}
+
+/**
+ * Resolve the ordered episode list (season → episode) of the local series the
+ * given episode belongs to, or null when `episodeId` isn't a local series
+ * episode. Mirrors groupLocal's grouping key so navigation matches the show
+ * cards in the Local tab. Used by the player's prev/next episode buttons.
+ */
+export function getLocalEpisodeList(episodeId?: string | null): LocalEntry[] | null {
+  if (!episodeId) return null;
+  const all = readLocalLibrary();
+  const current = all.find((e) => e.id === episodeId);
+  if (!current || current.type !== 'show') return null;
+  const key = (
+    current.imdbId ||
+    (current.tmdbId ? `tmdb_${current.tmdbId}` : null) ||
+    current.title ||
+    current.filename
+  ).toLowerCase();
+  return all
+    .filter(
+      (e) =>
+        e.type === 'show' &&
+        (e.imdbId || (e.tmdbId ? `tmdb_${e.tmdbId}` : null) || e.title || e.filename).toLowerCase() ===
+          key,
+    )
+    .sort((a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0));
 }
 
 /**

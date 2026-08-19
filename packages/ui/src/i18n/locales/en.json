@@ -2817,6 +2817,7 @@
     "queueingAllSeasons": "Queueing all seasons...",
     "downloadSeasonModalTitle": "Download Season {{season}}",
     "downloadAllModalTitle": "Download All Seasons",
+    "filterFiles": "Filter files...",
     "folderOrganization": "Folder Organization",
     "organizeBySeasonOpt": "Organize into Show → Season folders",
     "organizeBySeasonSubSingle": "Save to '{{title}} / Season {{season}}'",
@@ -2917,6 +2918,9 @@
     "episodesSelected_many": "{{count}} episodes selected",
     "episodesSelected_two": "{{count}} episodes selected",
     "episodesSelected_zero": "{{count}} episodes selected",
+    "matching": "{{count}} matching",
+    "pauseScan": "Pause",
+    "scanPaused": "Scan paused",
     "seasonCount_few": "{{count}} Seasons",
     "seasonCount_many": "{{count}} Seasons",
     "seasonCount_two": "{{count}} Seasons",
@@ -2936,7 +2940,9 @@
     "addedItemsToLibrary_two": "Added {{count}} items to Local Library",
     "addedItemsToLibrary_zero": "Added {{count}} items to Local Library",
     "markedItemsWatched_zero": "Marked {{count}} items as watched",
-    "matchedFilesAs_zero": "Matched {{count}} files as {{title}}"
+    "matchedFilesAs_zero": "Matched {{count}} files as {{title}}",
+    "selectFiltered": "Select filtered",
+    "stopScan": "Stop"
   },
   "dvr": {
     "title": "DVR & Downloads",

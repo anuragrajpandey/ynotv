@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { VirtuosoGrid } from 'react-virtuoso';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import type { IdentifyResolution, LocalEntry, LocalGroup, LocalSortKey, ScannedFile, SortDir } from '../../services/local-library/types';
@@ -6,6 +7,8 @@ import {
   addLocalEntries,
   groupLocal,
   parseFilename,
+  readLocalLibrary,
+  readScannedFolders,
   extractEpisodeNumber,
   removeLocalEntries,
   sortGroups,
@@ -14,9 +17,19 @@ import {
   localEntryToVodPlayInfo,
   addScannedFolder,
   ensureLocalLibraryLoaded,
+  persistLocalEntryIncremental,
 } from '../../services/local-library/local-library';
 import { countNfoFor, clearSidecarCache } from '../../services/local-library/sidecars';
 import { buildNfoEntry, buildTmdbEntry } from '../../services/local-library/scan';
+import {
+  readScanStateSync,
+  loadScanState,
+  writeScanState,
+  clearScanState,
+  loadScanFiles,
+  writeScanFiles,
+  clearScanFiles,
+} from '../../services/local-library/scan-state';
 import { markLocalMovieWatched, markLocalEpisodeWatched } from '../../services/local-library/local-watch';
 import { useActiveTmdbToken } from '../../hooks/useTmdbLists';
 import { PosterSizeSlider } from '../PosterSizeSlider';
@@ -27,9 +40,99 @@ import { LocalEpisodesModal } from './LocalEpisodesModal';
 import { LocalDetail } from './LocalDetail';
 import { LocalFoldersModal } from './LocalFoldersModal';
 import { IdentifyModal } from './IdentifyModal';
+import { BatchMatchModal } from './BatchMatchModal';
 import { ScanModeModal, type ScanMode } from './ScanModeModal';
 import type { VodPlayInfo } from '../../types/media';
 import './LocalTab.css';
+
+function formatEta(seconds: number): string {
+  if (!isFinite(seconds) || seconds <= 0) return '';
+  const s = Math.round(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+// Block a scan worker while the scan is paused. In-flight TMDB lookups are
+// allowed to finish; each worker then waits here before pulling the next file,
+// so no new requests start until the user resumes. Resolves immediately on
+// abort so Stop works even while paused.
+function waitWhilePaused(pausedRef: { current: boolean }, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (!pausedRef.current || signal.aborted) return resolve();
+    const id = setInterval(() => {
+      if (!pausedRef.current || signal.aborted) {
+        clearInterval(id);
+        resolve();
+      }
+    }, 150);
+    signal.addEventListener(
+      'abort',
+      () => {
+        clearInterval(id);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+}
+
+interface QueuedScanJob {
+  id: number;
+  run: () => Promise<void>;
+  cancelled: boolean;
+  settled: () => void;
+}
+
+interface LocalGridContext {
+  selectMode: boolean;
+  selectedIds: Set<string>;
+  handleToggleSelectId: (id: string) => void;
+  handleToggleSelectGroup: (ids: string[]) => void;
+  handlePlayEntry: (entry: LocalEntry, seriesGroup?: { key: string; head: LocalEntry }) => void;
+  handleOpenDetail: (g: LocalGroup) => void;
+  openIdentify: (target: LocalEntry[]) => void;
+  openEpisodes: (target: { head: LocalEntry; episodes: LocalEntry[] }) => void;
+}
+
+// Stable item renderer for the virtualized grid (defined outside render so
+// Virtuoso only mounts items that are actually on screen — at 50k+ entries the
+// DOM stays tiny and tab switches stay instant).
+const LocalGridItem = (
+  _index: number,
+  g: LocalGroup,
+  context?: LocalGridContext,
+) => {
+  if (!g || !context) return null;
+  if (g.kind === 'movie') {
+    return (
+      <LocalMovieCard
+        entry={g.entry}
+        selectMode={context.selectMode}
+        isSelected={context.selectedIds.has(g.entry.id)}
+        onToggleSelect={context.handleToggleSelectId}
+        onPlay={context.handlePlayEntry}
+        onOpenDetail={() => context.handleOpenDetail(g)}
+        onFixMatch={(entry) => context.openIdentify([entry])}
+      />
+    );
+  }
+  return (
+    <LocalShowGroupCard
+      head={g.head}
+      episodes={g.episodes}
+      selectMode={context.selectMode}
+      isSelected={g.episodes.every((e) => context.selectedIds.has(e.id))}
+      onToggleSelect={context.handleToggleSelectGroup}
+      onOpenEpisodes={(head, episodes) => context.openEpisodes({ head, episodes })}
+      onOpenDetail={() => context.handleOpenDetail(g)}
+      onFixMatch={(episodes) => context.openIdentify(episodes)}
+    />
+  );
+};
 
 interface LocalTabProps {
   initialFilter?: 'all' | 'movies' | 'series';
@@ -84,9 +187,32 @@ export function LocalTab({
     }
   }, []);
 
+  // Fixed item geometry for the virtualized grid: poster (aspect 2/3) + gap +
+  // title + subtitle line. Virtuoso needs this to size rows and total height.
+  const itemHeight = useMemo(() => Math.round(posterSize * 1.5) + 44, [posterSize]);
+
   // Scan state
   const [scanning, setScanning] = useState(false);
+  const [walking, setWalking] = useState(false);
   const [scanProgress, setScanProgress] = useState<{ current: number; total: number } | null>(null);
+  const [rateEta, setRateEta] = useState<{ rate: number; eta: number } | null>(null);
+  const [queuedCount, setQueuedCount] = useState(0);
+  const [interruptedScan, setInterruptedScan] = useState<{ folderPath: string; current: number; total: number } | null>(null);
+  const [rescanningMissing, setRescanningMissing] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  const scanAbortRef = useRef<AbortController | null>(null);
+  // Serial scan queue: TMDB-heavy scans run one at a time so a second folder
+  // added mid-scan waits instead of fighting the shared rate limit. Jobs can
+  // be cancelled while still waiting (before they start).
+  const scanQueueRef = useRef<QueuedScanJob[]>([]);
+  const queueRunningRef = useRef(false);
+  const nextScanJobIdRef = useRef(1);
+  // Live rate/ETA bookkeeping (refs so the 500ms overlay tick can read them).
+  const scanStartRef = useRef(0);
+  const sessionDoneRef = useRef(0);
+  const baseDoneRef = useRef(0);
+  const totalRef = useRef(0);
   const [pendingScanFiles, setPendingScanFiles] = useState<ScannedFile[] | null>(null);
   const [pendingNfoCount, setPendingNfoCount] = useState<number>(0);
   const [pendingFolderPath, setPendingFolderPath] = useState<string | null>(null);
@@ -95,6 +221,7 @@ export function LocalTab({
 
   // Modals / Details state
   const [identifyTarget, setIdentifyTarget] = useState<LocalEntry[] | null>(null);
+  const [batchMatchTargets, setBatchMatchTargets] = useState<LocalEntry[] | null>(null);
   const [episodesModalTarget, setEpisodesModalTarget] = useState<{ head: LocalEntry; episodes: LocalEntry[] } | null>(null);
   const [selectedDetailGroup, setSelectedDetailGroup] = useState<LocalGroup | null>(null);
 
@@ -121,6 +248,34 @@ export function LocalTab({
       [showToast, t],
     ),
   );
+
+  // Offer to resume a scan that was interrupted by an app restart. Progress is
+  // persisted to SQLite (scan-state.ts); entries already scanned are in the
+  // library (persisted incrementally), so a resume only processes the rest.
+  useEffect(() => {
+    void (async () => {
+      try {
+        await ensureLocalLibraryLoaded();
+        const state = await loadScanState();
+        if (!state || !state.folderPath) return;
+        if (state.status === 'completed') {
+          clearScanState();
+          return;
+        }
+        const folders = readScannedFolders();
+        const stillTracked = folders.some(
+          (f) => f.replace(/\\/g, '/').toLowerCase() === state.folderPath.replace(/\\/g, '/').toLowerCase(),
+        );
+        if (!stillTracked) {
+          clearScanState();
+          return;
+        }
+        setInterruptedScan({ folderPath: state.folderPath, current: state.current, total: state.total });
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
 
   // Group items into movies & series
   const groups = useMemo(() => groupLocal(items), [items]);
@@ -195,13 +350,13 @@ export function LocalTab({
       });
       if (!selected || typeof selected !== 'string') return;
 
-      setScanning(true);
+      setWalking(true);
       clearSidecarCache();
       await ensureLocalLibraryLoaded();
       const files = await invoke<ScannedFile[]>('scan_local_folder', { folder: selected });
 
       if (!files || files.length === 0) {
-        setScanning(false);
+        setWalking(false);
         showToast(t('noVideoFilesFound'));
         return;
       }
@@ -214,13 +369,13 @@ export function LocalTab({
         setPendingScanFiles(files);
         setPendingNfoCount(nfos);
         setScanModalOpen(true);
-        setScanning(false);
+        setWalking(false);
       } else {
-        await executeScan(files, 'tmdb');
+        await executeScan(files, 'tmdb', { folderPath: selected });
       }
     } catch (err: any) {
       console.error('[LocalTab] Folder scan failed:', err);
-      setScanning(false);
+      setWalking(false);
       showToast(err?.message || t('folderScanFailed'));
     }
   }, [showToast, t]);
@@ -235,7 +390,7 @@ export function LocalTab({
         return;
       }
       addScannedFolder(folderPath);
-      await executeScan(files, 'tmdb');
+      await executeScan(files, 'tmdb', { folderPath });
     } catch (err: any) {
       console.error('[LocalTab] Rescan failed:', err);
       showToast(err?.message || t('rescanFailed'));
@@ -247,11 +402,119 @@ export function LocalTab({
   // 429s — far faster than the old one-at-a-time loop.
   const SCAN_CONCURRENCY = 12;
 
-  const executeScan = async (files: ScannedFile[], mode: ScanMode) => {
+  // Serialize TMDB-heavy scans: folder scans and rescan-missing share one queue
+  // so a second folder added mid-scan waits for the first instead of running
+  // two concurrent scans that fight over the global TMDB rate limit. The drain
+  // loop skips jobs that were cancelled while waiting.
+  const drainQueue = useCallback(async () => {
+    if (queueRunningRef.current) return;
+    queueRunningRef.current = true;
+    try {
+      for (;;) {
+        const head = scanQueueRef.current[0];
+        if (!head) break;
+        if (head.cancelled) {
+          scanQueueRef.current.shift();
+          setQueuedCount(scanQueueRef.current.length);
+          continue;
+        }
+        setQueuedCount(scanQueueRef.current.length);
+        try {
+          await head.run();
+        } catch {
+          /* run() implementations handle their own errors */
+        }
+        head.settled();
+        scanQueueRef.current.shift();
+        setQueuedCount(scanQueueRef.current.length);
+      }
+    } finally {
+      queueRunningRef.current = false;
+    }
+  }, []);
+
+  const enqueueScan = useCallback((run: () => Promise<void>): Promise<void> => {
+    return new Promise<void>((resolve) => {
+      const job: QueuedScanJob = {
+        id: nextScanJobIdRef.current++,
+        run,
+        cancelled: false,
+        settled: resolve,
+      };
+      scanQueueRef.current.push(job);
+      setQueuedCount(scanQueueRef.current.length);
+      void drainQueue();
+    });
+  }, [drainQueue]);
+
+  // Drop every scan still waiting in the queue (the one actively running keeps
+  // its own Cancel button). Settles their promises so callers don't hang.
+  const cancelQueuedScans = useCallback(() => {
+    for (const job of scanQueueRef.current) {
+      if (job.cancelled) continue;
+      job.cancelled = true;
+      job.settled();
+    }
+    setQueuedCount(scanQueueRef.current.filter((j) => !j.cancelled).length);
+  }, []);
+
+  // Live items/sec + ETA readout. Workers only bump the counters; a 500ms
+  // interval recomputes the rate from elapsed time so the ETA keeps moving
+  // even while individual lookups are slow (e.g. rate-limit backoff).
+  useEffect(() => {
+    if (!scanning && !rescanningMissing) return;
+    const update = () => {
+      const elapsed = (Date.now() - scanStartRef.current) / 1000;
+      const done = sessionDoneRef.current;
+      const rate = elapsed > 1 ? done / elapsed : 0;
+      const remaining = Math.max(0, totalRef.current - (baseDoneRef.current + done));
+      setRateEta(rate > 0 && remaining > 0 ? { rate, eta: remaining / rate } : null);
+    };
+    update();
+    const id = setInterval(update, 500);
+    return () => clearInterval(id);
+  }, [scanning, rescanningMissing]);
+
+  const runScan = async (
+    files: ScannedFile[],
+    mode: ScanMode,
+    folderPath: string | null,
+    total = files.length,
+    baseDone = 0,
+  ) => {
     setScanning(true);
+    setInterruptedScan(null);
+    pausedRef.current = false;
+    setPaused(false);
     await ensureLocalLibraryLoaded();
-    setScanProgress({ current: 0, total: files.length });
+    totalRef.current = total;
+    baseDoneRef.current = baseDone;
+    sessionDoneRef.current = 0;
+    scanStartRef.current = Date.now();
+    setScanProgress({ current: baseDone, total });
+    setRateEta(null);
+    const controller = new AbortController();
+    scanAbortRef.current = controller;
+    const { signal } = controller;
     const parsed = files.map((f) => ({ file: f, info: parseFilename(f.filename) }));
+
+    // Persist progress so a restart can resume this scan (entries completed so
+    // far are already persisted row-by-row; only the counters were lost).
+    let lastPersist = Date.now();
+    const persistTick = (done: number) => {
+      if (!folderPath) return;
+      const now = Date.now();
+      if (done % 100 === 0 || now - lastPersist > 2000) {
+        lastPersist = now;
+        writeScanState({ folderPath, current: baseDone + done, total, status: 'scanning', updatedAt: now });
+      }
+    };
+    if (folderPath) {
+      writeScanState({ folderPath, current: baseDone, total, status: 'scanning', updatedAt: Date.now() });
+      // Per-file checkpoint: the full path list, persisted once. A resume uses
+      // this to compute remaining files without re-walking the whole folder.
+      writeScanFiles(files.map((f) => f.path));
+    }
 
     const built: LocalEntry[] = new Array(parsed.length);
     let done = 0;
@@ -260,16 +523,26 @@ export function LocalTab({
       { length: Math.min(SCAN_CONCURRENCY, parsed.length) },
       async () => {
         for (;;) {
+          if (signal.aborted) return;
+          await waitWhilePaused(pausedRef, signal);
+          if (signal.aborted) return;
           const idx = next++;
           if (idx >= parsed.length) return;
           const { file, info } = parsed[idx];
           try {
             const entry =
               mode === 'nfo'
-                ? await buildNfoEntry(file, info, tmdbToken)
-                : await buildTmdbEntry(file, info, tmdbToken);
+                ? await buildNfoEntry(file, info, tmdbToken, signal)
+                : await buildTmdbEntry(file, info, tmdbToken, signal);
+            if (signal.aborted) return;
             built[idx] = entry;
-          } catch {
+            // Crash-safe checkpoint: persist each completed entry to SQLite as
+            // it finishes so a mid-scan restart only re-scans in-flight files.
+            persistLocalEntryIncremental(entry);
+          } catch (e: unknown) {
+            // Aborting mid-scan: drop the in-flight file so only fully
+            // scanned entries are kept.
+            if (e instanceof DOMException && e.name === 'AbortError') return;
             built[idx] = {
               id: file.path,
               path: file.path,
@@ -283,25 +556,118 @@ export function LocalTab({
             };
           }
           done += 1;
-          setScanProgress({ current: done, total: files.length });
+          sessionDoneRef.current = done;
+          setScanProgress({ current: baseDone + done, total });
+          persistTick(done);
         }
       },
     );
     await Promise.all(workers);
+    if (scanAbortRef.current === controller) scanAbortRef.current = null;
+    pausedRef.current = false;
+    setPaused(false);
 
+    // Keep whatever finished before the cancel — already-scanned entries stay.
     addLocalEntries(built.filter((e): e is LocalEntry => !!e));
+    if (signal.aborted) {
+      if (folderPath) {
+        writeScanState({ folderPath, current: baseDone + done, total, status: 'cancelled', updatedAt: Date.now() });
+        setInterruptedScan({ folderPath, current: baseDone + done, total });
+      }
+    } else {
+      clearScanState();
+      clearScanFiles();
+    }
     setScanning(false);
     setScanProgress(null);
+    setRateEta(null);
     setPendingScanFiles(null);
     setPendingFolderPath(null);
-    showToast(t('addedItemsToLibrary', { count: built.length }));
+    showToast(
+      signal.aborted
+        ? t('scanCancelled', 'Scan cancelled. Already scanned items were kept.')
+        : t('addedItemsToLibrary', { count: built.length }),
+    );
   };
 
-  const [rescanningMissing, setRescanningMissing] = useState(false);
+  const executeScan = (
+    files: ScannedFile[],
+    mode: ScanMode,
+    opts?: { folderPath?: string | null; total?: number; baseDone?: number },
+  ): Promise<void> =>
+    enqueueScan(() =>
+      runScan(files, mode, opts?.folderPath ?? null, opts?.total ?? files.length, opts?.baseDone ?? 0),
+    );
 
   // Re-run TMDB matching only for entries that are still ambiguous/unmatched,
   // without re-scanning the disk or re-touching already-matched titles.
-  const handleRescanMissing = useCallback(async () => {
+  const runRescanMissing = async (missing: LocalEntry[]) => {
+    setRescanningMissing(true);
+    setInterruptedScan(null);
+    pausedRef.current = false;
+    setPaused(false);
+    const total = missing.length;
+    totalRef.current = total;
+    baseDoneRef.current = 0;
+    sessionDoneRef.current = 0;
+    scanStartRef.current = Date.now();
+    setScanProgress({ current: 0, total });
+    setRateEta(null);
+    const controller = new AbortController();
+    scanAbortRef.current = controller;
+    const { signal } = controller;
+
+    const freshById = new Map<string, LocalEntry>();
+    let done = 0;
+    let next = 0;
+    const workers = Array.from(
+      { length: Math.min(SCAN_CONCURRENCY, missing.length) },
+      async () => {
+        for (;;) {
+          if (signal.aborted) return;
+          await waitWhilePaused(pausedRef, signal);
+          if (signal.aborted) return;
+          const idx = next++;
+          if (idx >= missing.length) return;
+          const e = missing[idx];
+          const info = parseFilename(e.filename);
+          try {
+            const fresh = await buildTmdbEntry(
+              { path: e.path, filename: e.filename, size: 0 },
+              info,
+              tmdbToken,
+              signal,
+            );
+            if (signal.aborted) return;
+            freshById.set(e.id, { ...e, ...fresh, id: e.id, path: e.path, addedAt: e.addedAt });
+          } catch (err: unknown) {
+            if (err instanceof DOMException && err.name === 'AbortError') return;
+            freshById.set(e.id, e);
+          }
+          done += 1;
+          sessionDoneRef.current = done;
+          setScanProgress({ current: done, total });
+        }
+      },
+    );
+    await Promise.all(workers);
+    if (scanAbortRef.current === controller) scanAbortRef.current = null;
+    pausedRef.current = false;
+    setPaused(false);
+
+    // Apply whatever completed before the cancel.
+    updateLocalEntries(Array.from(freshById.keys()), (entry) => freshById.get(entry.id) ?? {});
+    setRescanningMissing(false);
+    setScanProgress(null);
+    setRateEta(null);
+    showToast(
+      signal.aborted
+        ? t('scanCancelled', 'Scan cancelled. Already scanned items were kept.')
+        : t('rescannedMetadata', 'Rescanned metadata for {{count}} titles.', { count: freshById.size }),
+    );
+  };
+
+  const handleRescanMissing = useCallback(() => {
     const missing = items.filter((e) => e.needsReview || (!e.tmdbId && !e.imdbId));
     if (missing.length === 0) {
       showToast(t('noMissingMetadata', 'All titles already have metadata.'));
@@ -313,47 +679,78 @@ export function LocalTab({
       );
       return;
     }
-    setRescanningMissing(true);
-    setScanProgress({ current: 0, total: missing.length });
+    void enqueueScan(() => runRescanMissing(missing));
+  }, [items, tmdbToken, showToast, t, enqueueScan]);
 
-    const freshById = new Map<string, LocalEntry>();
-    let done = 0;
-    let next = 0;
-    const workers = Array.from(
-      { length: Math.min(SCAN_CONCURRENCY, missing.length) },
-      async () => {
-        for (;;) {
-          const idx = next++;
-          if (idx >= missing.length) return;
-          const e = missing[idx];
-          const info = parseFilename(e.filename);
-          try {
-            const fresh = await buildTmdbEntry(
-              { path: e.path, filename: e.filename, size: 0 },
-              info,
-              tmdbToken,
-            );
-            freshById.set(e.id, { ...e, ...fresh, id: e.id, path: e.path, addedAt: e.addedAt });
-          } catch {
-            freshById.set(e.id, e);
-          }
-          done += 1;
-          setScanProgress({ current: done, total: missing.length });
+  const handleCancelScan = useCallback(() => {
+    scanAbortRef.current?.abort();
+  }, []);
+
+  // Pause / resume the active scan. Pausing only gates the worker loops (no
+  // new TMDB requests); in-flight lookups finish first.
+  const handleTogglePause = useCallback(() => {
+    if (!scanAbortRef.current) return;
+    pausedRef.current = !pausedRef.current;
+    setPaused(pausedRef.current);
+  }, []);
+
+  // Resume an interrupted/cancelled scan: use the persisted per-file checkpoint
+  // when available (no folder re-walk), skip every file already in the library
+  // (entries were persisted incrementally), and continue the progress counters
+  // from where the previous run stopped. Falls back to re-walking the folder
+  // only for legacy state that predates the checkpoint.
+  const handleResumeScan = useCallback(async () => {
+    const target = interruptedScan;
+    if (!target) return;
+    setInterruptedScan(null);
+    try {
+      clearSidecarCache();
+      await ensureLocalLibraryLoaded();
+      const existing = new Set(readLocalLibrary().map((e) => e.path.toLowerCase()));
+      const persistedPaths = await loadScanFiles();
+
+      let files: ScannedFile[] | null = null;
+      let total = target.total;
+      if (persistedPaths && persistedPaths.length > 0) {
+        // Checkpoint from the interrupted run: no folder re-walk needed. The
+        // filename is derivable from the path (parseFilename needs the basename).
+        files = persistedPaths
+          .filter((p) => !existing.has(p.toLowerCase()))
+          .map((p) => ({ path: p, filename: p.split(/[\\/]/).pop() || p, size: 0 }));
+      } else {
+        const walked = await invoke<ScannedFile[]>('scan_local_folder', { folder: target.folderPath });
+        if (Array.isArray(walked) && walked.length > 0) {
+          files = walked.filter((f) => !existing.has(f.path.toLowerCase()));
+          total = walked.length;
         }
-      },
-    );
-    await Promise.all(workers);
+      }
 
-    updateLocalEntries(Array.from(freshById.keys()), (entry) => freshById.get(entry.id) ?? {});
-    setRescanningMissing(false);
-    setScanProgress(null);
-    showToast(t('rescannedMetadata', 'Rescanned metadata for {{count}} titles.', { count: freshById.size }));
-  }, [items, tmdbToken, showToast, t]);
+      if (!files || files.length === 0) {
+        clearScanState();
+        clearScanFiles();
+        return;
+      }
+      addScannedFolder(target.folderPath);
+      await executeScan(files, 'tmdb', {
+        folderPath: target.folderPath,
+        total,
+        baseDone: total - files.length,
+      });
+    } catch (err: any) {
+      console.error('[LocalTab] Resume scan failed:', err);
+      showToast(err?.message || t('folderScanFailed'));
+    }
+  }, [interruptedScan, showToast, t]);
+
+  const handleDismissInterrupted = useCallback(() => {
+    clearScanState();
+    setInterruptedScan(null);
+  }, []);
 
   const handleScanModePick = (mode: ScanMode) => {
     setScanModalOpen(false);
     if (pendingScanFiles) {
-      void executeScan(pendingScanFiles, mode);
+      void executeScan(pendingScanFiles, mode, { folderPath: pendingFolderPath });
     }
   };
 
@@ -446,6 +843,22 @@ export function LocalTab({
     }
     showToast(t('markedItemsWatched', { count: selectedItems.length }));
   }, [selectedIds, items, showToast, t]);
+
+  // Memoized context for the virtualized grid — only the visible items
+  // re-render when this changes (selection, handlers), not the whole list.
+  const gridContext = useMemo<LocalGridContext>(
+    () => ({
+      selectMode,
+      selectedIds,
+      handleToggleSelectId,
+      handleToggleSelectGroup,
+      handlePlayEntry,
+      handleOpenDetail,
+      openIdentify: setIdentifyTarget,
+      openEpisodes: setEpisodesModalTarget,
+    }),
+    [selectMode, selectedIds, handleToggleSelectId, handleToggleSelectGroup, handlePlayEntry, handleOpenDetail],
+  );
 
   return (
     <div className="local-tab-container">
@@ -582,14 +995,14 @@ export function LocalTab({
             type="button"
             className="local-btn local-btn--primary"
             onClick={handleAddFolder}
-            disabled={scanning}
+            disabled={walking}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               <line x1="12" y1="11" x2="12" y2="17" />
               <line x1="9" y1="14" x2="15" y2="14" />
             </svg>
-            {scanning ? t('scanning', 'Scanning...') : t('addFolder', 'Add folder')}
+            {scanning || walking ? t('scanning', 'Scanning...') : t('addFolder', 'Add folder')}
           </button>
         </div>
       </div>
@@ -626,10 +1039,12 @@ export function LocalTab({
                 className="local-review-banner__btn local-review-banner__btn--batch"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedIds(new Set(needsReviewList.map((i) => i.id)));
-                  setIdentifyTarget(needsReviewList);
+                  // Open a checkbox selection first so the user picks exactly
+                  // which unmatched files to match into one series, instead of
+                  // batching the entire needs-review list.
+                  setBatchMatchTargets(needsReviewList);
                 }}
-                title={t('batchReviewAll', 'Identify all review items into one series')}
+                title={t('batchReviewAll', 'Choose which files to batch match into one series')}
               >
                 {t('batchReview', 'Batch Match Series')}
               </button>
@@ -720,23 +1135,102 @@ export function LocalTab({
         </div>
       )}
 
+      {/* Interrupted-scan resume banner */}
+      {interruptedScan && (
+        <div className="local-resume-banner">
+          <span className="local-resume-banner__text">
+            {t('scanInterruptedBanner', 'Scan interrupted — {{current}} of {{total}} items scanned.', {
+              current: interruptedScan.current,
+              total: interruptedScan.total,
+            })}
+          </span>
+          <div className="local-resume-banner__actions">
+            <button type="button" className="local-btn local-btn--primary" onClick={() => void handleResumeScan()}>
+              {t('resumeScan', 'Resume scan')}
+            </button>
+            <button type="button" className="local-btn local-btn--secondary" onClick={handleDismissInterrupted}>
+              {t('dismissScan', 'Dismiss')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Scan Progress Alert (folder scan or rescan-missing) */}
       {(scanning || rescanningMissing) && scanProgress && (
-        <div style={{ background: 'var(--surface-color, rgba(40,40,40,0.8))', padding: '14px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '14px', border: '1px solid var(--surface-border)' }}>
+        <div className="local-scan-progress">
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '6px' }}>
-              <span>{rescanningMissing ? t('rescanningMetadataFiles', 'Refreshing metadata...') : t('scanningMediaFiles', 'Scanning media files...')}</span>
-              <span>{scanProgress.current} / {scanProgress.total}</span>
+            <div className="local-scan-progress__row">
+              <span>
+                {paused
+                  ? t('scanPaused', 'Scan paused')
+                  : rescanningMissing
+                    ? t('rescanningMetadataFiles', 'Refreshing metadata...')
+                    : t('scanningMediaFiles', 'Scanning media files...')}
+              </span>
+              <span className="local-scan-progress__stats">
+                {scanProgress.current} / {scanProgress.total}
+                {!paused && rateEta && (
+                  <span className="local-scan-progress__eta">
+                    {t('scanEtaRate', '{{rate}} items/s · {{eta}} left', {
+                      rate: rateEta.rate.toFixed(1),
+                      eta: formatEta(rateEta.eta),
+                    })}
+                  </span>
+                )}
+                {queuedCount > 0 && (
+                  <span className="local-scan-progress__queued">
+                    {t('scanQueuedCount', '{{count}} queued', { count: queuedCount })}
+                  </span>
+                )}
+              </span>
             </div>
             <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${(scanProgress.current / scanProgress.total) * 100}%`, background: 'var(--accent-primary, #00d4ff)', transition: 'width 0.2s' }} />
             </div>
           </div>
+          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+            <button
+              type="button"
+              className="local-btn"
+              onClick={handleTogglePause}
+              disabled={!scanAbortRef.current}
+              style={{ height: '32px', padding: '0 14px', fontSize: '12.5px' }}
+            >
+              {paused ? t('resumeScan', 'Resume scan') : t('pauseScan', 'Pause')}
+            </button>
+            <button
+              type="button"
+              className="local-btn"
+              onClick={handleCancelScan}
+              disabled={!scanAbortRef.current}
+              style={{ height: '32px', padding: '0 14px', fontSize: '12.5px' }}
+            >
+              {t('stopScan', 'Stop')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Waiting for a queued scan (added a folder while another scan runs) */}
+      {queuedCount > 0 && !scanning && !rescanningMissing && (
+        <div className="local-scan-waiting">
+          <span className="local-scan-waiting__spinner" />
+          <span>
+            {t('scanWaiting', 'Waiting for the current scan to finish… ({{count}} queued)', { count: queuedCount })}
+          </span>
+          <button
+            type="button"
+            className="local-btn local-scan-waiting__cancel"
+            onClick={cancelQueuedScans}
+            style={{ flexShrink: 0, height: '32px', padding: '0 14px', fontSize: '12.5px' }}
+          >
+            {t('cancelQueuedScans', 'Cancel queued scans')}
+          </button>
         </div>
       )}
 
       {/* Main Content: Grid or Empty State */}
-      {items.length === 0 && !scanning ? (
+      {items.length === 0 && !scanning && !walking ? (
         <div className="local-empty-state">
           <div className="local-empty-state__icon">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -764,40 +1258,22 @@ export function LocalTab({
           </button>
         </div>
       ) : (
-        <div
+        <VirtuosoGrid
           className="local-grid"
-          style={{ '--local-poster-size': `${posterSize}px` } as React.CSSProperties}
-        >
-          {filteredGroups.map((g) => {
-            if (g.kind === 'movie') {
-              return (
-                <LocalMovieCard
-                  key={g.entry.id}
-                  entry={g.entry}
-                  selectMode={selectMode}
-                  isSelected={selectedIds.has(g.entry.id)}
-                  onToggleSelect={handleToggleSelectId}
-                  onPlay={handlePlayEntry}
-                  onOpenDetail={() => handleOpenDetail(g)}
-                  onFixMatch={(entry) => setIdentifyTarget([entry])}
-                />
-              );
-            }
-            return (
-              <LocalShowGroupCard
-                key={g.key}
-                head={g.head}
-                episodes={g.episodes}
-                selectMode={selectMode}
-                isSelected={g.episodes.every((e) => selectedIds.has(e.id))}
-                onToggleSelect={handleToggleSelectGroup}
-                onOpenEpisodes={(head, episodes) => setEpisodesModalTarget({ head, episodes })}
-                onOpenDetail={() => handleOpenDetail(g)}
-                onFixMatch={(episodes) => setIdentifyTarget(episodes)}
-              />
-            );
-          })}
-        </div>
+          style={
+            {
+              '--local-poster-size': `${posterSize}px`,
+              '--local-item-height': `${itemHeight}px`,
+            } as React.CSSProperties
+          }
+          data={filteredGroups}
+          context={gridContext}
+          computeItemKey={(_, g) => (g.kind === 'movie' ? g.entry.id : g.key)}
+          itemContent={LocalGridItem}
+          overscan={150}
+          listClassName="local-grid-list"
+          itemClassName="local-grid-item"
+        />
       )}
 
       {/* Episodes Picker Modal */}
@@ -809,6 +1285,18 @@ export function LocalTab({
           onPlayEpisode={(ep) => {
             handlePlayEntry(ep, { key: episodesModalTarget.head.title, head: episodesModalTarget.head });
             setEpisodesModalTarget(null);
+          }}
+        />
+      )}
+
+      {/* Batch match file selection modal */}
+      {batchMatchTargets && (
+        <BatchMatchModal
+          items={batchMatchTargets}
+          onClose={() => setBatchMatchTargets(null)}
+          onConfirm={(selected) => {
+            setBatchMatchTargets(null);
+            setIdentifyTarget(selected);
           }}
         />
       )}
