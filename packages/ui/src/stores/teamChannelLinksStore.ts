@@ -286,6 +286,7 @@ export const useTeamChannelLinksStore = create<TeamChannelLinksState>((set, get)
   },
 
   reorderTeamLinks: async (leagueId, teamId, orderedStreamIds) => {
+    await get().ensureLoaded();
     const teamLinks = getTeamLinks(get().links, leagueId, teamId);
     const linkMap = new Map(teamLinks.map((l) => [l.stream_id, l]));
 

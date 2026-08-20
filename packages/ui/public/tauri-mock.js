@@ -121,6 +121,7 @@
     { id: 'nfl:team-a:10001', league_id: 'nfl', team_id: 'team-a', stream_id: '10001', channel_name: 'Channel 1', source_id: 'mock-source', priority: 0, auto: 0, confidence: 0.95, updated_at: now },
     { id: 'nfl:team-a:10002', league_id: 'nfl', team_id: 'team-a', stream_id: '10002', channel_name: 'Channel 2', source_id: 'mock-source', priority: 1, auto: 0, confidence: 0.9, updated_at: now },
     { id: 'nfl:team-b:10003', league_id: 'nfl', team_id: 'team-b', stream_id: '10003', channel_name: 'Channel 3', source_id: 'mock-source', priority: 0, auto: 0, confidence: 0.9, updated_at: now },
+    { id: 'nba:team-c:10006', league_id: 'nba', team_id: 'team-c', stream_id: '10006', channel_name: 'Channel 6', source_id: 'mock-source', priority: 0, auto: 0, confidence: 0.9, updated_at: now },
   ];
   const channelMetadata = [
     { stream_id: '10001', source_id: 'mock-source', resolution_width: 1920, resolution_height: 1080, fps: 60, audio_channels: '5.1', quality_label: '1080p', video_bitrate_kbps: 4500, audio_bitrate_kbps: 384, bitrate_kbps: 4884, last_updated: new Date().toISOString() },
