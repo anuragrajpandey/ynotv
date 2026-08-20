@@ -162,7 +162,7 @@ function SortableFailoverItem({
         <div className="fco-item-tags">
           <MetadataBadge
             streamId={member.stream_id}
-            variant="compact"
+            variant="detailed" location="failover"
           />
           <span className={`fco-priority-pill ${isPrimary ? 'primary' : ''}`}>
             {isPrimary

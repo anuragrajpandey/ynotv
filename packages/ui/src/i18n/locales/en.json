@@ -929,6 +929,13 @@
       },
       "avgVideoBitrate": "Avg Video Bitrate",
       "avgAudioBitrate": "Avg Audio Bitrate",
+      "avgBitrateDescription": "Choose where the average video and audio bitrate badges are shown.",
+      "avgBitrateLocation": "Location",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Channel Info Overlay",
+      "avgBitrateLocationSearch": "Search Results",
+      "avgBitrateLocationFailover": "Failover",
+      "avgBitrateLocationSports": "Sports Channel Linking",
       "videoBitrate": "Avg Video Bitrate",
       "audioBitrate": "Avg Audio Bitrate"
     },

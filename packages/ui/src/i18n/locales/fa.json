@@ -929,6 +929,13 @@
       "bitrate": "بیت‌ریت",
       "avgVideoBitrate": "میانگین بیت‌ریت ویدیو",
       "avgAudioBitrate": "میانگین بیت‌ریت صدا",
+      "avgBitrateDescription": "انتخاب کنید که نشان‌های میانگین نرخ بیت ویدیو و صدا کجا نمایش داده شوند.",
+      "avgBitrateLocation": "مکان",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "روکش اطلاعات کانال",
+      "avgBitrateLocationSearch": "نتایج جستجو",
+      "avgBitrateLocationFailover": "فیل‌اوور",
+      "avgBitrateLocationSports": "پیوند کانال‌های ورزشی",
       "videoBitrate": "بیت‌ریت ویدیو",
       "audioBitrate": "بیت‌ریت صدا"
     },

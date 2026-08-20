@@ -16,6 +16,7 @@ import { FailoverGroupManager } from './FailoverGroupManager';
 import { FailoverAutoClusterModal } from './FailoverAutoClusterModal';
 import { useSourceNameMap } from '../hooks/useChannels';
 import { useSettingsStore } from '../stores/settingsStore';
+import { MetadataBadge } from './MetadataBadge';
 import './FailoverGroupListModal.css';
 import {
     DndContext,
@@ -187,6 +188,7 @@ function SortableFailoverMemberRow({
                 {sourceName && (
                     <span className="fgl-member-source">{sourceName}</span>
                 )}
+                <MetadataBadge streamId={member.stream_id} variant="detailed" location="failover" />
             </div>
 
             <button

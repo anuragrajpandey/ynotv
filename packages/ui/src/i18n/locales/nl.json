@@ -929,6 +929,13 @@
       "bitrate": "Bitrate",
       "avgVideoBitrate": "Gem. video-bitrate",
       "avgAudioBitrate": "Gem. audio-bitrate",
+      "avgBitrateDescription": "Kies waar de badges voor gemiddelde video- en audiobitrate worden weergegeven.",
+      "avgBitrateLocation": "Locatie",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Kanaalinformatie-overlay",
+      "avgBitrateLocationSearch": "Zoekresultaten",
+      "avgBitrateLocationFailover": "Failover",
+      "avgBitrateLocationSports": "Sportkanalen koppelen",
       "videoBitrate": "Video-bitrate",
       "audioBitrate": "Audio-bitrate"
     },

@@ -63,6 +63,22 @@ interface LiveTVTabProps {
   onEpgMetadataBadgeBitrateChange: (enabled: boolean) => void;
   epgMetadataBadgeAudioBitrate: boolean;
   onEpgMetadataBadgeAudioBitrateChange: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateOverlay: boolean;
+  onEpgMetadataBadgeBitrateOverlayChange: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateOverlay: boolean;
+  onEpgMetadataBadgeAudioBitrateOverlayChange: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSearch: boolean;
+  onEpgMetadataBadgeBitrateSearchChange: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSearch: boolean;
+  onEpgMetadataBadgeAudioBitrateSearchChange: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateFailover: boolean;
+  onEpgMetadataBadgeBitrateFailoverChange: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateFailover: boolean;
+  onEpgMetadataBadgeAudioBitrateFailoverChange: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSports: boolean;
+  onEpgMetadataBadgeBitrateSportsChange: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSports: boolean;
+  onEpgMetadataBadgeAudioBitrateSportsChange: (enabled: boolean) => void;
   epgView: 'traditional' | 'alternate';
   onEpgViewChange: (view: 'traditional' | 'alternate') => void;
   epgTitleFontSize: number;
@@ -193,6 +209,22 @@ export function LiveTVTab({
   onEpgMetadataBadgeBitrateChange,
   epgMetadataBadgeAudioBitrate,
   onEpgMetadataBadgeAudioBitrateChange,
+  epgMetadataBadgeBitrateOverlay,
+  onEpgMetadataBadgeBitrateOverlayChange,
+  epgMetadataBadgeAudioBitrateOverlay,
+  onEpgMetadataBadgeAudioBitrateOverlayChange,
+  epgMetadataBadgeBitrateSearch,
+  onEpgMetadataBadgeBitrateSearchChange,
+  epgMetadataBadgeAudioBitrateSearch,
+  onEpgMetadataBadgeAudioBitrateSearchChange,
+  epgMetadataBadgeBitrateFailover,
+  onEpgMetadataBadgeBitrateFailoverChange,
+  epgMetadataBadgeAudioBitrateFailover,
+  onEpgMetadataBadgeAudioBitrateFailoverChange,
+  epgMetadataBadgeBitrateSports,
+  onEpgMetadataBadgeBitrateSportsChange,
+  epgMetadataBadgeAudioBitrateSports,
+  onEpgMetadataBadgeAudioBitrateSportsChange,
   epgView,
   onEpgViewChange,
   epgTitleFontSize,
@@ -479,8 +511,6 @@ export function LiveTVTab({
                       <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.resolution')}</th>
                       <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.fps')}</th>
                       <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.sound')}</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.avgVideoBitrate', 'Avg Video Bitrate')}</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.avgAudioBitrate', 'Avg Audio Bitrate')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -515,26 +545,6 @@ export function LiveTVTab({
                           <span className="toggle-slider" />
                         </label>
                       </td>
-                      <td style={{ padding: '16px', textAlign: 'center', borderRight: '1px solid var(--surface-border)' }}>
-                        <label className="toggle-switch" style={{ margin: '0 auto' }}>
-                          <input
-                            type="checkbox"
-                            checked={epgMetadataBadgeBitrate}
-                            onChange={(e) => onEpgMetadataBadgeBitrateChange(e.target.checked)}
-                          />
-                          <span className="toggle-slider" />
-                        </label>
-                      </td>
-                      <td style={{ padding: '16px', textAlign: 'center' }}>
-                        <label className="toggle-switch" style={{ margin: '0 auto' }}>
-                          <input
-                            type="checkbox"
-                            checked={epgMetadataBadgeAudioBitrate}
-                            onChange={(e) => onEpgMetadataBadgeAudioBitrateChange(e.target.checked)}
-                          />
-                          <span className="toggle-slider" />
-                        </label>
-                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -553,6 +563,63 @@ export function LiveTVTab({
                   />
                   <span className="toggle-slider" />
                 </label>
+              </div>
+
+              {/* Average Bitrate - per-location toggles */}
+              <div style={{ marginTop: '24px' }}>
+                <div className="section-header">
+                  <h4 style={{ color: 'var(--text-primary, #ffffff)', fontSize: '0.95rem', fontWeight: 600, textTransform: 'none', letterSpacing: 'normal', margin: 0 }}>
+                    {i18n.t('settings:livetv.avgBitrate', 'Avg Bitrate')}
+                  </h4>
+                </div>
+                <p className="section-description" style={{ marginTop: '4px' }}>
+                  {i18n.t('settings:livetv.avgBitrateDescription', 'Choose where the average video and audio bitrate badges are shown.')}
+                </p>
+
+                <div style={{ marginTop: '12px', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', background: 'var(--bg-tertiary)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface-color)', borderBottom: '1px solid var(--surface-border)' }}>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.avgBitrateLocation', 'Location')}</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.avgVideoBitrate', 'Avg Video Bitrate')}</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.avgAudioBitrate', 'Avg Audio Bitrate')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {([
+                        { key: 'epg', label: i18n.t('settings:livetv.avgBitrateLocationEpg', 'EPG'), video: epgMetadataBadgeBitrate, onVideo: onEpgMetadataBadgeBitrateChange, audio: epgMetadataBadgeAudioBitrate, onAudio: onEpgMetadataBadgeAudioBitrateChange },
+                        { key: 'overlay', label: i18n.t('settings:livetv.avgBitrateLocationOverlay', 'Channel Info Overlay'), video: epgMetadataBadgeBitrateOverlay, onVideo: onEpgMetadataBadgeBitrateOverlayChange, audio: epgMetadataBadgeAudioBitrateOverlay, onAudio: onEpgMetadataBadgeAudioBitrateOverlayChange },
+                        { key: 'search', label: i18n.t('settings:livetv.avgBitrateLocationSearch', 'Search Results'), video: epgMetadataBadgeBitrateSearch, onVideo: onEpgMetadataBadgeBitrateSearchChange, audio: epgMetadataBadgeAudioBitrateSearch, onAudio: onEpgMetadataBadgeAudioBitrateSearchChange },
+                        { key: 'failover', label: i18n.t('settings:livetv.avgBitrateLocationFailover', 'Failover'), video: epgMetadataBadgeBitrateFailover, onVideo: onEpgMetadataBadgeBitrateFailoverChange, audio: epgMetadataBadgeAudioBitrateFailover, onAudio: onEpgMetadataBadgeAudioBitrateFailoverChange },
+                        { key: 'sports', label: i18n.t('settings:livetv.avgBitrateLocationSports', 'Sports Channel Linking'), video: epgMetadataBadgeBitrateSports, onVideo: onEpgMetadataBadgeBitrateSportsChange, audio: epgMetadataBadgeAudioBitrateSports, onAudio: onEpgMetadataBadgeAudioBitrateSportsChange },
+                      ]).map((row) => (
+                        <tr key={row.key}>
+                          <td style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-primary)', fontWeight: 500, borderRight: '1px solid var(--surface-border)' }}>{row.label}</td>
+                          <td style={{ padding: '16px', textAlign: 'center', borderRight: '1px solid var(--surface-border)' }}>
+                            <label className="toggle-switch" style={{ margin: '0 auto' }}>
+                              <input
+                                type="checkbox"
+                                checked={row.video}
+                                onChange={(e) => row.onVideo(e.target.checked)}
+                              />
+                              <span className="toggle-slider" />
+                            </label>
+                          </td>
+                          <td style={{ padding: '16px', textAlign: 'center' }}>
+                            <label className="toggle-switch" style={{ margin: '0 auto' }}>
+                              <input
+                                type="checkbox"
+                                checked={row.audio}
+                                onChange={(e) => row.onAudio(e.target.checked)}
+                              />
+                              <span className="toggle-slider" />
+                            </label>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 

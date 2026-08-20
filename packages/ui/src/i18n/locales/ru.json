@@ -929,6 +929,13 @@
       "bitrate": "Битрейт",
       "avgVideoBitrate": "Ср. видео битрейт",
       "avgAudioBitrate": "Ср. аудио битрейт",
+      "avgBitrateDescription": "Выберите, где отображать значки среднего битрейта видео и аудио.",
+      "avgBitrateLocation": "Расположение",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Наложение информации о канале",
+      "avgBitrateLocationSearch": "Результаты поиска",
+      "avgBitrateLocationFailover": "Фейловер",
+      "avgBitrateLocationSports": "Привязка спортивных каналов",
       "videoBitrate": "Видео битрейт",
       "audioBitrate": "Аудио битрейт"
     },

@@ -929,6 +929,13 @@
       "bitrate": "بٹ ریٹ",
       "avgVideoBitrate": "اوسط ویڈیو بٹ ریٹ",
       "avgAudioBitrate": "اوسط آڈیو بٹ ریٹ",
+      "avgBitrateDescription": "منتخب کریں کہ اوسط ویڈیو اور آڈیو بٹ ریٹ بیجز کہاں دکھائے جائیں۔",
+      "avgBitrateLocation": "مقام",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "چینل معلومات اوورلے",
+      "avgBitrateLocationSearch": "تلاش کے نتائج",
+      "avgBitrateLocationFailover": "فیل اوور",
+      "avgBitrateLocationSports": "کھیلوں کے چینل لنکنگ",
       "videoBitrate": "ویڈیو بٹ ریٹ",
       "audioBitrate": "آڈیو بٹ ریٹ"
     },

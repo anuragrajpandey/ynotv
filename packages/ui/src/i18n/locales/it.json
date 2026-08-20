@@ -929,6 +929,13 @@
       "bitrate": "Bitrate",
       "avgVideoBitrate": "Bitrate video medio",
       "avgAudioBitrate": "Bitrate audio medio",
+      "avgBitrateDescription": "Scegli dove mostrare i badge del bitrate medio video e audio.",
+      "avgBitrateLocation": "Posizione",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Overlay informazioni canale",
+      "avgBitrateLocationSearch": "Risultati di ricerca",
+      "avgBitrateLocationFailover": "Failover",
+      "avgBitrateLocationSports": "Collegamento canali sportivi",
       "videoBitrate": "Bitrate video",
       "audioBitrate": "Bitrate audio"
     },

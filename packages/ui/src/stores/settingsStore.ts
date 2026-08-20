@@ -475,6 +475,22 @@ export interface SettingsState {
   setEpgMetadataBadgeBitrate: (enabled: boolean) => void;
   epgMetadataBadgeAudioBitrate: boolean;
   setEpgMetadataBadgeAudioBitrate: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateOverlay: boolean;
+  setEpgMetadataBadgeBitrateOverlay: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateOverlay: boolean;
+  setEpgMetadataBadgeAudioBitrateOverlay: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSearch: boolean;
+  setEpgMetadataBadgeBitrateSearch: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSearch: boolean;
+  setEpgMetadataBadgeAudioBitrateSearch: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateFailover: boolean;
+  setEpgMetadataBadgeBitrateFailover: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateFailover: boolean;
+  setEpgMetadataBadgeAudioBitrateFailover: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSports: boolean;
+  setEpgMetadataBadgeBitrateSports: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSports: boolean;
+  setEpgMetadataBadgeAudioBitrateSports: (enabled: boolean) => void;
   logoCacheEnabled: boolean;
   setLogoCacheEnabled: (enabled: boolean) => void;
   logoCacheMaxMb: number;
@@ -1162,6 +1178,46 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setEpgMetadataBadgeAudioBitrate: (enabled) => {
     set({ epgMetadataBadgeAudioBitrate: enabled });
     persistSettings({ epgMetadataBadgeAudioBitrate: enabled });
+  },
+  epgMetadataBadgeBitrateOverlay: (cachedSettings?.epgMetadataBadgeBitrateOverlay as boolean) ?? false,
+  setEpgMetadataBadgeBitrateOverlay: (enabled) => {
+    set({ epgMetadataBadgeBitrateOverlay: enabled });
+    persistSettings({ epgMetadataBadgeBitrateOverlay: enabled });
+  },
+  epgMetadataBadgeAudioBitrateOverlay: (cachedSettings?.epgMetadataBadgeAudioBitrateOverlay as boolean) ?? false,
+  setEpgMetadataBadgeAudioBitrateOverlay: (enabled) => {
+    set({ epgMetadataBadgeAudioBitrateOverlay: enabled });
+    persistSettings({ epgMetadataBadgeAudioBitrateOverlay: enabled });
+  },
+  epgMetadataBadgeBitrateSearch: (cachedSettings?.epgMetadataBadgeBitrateSearch as boolean) ?? false,
+  setEpgMetadataBadgeBitrateSearch: (enabled) => {
+    set({ epgMetadataBadgeBitrateSearch: enabled });
+    persistSettings({ epgMetadataBadgeBitrateSearch: enabled });
+  },
+  epgMetadataBadgeAudioBitrateSearch: (cachedSettings?.epgMetadataBadgeAudioBitrateSearch as boolean) ?? false,
+  setEpgMetadataBadgeAudioBitrateSearch: (enabled) => {
+    set({ epgMetadataBadgeAudioBitrateSearch: enabled });
+    persistSettings({ epgMetadataBadgeAudioBitrateSearch: enabled });
+  },
+  epgMetadataBadgeBitrateFailover: (cachedSettings?.epgMetadataBadgeBitrateFailover as boolean) ?? false,
+  setEpgMetadataBadgeBitrateFailover: (enabled) => {
+    set({ epgMetadataBadgeBitrateFailover: enabled });
+    persistSettings({ epgMetadataBadgeBitrateFailover: enabled });
+  },
+  epgMetadataBadgeAudioBitrateFailover: (cachedSettings?.epgMetadataBadgeAudioBitrateFailover as boolean) ?? false,
+  setEpgMetadataBadgeAudioBitrateFailover: (enabled) => {
+    set({ epgMetadataBadgeAudioBitrateFailover: enabled });
+    persistSettings({ epgMetadataBadgeAudioBitrateFailover: enabled });
+  },
+  epgMetadataBadgeBitrateSports: (cachedSettings?.epgMetadataBadgeBitrateSports as boolean) ?? false,
+  setEpgMetadataBadgeBitrateSports: (enabled) => {
+    set({ epgMetadataBadgeBitrateSports: enabled });
+    persistSettings({ epgMetadataBadgeBitrateSports: enabled });
+  },
+  epgMetadataBadgeAudioBitrateSports: (cachedSettings?.epgMetadataBadgeAudioBitrateSports as boolean) ?? false,
+  setEpgMetadataBadgeAudioBitrateSports: (enabled) => {
+    set({ epgMetadataBadgeAudioBitrateSports: enabled });
+    persistSettings({ epgMetadataBadgeAudioBitrateSports: enabled });
   },
   logoCacheEnabled: (cachedSettings?.logoCacheEnabled as boolean) ?? false,
   setLogoCacheEnabled: (enabled) => {

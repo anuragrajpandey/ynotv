@@ -929,6 +929,13 @@
       "bitrate": "码率",
       "avgVideoBitrate": "平均视频码率",
       "avgAudioBitrate": "平均音频码率",
+      "avgBitrateDescription": "选择在哪里显示平均视频和音频码率徽章。",
+      "avgBitrateLocation": "位置",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "频道信息浮层",
+      "avgBitrateLocationSearch": "搜索结果",
+      "avgBitrateLocationFailover": "故障切换",
+      "avgBitrateLocationSports": "体育频道关联",
       "videoBitrate": "视频码率",
       "audioBitrate": "音频码率"
     },

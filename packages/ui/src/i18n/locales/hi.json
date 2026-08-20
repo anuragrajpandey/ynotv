@@ -929,6 +929,13 @@
       "bitrate": "बिटरेट",
       "avgVideoBitrate": "औसत वीडियो बिटरेट",
       "avgAudioBitrate": "औसत ऑडियो बिटरेट",
+      "avgBitrateDescription": "चुनें कि औसत वीडियो और ऑडियो बिटरेट बैज कहाँ दिखाए जाएँ।",
+      "avgBitrateLocation": "स्थान",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "चैनल जानकारी ओवरले",
+      "avgBitrateLocationSearch": "खोज परिणाम",
+      "avgBitrateLocationFailover": "फ़ेलओवर",
+      "avgBitrateLocationSports": "खेल चैनल लिंकिंग",
       "videoBitrate": "वीडियो बिटरेट",
       "audioBitrate": "ऑडियो बिटरेट"
     },

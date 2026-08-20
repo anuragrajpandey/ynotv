@@ -929,6 +929,13 @@
       "bitrate": "Битрејт",
       "avgVideoBitrate": "Просечан видео битрејт",
       "avgAudioBitrate": "Просечан аудио битрејт",
+      "avgBitrateDescription": "Изаберите где се приказују ознаке просечне брзине преноса видеа и звука.",
+      "avgBitrateLocation": "Локација",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Преклоп информација о каналу",
+      "avgBitrateLocationSearch": "Резултати претраге",
+      "avgBitrateLocationFailover": "Фејловер",
+      "avgBitrateLocationSports": "Повезивање спортских канала",
       "videoBitrate": "Видео битрејт",
       "audioBitrate": "Аудио битрејт"
     },

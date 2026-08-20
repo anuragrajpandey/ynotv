@@ -929,6 +929,13 @@
       "bitrate": "位元速率",
       "avgVideoBitrate": "平均視訊位元速率",
       "avgAudioBitrate": "平均音訊位元速率",
+      "avgBitrateDescription": "選擇在哪裡顯示平均視訊和音訊位元率徽章。",
+      "avgBitrateLocation": "位置",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "頻道資訊浮層",
+      "avgBitrateLocationSearch": "搜尋結果",
+      "avgBitrateLocationFailover": "故障切換",
+      "avgBitrateLocationSports": "體育頻道關聯",
       "videoBitrate": "視訊位元速率",
       "audioBitrate": "音訊位元速率"
     },

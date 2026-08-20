@@ -929,6 +929,13 @@
       "bitrate": "معدل البت",
       "avgVideoBitrate": "متوسط بت الفيديو",
       "avgAudioBitrate": "متوسط بت الصوت",
+      "avgBitrateDescription": "اختر مكان عرض شارات متوسط معدل البت للفيديو والصوت.",
+      "avgBitrateLocation": "الموقع",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "تراكب معلومات القناة",
+      "avgBitrateLocationSearch": "نتائج البحث",
+      "avgBitrateLocationFailover": "فيل أوفر",
+      "avgBitrateLocationSports": "ربط القنوات الرياضية",
       "videoBitrate": "بت الفيديو",
       "audioBitrate": "بت الصوت"
     },

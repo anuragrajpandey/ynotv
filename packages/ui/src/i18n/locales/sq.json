@@ -929,6 +929,13 @@
       "bitrate": "Bitrate",
       "avgVideoBitrate": "Bitrate mesatar video",
       "avgAudioBitrate": "Bitrate mesatar audio",
+      "avgBitrateDescription": "Zgjidhni ku shfaqen distinktivët e normës mesatare të biteve për video dhe audio.",
+      "avgBitrateLocation": "Vendndodhja",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Mbivendosja e informacionit të kanalit",
+      "avgBitrateLocationSearch": "Rezultatet e kërkimit",
+      "avgBitrateLocationFailover": "Failover",
+      "avgBitrateLocationSports": "Lidhja e kanaleve sportive",
       "videoBitrate": "Bitrate video",
       "audioBitrate": "Bitrate audio"
     },

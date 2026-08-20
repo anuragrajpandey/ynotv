@@ -305,6 +305,22 @@ function App() {
   const setEpgMetadataBadgeBitrate = useSettingsStore((s) => s.setEpgMetadataBadgeBitrate);
   const epgMetadataBadgeAudioBitrate = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrate);
   const setEpgMetadataBadgeAudioBitrate = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrate);
+  const epgMetadataBadgeBitrateOverlay = useSettingsStore((s) => s.epgMetadataBadgeBitrateOverlay);
+  const setEpgMetadataBadgeBitrateOverlay = useSettingsStore((s) => s.setEpgMetadataBadgeBitrateOverlay);
+  const epgMetadataBadgeAudioBitrateOverlay = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrateOverlay);
+  const setEpgMetadataBadgeAudioBitrateOverlay = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrateOverlay);
+  const epgMetadataBadgeBitrateSearch = useSettingsStore((s) => s.epgMetadataBadgeBitrateSearch);
+  const setEpgMetadataBadgeBitrateSearch = useSettingsStore((s) => s.setEpgMetadataBadgeBitrateSearch);
+  const epgMetadataBadgeAudioBitrateSearch = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrateSearch);
+  const setEpgMetadataBadgeAudioBitrateSearch = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrateSearch);
+  const epgMetadataBadgeBitrateFailover = useSettingsStore((s) => s.epgMetadataBadgeBitrateFailover);
+  const setEpgMetadataBadgeBitrateFailover = useSettingsStore((s) => s.setEpgMetadataBadgeBitrateFailover);
+  const epgMetadataBadgeAudioBitrateFailover = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrateFailover);
+  const setEpgMetadataBadgeAudioBitrateFailover = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrateFailover);
+  const epgMetadataBadgeBitrateSports = useSettingsStore((s) => s.epgMetadataBadgeBitrateSports);
+  const setEpgMetadataBadgeBitrateSports = useSettingsStore((s) => s.setEpgMetadataBadgeBitrateSports);
+  const epgMetadataBadgeAudioBitrateSports = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrateSports);
+  const setEpgMetadataBadgeAudioBitrateSports = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrateSports);
   const language = useSettingsStore((s) => s.language);
   const setLanguage = useSettingsStore((s) => s.setLanguage);
   const navHiddenTabs = useUIStore((s) => s.navHiddenTabs);
@@ -5547,6 +5563,22 @@ function useTmdbPresencePoster(
           onEpgMetadataBadgeBitrateChange={setEpgMetadataBadgeBitrate}
           epgMetadataBadgeAudioBitrate={epgMetadataBadgeAudioBitrate}
           onEpgMetadataBadgeAudioBitrateChange={setEpgMetadataBadgeAudioBitrate}
+          epgMetadataBadgeBitrateOverlay={epgMetadataBadgeBitrateOverlay}
+          onEpgMetadataBadgeBitrateOverlayChange={setEpgMetadataBadgeBitrateOverlay}
+          epgMetadataBadgeAudioBitrateOverlay={epgMetadataBadgeAudioBitrateOverlay}
+          onEpgMetadataBadgeAudioBitrateOverlayChange={setEpgMetadataBadgeAudioBitrateOverlay}
+          epgMetadataBadgeBitrateSearch={epgMetadataBadgeBitrateSearch}
+          onEpgMetadataBadgeBitrateSearchChange={setEpgMetadataBadgeBitrateSearch}
+          epgMetadataBadgeAudioBitrateSearch={epgMetadataBadgeAudioBitrateSearch}
+          onEpgMetadataBadgeAudioBitrateSearchChange={setEpgMetadataBadgeAudioBitrateSearch}
+          epgMetadataBadgeBitrateFailover={epgMetadataBadgeBitrateFailover}
+          onEpgMetadataBadgeBitrateFailoverChange={setEpgMetadataBadgeBitrateFailover}
+          epgMetadataBadgeAudioBitrateFailover={epgMetadataBadgeAudioBitrateFailover}
+          onEpgMetadataBadgeAudioBitrateFailoverChange={setEpgMetadataBadgeAudioBitrateFailover}
+          epgMetadataBadgeBitrateSports={epgMetadataBadgeBitrateSports}
+          onEpgMetadataBadgeBitrateSportsChange={setEpgMetadataBadgeBitrateSports}
+          epgMetadataBadgeAudioBitrateSports={epgMetadataBadgeAudioBitrateSports}
+          onEpgMetadataBadgeAudioBitrateSportsChange={setEpgMetadataBadgeAudioBitrateSports}
         />
       )}
 

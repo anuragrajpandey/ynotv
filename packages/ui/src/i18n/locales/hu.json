@@ -929,6 +929,13 @@
       "bitrate": "Bitráta",
       "avgVideoBitrate": "Átl. videó bitráta",
       "avgAudioBitrate": "Átl. hang bitráta",
+      "avgBitrateDescription": "Válassza ki, hol jelenjenek meg az átlagos videó- és hanglejátszási sebesség jelvények.",
+      "avgBitrateLocation": "Hely",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Csatorna-információ felület",
+      "avgBitrateLocationSearch": "Keresési eredmények",
+      "avgBitrateLocationFailover": "Failover",
+      "avgBitrateLocationSports": "Sportcsatorna-társítás",
       "videoBitrate": "Videó bitráta",
       "audioBitrate": "Hang bitráta"
     },

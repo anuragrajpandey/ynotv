@@ -929,6 +929,13 @@
       "bitrate": "Bit Hızı",
       "avgVideoBitrate": "Ort. Video Bit Hızı",
       "avgAudioBitrate": "Ort. Ses Bit Hızı",
+      "avgBitrateDescription": "Ortalama video ve ses bit hızı rozetlerinin nerede gösterileceğini seçin.",
+      "avgBitrateLocation": "Konum",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Kanal bilgi katmanı",
+      "avgBitrateLocationSearch": "Arama sonuçları",
+      "avgBitrateLocationFailover": "Failover",
+      "avgBitrateLocationSports": "Spor kanalı bağlama",
       "videoBitrate": "Video Bit Hızı",
       "audioBitrate": "Ses Bit Hızı"
     },

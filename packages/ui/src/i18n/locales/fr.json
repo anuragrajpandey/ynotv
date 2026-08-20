@@ -929,6 +929,13 @@
       "bitrate": "Débit",
       "avgVideoBitrate": "Débit vidéo moyen",
       "avgAudioBitrate": "Débit audio moyen",
+      "avgBitrateDescription": "Choisissez où les badges de débit moyen vidéo et audio sont affichés.",
+      "avgBitrateLocation": "Emplacement",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Superposition d'informations sur la chaîne",
+      "avgBitrateLocationSearch": "Résultats de recherche",
+      "avgBitrateLocationFailover": "Failover",
+      "avgBitrateLocationSports": "Liaison des chaînes sportives",
       "videoBitrate": "Débit vidéo",
       "audioBitrate": "Débit audio"
     },

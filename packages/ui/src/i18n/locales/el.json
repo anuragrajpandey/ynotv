@@ -929,6 +929,13 @@
       "bitrate": "Bitrate",
       "avgVideoBitrate": "Μέσο bitrate βίντεο",
       "avgAudioBitrate": "Μέσο bitrate ήχου",
+      "avgBitrateDescription": "Επιλέξτε πού θα εμφανίζονται τα σήματα μέσου ρυθμού μετάδοσης βίντεο και ήχου.",
+      "avgBitrateLocation": "Τοποθεσία",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Επικάλυψη πληροφοριών καναλιού",
+      "avgBitrateLocationSearch": "Αποτελέσματα αναζήτησης",
+      "avgBitrateLocationFailover": "Failover",
+      "avgBitrateLocationSports": "Σύνδεση αθλητικών καναλιών",
       "videoBitrate": "Bitrate βίντεο",
       "audioBitrate": "Bitrate ήχου"
     },

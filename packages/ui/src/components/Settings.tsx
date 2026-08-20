@@ -133,6 +133,22 @@ interface SettingsProps {
   onEpgMetadataBadgeBitrateChange?: (enabled: boolean) => void;
   epgMetadataBadgeAudioBitrate?: boolean;
   onEpgMetadataBadgeAudioBitrateChange?: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateOverlay?: boolean;
+  onEpgMetadataBadgeBitrateOverlayChange?: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateOverlay?: boolean;
+  onEpgMetadataBadgeAudioBitrateOverlayChange?: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSearch?: boolean;
+  onEpgMetadataBadgeBitrateSearchChange?: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSearch?: boolean;
+  onEpgMetadataBadgeAudioBitrateSearchChange?: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateFailover?: boolean;
+  onEpgMetadataBadgeBitrateFailoverChange?: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateFailover?: boolean;
+  onEpgMetadataBadgeAudioBitrateFailoverChange?: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSports?: boolean;
+  onEpgMetadataBadgeBitrateSportsChange?: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSports?: boolean;
+  onEpgMetadataBadgeAudioBitrateSportsChange?: (enabled: boolean) => void;
   vodAutoPlayNextEpisode?: boolean;
   onVodAutoPlayNextEpisodeChange?: (enabled: boolean) => void;
   vodShowSourceBadge?: boolean;
@@ -255,6 +271,22 @@ export function Settings({
   onEpgMetadataBadgeBitrateChange,
   epgMetadataBadgeAudioBitrate: epgMetadataBadgeAudioBitrateProp,
   onEpgMetadataBadgeAudioBitrateChange,
+  epgMetadataBadgeBitrateOverlay: epgMetadataBadgeBitrateOverlayProp,
+  onEpgMetadataBadgeBitrateOverlayChange,
+  epgMetadataBadgeAudioBitrateOverlay: epgMetadataBadgeAudioBitrateOverlayProp,
+  onEpgMetadataBadgeAudioBitrateOverlayChange,
+  epgMetadataBadgeBitrateSearch: epgMetadataBadgeBitrateSearchProp,
+  onEpgMetadataBadgeBitrateSearchChange,
+  epgMetadataBadgeAudioBitrateSearch: epgMetadataBadgeAudioBitrateSearchProp,
+  onEpgMetadataBadgeAudioBitrateSearchChange,
+  epgMetadataBadgeBitrateFailover: epgMetadataBadgeBitrateFailoverProp,
+  onEpgMetadataBadgeBitrateFailoverChange,
+  epgMetadataBadgeAudioBitrateFailover: epgMetadataBadgeAudioBitrateFailoverProp,
+  onEpgMetadataBadgeAudioBitrateFailoverChange,
+  epgMetadataBadgeBitrateSports: epgMetadataBadgeBitrateSportsProp,
+  onEpgMetadataBadgeBitrateSportsChange,
+  epgMetadataBadgeAudioBitrateSports: epgMetadataBadgeAudioBitrateSportsProp,
+  onEpgMetadataBadgeAudioBitrateSportsChange,
   vodAutoPlayNextEpisode: vodAutoPlayNextEpisodeProp,
   onVodAutoPlayNextEpisodeChange,
   vodShowSourceBadge: vodShowSourceBadgeProp,
@@ -654,6 +686,14 @@ export function Settings({
   const [epgMetadataBadgeSound, setEpgMetadataBadgeSound] = useState(epgMetadataBadgeSoundProp ?? true);
   const [epgMetadataBadgeBitrate, setEpgMetadataBadgeBitrate] = useState(epgMetadataBadgeBitrateProp ?? false);
   const [epgMetadataBadgeAudioBitrate, setEpgMetadataBadgeAudioBitrate] = useState(epgMetadataBadgeAudioBitrateProp ?? false);
+  const [epgMetadataBadgeBitrateOverlay, setEpgMetadataBadgeBitrateOverlay] = useState(epgMetadataBadgeBitrateOverlayProp ?? false);
+  const [epgMetadataBadgeAudioBitrateOverlay, setEpgMetadataBadgeAudioBitrateOverlay] = useState(epgMetadataBadgeAudioBitrateOverlayProp ?? false);
+  const [epgMetadataBadgeBitrateSearch, setEpgMetadataBadgeBitrateSearch] = useState(epgMetadataBadgeBitrateSearchProp ?? false);
+  const [epgMetadataBadgeAudioBitrateSearch, setEpgMetadataBadgeAudioBitrateSearch] = useState(epgMetadataBadgeAudioBitrateSearchProp ?? false);
+  const [epgMetadataBadgeBitrateFailover, setEpgMetadataBadgeBitrateFailover] = useState(epgMetadataBadgeBitrateFailoverProp ?? false);
+  const [epgMetadataBadgeAudioBitrateFailover, setEpgMetadataBadgeAudioBitrateFailover] = useState(epgMetadataBadgeAudioBitrateFailoverProp ?? false);
+  const [epgMetadataBadgeBitrateSports, setEpgMetadataBadgeBitrateSports] = useState(epgMetadataBadgeBitrateSportsProp ?? false);
+  const [epgMetadataBadgeAudioBitrateSports, setEpgMetadataBadgeAudioBitrateSports] = useState(epgMetadataBadgeAudioBitrateSportsProp ?? false);
   const [epgTitleFontSize, setEpgTitleFontSize] = useState(32);
   const [epgBodyFontSize, setEpgBodyFontSize] = useState(16);
   const epgView = useEpgView();
@@ -725,6 +765,14 @@ export function Settings({
   useEffect(() => { setEpgMetadataBadgeSound(epgMetadataBadgeSoundProp ?? true); }, [epgMetadataBadgeSoundProp]);
   useEffect(() => { setEpgMetadataBadgeBitrate(epgMetadataBadgeBitrateProp ?? false); }, [epgMetadataBadgeBitrateProp]);
   useEffect(() => { setEpgMetadataBadgeAudioBitrate(epgMetadataBadgeAudioBitrateProp ?? false); }, [epgMetadataBadgeAudioBitrateProp]);
+  useEffect(() => { setEpgMetadataBadgeBitrateOverlay(epgMetadataBadgeBitrateOverlayProp ?? false); }, [epgMetadataBadgeBitrateOverlayProp]);
+  useEffect(() => { setEpgMetadataBadgeAudioBitrateOverlay(epgMetadataBadgeAudioBitrateOverlayProp ?? false); }, [epgMetadataBadgeAudioBitrateOverlayProp]);
+  useEffect(() => { setEpgMetadataBadgeBitrateSearch(epgMetadataBadgeBitrateSearchProp ?? false); }, [epgMetadataBadgeBitrateSearchProp]);
+  useEffect(() => { setEpgMetadataBadgeAudioBitrateSearch(epgMetadataBadgeAudioBitrateSearchProp ?? false); }, [epgMetadataBadgeAudioBitrateSearchProp]);
+  useEffect(() => { setEpgMetadataBadgeBitrateFailover(epgMetadataBadgeBitrateFailoverProp ?? false); }, [epgMetadataBadgeBitrateFailoverProp]);
+  useEffect(() => { setEpgMetadataBadgeAudioBitrateFailover(epgMetadataBadgeAudioBitrateFailoverProp ?? false); }, [epgMetadataBadgeAudioBitrateFailoverProp]);
+  useEffect(() => { setEpgMetadataBadgeBitrateSports(epgMetadataBadgeBitrateSportsProp ?? false); }, [epgMetadataBadgeBitrateSportsProp]);
+  useEffect(() => { setEpgMetadataBadgeAudioBitrateSports(epgMetadataBadgeAudioBitrateSportsProp ?? false); }, [epgMetadataBadgeAudioBitrateSportsProp]);
   useEffect(() => { setCastEnabled(castEnabledProp ?? false); }, [castEnabledProp]);
   useEffect(() => { setCastRewriteTs(castRewriteTsProp ?? true); }, [castRewriteTsProp]);
   
@@ -893,6 +941,14 @@ export function Settings({
         epgMetadataBadgeSound?: boolean;
         epgMetadataBadgeBitrate?: boolean;
         epgMetadataBadgeAudioBitrate?: boolean;
+        epgMetadataBadgeBitrateOverlay?: boolean;
+        epgMetadataBadgeAudioBitrateOverlay?: boolean;
+        epgMetadataBadgeBitrateSearch?: boolean;
+        epgMetadataBadgeAudioBitrateSearch?: boolean;
+        epgMetadataBadgeBitrateFailover?: boolean;
+        epgMetadataBadgeAudioBitrateFailover?: boolean;
+        epgMetadataBadgeBitrateSports?: boolean;
+        epgMetadataBadgeAudioBitrateSports?: boolean;
         epgView?: 'traditional' | 'alternate';
         collapseSourceCategoriesOnStartup?: boolean;
         modernUiEnabled?: boolean | string;
@@ -1833,6 +1889,86 @@ export function Settings({
     }
     if (window.storage) {
       await window.storage.updateSettings({ epgMetadataBadgeAudioBitrate: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeBitrateOverlayChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeBitrateOverlay(enabled);
+    if (onEpgMetadataBadgeBitrateOverlayChange) {
+      onEpgMetadataBadgeBitrateOverlayChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeBitrateOverlay: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeAudioBitrateOverlayChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeAudioBitrateOverlay(enabled);
+    if (onEpgMetadataBadgeAudioBitrateOverlayChange) {
+      onEpgMetadataBadgeAudioBitrateOverlayChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeAudioBitrateOverlay: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeBitrateSearchChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeBitrateSearch(enabled);
+    if (onEpgMetadataBadgeBitrateSearchChange) {
+      onEpgMetadataBadgeBitrateSearchChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeBitrateSearch: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeAudioBitrateSearchChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeAudioBitrateSearch(enabled);
+    if (onEpgMetadataBadgeAudioBitrateSearchChange) {
+      onEpgMetadataBadgeAudioBitrateSearchChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeAudioBitrateSearch: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeBitrateFailoverChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeBitrateFailover(enabled);
+    if (onEpgMetadataBadgeBitrateFailoverChange) {
+      onEpgMetadataBadgeBitrateFailoverChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeBitrateFailover: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeAudioBitrateFailoverChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeAudioBitrateFailover(enabled);
+    if (onEpgMetadataBadgeAudioBitrateFailoverChange) {
+      onEpgMetadataBadgeAudioBitrateFailoverChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeAudioBitrateFailover: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeBitrateSportsChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeBitrateSports(enabled);
+    if (onEpgMetadataBadgeBitrateSportsChange) {
+      onEpgMetadataBadgeBitrateSportsChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeBitrateSports: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeAudioBitrateSportsChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeAudioBitrateSports(enabled);
+    if (onEpgMetadataBadgeAudioBitrateSportsChange) {
+      onEpgMetadataBadgeAudioBitrateSportsChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeAudioBitrateSports: enabled });
     }
   };
 
@@ -2789,6 +2925,22 @@ export function Settings({
             onEpgMetadataBadgeBitrateChange={handleEpgMetadataBadgeBitrateChange}
             epgMetadataBadgeAudioBitrate={epgMetadataBadgeAudioBitrate}
             onEpgMetadataBadgeAudioBitrateChange={handleEpgMetadataBadgeAudioBitrateChange}
+            epgMetadataBadgeBitrateOverlay={epgMetadataBadgeBitrateOverlay}
+            onEpgMetadataBadgeBitrateOverlayChange={handleEpgMetadataBadgeBitrateOverlayChange}
+            epgMetadataBadgeAudioBitrateOverlay={epgMetadataBadgeAudioBitrateOverlay}
+            onEpgMetadataBadgeAudioBitrateOverlayChange={handleEpgMetadataBadgeAudioBitrateOverlayChange}
+            epgMetadataBadgeBitrateSearch={epgMetadataBadgeBitrateSearch}
+            onEpgMetadataBadgeBitrateSearchChange={handleEpgMetadataBadgeBitrateSearchChange}
+            epgMetadataBadgeAudioBitrateSearch={epgMetadataBadgeAudioBitrateSearch}
+            onEpgMetadataBadgeAudioBitrateSearchChange={handleEpgMetadataBadgeAudioBitrateSearchChange}
+            epgMetadataBadgeBitrateFailover={epgMetadataBadgeBitrateFailover}
+            onEpgMetadataBadgeBitrateFailoverChange={handleEpgMetadataBadgeBitrateFailoverChange}
+            epgMetadataBadgeAudioBitrateFailover={epgMetadataBadgeAudioBitrateFailover}
+            onEpgMetadataBadgeAudioBitrateFailoverChange={handleEpgMetadataBadgeAudioBitrateFailoverChange}
+            epgMetadataBadgeBitrateSports={epgMetadataBadgeBitrateSports}
+            onEpgMetadataBadgeBitrateSportsChange={handleEpgMetadataBadgeBitrateSportsChange}
+            epgMetadataBadgeAudioBitrateSports={epgMetadataBadgeAudioBitrateSports}
+            onEpgMetadataBadgeAudioBitrateSportsChange={handleEpgMetadataBadgeAudioBitrateSportsChange}
             epgView={epgView}
             onEpgViewChange={handleEpgViewChange}
             epgTitleFontSize={epgTitleFontSize}

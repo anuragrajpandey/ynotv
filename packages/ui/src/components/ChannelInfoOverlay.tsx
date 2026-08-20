@@ -152,7 +152,7 @@ export function ChannelInfoOverlay({
             <span className="cio-channel-name" title={channel.alias || channel.name}>
               {channel.alias || channel.name}
             </span>
-            {!hideMetaBadge && <MetadataBadge streamId={channel.stream_id} variant="detailed" />}
+            {!hideMetaBadge && <MetadataBadge streamId={channel.stream_id} variant="detailed" location="overlay" />}
           </div>
         </div>
 

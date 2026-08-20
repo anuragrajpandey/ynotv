@@ -8,6 +8,7 @@ import { useSourceNameMap } from '../../hooks/useChannels';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useTranslation } from 'react-i18next';
 import type { SportsTeam } from '@ynotv/core';
+import { MetadataBadge } from '../MetadataBadge';
 import './TeamChannelOverlay.css';
 
 interface TeamChannelOverlayProps {
@@ -376,6 +377,7 @@ export function TeamChannelOverlay({
                         {sourceName}
                       </span>
                     )}
+                    <MetadataBadge streamId={link.stream_id} variant="detailed" location="sports" />
                   </div>
 
                   <div className="tco-item-tags">

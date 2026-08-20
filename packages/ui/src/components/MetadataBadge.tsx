@@ -8,6 +8,7 @@ import './MetadataBadge.css';
 interface MetadataBadgeProps {
     streamId: string;
     variant?: 'compact' | 'detailed';
+    location?: 'epg' | 'overlay' | 'search' | 'failover' | 'sports';
     showResolution?: boolean;
     showFps?: boolean;
     showSound?: boolean;
@@ -61,6 +62,7 @@ function formatBitrate(kbps: number | null | undefined): string | null {
 export function MetadataBadge({
     streamId,
     variant = 'compact',
+    location = 'epg',
     showResolution,
     showFps,
     showSound,
@@ -74,14 +76,29 @@ export function MetadataBadge({
     const epgMetadataBadgeFps = useSettingsStore((s) => s.epgMetadataBadgeFps) ?? true;
     const epgMetadataBadgeFpsSuffix = useSettingsStore((s) => s.epgMetadataBadgeFpsSuffix) ?? true;
     const epgMetadataBadgeSound = useSettingsStore((s) => s.epgMetadataBadgeSound) ?? true;
-    const epgMetadataBadgeBitrate = useSettingsStore((s) => s.epgMetadataBadgeBitrate) ?? false;
-    const epgMetadataBadgeAudioBitrate = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrate) ?? false;
+    // Average bitrate badges are configurable per location (EPG, channel info
+    // overlay, search results, failover, sports channel linking) so users can
+    // enable them only where needed.
+    const locationVideoBitrate = useSettingsStore((s) =>
+        location === 'overlay' ? (s.epgMetadataBadgeBitrateOverlay ?? false)
+        : location === 'search' ? (s.epgMetadataBadgeBitrateSearch ?? false)
+        : location === 'failover' ? (s.epgMetadataBadgeBitrateFailover ?? false)
+        : location === 'sports' ? (s.epgMetadataBadgeBitrateSports ?? false)
+        : (s.epgMetadataBadgeBitrate ?? false)
+    );
+    const locationAudioBitrate = useSettingsStore((s) =>
+        location === 'overlay' ? (s.epgMetadataBadgeAudioBitrateOverlay ?? false)
+        : location === 'search' ? (s.epgMetadataBadgeAudioBitrateSearch ?? false)
+        : location === 'failover' ? (s.epgMetadataBadgeAudioBitrateFailover ?? false)
+        : location === 'sports' ? (s.epgMetadataBadgeAudioBitrateSports ?? false)
+        : (s.epgMetadataBadgeAudioBitrate ?? false)
+    );
 
     const effectiveShowResolution = showResolution ?? epgMetadataBadgeResolution;
     const effectiveShowFps = showFps ?? epgMetadataBadgeFps;
     const effectiveShowSound = showSound ?? epgMetadataBadgeSound;
-    const effectiveShowVideoBitrate = showVideoBitrate ?? showBitrate ?? epgMetadataBadgeBitrate;
-    const effectiveShowAudioBitrate = showAudioBitrate ?? epgMetadataBadgeAudioBitrate;
+    const effectiveShowVideoBitrate = showVideoBitrate ?? showBitrate ?? locationVideoBitrate;
+    const effectiveShowAudioBitrate = showAudioBitrate ?? locationAudioBitrate;
 
     // Load metadata on mount and when streamId or refreshKey changes (bypassing in-memory cache when refreshed)
     useEffect(() => {

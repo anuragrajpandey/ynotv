@@ -282,7 +282,7 @@ export const SearchResultRow = memo(function SearchResultRow({
           </div>
         )}
         <div className="channel-row-metadata">
-          <MetadataBadge streamId={channel.stream_id} variant="detailed" />
+          <MetadataBadge streamId={channel.stream_id} variant="detailed" location="search" />
         </div>
       </div>
 

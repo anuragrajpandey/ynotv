@@ -2266,6 +2266,13 @@
       "bitrate": "Bitrate",
       "avgVideoBitrate": "Bitrate video TB",
       "avgAudioBitrate": "Bitrate audio TB",
+      "avgBitrateDescription": "Chọn nơi hiển thị huy hiệu tốc độ bit trung bình của video và âm thanh.",
+      "avgBitrateLocation": "Vị trí",
+      "avgBitrateLocationEpg": "EPG",
+      "avgBitrateLocationOverlay": "Lớp phủ thông tin kênh",
+      "avgBitrateLocationSearch": "Kết quả tìm kiếm",
+      "avgBitrateLocationFailover": "Failover",
+      "avgBitrateLocationSports": "Liên kết kênh thể thao",
       "videoBitrate": "Bitrate video",
       "audioBitrate": "Bitrate audio"
     },
