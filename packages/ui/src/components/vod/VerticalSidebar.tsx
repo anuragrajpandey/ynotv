@@ -111,6 +111,9 @@ export interface VerticalSidebarProps {
     onSearchChange?: (query: string) => void;
     onSearchSubmit?: () => void;
     onContextMenu?: (e: React.MouseEvent, sourceId: string, sourceName: string) => void;
+    visible?: boolean;
+    onClose?: () => void;
+    onShow?: () => void;
 }
 
 // Icons
@@ -164,6 +167,9 @@ export function VerticalSidebar({
     onSearchChange,
     onSearchSubmit,
     onContextMenu,
+    visible = true,
+    onClose,
+    onShow,
 }: VerticalSidebarProps) {
     useTranslation();
     const [sources, setSources] = useState<Record<string, string>>({});
@@ -187,6 +193,44 @@ export function VerticalSidebar({
             isFirstLoad.current = false;
         }
     }, [collapseOnStartup]);
+
+    // Track mouse position for hover-to-show sidebar button
+    const [mouseX, setMouseX] = useState(0);
+    const [mouseY, setMouseY] = useState(0);
+
+    // Mouse in the "middle left" area (center 40% of screen height, within 50px of left edge)
+    const isInMiddleLeftZone = useMemo(() => {
+        const windowHeight = window.innerHeight;
+        const middleStart = windowHeight * 0.3;
+        const middleEnd = windowHeight * 0.7;
+        const isInVerticalZone = mouseY >= middleStart && mouseY <= middleEnd;
+        const isNearLeftEdge = mouseX <= 50;
+        return isNearLeftEdge && isInVerticalZone && !visible && !!onShow;
+    }, [mouseX, mouseY, visible, onShow]);
+
+    // Mouse near left edge but NOT in the middle zone (for hint)
+    const isNearLeftEdgeOutsideMiddle = useMemo(() => {
+        const windowHeight = window.innerHeight;
+        const middleStart = windowHeight * 0.3;
+        const middleEnd = windowHeight * 0.7;
+        const isOutsideVerticalZone = mouseY < middleStart || mouseY > middleEnd;
+        const isNearLeftEdge = mouseX <= 50;
+        return isNearLeftEdge && isOutsideVerticalZone && !visible && !!onShow;
+    }, [mouseX, mouseY, visible, onShow]);
+
+    // Handle mouse movement globally when sidebar is hidden
+    useEffect(() => {
+        if (!visible && onShow) {
+            const handleMouseMove = (e: MouseEvent) => {
+                setMouseX(e.clientX);
+                setMouseY(e.clientY);
+            };
+            document.addEventListener('mousemove', handleMouseMove);
+            return () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+            };
+        }
+    }, [visible, onShow]);
 
     // Fetch sources to resolve names and initialize expanded state according to user setting
     useEffect(() => {
@@ -475,7 +519,23 @@ export function VerticalSidebar({
     }, [onSearchSubmit]);
 
     return (
-        <div className="vertical-sidebar">
+        <>
+        <div className={`vertical-sidebar ${visible ? '' : 'hidden'}`}>
+            {/* Collapse strip (V3 layout has no header row) */}
+            {isV3 && onClose && (
+                <div className="vertical-sidebar__collapse-strip">
+                    <button
+                        className="vertical-sidebar__collapse"
+                        onClick={onClose}
+                        title={i18n.t('live:hideSidebar')}
+                        aria-label={i18n.t('live:hideSidebar')}
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                    </button>
+                </div>
+            )}
             {/* Header: Back Button & Title */}
             {!isV3 && (
                 <div className="vertical-sidebar__header">
@@ -492,6 +552,18 @@ export function VerticalSidebar({
                             <span className="vertical-sidebar__back-icon">
                                 {type === 'series' ? <SeriesIcon /> : <MovieIcon />}
                             </span>
+                        </button>
+                    )}
+                    {onClose && (
+                        <button
+                            className="vertical-sidebar__collapse"
+                            onClick={onClose}
+                            title={i18n.t('live:hideSidebar')}
+                            aria-label={i18n.t('live:hideSidebar')}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="15 18 9 12 15 6" />
+                            </svg>
                         </button>
                     )}
                 </div>
@@ -784,6 +856,32 @@ export function VerticalSidebar({
                 </div>
             )}
         </div>
+
+        {/* Sidebar hint - subtle indicator when hovering left edge outside middle zone */}
+        {isNearLeftEdgeOutsideMiddle && (
+            <div
+                className="vod-sidebar-hint-indicator"
+                style={{ top: mouseY - 15 }}
+            />
+        )}
+
+        {/* Show Sidebar Button - visible when sidebar is hidden and hovering middle-left */}
+        {!visible && onShow && (
+            <button
+                className={`vod-show-sidebar-btn ${isInMiddleLeftZone ? 'visible' : ''}`}
+                onClick={onShow}
+                onMouseEnter={() => {
+                    setMouseX(25);
+                }}
+                title={i18n.t('live:showSidebar')}
+                aria-label={i18n.t('live:showSidebar')}
+            >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="9 18 15 12 9 6" />
+                </svg>
+            </button>
+        )}
+        </>
     );
 }
 

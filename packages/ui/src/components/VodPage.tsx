@@ -178,6 +178,26 @@ interface VodPageProps {
 export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlayerMode }: VodPageProps) {
   const shortcuts = useSettingsStore((s) => s.shortcuts);
 
+  // Sidebar collapsed/expanded state — persisted per type (Movies vs Series)
+  // so the collapse survives leaving the page
+  const [sidebarVisible, setSidebarVisible] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(`ynotv:vodSidebarVisible:${type}`);
+      return stored === null ? true : stored === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  // Persist the sidebar state on change
+  useEffect(() => {
+    try {
+      localStorage.setItem(`ynotv:vodSidebarVisible:${type}`, String(sidebarVisible));
+    } catch {
+      // ignore storage errors (private mode, quota, etc.)
+    }
+  }, [type, sidebarVisible]);
+
   // Context Menu & Management State (local, not persisted)
   const [contextMenu, setContextMenu] = useState<{ sourceId: string; sourceName: string; x: number; y: number } | null>(null);
   const [manageCategoriesSource, setManageCategoriesSource] = useState<{ id: string; name: string } | null>(null);
@@ -909,6 +929,9 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
         onContextMenu={(e, sourceId, sourceName) => {
           setContextMenu({ sourceId, sourceName, x: e.clientX, y: e.clientY });
         }}
+        visible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        onShow={() => setSidebarVisible(true)}
       />
 
       {/* Main content */}
