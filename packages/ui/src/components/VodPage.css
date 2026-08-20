@@ -104,7 +104,7 @@
 
 .vod-page__content::-webkit-scrollbar,
 .vod-page__content *::-webkit-scrollbar {
-  width: 6px;
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .vod-page__content::-webkit-scrollbar-track,

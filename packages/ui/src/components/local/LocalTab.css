@@ -20,8 +20,9 @@
   scrollbar-color: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff)) transparent;
 }
 
-.local-tab-container::-webkit-scrollbar {
-  width: 6px;
+.local-tab-container::-webkit-scrollbar,
+.local-tab-container *::-webkit-scrollbar {
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .local-tab-container::-webkit-scrollbar-track {

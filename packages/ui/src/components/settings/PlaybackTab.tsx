@@ -66,6 +66,10 @@ interface PlaybackTabProps {
   onVodAutoPlayNextEpisodeChange: (enabled: boolean) => void;
   vodShowSourceBadge: boolean;
   onVodShowSourceBadgeChange: (enabled: boolean) => void;
+  useScrollwheelSeek: boolean;
+  onUseScrollwheelSeekChange: (enabled: boolean) => void;
+  useScrollwheelSeekInvert: boolean;
+  onUseScrollwheelSeekInvertChange: (enabled: boolean) => void;
 }
 
 const DEFAULT_MPV_PARAMS = `--hwdec=auto
@@ -127,6 +131,10 @@ export function PlaybackTab({
   onVodAutoPlayNextEpisodeChange,
   vodShowSourceBadge,
   onVodShowSourceBadgeChange,
+  useScrollwheelSeek,
+  onUseScrollwheelSeekChange,
+  useScrollwheelSeekInvert,
+  onUseScrollwheelSeekInvertChange,
 }: PlaybackTabProps) {
   useTranslation();
   const [activeSubTab, setActiveSubTab] = useState<PlaybackSubTabId>('mpv');
@@ -662,6 +670,10 @@ export function PlaybackTab({
             onVodAutoPlayNextEpisodeChange={onVodAutoPlayNextEpisodeChange}
             vodShowSourceBadge={vodShowSourceBadge}
             onVodShowSourceBadgeChange={onVodShowSourceBadgeChange}
+            useScrollwheelSeek={useScrollwheelSeek}
+            onUseScrollwheelSeekChange={onUseScrollwheelSeekChange}
+            useScrollwheelSeekInvert={useScrollwheelSeekInvert}
+            onUseScrollwheelSeekInvertChange={onUseScrollwheelSeekInvertChange}
           />
         )}
       </div>

@@ -257,6 +257,11 @@
   transform: translateX(20px);
 }
 
+.toggle-switch input:disabled+.toggle-slider {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* Cache presets */
 .timeshift-presets-label {
   margin-top: 20px;

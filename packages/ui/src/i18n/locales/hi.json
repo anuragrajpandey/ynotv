@@ -723,7 +723,11 @@
       "autoPlayNext": "अगला एपिसोड स्वतः चलाएँ",
       "autoPlayNextSub": "जब वर्तमान एपिसोड समाप्त हो तो VOD सीरीज़ का अगला एपिसोड स्वतः चलाएँ। यदि यह सीज़न का अंत है, तो स्वतः अगले सीज़न का पहला एपिसोड शुरू होगा।",
       "showSourceBadge": "स्रोत बैज दिखाएँ",
-      "showSourceBadgeSub": "होम पेज के «हाल में देखे गए», «सभी फ़िल्में/सीरीज़» पेज और «हाल» पेज पर VOD फ़िल्म और सीरीज़ कार्ड के लिए प्रदाता स्रोत बैज प्रदर्शित करें।"
+      "showSourceBadgeSub": "होम पेज के «हाल में देखे गए», «सभी फ़िल्में/सीरीज़» पेज और «हाल» पेज पर VOD फ़िल्म और सीरीज़ कार्ड के लिए प्रदाता स्रोत बैज प्रदर्शित करें।",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

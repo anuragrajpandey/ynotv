@@ -723,7 +723,11 @@
       "autoPlayNext": "پخش خودکار قسمت بعدی",
       "autoPlayNextSub": "هنگام پایان قسمت فعلی، به‌طور خودکار قسمت بعدی سریال VOD را پخش کنید. اگر پایان فصل باشد، به‌طور خودکار قسمت اول فصل بعد شروع می‌شود.",
       "showSourceBadge": "نمایش نشان منبع",
-      "showSourceBadgeSub": "نمایش نشان منبع ارائه‌دهنده برای کارت‌های فیلم‌ها و سریال‌های VOD در «بازدیدهای اخیر» صفحه اصلی، صفحه «همه فیلم‌ها/سریال‌ها» و صفحه «اخیر»."
+      "showSourceBadgeSub": "نمایش نشان منبع ارائه‌دهنده برای کارت‌های فیلم‌ها و سریال‌های VOD در «بازدیدهای اخیر» صفحه اصلی، صفحه «همه فیلم‌ها/سریال‌ها» و صفحه «اخیر».",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

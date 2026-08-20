@@ -723,7 +723,11 @@
       "autoPlayNext": "Sonraki Bölümü Otomatik Oynat",
       "autoPlayNextSub": "Geçerli bölüm bittiğinde bir VOD dizisinin sonraki bölümünü otomatik oynatın. Sezon sonuysa sonraki sezonun ilk bölümünü otomatik başlatır.",
       "showSourceBadge": "Kaynak Rozetini Göster",
-      "showSourceBadgeSub": "Ana sayfadaki Son İzlenenler, Tüm Filmler/Diziler sayfası ve Son sayfasında VOD Film ve Dizi kartlarında sağlayıcı kaynak rozetini görüntüleyin."
+      "showSourceBadgeSub": "Ana sayfadaki Son İzlenenler, Tüm Filmler/Diziler sayfası ve Son sayfasında VOD Film ve Dizi kartlarında sağlayıcı kaynak rozetini görüntüleyin.",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

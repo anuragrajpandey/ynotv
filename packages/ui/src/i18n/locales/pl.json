@@ -723,7 +723,11 @@
       "autoPlayNext": "Automatycznie odtwarzaj następny odcinek",
       "autoPlayNextSub": "Automatycznie odtwarzaj następny odcinek serialu VOD po zakończeniu bieżącego. Jeśli to koniec sezonu, automatycznie rozpocznie się pierwszy odcinek następnego.",
       "showSourceBadge": "Pokaż plakietkę źródła",
-      "showSourceBadgeSub": "Wyświetl plakietkę źródła dostawcy na kartach Filmów i Seriali VOD w sekcji Ostatnio oglądane na stronie głównej, na stronie Wszystkie filmy/seriale oraz na stronie Ostatnie."
+      "showSourceBadgeSub": "Wyświetl plakietkę źródła dostawcy na kartach Filmów i Seriali VOD w sekcji Ostatnio oglądane na stronie głównej, na stronie Wszystkie filmy/seriale oraz na stronie Ostatnie.",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

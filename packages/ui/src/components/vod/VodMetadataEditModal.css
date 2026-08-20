@@ -369,7 +369,7 @@
 
 .vod-metadata-edit-modal__body::-webkit-scrollbar,
 .vod-metadata-tmdb-results::-webkit-scrollbar {
-  width: 6px;
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .vod-metadata-edit-modal__body::-webkit-scrollbar-track,

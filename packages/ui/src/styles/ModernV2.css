@@ -566,6 +566,7 @@
   --vs-icon-recent-border: rgba(244, 63, 94, 0.3);
   /* VOD scrollbars — accent gradient thumb (v2; v3 inherits; light sheet
      redefines with the light solid values) */
+  --scrollbar-width: var(--app-scrollbar-width, 6px);
   --vs-scrollbar-thumb-bg: linear-gradient(180deg,
     transparent 0%,
     color-mix(in srgb, var(--accent-primary, #00d4ff) 50%, transparent) 20%,

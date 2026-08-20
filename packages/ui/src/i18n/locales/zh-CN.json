@@ -723,7 +723,11 @@
       "autoPlayNext": "自动播放下一集",
       "autoPlayNextSub": "当前剧集结束时自动播放 VOD 剧集的下一集。如果是季终，将自动开始下一季的第一集。",
       "showSourceBadge": "显示源徽章",
-      "showSourceBadgeSub": "在主页的最近观看、所有电影/剧集页面和最近页面中为 VOD 电影和剧集卡片显示提供商源徽章。"
+      "showSourceBadgeSub": "在主页的最近观看、所有电影/剧集页面和最近页面中为 VOD 电影和剧集卡片显示提供商源徽章。",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

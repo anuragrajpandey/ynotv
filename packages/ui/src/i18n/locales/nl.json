@@ -723,7 +723,11 @@
       "autoPlayNext": "Volgende aflevering automatisch afspelen",
       "autoPlayNextSub": "Speel automatisch de volgende aflevering van een VOD-serie af wanneer de huidige aflevering eindigt. Bij het einde van een seizoen start automatisch de eerste aflevering van het volgende seizoen.",
       "showSourceBadge": "Bronbadge tonen",
-      "showSourceBadgeSub": "Toon de providerbronbadge voor VOD-film- en seriekaarten in Recent Bekeken op de startpagina, de Alle films/series-pagina en de Recente-pagina."
+      "showSourceBadgeSub": "Toon de providerbronbadge voor VOD-film- en seriekaarten in Recent Bekeken op de startpagina, de Alle films/series-pagina en de Recente-pagina.",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

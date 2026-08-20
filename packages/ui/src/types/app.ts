@@ -218,6 +218,8 @@ export interface AppSettings {
     catchupContinuePlaying?: boolean;
     vodAutoPlayNextEpisode?: boolean;
     vodShowSourceBadge?: boolean;
+    useScrollwheelSeek?: boolean;
+    useScrollwheelSeekInvert?: boolean;
     failoverGroupShowSource?: boolean;
     [key: string]: any;
 }

@@ -74,9 +74,10 @@
   z-index: 0;
 }
 
-.series-detail::-webkit-scrollbar {
+.series-detail::-webkit-scrollbar,
+.series-detail *::-webkit-scrollbar {
   display: block;
-  width: 6px;
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .series-detail::-webkit-scrollbar-track {

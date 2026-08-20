@@ -281,6 +281,10 @@ function App() {
   const setVodAutoPlayNextEpisode = useSettingsStore((s) => s.setVodAutoPlayNextEpisode);
   const vodShowSourceBadge = useSettingsStore((s) => s.vodShowSourceBadge);
   const setVodShowSourceBadge = useSettingsStore((s) => s.setVodShowSourceBadge);
+  const useScrollwheelSeek = useSettingsStore((s) => s.useScrollwheelSeek);
+  const setUseScrollwheelSeek = useSettingsStore((s) => s.setUseScrollwheelSeek);
+  const useScrollwheelSeekInvert = useSettingsStore((s) => s.useScrollwheelSeekInvert);
+  const setUseScrollwheelSeekInvert = useSettingsStore((s) => s.setUseScrollwheelSeekInvert);
   const failoverGroupShowSource = useSettingsStore((s) => s.failoverGroupShowSource);
   const setFailoverGroupShowSource = useSettingsStore((s) => s.setFailoverGroupShowSource);
   const playerControlDesign = useSettingsStore((s) => s.playerControlDesign);
@@ -1824,6 +1828,24 @@ function useTmdbPresencePoster(
         el = el.parentElement;
       }
 
+      // "Use Scrollwheel to Seek" — during VOD playback (Movies, Series, and
+      // Local files all route through stream_id === 'vod'), the wheel seeks
+      // instead of adjusting volume.
+      if (
+        useScrollwheelSeek &&
+        (vodInfo != null || currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_'))
+      ) {
+        e.preventDefault();
+        // e.deltaY < 0 = wheel up, e.deltaY > 0 = wheel down. By default wheel
+        // up forwards (+10s) and wheel down rewinders (-10s); when inverted,
+        // wheel up rewinds and wheel down forwards.
+        const dir = useScrollwheelSeekInvert ? -1 : 1;
+        const stepSeconds = e.deltaY < 0 ? 10 * dir : -10 * dir;
+        handleSeek(Math.min(duration, Math.max(0, position + stepSeconds)));
+        handleMouseMove();
+        return;
+      }
+
       // Intercept scroll wheel on hero page
       e.preventDefault();
 
@@ -1847,7 +1869,7 @@ function useTmdbPresencePoster(
     return () => {
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [activeView, setVolume, handleMouseMove]);
+  }, [activeView, setVolume, handleMouseMove, useScrollwheelSeek, useScrollwheelSeekInvert, currentChannel, vodInfo, position, duration, handleSeek]);
 
   // ==========================================================================
   // Aspect Ratio — tracked separately for the hero screen
@@ -5423,6 +5445,10 @@ function useTmdbPresencePoster(
           onVodAutoPlayNextEpisodeChange={setVodAutoPlayNextEpisode}
           vodShowSourceBadge={vodShowSourceBadge}
           onVodShowSourceBadgeChange={setVodShowSourceBadge}
+          useScrollwheelSeek={useScrollwheelSeek}
+          onUseScrollwheelSeekChange={setUseScrollwheelSeek}
+          useScrollwheelSeekInvert={useScrollwheelSeekInvert}
+          onUseScrollwheelSeekInvertChange={setUseScrollwheelSeekInvert}
           failoverGroupShowSource={failoverGroupShowSource}
           onFailoverGroupShowSourceChange={setFailoverGroupShowSource}
           playerControlDesign={playerControlDesign}

@@ -723,7 +723,11 @@
       "autoPlayNext": "Automatski reprodukuj sljedeću epizodu",
       "autoPlayNextSub": "Automatski reprodukujte sljedeću epizodu VOD serije kada se trenutna završi. Ako je kraj sezone, automatski će započeti prvu epizodu sljedeće.",
       "showSourceBadge": "Prikaži značku izvora",
-      "showSourceBadgeSub": "Prikazujte značku izvora provajdera na VOD karticama Filmova i Serija u „Nedavno gledano\" na početnoj stranici, na stranici Svi filmovi/serije i na stranici Nedavno."
+      "showSourceBadgeSub": "Prikazujte značku izvora provajdera na VOD karticama Filmova i Serija u „Nedavno gledano\" na početnoj stranici, na stranici Svi filmovi/serije i na stranici Nedavno.",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

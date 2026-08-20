@@ -723,7 +723,11 @@
       "autoPlayNext": "تشغيل الحلقة التالية تلقائيًا",
       "autoPlayNextSub": "شغّل تلقائيًا الحلقة التالية من مسلسل الفيديو عند الطلب عند انتهاء الحلقة الحالية. إذا كانت نهاية الموسم، فسيبدأ تلقائيًا الحلقة الأولى من الموسم التالي.",
       "showSourceBadge": "إظهار شارة المصدر",
-      "showSourceBadgeSub": "اعرض شارة مصدر المزود على بطاقات أفلام ومسلسلات الفيديو عند الطلب في «المُشاهَد مؤخرًا» على الصفحة الرئيسية، وصفحة كل الأفلام/المسلسلات، والصفحة الحديثة."
+      "showSourceBadgeSub": "اعرض شارة مصدر المزود على بطاقات أفلام ومسلسلات الفيديو عند الطلب في «المُشاهَد مؤخرًا» على الصفحة الرئيسية، وصفحة كل الأفلام/المسلسلات، والصفحة الحديثة.",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

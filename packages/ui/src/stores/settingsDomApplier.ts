@@ -308,9 +308,11 @@ export function applySettingsDom(state: SettingsState): void {
       if (state.enableCustomScrollbarWidth) {
         el.dataset.customScrollbar = 'true';
         el.style.setProperty('--app-scrollbar-width', `${state.customScrollbarWidth}px`);
+        el.style.setProperty('--scrollbar-width', `${state.customScrollbarWidth}px`);
       } else {
         delete el.dataset.customScrollbar;
         el.style.removeProperty('--app-scrollbar-width');
+        el.style.removeProperty('--scrollbar-width');
       }
     }
   }

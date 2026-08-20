@@ -723,7 +723,11 @@
       "autoPlayNext": "Auto-Play Next Episode",
       "autoPlayNextSub": "Automatically play the next episode of a VOD Series when the current episode ends. If it's the end of a season, it will automatically start the first episode of the next season.",
       "showSourceBadge": "Show Source Badge",
-      "showSourceBadgeSub": "Display the provider source badge for VOD Movies and Series cards in Recently Watched on the home page, All Movies/Series page, and Recent page."
+      "showSourceBadgeSub": "Display the provider source badge for VOD Movies and Series cards in Recently Watched on the home page, All Movies/Series page, and Recent page.",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Use the mouse scroll wheel to seek forward/backward during VOD playback instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

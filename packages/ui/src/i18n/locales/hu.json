@@ -723,7 +723,11 @@
       "autoPlayNext": "Következő epizód automatikus lejátszása",
       "autoPlayNextSub": "Automatikusan játssza le egy VOD-sorozat következő epizódját, amikor az aktuális epizód véget ér. Évad végén automatikusan elindítja a következő évad első epizódját.",
       "showSourceBadge": "Forrás-jelvény megjelenítése",
-      "showSourceBadgeSub": "A szolgáltatói forrásjelvény megjelenítése a VOD-filmek és -sorozatok kártyáin a kezdőlap Legutóbb megtekintett, az Összes film/sorozat és a Legutóbbi oldalon."
+      "showSourceBadgeSub": "A szolgáltatói forrásjelvény megjelenítése a VOD-filmek és -sorozatok kártyáin a kezdőlap Legutóbb megtekintett, az Összes film/sorozat és a Legutóbbi oldalon.",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

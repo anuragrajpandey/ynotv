@@ -491,6 +491,10 @@ export interface SettingsState {
   setVodAutoPlayNextEpisode: (enabled: boolean) => void;
   vodShowSourceBadge: boolean;
   setVodShowSourceBadge: (enabled: boolean) => void;
+  useScrollwheelSeek: boolean;
+  setUseScrollwheelSeek: (enabled: boolean) => void;
+  useScrollwheelSeekInvert: boolean;
+  setUseScrollwheelSeekInvert: (enabled: boolean) => void;
   failoverGroupShowSource: boolean;
   setFailoverGroupShowSource: (enabled: boolean) => void;
   showFailoverLiveTvWidget: boolean;
@@ -1191,6 +1195,18 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ vodShowSourceBadge: enabled });
     persistSettings({ vodShowSourceBadge: enabled });
     dispatchAppEvent('ynotv:vod-settings-changed', { vodShowSourceBadge: enabled });
+  },
+  useScrollwheelSeek: false,
+  setUseScrollwheelSeek: (enabled) => {
+    set({ useScrollwheelSeek: enabled });
+    persistSettings({ useScrollwheelSeek: enabled });
+    dispatchAppEvent('ynotv:vod-settings-changed', { useScrollwheelSeek: enabled });
+  },
+  useScrollwheelSeekInvert: false,
+  setUseScrollwheelSeekInvert: (enabled) => {
+    set({ useScrollwheelSeekInvert: enabled });
+    persistSettings({ useScrollwheelSeekInvert: enabled });
+    dispatchAppEvent('ynotv:vod-settings-changed', { useScrollwheelSeekInvert: enabled });
   },
   failoverGroupShowSource: false,
   setFailoverGroupShowSource: (enabled) => {

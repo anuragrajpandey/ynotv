@@ -723,7 +723,11 @@
       "autoPlayNext": "Luaj automatikisht episodin tjetër",
       "autoPlayNextSub": "Luaj automatikisht episodin tjetër të serialit VOD pas përfundimit të atij aktual. Nëse është fundi i sezonit, episodi i parë i sezonit tjetër do të fillojë automatikisht.",
       "showSourceBadge": "Shfaq distinktivin e burimit",
-      "showSourceBadgeSub": "Shfaq distinktivin e burimit të ofruesit te kartat e Filmave dhe Serialeve VOD në seksionin Shikuar së fundmi në faqen kryesore, në faqen Të gjithë filmat/serialet dhe në faqen Të fundit."
+      "showSourceBadgeSub": "Shfaq distinktivin e burimit të ofruesit te kartat e Filmave dhe Serialeve VOD në seksionin Shikuar së fundmi në faqen kryesore, në faqen Të gjithë filmat/serialet dhe në faqen Të fundit.",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

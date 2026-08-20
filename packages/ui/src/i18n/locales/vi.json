@@ -2017,7 +2017,11 @@
       "autoPlayNext": "Tự Động Phát Tập Tiếp Theo",
       "autoPlayNextSub": "Tự động phát tập tiếp theo của một Phim Bộ VOD khi tập hiện tại kết thúc. Nếu là cuối mùa, nó sẽ tự động bắt đầu tập đầu tiên của mùa tiếp theo.",
       "showSourceBadge": "Hiển Thị Huy Hiệu Nguồn",
-      "showSourceBadgeSub": "Hiển thị huy hiệu nguồn nhà cung cấp cho các thẻ Phim và Phim Bộ VOD trong phần Đã Xem Gần Đây trên trang chủ, trang Tất Cả Phim/Phim Bộ và trang Gần Đây."
+      "showSourceBadgeSub": "Hiển thị huy hiệu nguồn nhà cung cấp cho các thẻ Phim và Phim Bộ VOD trong phần Đã Xem Gần Đây trên trang chủ, trang Tất Cả Phim/Phim Bộ và trang Gần Đây.",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "optimization": {
       "title": "Tăng Tốc Phần Cứng",

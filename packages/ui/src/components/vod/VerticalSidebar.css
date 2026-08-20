@@ -167,7 +167,7 @@
 /* Scrollbar styling */
 .vertical-sidebar__scrollable::-webkit-scrollbar,
 .vertical-sidebar__scrollable *::-webkit-scrollbar {
-    width: 6px;
+    width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .vertical-sidebar__scrollable::-webkit-scrollbar-track,

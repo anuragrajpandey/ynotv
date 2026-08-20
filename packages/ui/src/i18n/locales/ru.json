@@ -723,7 +723,11 @@
       "autoPlayNext": "Автовоспроизведение следующего эпизода",
       "autoPlayNextSub": "Автоматически воспроизводить следующий эпизод сериала VOD, когда заканчивается текущий. Если это конец сезона, автоматически запустится первый эпизод следующего сезона.",
       "showSourceBadge": "Показывать значок источника",
-      "showSourceBadgeSub": "Отображать значок провайдера на карточках фильмов и сериалов VOD в «Недавно просмотренных» на главной странице, на страницах «Все фильмы/сериалы» и «Недавние»."
+      "showSourceBadgeSub": "Отображать значок провайдера на карточках фильмов и сериалов VOD в «Недавно просмотренных» на главной странице, на страницах «Все фильмы/сериалы» и «Недавние».",
+      "scrollwheelSeek": "Use Scrollwheel to Seek",
+      "scrollwheelSeekSub": "Scrubs the VOD seekbar forward/backward with the mouse scroll wheel instead of adjusting volume.",
+      "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
+      "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward."
     },
     "livetv": {
       "tabs": {

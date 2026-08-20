@@ -133,6 +133,10 @@ interface SettingsProps {
   onVodAutoPlayNextEpisodeChange?: (enabled: boolean) => void;
   vodShowSourceBadge?: boolean;
   onVodShowSourceBadgeChange?: (enabled: boolean) => void;
+  useScrollwheelSeek?: boolean;
+  onUseScrollwheelSeekChange?: (enabled: boolean) => void;
+  useScrollwheelSeekInvert?: boolean;
+  onUseScrollwheelSeekInvertChange?: (enabled: boolean) => void;
   failoverGroupShowSource?: boolean;
   onFailoverGroupShowSourceChange?: (enabled: boolean) => void;
   discordRichPresence?: boolean;
@@ -245,6 +249,10 @@ export function Settings({
   onVodAutoPlayNextEpisodeChange,
   vodShowSourceBadge: vodShowSourceBadgeProp,
   onVodShowSourceBadgeChange,
+  useScrollwheelSeek: useScrollwheelSeekProp,
+  onUseScrollwheelSeekChange,
+  useScrollwheelSeekInvert: useScrollwheelSeekInvertProp,
+  onUseScrollwheelSeekInvertChange,
   failoverGroupShowSource: failoverGroupShowSourceProp,
   onFailoverGroupShowSourceChange,
   discordRichPresence: discordRichPresenceProp,
@@ -459,6 +467,8 @@ export function Settings({
   const [catchupContinuePlaying, setCatchupContinuePlaying] = useState(false);
   const [vodAutoPlayNextEpisode, setVodAutoPlayNextEpisode] = useState(true);
   const [vodShowSourceBadge, setVodShowSourceBadge] = useState(false);
+  const [useScrollwheelSeek, setUseScrollwheelSeek] = useState(false);
+  const [useScrollwheelSeekInvert, setUseScrollwheelSeekInvert] = useState(false);
   const [failoverGroupShowSource, setFailoverGroupShowSource] = useState(false);
   // Stremio settings
   const [stremioStreamPickerMode, setStremioStreamPickerMode] = useState<StremioStreamPickerMode>('modal');
@@ -937,6 +947,8 @@ export function Settings({
         includeAllChannelsToPlaylist?: boolean;
         vodAutoPlayNextEpisode?: boolean;
         vodShowSourceBadge?: boolean;
+        useScrollwheelSeek?: boolean;
+        useScrollwheelSeekInvert?: boolean;
         failoverGroupShowSource?: boolean;
       };
 
@@ -1067,6 +1079,8 @@ export function Settings({
       setCatchupContinuePlaying(settings.catchupContinuePlaying ?? false);
       setVodAutoPlayNextEpisode(settings.vodAutoPlayNextEpisode ?? true);
       setVodShowSourceBadge(settings.vodShowSourceBadge ?? false);
+      setUseScrollwheelSeek(settings.useScrollwheelSeek ?? false);
+      setUseScrollwheelSeekInvert(settings.useScrollwheelSeekInvert ?? false);
       setFailoverGroupShowSource(settings.failoverGroupShowSource ?? false);
       setStremioStreamPickerMode(settings.stremioStreamPickerMode ?? 'modal');
       setShowStremioStreamBadges(settings.showStremioStreamBadges ?? true);
@@ -1390,6 +1404,32 @@ export function Settings({
     }));
     if (onVodShowSourceBadgeChange) {
       onVodShowSourceBadgeChange(enabled);
+    }
+  };
+
+  const handleUseScrollwheelSeekChange = async (enabled: boolean) => {
+    setUseScrollwheelSeek(enabled);
+    if (window.storage) {
+      await window.storage.updateSettings({ useScrollwheelSeek: enabled });
+    }
+    window.dispatchEvent(new CustomEvent('ynotv:vod-settings-changed', {
+      detail: { useScrollwheelSeek: enabled }
+    }));
+    if (onUseScrollwheelSeekChange) {
+      onUseScrollwheelSeekChange(enabled);
+    }
+  };
+
+  const handleUseScrollwheelSeekInvertChange = async (enabled: boolean) => {
+    setUseScrollwheelSeekInvert(enabled);
+    if (window.storage) {
+      await window.storage.updateSettings({ useScrollwheelSeekInvert: enabled });
+    }
+    window.dispatchEvent(new CustomEvent('ynotv:vod-settings-changed', {
+      detail: { useScrollwheelSeekInvert: enabled }
+    }));
+    if (onUseScrollwheelSeekInvertChange) {
+      onUseScrollwheelSeekInvertChange(enabled);
     }
   };
 
@@ -2602,6 +2642,10 @@ export function Settings({
             onVodAutoPlayNextEpisodeChange={handleVodAutoPlayNextEpisodeChange}
             vodShowSourceBadge={vodShowSourceBadge}
             onVodShowSourceBadgeChange={handleVodShowSourceBadgeChange}
+            useScrollwheelSeek={useScrollwheelSeek}
+            onUseScrollwheelSeekChange={handleUseScrollwheelSeekChange}
+            useScrollwheelSeekInvert={useScrollwheelSeekInvert}
+            onUseScrollwheelSeekInvertChange={handleUseScrollwheelSeekInvertChange}
           />
         );
       case 'metadata':
