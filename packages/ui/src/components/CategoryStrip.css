@@ -46,11 +46,18 @@
   /* iOS-style smooth scrolling */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--guide-scroll-strip-thumb-bg, color-mix(in srgb, var(--accent-primary, #00d4ff) 80%, transparent)) transparent;
 }
 
-/* Hide scrollbar but keep functionality */
+.category-strip:hover .category-strip-scrollable,
+.category-strip-scrollable:hover {
+  scrollbar-color: var(--guide-scroll-strip-thumb-hover-bg, var(--scrollbar-hover-color, var(--accent-primary, #00d4ff))) transparent;
+}
+
+/* Scrollbar styling */
 .category-strip-scrollable::-webkit-scrollbar {
-  width: var(--guide-scroll-strip-width, 4px);
+  width: var(--app-scrollbar-width, var(--guide-scroll-strip-width, 4px));
 }
 
 .category-strip-scrollable::-webkit-scrollbar-track {
@@ -62,8 +69,10 @@
   border-radius: 2px;
 }
 
+.category-strip:hover .category-strip-scrollable::-webkit-scrollbar-thumb,
+.category-strip-scrollable:hover::-webkit-scrollbar-thumb,
 .category-strip-scrollable::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff));
+  background: var(--guide-scroll-strip-thumb-hover-bg, var(--scrollbar-hover-color, var(--accent-primary, #00d4ff)));
 }
 
 /* Hide old list class */

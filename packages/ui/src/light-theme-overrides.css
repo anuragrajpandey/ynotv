@@ -11,6 +11,10 @@
   /* VOD scrollbars — light solid values replace the v2 accent gradient */
   --vs-scrollbar-thumb-bg: #cbd5e1;
   --vs-scrollbar-thumb-hover-bg: #94a3b8;
+  --guide-scroll-strip-thumb-bg: #cbd5e1;
+  --guide-scroll-strip-thumb-hover-bg: #94a3b8;
+  --guide-scroll-ch-thumb-bg: #cbd5e1;
+  --guide-scroll-ch-thumb-hover-bg: #94a3b8;
   /* VOD sidebar active-item icon glows — light solid pastels replace the v2
      dark per-icon glows (consumed by the light icon rules below; redefining
      the tokens here is what makes those rules take effect in v2/v3) */

@@ -1119,7 +1119,7 @@
    Channels tab (both use a Virtuoso scroller, so the same rules apply) */
 .guide-channels::-webkit-scrollbar,
 .search-virtuoso::-webkit-scrollbar {
-  width: 6px;
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .guide-channels::-webkit-scrollbar-track,
@@ -1133,6 +1133,8 @@
   border-radius: 3px;
 }
 
+.guide-channels:hover::-webkit-scrollbar-thumb,
+.search-virtuoso:hover::-webkit-scrollbar-thumb,
 .guide-channels::-webkit-scrollbar-thumb:hover,
 .search-virtuoso::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff));

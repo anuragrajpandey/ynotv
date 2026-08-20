@@ -181,9 +181,15 @@
     border-radius: 3px;
 }
 
+.vertical-sidebar:hover .vertical-sidebar__scrollable::-webkit-scrollbar-thumb,
 .vertical-sidebar__scrollable:hover::-webkit-scrollbar-thumb,
 .vertical-sidebar__scrollable *::-webkit-scrollbar-thumb:hover {
     background: var(--vs-scrollbar-thumb-hover-bg, rgba(255, 255, 255, 0.2));
+}
+
+.vertical-sidebar__scrollable::-webkit-scrollbar-thumb:hover,
+.vertical-sidebar__scrollable *::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff));
 }
 
 /* Old nav class - hide it if still referenced */
