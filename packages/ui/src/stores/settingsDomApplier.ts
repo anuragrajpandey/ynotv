@@ -275,7 +275,7 @@ export function applySettingsDom(state: SettingsState): void {
   // availableWidth under the new zoom (was done inline in the autosync boot).
   if (sectionChanged('uiScale', { v: state.uiScale })) {
     setStyle('--app-zoom', String(state.uiScale / 100));
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(new Event('resize'));
     }
   }

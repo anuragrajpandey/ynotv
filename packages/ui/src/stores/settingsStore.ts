@@ -491,6 +491,8 @@ export interface SettingsState {
   setVodAutoPlayNextEpisode: (enabled: boolean) => void;
   vodShowSourceBadge: boolean;
   setVodShowSourceBadge: (enabled: boolean) => void;
+  blurUnwatchedEpisodes: boolean;
+  setBlurUnwatchedEpisodes: (enabled: boolean) => void;
   useScrollwheelSeek: boolean;
   setUseScrollwheelSeek: (enabled: boolean) => void;
   useScrollwheelSeekInvert: boolean;
@@ -1195,6 +1197,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ vodShowSourceBadge: enabled });
     persistSettings({ vodShowSourceBadge: enabled });
     dispatchAppEvent('ynotv:vod-settings-changed', { vodShowSourceBadge: enabled });
+  },
+  blurUnwatchedEpisodes: false,
+  setBlurUnwatchedEpisodes: (enabled) => {
+    set({ blurUnwatchedEpisodes: enabled });
+    persistSettings({ blurUnwatchedEpisodes: enabled });
+    dispatchAppEvent('ynotv:vod-settings-changed', { blurUnwatchedEpisodes: enabled });
   },
   useScrollwheelSeek: false,
   setUseScrollwheelSeek: (enabled) => {

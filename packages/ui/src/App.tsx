@@ -281,6 +281,8 @@ function App() {
   const setVodAutoPlayNextEpisode = useSettingsStore((s) => s.setVodAutoPlayNextEpisode);
   const vodShowSourceBadge = useSettingsStore((s) => s.vodShowSourceBadge);
   const setVodShowSourceBadge = useSettingsStore((s) => s.setVodShowSourceBadge);
+  const blurUnwatchedEpisodes = useSettingsStore((s) => s.blurUnwatchedEpisodes);
+  const setBlurUnwatchedEpisodes = useSettingsStore((s) => s.setBlurUnwatchedEpisodes);
   const useScrollwheelSeek = useSettingsStore((s) => s.useScrollwheelSeek);
   const setUseScrollwheelSeek = useSettingsStore((s) => s.setUseScrollwheelSeek);
   const useScrollwheelSeekInvert = useSettingsStore((s) => s.useScrollwheelSeekInvert);
@@ -5445,6 +5447,8 @@ function useTmdbPresencePoster(
           onVodAutoPlayNextEpisodeChange={setVodAutoPlayNextEpisode}
           vodShowSourceBadge={vodShowSourceBadge}
           onVodShowSourceBadgeChange={setVodShowSourceBadge}
+          blurUnwatchedEpisodes={blurUnwatchedEpisodes}
+          onBlurUnwatchedEpisodesChange={setBlurUnwatchedEpisodes}
           useScrollwheelSeek={useScrollwheelSeek}
           onUseScrollwheelSeekChange={setUseScrollwheelSeek}
           useScrollwheelSeekInvert={useScrollwheelSeekInvert}

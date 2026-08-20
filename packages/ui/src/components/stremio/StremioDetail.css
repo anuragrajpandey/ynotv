@@ -563,6 +563,11 @@
   object-fit: cover;
 }
 
+.stremio-detail-video-thumb.stremio-detail-video-thumb--blurred {
+  filter: blur(10px);
+  transform: scale(1.15);
+}
+
 .stremio-detail-video-thumb-placeholder {
   font-size: 0.8rem;
   font-weight: 700;

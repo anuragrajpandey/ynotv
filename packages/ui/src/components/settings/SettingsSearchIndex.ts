@@ -145,12 +145,17 @@ const SETTINGS_SEARCH_INDEX: SettingsSearchResult[] = [
   { id: 'skip-intro-duration', label: 'Skip Button Duration', description: 'How many seconds the skip button stays visible.', tabId: 'playback', tabLabel: 'Playback', subTabId: 'skipintro', section: 'Skip Intro' },
   { id: 'skip-intro', label: 'Skip Intro', tabId: 'playback', tabLabel: 'Playback', subTabId: 'skipintro', section: 'Skip Intro' },
 
-  // --- Catch-up ---
+  // --- Catch-up & VOD ---
   { id: 'catchup-start-padding', label: 'Start Padding', description: 'Padding added to the beginning of catch-up playback.', tabId: 'playback', tabLabel: 'Playback', subTabId: 'catchup', section: 'Catch-up' },
   { id: 'catchup-end-padding', label: 'End Padding', description: 'Padding added to the end of catch-up playback.', tabId: 'playback', tabLabel: 'Playback', subTabId: 'catchup', section: 'Catch-up' },
   { id: 'catchup-continue-playing', label: 'Continue playing after end time', description: 'Keep playing past the scheduled end time on catch-up channels.', tabId: 'playback', tabLabel: 'Playback', subTabId: 'catchup', section: 'Catch-up' },
   { id: 'catchup-settings', label: 'Catch-up', tabId: 'playback', tabLabel: 'Playback', subTabId: 'catchup', section: 'Catch-up' },
   { id: 'vod-autoplay-next-episode', label: 'VOD Auto-Play Next Episode', description: 'Automatically play the next episode of a VOD Series when the current episode ends.', tabId: 'playback', tabLabel: 'Playback', subTabId: 'vod', section: 'VOD Settings' },
+  { id: 'vod-show-source-badge', label: 'Show Source Badge', description: 'Display the provider source badge for VOD Movies and Series cards in Recently Watched and All Movies/Series.', tabId: 'playback', tabLabel: 'Playback', subTabId: 'vod', section: 'VOD Settings' },
+  { id: 'vod-blur-unwatched-episodes', label: 'Blur unwatched episodes', description: 'Blur episode screencaps for episodes that are not marked as watched on series details pages.', tabId: 'playback', tabLabel: 'Playback', subTabId: 'vod', section: 'VOD Settings' },
+  { id: 'vod-scrollwheel-seek', label: 'Use Scrollwheel to Seek', description: 'Use the mouse scroll wheel to seek forward/backward during VOD playback instead of adjusting volume.', tabId: 'playback', tabLabel: 'Playback', subTabId: 'vod', section: 'VOD Settings' },
+  { id: 'vod-scrollwheel-seek-invert', label: 'Invert Scrollwheel Direction', description: 'Scroll up to seek backward and scroll down to seek forward.', tabId: 'playback', tabLabel: 'Playback', subTabId: 'vod', section: 'VOD Settings' },
+  { id: 'vod-settings', label: 'VOD Playback', description: 'Configure playback settings and preferences for Video on Demand (VOD) content.', tabId: 'playback', tabLabel: 'Playback', subTabId: 'vod', section: 'VOD Settings' },
 
   // --- Subtitles & Audio ---
   { id: 'subtitles-tab', label: 'Subtitles & Audio', tabId: 'subtitles', tabLabel: 'Subtitles & Audio', subTabId: 'subtitles', section: 'Subtitles & Audio' },

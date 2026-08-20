@@ -66,6 +66,8 @@ interface PlaybackTabProps {
   onVodAutoPlayNextEpisodeChange: (enabled: boolean) => void;
   vodShowSourceBadge: boolean;
   onVodShowSourceBadgeChange: (enabled: boolean) => void;
+  blurUnwatchedEpisodes: boolean;
+  onBlurUnwatchedEpisodesChange: (enabled: boolean) => void;
   useScrollwheelSeek: boolean;
   onUseScrollwheelSeekChange: (enabled: boolean) => void;
   useScrollwheelSeekInvert: boolean;
@@ -131,6 +133,8 @@ export function PlaybackTab({
   onVodAutoPlayNextEpisodeChange,
   vodShowSourceBadge,
   onVodShowSourceBadgeChange,
+  blurUnwatchedEpisodes,
+  onBlurUnwatchedEpisodesChange,
   useScrollwheelSeek,
   onUseScrollwheelSeekChange,
   useScrollwheelSeekInvert,
@@ -670,6 +674,8 @@ export function PlaybackTab({
             onVodAutoPlayNextEpisodeChange={onVodAutoPlayNextEpisodeChange}
             vodShowSourceBadge={vodShowSourceBadge}
             onVodShowSourceBadgeChange={onVodShowSourceBadgeChange}
+            blurUnwatchedEpisodes={blurUnwatchedEpisodes}
+            onBlurUnwatchedEpisodesChange={onBlurUnwatchedEpisodesChange}
             useScrollwheelSeek={useScrollwheelSeek}
             onUseScrollwheelSeekChange={onUseScrollwheelSeekChange}
             useScrollwheelSeekInvert={useScrollwheelSeekInvert}

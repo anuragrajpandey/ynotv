@@ -7,6 +7,8 @@ interface VodTabProps {
   onVodAutoPlayNextEpisodeChange: (enabled: boolean) => void;
   vodShowSourceBadge: boolean;
   onVodShowSourceBadgeChange: (enabled: boolean) => void;
+  blurUnwatchedEpisodes: boolean;
+  onBlurUnwatchedEpisodesChange: (enabled: boolean) => void;
   useScrollwheelSeek: boolean;
   onUseScrollwheelSeekChange: (enabled: boolean) => void;
   useScrollwheelSeekInvert: boolean;
@@ -18,6 +20,8 @@ export function VodTab({
   onVodAutoPlayNextEpisodeChange,
   vodShowSourceBadge,
   onVodShowSourceBadgeChange,
+  blurUnwatchedEpisodes,
+  onBlurUnwatchedEpisodesChange,
   useScrollwheelSeek,
   onUseScrollwheelSeekChange,
   useScrollwheelSeekInvert,
@@ -64,6 +68,23 @@ export function VodTab({
                 type="checkbox"
                 checked={vodShowSourceBadge}
                 onChange={(e) => onVodShowSourceBadgeChange(e.target.checked)}
+              />
+              <span className="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div className="timeshift-toggle-row" style={{ marginTop: '12px' }}>
+            <div className="timeshift-toggle-info">
+              <span className="timeshift-toggle-label">{i18n.t('settings:playback.blurUnwatchedEpisodes')}</span>
+              <span className="timeshift-toggle-sub">
+                {i18n.t('settings:playback.blurUnwatchedEpisodesSub')}
+              </span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={blurUnwatchedEpisodes}
+                onChange={(e) => onBlurUnwatchedEpisodesChange(e.target.checked)}
               />
               <span className="toggle-slider"></span>
             </label>

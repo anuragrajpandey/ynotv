@@ -133,6 +133,8 @@ interface SettingsProps {
   onVodAutoPlayNextEpisodeChange?: (enabled: boolean) => void;
   vodShowSourceBadge?: boolean;
   onVodShowSourceBadgeChange?: (enabled: boolean) => void;
+  blurUnwatchedEpisodes?: boolean;
+  onBlurUnwatchedEpisodesChange?: (enabled: boolean) => void;
   useScrollwheelSeek?: boolean;
   onUseScrollwheelSeekChange?: (enabled: boolean) => void;
   useScrollwheelSeekInvert?: boolean;
@@ -249,6 +251,8 @@ export function Settings({
   onVodAutoPlayNextEpisodeChange,
   vodShowSourceBadge: vodShowSourceBadgeProp,
   onVodShowSourceBadgeChange,
+  blurUnwatchedEpisodes: blurUnwatchedEpisodesProp,
+  onBlurUnwatchedEpisodesChange,
   useScrollwheelSeek: useScrollwheelSeekProp,
   onUseScrollwheelSeekChange,
   useScrollwheelSeekInvert: useScrollwheelSeekInvertProp,
@@ -467,6 +471,7 @@ export function Settings({
   const [catchupContinuePlaying, setCatchupContinuePlaying] = useState(false);
   const [vodAutoPlayNextEpisode, setVodAutoPlayNextEpisode] = useState(true);
   const [vodShowSourceBadge, setVodShowSourceBadge] = useState(false);
+  const [blurUnwatchedEpisodes, setBlurUnwatchedEpisodes] = useState(false);
   const [useScrollwheelSeek, setUseScrollwheelSeek] = useState(false);
   const [useScrollwheelSeekInvert, setUseScrollwheelSeekInvert] = useState(false);
   const [failoverGroupShowSource, setFailoverGroupShowSource] = useState(false);
@@ -947,6 +952,7 @@ export function Settings({
         includeAllChannelsToPlaylist?: boolean;
         vodAutoPlayNextEpisode?: boolean;
         vodShowSourceBadge?: boolean;
+        blurUnwatchedEpisodes?: boolean;
         useScrollwheelSeek?: boolean;
         useScrollwheelSeekInvert?: boolean;
         failoverGroupShowSource?: boolean;
@@ -1079,6 +1085,7 @@ export function Settings({
       setCatchupContinuePlaying(settings.catchupContinuePlaying ?? false);
       setVodAutoPlayNextEpisode(settings.vodAutoPlayNextEpisode ?? true);
       setVodShowSourceBadge(settings.vodShowSourceBadge ?? false);
+      setBlurUnwatchedEpisodes(settings.blurUnwatchedEpisodes ?? false);
       setUseScrollwheelSeek(settings.useScrollwheelSeek ?? false);
       setUseScrollwheelSeekInvert(settings.useScrollwheelSeekInvert ?? false);
       setFailoverGroupShowSource(settings.failoverGroupShowSource ?? false);
@@ -1404,6 +1411,19 @@ export function Settings({
     }));
     if (onVodShowSourceBadgeChange) {
       onVodShowSourceBadgeChange(enabled);
+    }
+  };
+
+  const handleBlurUnwatchedEpisodesChange = async (enabled: boolean) => {
+    setBlurUnwatchedEpisodes(enabled);
+    if (window.storage) {
+      await window.storage.updateSettings({ blurUnwatchedEpisodes: enabled });
+    }
+    window.dispatchEvent(new CustomEvent('ynotv:vod-settings-changed', {
+      detail: { blurUnwatchedEpisodes: enabled }
+    }));
+    if (onBlurUnwatchedEpisodesChange) {
+      onBlurUnwatchedEpisodesChange(enabled);
     }
   };
 
@@ -2642,6 +2662,8 @@ export function Settings({
             onVodAutoPlayNextEpisodeChange={handleVodAutoPlayNextEpisodeChange}
             vodShowSourceBadge={vodShowSourceBadge}
             onVodShowSourceBadgeChange={handleVodShowSourceBadgeChange}
+            blurUnwatchedEpisodes={blurUnwatchedEpisodes}
+            onBlurUnwatchedEpisodesChange={handleBlurUnwatchedEpisodesChange}
             useScrollwheelSeek={useScrollwheelSeek}
             onUseScrollwheelSeekChange={handleUseScrollwheelSeekChange}
             useScrollwheelSeekInvert={useScrollwheelSeekInvert}

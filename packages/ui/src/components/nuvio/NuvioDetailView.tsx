@@ -140,6 +140,7 @@ export function NuvioDetailView({
   const autoPlayTriggeredRef = useRef<string | null>(null);
 
   const startDownload = useDownloadStore((s) => s.startDownload);
+  const blurUnwatchedEpisodes = useSettingsStore((s) => s.blurUnwatchedEpisodes);
 
   const activeRef = useRef(true);
   const fetchedIdsRef = useRef<Set<string>>(new Set());
@@ -1097,6 +1098,7 @@ export function NuvioDetailView({
                     const epProg = episodeProgress[ep.id];
                     const epFraction = epProg?.progressFraction ?? 0;
                     const epFinished = epProg?.finished ?? false;
+                    const isBlurred = blurUnwatchedEpisodes && !epFinished;
                     const showEpProgress = epFraction > 0.02 && !epFinished;
                     return (
                       <div
@@ -1106,7 +1108,7 @@ export function NuvioDetailView({
                       >
                         <div className="stremio-detail-video-thumb-container stremio-ep-thumb-wrap">
                           {ep.thumbnail ? (
-                            <img className="stremio-detail-video-thumb" src={ep.thumbnail} alt="" loading="lazy" />
+                            <img className={`stremio-detail-video-thumb${isBlurred ? ' stremio-detail-video-thumb--blurred' : ''}`} src={ep.thumbnail} alt="" loading="lazy" />
                           ) : (
                             <div className="stremio-detail-video-thumb-placeholder">E{ep.episode}</div>
                           )}
