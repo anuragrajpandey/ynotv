@@ -433,7 +433,7 @@ export function removeLocalEntry(id: string): void {
 }
 
 /** Key used to group a series' episodes (mirrors groupLocal). */
-function localShowKey(e: LocalEntry): string {
+export function localShowKey(e: LocalEntry): string {
   return (
     e.imdbId ||
     (e.tmdbId ? `tmdb_${e.tmdbId}` : null) ||
@@ -776,7 +776,7 @@ export function localEntryToVodPlayInfo(
   const epLabel = episodeLabel(entry);
   const isSeries = entry.type === 'show';
   const seriesTitle = seriesGroup?.head?.title || entry.title;
-  const seriesKey = seriesGroup?.key || (entry.imdbId || (entry.tmdbId ? `tmdb_${entry.tmdbId}` : null) || seriesTitle).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const seriesKey = seriesGroup?.key || localShowKey(entry);
 
   const mediaId = isSeries
     ? `local_${seriesKey}_ep_${entry.id}`

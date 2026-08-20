@@ -14,6 +14,7 @@ import {
   sortGroups,
   updateLocalEntries,
   useLocalLibrary,
+  localShowKey,
   localEntryToVodPlayInfo,
   localEntryToStoredMovie,
   localGroupToStoredSeries,
@@ -119,7 +120,7 @@ interface LocalGridContext {
   refreshMetadata: (entries: LocalEntry[]) => void;
   markPosterFailed: (id: string) => void;
   clearPosterFailed: (id: string) => void;
-  openEpisodes: (target: { head: LocalEntry; episodes: LocalEntry[] }) => void;
+  openEpisodes: (target: { key?: string; head: LocalEntry; episodes: LocalEntry[] }) => void;
   onAddToPlaylist: (target: AddToPlaylistTarget) => void;
 }
 
@@ -162,7 +163,7 @@ const LocalGridItem = (
       selectMode={context.selectMode}
       isSelected={g.episodes.every((e) => context.selectedIds.has(e.id))}
       onToggleSelect={context.handleToggleSelectGroup}
-      onOpenEpisodes={(head, episodes) => context.openEpisodes({ head, episodes })}
+      onOpenEpisodes={(head, episodes) => context.openEpisodes({ key: g.key, head, episodes })}
       onOpenDetail={() => context.handleOpenDetail(g)}
       onFixMatch={(episodes) => context.openIdentify(episodes)}
       onRefreshMetadata={(episodes) => context.refreshMetadata(episodes)}
@@ -302,7 +303,7 @@ export function LocalTab({
   // True between a successful identify resolve and its following onClose, so
   // the close handler knows not to wipe the next queued target.
   const resolvingRef = useRef(false);
-  const [episodesModalTarget, setEpisodesModalTarget] = useState<{ head: LocalEntry; episodes: LocalEntry[] } | null>(null);
+  const [episodesModalTarget, setEpisodesModalTarget] = useState<{ key?: string; head: LocalEntry; episodes: LocalEntry[] } | null>(null);
   const [selectedDetailGroup, setSelectedDetailGroup] = useState<LocalGroup | null>(null);
   const [addToPlaylistTarget, setAddToPlaylistTarget] = useState<AddToPlaylistTarget | null>(null);
 
@@ -1814,7 +1815,7 @@ export function LocalTab({
           episodes={episodesModalTarget.episodes}
           onClose={() => setEpisodesModalTarget(null)}
           onPlayEpisode={(ep) => {
-            handlePlayEntry(ep, { key: episodesModalTarget.head.title, head: episodesModalTarget.head });
+            handlePlayEntry(ep, episodesModalTarget ? { key: episodesModalTarget.key || localShowKey(episodesModalTarget.head), head: episodesModalTarget.head } : undefined);
             setEpisodesModalTarget(null);
           }}
         />

@@ -666,12 +666,18 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
           const groups = groupLocal(localEntries);
           const targetKey = series.series_id.replace(/^local_/, '').toLowerCase();
           const matchingGroup = groups.find(
-            (g) => g.kind === 'show' && g.key.toLowerCase() === targetKey
+            (g) => g.kind === 'show' && (
+              g.key.toLowerCase() === targetKey ||
+              g.key.toLowerCase().replace(/[^a-z0-9]+/g, '_') === targetKey.replace(/[^a-z0-9]+/g, '_')
+            )
           );
           if (matchingGroup && matchingGroup.kind === 'show') {
-            episodes = matchingGroup.episodes.map((ep) =>
-              localEntryToStoredEpisode(ep, series.series_id, matchingGroup.head.title)
-            );
+            episodes = matchingGroup.episodes
+              .slice()
+              .sort((a, b) => (a.season ?? 1) - (b.season ?? 1) || (a.episode ?? 1) - (b.episode ?? 1))
+              .map((ep) =>
+                localEntryToStoredEpisode(ep, series.series_id, matchingGroup.head.title)
+              );
           }
         } else {
           episodes = await dbInstance.select(
@@ -686,8 +692,8 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
         }
 
         const epHistory: EpisodeWatchHistory[] = await dbInstance.select(
-          'SELECT * FROM episode_history WHERE series_id = ?',
-          [series.series_id]
+          'SELECT * FROM episode_history WHERE LOWER(series_id) = LOWER(?) OR LOWER(series_id) = LOWER(?)',
+          [series.series_id, `local_${series.series_id.replace(/^local_/, '').replace(/[^a-z0-9]+/g, '_')}`]
         );
         const epHistMap = new Map(epHistory.map(eh => [eh.episode_id, eh]));
 

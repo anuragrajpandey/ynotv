@@ -2267,19 +2267,19 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               progress_seconds: episodeProgress?.progress_seconds,
               valid: episodeProgress && episodeProgress.total_duration && episodeProgress.total_duration > 0
             });
-            if (episodeProgress && episodeProgress.total_duration && episodeProgress.total_duration > 0) {
-              const totalDuration = episodeProgress.total_duration;
+            if (episodeProgress && (episodeProgress.progress_seconds ?? 0) > 0) {
+              const totalDuration = episodeProgress.total_duration ?? 0;
               const progressSeconds = episodeProgress.progress_seconds ?? 0;
-              const progressPercent = (progressSeconds / totalDuration) * 100;
+              const progressPercent = totalDuration > 0 ? (progressSeconds / totalDuration) * 100 : 0;
               console.log('[Playback] Episode progress calculation:', { progressSeconds, totalDuration, progressPercent });
-              if ((progressSeconds >= 10 || progressPercent > 1) && progressPercent < 95) {
+              if ((progressSeconds >= 10 || progressPercent > 1) && (totalDuration === 0 || progressPercent < 95)) {
                 resumePosition = progressSeconds;
                 logInfo('[Playback] Resuming episode from:', resumePosition, 'seconds');
               } else {
                 console.log('[Playback] Episode progress outside resume range:', progressPercent + '%');
               }
             } else {
-              console.log('[Playback] No episode progress found or invalid duration');
+              console.log('[Playback] No episode progress found');
             }
           }
         }
@@ -2289,11 +2289,13 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
           console.log('[Playback] Looking up VOD watch progress for:', mediaId, info.type);
           const savedProgress = await getVodWatchProgress(mediaId, info.type as 'movie' | 'series');
           console.log('[Playback] VOD progress result:', savedProgress);
-          if (savedProgress && savedProgress.total_duration > 0) {
-            const progressPercent = (savedProgress.progress_seconds / savedProgress.total_duration) * 100;
-            // Only resume if between 10s/1% and 95% watched
-            if ((savedProgress.progress_seconds >= 10 || progressPercent > 1) && progressPercent < 95) {
-              resumePosition = savedProgress.progress_seconds;
+          if (savedProgress && (savedProgress.progress_seconds ?? 0) > 0) {
+            const totalDuration = savedProgress.total_duration ?? 0;
+            const progressSeconds = savedProgress.progress_seconds ?? 0;
+            const progressPercent = totalDuration > 0 ? (progressSeconds / totalDuration) * 100 : 0;
+            // Only resume if between 10s/1% and 95% watched (or unknown total duration)
+            if ((progressSeconds >= 10 || progressPercent > 1) && (totalDuration === 0 || progressPercent < 95)) {
+              resumePosition = progressSeconds;
               logInfo('[Playback] Resuming VOD at:', resumePosition, 'seconds');
             }
           }

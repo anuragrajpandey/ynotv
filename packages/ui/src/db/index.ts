@@ -3393,6 +3393,28 @@ export async function isEpisodeCompleted(episodeId: string): Promise<boolean> {
  */
 export async function getSeriesEpisodes(seriesId: string): Promise<StoredEpisode[]> {
   try {
+    if (seriesId.startsWith('local_')) {
+      const { readLocalLibrary, groupLocal, localEntryToStoredEpisode } = await import(
+        '../services/local-library/local-library'
+      );
+      const localEntries = readLocalLibrary();
+      const groups = groupLocal(localEntries);
+      const targetKey = seriesId.replace(/^local_/, '').toLowerCase();
+      const matchingGroup = groups.find(
+        (g) => g.kind === 'show' && (
+          g.key.toLowerCase() === targetKey ||
+          g.key.toLowerCase().replace(/[^a-z0-9]+/g, '_') === targetKey.replace(/[^a-z0-9]+/g, '_')
+        )
+      );
+      if (matchingGroup && matchingGroup.kind === 'show') {
+        return matchingGroup.episodes
+          .slice()
+          .sort((a, b) => (a.season ?? 1) - (b.season ?? 1) || (a.episode ?? 1) - (b.episode ?? 1))
+          .map((ep) => localEntryToStoredEpisode(ep, seriesId, matchingGroup.head.title));
+      }
+      return [];
+    }
+
     const dbInstance = await (db as any).dbPromise;
     const result = await dbInstance.select(
       'SELECT * FROM vodEpisodes WHERE series_id = ? ORDER BY season_num, episode_num',
