@@ -188,7 +188,7 @@ function SortableFailoverMemberRow({
                 {sourceName && (
                     <span className="fgl-member-source">{sourceName}</span>
                 )}
-                <MetadataBadge streamId={member.stream_id} variant="detailed" location="failover" />
+                <MetadataBadge streamId={member.stream_id} variant="detailed" location="failover" singleLine />
             </div>
 
             <button

@@ -157,13 +157,15 @@ function SortableFailoverItem({
               {sourceName}
             </span>
           )}
+          <MetadataBadge
+            streamId={member.stream_id}
+            variant="detailed"
+            location="failover"
+            singleLine
+          />
         </div>
 
         <div className="fco-item-tags">
-          <MetadataBadge
-            streamId={member.stream_id}
-            variant="detailed" location="failover"
-          />
           <span className={`fco-priority-pill ${isPrimary ? 'primary' : ''}`}>
             {isPrimary
               ? t('primary', 'Primary')

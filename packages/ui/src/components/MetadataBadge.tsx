@@ -9,6 +9,7 @@ interface MetadataBadgeProps {
     streamId: string;
     variant?: 'compact' | 'detailed';
     location?: 'epg' | 'overlay' | 'search' | 'failover' | 'sports';
+    singleLine?: boolean;
     showResolution?: boolean;
     showFps?: boolean;
     showSound?: boolean;
@@ -63,6 +64,7 @@ export function MetadataBadge({
     streamId,
     variant = 'compact',
     location = 'epg',
+    singleLine,
     showResolution,
     showFps,
     showSound,
@@ -99,6 +101,13 @@ export function MetadataBadge({
     const effectiveShowSound = showSound ?? epgMetadataBadgeSound;
     const effectiveShowVideoBitrate = showVideoBitrate ?? showBitrate ?? locationVideoBitrate;
     const effectiveShowAudioBitrate = showAudioBitrate ?? locationAudioBitrate;
+
+    // Narrow channel lists (sports team linking, failover groups, watch
+    // dropdown) render the badge as a single inline row so it fits on one line
+    // under the channel name — no need for the two-line split the EPG grid
+    // uses. Surfaces opt in via the singleLine prop; sports keeps it as the
+    // default so existing call sites don't need touching.
+    const useSingleLine = singleLine ?? location === 'sports';
 
     // Load metadata on mount and when streamId or refreshKey changes (bypassing in-memory cache when refreshed)
     useEffect(() => {
@@ -138,6 +147,32 @@ export function MetadataBadge({
         return (
             <div className="metadata-badge compact">
                 {hasRes && <span className="quality">{quality}</span>}
+            </div>
+        );
+    }
+
+    if (useSingleLine) {
+        return (
+            <div className="metadata-badge detailed">
+                <div className="metadata-badge-row">
+                    {hasRes && <span className="quality">{quality}</span>}
+                    {hasFps && <span className="fps">{Math.round(fps)}{epgMetadataBadgeFpsSuffix ? 'fps' : ''}</span>}
+                    {hasSound && <span className="audio">{audio}</span>}
+                    {hasPrimary && hasBitrate && <span className="bitrate-sep">·</span>}
+                    {hasVideoBitrate && (
+                        <span className="bitrate video-bitrate" title={`${Math.round(videoBitrateVal ?? 0)} kbps`}>
+                            V: {videoBitrate}
+                        </span>
+                    )}
+                    {hasVideoBitrate && hasAudioBitrate && (
+                        <span className="bitrate-sep">·</span>
+                    )}
+                    {hasAudioBitrate && (
+                        <span className="bitrate audio-bitrate" title={`${Math.round(metadata.audio_bitrate_kbps ?? 0)} kbps`}>
+                            A: {audioBitrate}
+                        </span>
+                    )}
+                </div>
             </div>
         );
     }
