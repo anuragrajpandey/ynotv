@@ -1117,16 +1117,20 @@ export function LocalTab({
     [tmdbToken, enqueueScan, showToast, t],
   );
 
-  // Toolbar "Refresh Metadata": refreshes TMDB media for all linked items in the library
-  // (both movies and series), bypassing cached lookups and fetching directly by linked tmdbId.
+  // Toolbar "Refresh Metadata": refreshes TMDB media for all linked items in the current section
+  // (or all if browsing all), bypassing cached lookups and fetching directly by linked tmdbId.
   const handleRefreshAllMetadata = useCallback(() => {
-    const linked = items.filter((e) => e.tmdbId != null);
+    const linked = items.filter(
+      (e) =>
+        (effFilter === 'movies' ? e.type === 'movie' : effFilter === 'series' ? e.type === 'show' : true) &&
+        e.tmdbId != null,
+    );
     if (linked.length === 0) {
       showToast(t('noLinkedMetadata', 'No matched titles to refresh.'));
       return;
     }
     handleRefreshMetadata(linked);
-  }, [items, handleRefreshMetadata, showToast, t]);
+  }, [items, effFilter, handleRefreshMetadata, showToast, t]);
 
   // Selection handlers
   const handleToggleSelectId = useCallback((id: string) => {
