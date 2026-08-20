@@ -2125,10 +2125,9 @@ function useTmdbPresencePoster(
   // ==========================================================================
   // Recent Channels Overlay Widget State
   // ==========================================================================
-  const [recentOverlayWidget, setRecentOverlayWidget] = useState<'5' | '10' | null>(() => {
+  const [recentOverlayWidget, setRecentOverlayWidget] = useState<'10' | null>(() => {
     const saved = localStorage.getItem('recentOverlayWidget');
-    if (saved === 'true') return '5';
-    return (saved === '5' || saved === '10') ? saved : null;
+    return (saved === 'true' || saved === '5' || saved === '10') ? '10' : null;
   });
 
   const [bgContextMenu, setBgContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -2176,11 +2175,6 @@ function useTmdbPresencePoster(
   const handleRemoveSportsLiveSidebar = useCallback(() => {
     setSportsLiveSidebarWidget(false);
     localStorage.removeItem('sportsLiveSidebarWidget');
-  }, []);
-
-  const handleAddRecent5Overlay = useCallback(() => {
-    setRecentOverlayWidget('5');
-    localStorage.setItem('recentOverlayWidget', '5');
   }, []);
 
   const handleAddRecent10Overlay = useCallback(() => {
@@ -4826,7 +4820,7 @@ function useTmdbPresencePoster(
                     showControls={showControls}
                     activeView={activeView}
                     onChannelClick={handlePlayChannelWrapper}
-                    limit={recentOverlayWidget === '10' ? 10 : 5}
+                    limit={10}
                     isVod={Boolean(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_'))}
                     onMoveLeft={moveLeft}
                     onMoveRight={moveRight}
@@ -4895,7 +4889,6 @@ function useTmdbPresencePoster(
           onRemoveSports={handleRemoveSportsOverlay}
           onAddSportsLiveSidebar={handleAddSportsLiveSidebar}
           onRemoveSportsLiveSidebar={handleRemoveSportsLiveSidebar}
-          onAddRecent5={handleAddRecent5Overlay}
           onAddRecent10={handleAddRecent10Overlay}
           onRemoveRecent={handleRemoveRecentOverlay}
           onAddFavorites={handleAddFavoritesOverlay}
@@ -4922,7 +4915,6 @@ function useTmdbPresencePoster(
           onRemoveSports={handleRemoveSportsOverlay}
           onAddSportsLiveSidebar={handleAddSportsLiveSidebar}
           onRemoveSportsLiveSidebar={handleRemoveSportsLiveSidebar}
-          onAddRecent5={handleAddRecent5Overlay}
           onAddRecent10={handleAddRecent10Overlay}
           onRemoveRecent={handleRemoveRecentOverlay}
           onAddFavorites={handleAddFavoritesOverlay}

@@ -17,7 +17,6 @@ interface BackgroundContextMenuProps {
   onRemoveSports: () => void;
   onAddSportsLiveSidebar?: () => void;
   onRemoveSportsLiveSidebar?: () => void;
-  onAddRecent5: () => void;
   onAddRecent10: () => void;
   onRemoveRecent: () => void;
   onAddFavorites: () => void;
@@ -42,7 +41,6 @@ export function BackgroundContextMenu({
   onRemoveSports,
   onAddSportsLiveSidebar,
   onRemoveSportsLiveSidebar,
-  onAddRecent5,
   onAddRecent10,
   onRemoveRecent,
   onAddFavorites,
@@ -249,22 +247,13 @@ export function BackgroundContextMenu({
         </div>
       )}
       {!recentWidget && (
-        <>
-          <div className="context-menu-item" onClick={() => { onAddRecent5(); onClose(); }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="1 4 1 10 7 10" />
-              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-            </svg>
-            {i18n.t('contextMenu.recentChannels5')}
-          </div>
-          <div className="context-menu-item" onClick={() => { onAddRecent10(); onClose(); }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="1 4 1 10 7 10" />
-              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-            </svg>
-            {i18n.t('contextMenu.recentChannels10')}
-          </div>
-        </>
+        <div className="context-menu-item" onClick={() => { onAddRecent10(); onClose(); }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="1 4 1 10 7 10" />
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+          </svg>
+          {i18n.t('contextMenu.recentChannels10')}
+        </div>
       )}
       {!favoritesWidget && (
         <div className="context-menu-item" onClick={() => { onAddFavorites(); onClose(); }}>
