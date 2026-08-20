@@ -97,7 +97,7 @@ export type SortDir = 'asc' | 'desc';
  * - 'show': the folder holds series, structured as `<Series Name>/` with either
  *   `Season N/` subfolders or all episodes flat inside the series folder. Each
  *   series does ONE TMDB lookup (shared by every episode via the per-title
- *   cache) — matches Plex/Jellyfin conventions.
+ *   cache) — matches standard media library conventions.
  * - 'mixed': legacy folders added before folders were typed. Falls back to the
  *   old per-file parsing/matching so existing libraries keep working.
  */

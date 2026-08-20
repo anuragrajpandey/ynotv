@@ -566,11 +566,9 @@ const TV_RX =
 const YEAR_RX = /\b(19\d{2}|20\d{2})\b/;
 
 // ---------------------------------------------------------------------------
-// Movie title cleaning — faithful port of Jellyfin's Emby.Naming
-// (VideoResolver.CleanDateTime -> CleanStringParser.TryClean). Movie titles are
-// derived exactly as Jellyfin derives them, so matching/trimming behavior is
-// identical to the reference media manager. Series titles keep their own
-// parser below and are NOT routed through this.
+// Movie title cleaning — CleanDateTime -> CleanStringParser
+// Movie titles are parsed via standard datetime and string cleanup rules.
+// Series titles keep their own parser below and are NOT routed through this.
 // ---------------------------------------------------------------------------
 // CleanDateTimeParser.Clean: first matching regex wins; the name is everything
 // before the year (trimmed), the year is group 2.
@@ -589,7 +587,7 @@ const CLEAN_STRINGS_RX = [
   /^\s*(?<cleaned>.+?)(([-._ ](trailer|sample))|-(scene|clip|behindthescenes|deleted|deletedscene|featurette|short|interview|other|extra))$/i,
 ];
 
-/** CleanDateTimeParser.Clean — name + year, exactly as Jellyfin extracts them. */
+/** CleanDateTimeParser.Clean — name + year extraction. */
 function cleanDateTime(name: string): { name: string; year: number | null } {
   for (const rx of CLEAN_DATE_TIME_RX) {
     const m = name.match(rx);
@@ -602,7 +600,7 @@ function cleanDateTime(name: string): { name: string; year: number | null } {
 }
 
 /** CleanStringParser.TryClean — applies every regex in order; keeps the name
- * when none match, so the result is Jellyfin's cleaned name verbatim. */
+ * when none match. */
 function cleanString(name: string): string {
   let out = name;
   for (const rx of CLEAN_STRINGS_RX) {
@@ -621,7 +619,7 @@ export function parseFilename(filename: string): ParsedFilename {
   const resolution = resMatch ? resMatch[1].toLowerCase() : null;
 
   if (tv) {
-    // ---- Series path: unchanged (our own TV-marker handling) ----
+    // ---- Series path: TV-marker handling ----
     const yearMatch = stem.match(YEAR_RX);
     const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
     let title = stem.slice(0, tv.index);
@@ -642,7 +640,7 @@ export function parseFilename(filename: string): ParsedFilename {
     return { title: title || stem, year, type: 'show', season, episode, resolution };
   }
 
-  // ---- Movie path: exactly Jellyfin's CleanDateTime + CleanStrings ----
+  // ---- Movie path: CleanDateTime + CleanStrings ----
   const dt = cleanDateTime(stem);
   const cleaned = cleanString(dt.name);
   return {

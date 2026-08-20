@@ -49,25 +49,25 @@ describe('Local Library - Filename Parser', () => {
     expect(res.resolution).toBe('1080p');
   });
 
-  it('trims movie titles exactly like Jellyfin (CleanDateTime + CleanStrings)', () => {
+  it('trims movie titles using standard CleanDateTime + CleanStrings', () => {
     const cases: [string, string, number | null][] = [
       // Standard release naming: year cut removes the whole release tail.
       ['The.Matrix.1999.1080p.BluRay.x264-GROUP.mkv', 'The.Matrix', 1999],
       ['Avatar.2009.EXTENDED.1080p.BluRay.x264.mkv', 'Avatar', 2009],
       ['Dune.Part.Two.2024.2160p.HDR10.HEVC.DV.mkv', 'Dune.Part.Two', 2024],
       ['Star.Wars.Episode.IV.A.New.Hope.1977.720p.mkv', 'Star.Wars.Episode.IV.A.New.Hope', 1977],
-      // Jellyfin cuts at the first noise token even without a year.
+      // Standard cut at the first noise token even without a year.
       ['Movie.WEB-DL.APEX.mkv', 'Movie', null],
       ['Movie.Trailer.mkv', 'Movie', null],
       ['Movie.Sample.mkv', 'Movie', null],
       ['Movie - 123.mkv', 'Movie', null],
-      // Dots are kept, exactly like Jellyfin (TMDB replaces the title on match).
+      // Dots are kept in parsed title (TMDB replaces the title on match).
       ['Casino.Royale.2006.720p.BluRay.DTS.x264-EVO.mkv', 'Casino.Royale', 2006],
       ['The.Godfather.1972.1080p.BluRay.Remux.mkv', 'The.Godfather', 1972],
-      // Over-trimming is faithful to Jellyfin ("limited" is a noise token).
+      // "limited" is treated as a noise token.
       ['The.Limited.Series.2018.1080p.mkv', 'The', 2018],
       ['Toy.Story.3D.2010.1080p.mkv', 'Toy.Story', 2010],
-      // Tokens at position 0 cannot trigger Jellyfin's cut, so real titles survive.
+      // Tokens at position 0 cannot trigger the cut, so real titles survive.
       ['xXx.2002.1080p.mkv', 'xXx', 2002],
       ['Cam.2018.1080p.mkv', 'Cam', 2018],
       ['Dual.2022.1080p.mkv', 'Dual', 2022],
@@ -109,6 +109,47 @@ describe('Local Library - Movie folder fallback', () => {
   it('does not fall back to a generic parent folder', () => {
     const res = movieFileInfo('/m/Movies/disc1.mkv', 'disc1.mkv', '/m/Movies');
     expect(res.title).toBe('disc1');
+  });
+
+  it('resolves release folder names for abbreviated files', () => {
+    const res = movieFileInfo(
+      'C:\\Movies\\Indiana.Jones.Collection\\Indiana.Jones.And.The.Last.Crusade.1989.1080p.BluRay.DTS.x264-GROUP\\ij3.1080p-group.mkv',
+      'ij3.1080p-group.mkv',
+      'C:\\Movies',
+    );
+    expect(res.title).toBe('Indiana Jones And The Last Crusade');
+    expect(res.year).toBe(1989);
+    expect(res.type).toBe('movie');
+  });
+
+  it('resolves short tokens like t2.mkv in named movie folders', () => {
+    const res = movieFileInfo(
+      'C:\\Movies\\Terminator.2.Judgment.Day.1991.1080p\\t2.1080p.mkv',
+      't2.1080p.mkv',
+      'C:\\Movies',
+    );
+    expect(res.title).toBe('Terminator 2 Judgment Day');
+    expect(res.year).toBe(1991);
+  });
+
+  it('skips intermediate generic disc folders to find the movie folder', () => {
+    const res = movieFileInfo(
+      'C:\\Movies\\The Matrix (1999)\\CD1\\disc1.mkv',
+      'disc1.mkv',
+      'C:\\Movies',
+    );
+    expect(res.title).toBe('The Matrix');
+    expect(res.year).toBe(1999);
+  });
+
+  it('preserves well-named files inside a category folder without a year', () => {
+    const res = movieFileInfo(
+      'C:\\Movies\\SciFi\\Avatar.2009.mkv',
+      'Avatar.2009.mkv',
+      'C:\\Movies',
+    );
+    expect(res.title).toBe('Avatar');
+    expect(res.year).toBe(2009);
   });
 
   it('isGenericMovieName recognizes file/folder labels', () => {

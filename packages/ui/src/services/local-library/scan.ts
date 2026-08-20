@@ -359,7 +359,7 @@ export async function buildNfoEntry(
 // ---------------------------------------------------------------------------
 // Series-folder scanning
 // ---------------------------------------------------------------------------
-// A typed 'show' folder is expected to look like Plex/Jellyfin:
+// A typed 'show' folder is expected to follow standard media layouts:
 //
 //   <Root>/
 //     <Series Name>/
@@ -394,8 +394,7 @@ function relativeSegments(path: string, rootPath: string): string[] {
 // ---------------------------------------------------------------------------
 // Series folder-name cleaning
 // ---------------------------------------------------------------------------
-// Ported from Jellyfin's Emby.Naming (SeriesResolver + CleanDateTime + CleanStrings):
-// release-style folder names like "A.Shop.for.Killers.S01.1080p.DSNP.WEB-DL.DDP5.1.H.264-APEX"
+// Release-style folder names like "A.Shop.for.Killers.S01.1080p.DSNP.WEB-DL.DDP5.1.H.264-APEX"
 // are reduced to "A Shop for Killers" by stripping the year, season marker, and
 // resolution/source/codec/audio tokens. Combined forms ("H.264", "DDP5.1") are
 // listed before their bare prefixes so no stray digits are left behind.
@@ -425,9 +424,8 @@ const SERIES_FOLDER_NOISE_RX = new RegExp(`\\b(${SERIES_FOLDER_NOISE.join('|')})
 
 /**
  * "Season 1" / "Season 01" / "S01" (not followed by E) / "Specials" / "Extras"
- * -> season number. Lenient: matches an Sxx marker anywhere in the name, like
- * Jellyfin's SeasonPathParser, so per-season release folders
- * ("Work.Later.Drink.Now.S01.1080p.AMZN...") are detected too.
+ * -> season number. Lenient: matches an Sxx marker anywhere in the name, so
+ * per-season release folders ("Work.Later.Drink.Now.S01.1080p.AMZN...") are detected too.
  */
 export function parseSeasonFolder(name: string): number | null {
   const n = name.trim();
@@ -451,7 +449,7 @@ function isSeriesSeasonRoot(name: string): boolean {
 }
 
 /**
- * Clean a series folder name into a title + year, Jellyfin-style. Handles
+ * Clean a series folder name into a title + year. Handles
  * "Title (2008)", release-group suffixes ("-APEX"), release metadata noise
  * ("S01.1080p.DSNP.WEB-DL.DDP5.1.H.264"), leading tags ("[SBS]"), and dirs
  * that are oddly named like files ("...-Phanteam.mkv").
@@ -463,7 +461,7 @@ export function parseTitleFolder(name: string): { title: string; year: number | 
   // Trailing container extension (some release dirs end in ".mkv").
   s = s.replace(/\.(mkv|mp4|m4v|avi|ts|m2ts|webm)$/i, '');
 
-  // Year (Jellyfin CleanDateTime): 19xx/20xx bounded by separators, not a
+  // Year (CleanDateTime): 19xx/20xx bounded by separators, not a
   // date and not glued to more letters/digits ("2010s" is not a year). We
   // read the year from the WHOLE name because it often sits after the season
   // marker ("Generation.to.Generation.S01.2026.1080p...").
@@ -474,12 +472,10 @@ export function parseTitleFolder(name: string): { title: string; year: number | 
     s = (s.slice(0, ym.index) + ' ' + s.slice(ym.index + ym[0].length)).trim();
   }
 
-  // Jellyfin's SeriesPathParser derives the series name by cutting at the FIRST
-  // season marker ("S01" / "Season 1" / "Specials"). Everything after it is
-  // release metadata (resolution, source, codec, audio, release group), so we
+  // Derive the series name by cutting at the FIRST season marker ("S01" / "Season 1" / "Specials").
+  // Everything after it is release metadata (resolution, source, codec, audio, release group), so we
   // discard it wholesale instead of enumerating every possible token. This is
-  // what lets "A.Dream.Within.a.Dream.2025.S01.1080p.VIKI.WEB-DL.AAC2.0.H.264-
-  // DUSKLiGHT" reduce to "A Dream Within a Dream".
+  // what lets "A.Dream.Within.a.Dream.2025.S01.1080p.VIKI.WEB-DL.AAC2.0.H.264-DUSKLiGHT" reduce to "A Dream Within a Dream".
   const seasonCut = s.match(/(?:^|[.\s_\-(])(?:season\s*\d{1,4}|s\d{1,4}|specials?|extras?)(?![a-z0-9])(?=$|[.\s_\-)\]])/i);
   if (seasonCut && seasonCut.index != null && seasonCut.index > 0) {
     s = s.slice(0, seasonCut.index);
@@ -554,8 +550,8 @@ function seriesParsedInfo(file: ScannedFile, rootPath: string): ParsedFilename |
 // A movie file whose name carries no title information ("disc1.mkv",
 // "movie.mkv", "untitled.mkv") says nothing about the film, so the parent
 // folder name — which in a per-movie layout IS the title
-// ("Pulp Fiction/disc1.mkv") — is used instead, mirroring how Jellyfin names
-// folder-based movies. Well-named files are never touched, and the scan root
+// ("Pulp Fiction/disc1.mkv") — is used instead, mirroring standard
+// folder-based movie naming. Well-named files are never touched, and the scan root
 // itself is considered too ("Add Movies folder" pointed straight at a
 // per-movie folder). The fallback runs BEFORE the TMDB lookup so the lookup
 // searches the folder-derived title and matches properly.
@@ -576,26 +572,105 @@ function dirnameOf(p: string): string {
 }
 
 /**
- * Derive a movie file's parsed identity. Uses the filename (cleaned exactly
- * like Jellyfin); when the filename yields a generic/meaningless title, falls
- * back to the cleaned parent folder name (or the scan root when it looks like
- * a per-movie folder).
+ * Clean a movie folder name into title + year (CleanDateTime + CleanStrings),
+ * replacing dots and underscores with clean spaces.
+ */
+export function parseMovieFolder(name: string): { title: string; year: number | null } {
+  let s = String(name).trim();
+  s = s.replace(/^\s*\[[^\]]*\]\s*/, '');
+  s = s.replace(/\.(mkv|mp4|m4v|avi|ts|m2ts|webm)$/i, '');
+
+  const parsed = parseFilename(s);
+  let title = parsed.title
+    .replace(/[._]+/g, ' ')
+    .replace(SERIES_FOLDER_NOISE_RX, ' ')
+    .replace(/[\s\-–—]+/g, ' ')
+    .replace(/[\[\(\{].*?[\]\)\}]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[\s\-–—_·+]+$/g, '')
+    .replace(/^[\s\-–—_·+]+/g, '')
+    .trim();
+
+  return { title: title || s, year: parsed.year };
+}
+
+/**
+ * Derive a movie file's parsed identity. Uses folder-first movie resolution:
+ * When a movie sits inside a dedicated folder, the containing folder's name & year
+ * are prioritized over generic, short, or year-less filenames (e.g. "ij3.1080p.mkv"
+ * inside "Indiana.Jones.And.The.Last.Crusade.1989...").
  */
 export function movieFileInfo(path: string, filename: string, rootPath: string | null): ParsedFilename {
   const parsed: ParsedFilename = { ...parseFilename(filename), type: 'movie', season: null, episode: null };
-  if (!isGenericMovieName(parsed.title)) return parsed;
 
-  const candidates = new Set<string>();
-  const dir = dirnameOf(path);
-  if (dir) candidates.add(dir);
-  if (rootPath) candidates.add(rootPath);
+  const normPath = path.replace(/\\/g, '/');
+  const normRoot = rootPath ? rootPath.replace(/\\/g, '/').replace(/\/+$/, '') : null;
+
+  // Collect candidate folder paths walking upwards from immediate parent
+  const candidates: string[] = [];
+  let cur = dirnameOf(normPath);
+  while (cur && cur !== normPath) {
+    if (normRoot && cur.toLowerCase() === normRoot.toLowerCase()) {
+      candidates.push(cur);
+      break;
+    }
+    candidates.push(cur);
+    const parent = dirnameOf(cur);
+    if (!parent || parent === cur) break;
+    cur = parent;
+  }
 
   for (const c of candidates) {
     const name = baseName(c);
-    if (!name || isGenericMovieName(name)) continue;
-    const { title, year } = parseTitleFolder(name);
-    if (title) return { ...parsed, title, year };
+    if (!name) continue;
+
+    const isRoot = normRoot ? c.toLowerCase() === normRoot.toLowerCase() : false;
+    const isGeneric = isGenericMovieName(name);
+
+    // If candidate folder name itself is generic (e.g. CD1, Disc 1, BDMV, STREAM, Movies), skip up to next parent
+    if (isGeneric) {
+      if (isRoot) break;
+      continue;
+    }
+
+    const { title: folderTitle, year: folderYear } = parseMovieFolder(name);
+    if (!folderTitle) continue;
+
+    const filenameIsGeneric = isGenericMovieName(parsed.title);
+    const filenameIsShort = parsed.title.length <= 3;
+    const folderHasYear = folderYear != null;
+    const filenameHasYear = parsed.year != null;
+
+    // Folder matching priority:
+    // 1. Filename is generic (e.g. "disc1.mkv", "movie.mkv", "untitled.mkv") -> use folder
+    // 2. Folder has a release year and filename does NOT (e.g. "Indiana.Jones...1989.../ij3.1080p.mkv") -> use folder
+    // 3. Filename is short/abbreviated code (e.g. "i3", "t2", "ij3") -> use folder
+    // 4. Dedicated per-movie folder (not the scan root) and folder has a year -> use folder
+    if (
+      filenameIsGeneric ||
+      (folderHasYear && !filenameHasYear) ||
+      (filenameIsShort && folderTitle.length > parsed.title.length) ||
+      (!isRoot && folderHasYear)
+    ) {
+      return {
+        ...parsed,
+        title: folderTitle,
+        year: folderYear ?? parsed.year,
+      };
+    }
+
+    // If we're at a non-root folder without year (e.g. "Pulp Fiction"), and filename has no year
+    if (!isRoot && !filenameHasYear && !folderHasYear) {
+      return {
+        ...parsed,
+        title: folderTitle,
+        year: null,
+      };
+    }
+
+    break;
   }
+
   return parsed;
 }
 
