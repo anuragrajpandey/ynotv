@@ -106,10 +106,10 @@ export const EditEpisodeMetadataModal = memo(function EditEpisodeMetadataModal({
 
         <div className="local-modal-footer">
           <button type="button" className="local-btn local-btn--secondary" onClick={onClose}>
-            {t('cancel', 'Cancel')}
+            {t('common:cancel', 'Cancel')}
           </button>
           <button type="button" className="local-btn local-btn--primary" onClick={save} disabled={!valid}>
-            {t('save', 'Save')}
+            {t('common:save', 'Save')}
           </button>
         </div>
       </div>

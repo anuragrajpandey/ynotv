@@ -1381,7 +1381,7 @@ export function LocalTab({
                 setSelectedIds(new Set());
               }}
             >
-              {selectMode ? t('done', 'Done') : t('select', 'Select')}
+              {selectMode ? t('common:done', 'Done') : t('select', 'Select')}
             </button>
           )}
 
@@ -1543,7 +1543,7 @@ export function LocalTab({
               onClick={handleBulkDelete}
               disabled={selectedIds.size === 0}
             >
-              {t('remove', 'Remove')}
+              {t('common:remove', 'Remove')}
             </button>
             <button
               type="button"
@@ -1553,7 +1553,7 @@ export function LocalTab({
                 setSelectedIds(new Set());
               }}
             >
-              {t('done', 'Done')}
+              {t('common:done', 'Done')}
             </button>
           </div>
         </div>
@@ -1930,7 +1930,7 @@ export function LocalTab({
             type="button"
             className="local-undo-bar__dismiss"
             onClick={() => setUndoVisible(false)}
-            title={t('dismiss', 'Dismiss')}
+            title={t('common:dismiss', 'Dismiss')}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />

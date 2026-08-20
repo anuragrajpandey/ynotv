@@ -239,7 +239,7 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
                         onClick={() => handleRemove(folder.path)}
                         title={isConfirming ? t('confirmRemoveFolder', 'Click again to remove all files in this folder') : t('removeFolder', 'Remove folder')}
                       >
-                        {isConfirming ? t('confirm', 'Confirm') : t('remove', 'Remove')}
+                        {isConfirming ? t('confirm', 'Confirm') : t('common:remove', 'Remove')}
                       </button>
                     </div>
                   </div>

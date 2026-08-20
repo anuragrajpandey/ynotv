@@ -285,7 +285,7 @@ export const LocalMovieCard = memo(function LocalMovieCard({
                 type="button"
                 className={`local-card__action-btn ${confirmDelete ? 'danger' : ''}`}
                 onClick={handleDelete}
-                title={confirmDelete ? t('confirmRemove', 'Click again to remove') : t('remove', 'Remove')}
+                title={confirmDelete ? t('confirmRemove', 'Click again to remove') : t('common:remove', 'Remove')}
               >
                 {confirmDelete ? (
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
