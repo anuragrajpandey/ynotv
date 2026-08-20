@@ -856,7 +856,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
                 seriesId,
                 'series',
                 Math.floor(currentPosition),
-                Math.floor(currentDuration)
+                Math.floor(currentDuration),
+                currentVodInfo.source_id || '',
+                currentVodInfo.title || '',
+                currentVodInfo.posterUrl
               );
               
               // Save episode-level progress (for episode resume)
@@ -864,9 +867,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
                 episodeId,
                 seriesId,
                 currentVodInfo.source_id || '',
-                0,
-                0,
-                '',
+                currentVodInfo.seasonNum ?? 0,
+                currentVodInfo.episodeNum ?? 0,
+                currentVodInfo.episodeInfo || '',
                 Math.floor(currentPosition),
                 Math.floor(currentDuration)
               );
@@ -880,7 +883,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               mediaId,
               currentVodInfo.type as 'movie' | 'series',
               Math.floor(currentPosition),
-              Math.floor(currentDuration)
+              Math.floor(currentDuration),
+              currentVodInfo.source_id || '',
+              currentVodInfo.title || '',
+              currentVodInfo.posterUrl
             );
             console.log('[Playback] ✅ Auto-saved VOD progress at position:', Math.floor(currentPosition));
           }
@@ -1753,7 +1759,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               seriesId,
               'series',
               Math.floor(position),
-              Math.floor(duration)
+              Math.floor(duration),
+              vodInfo.source_id || '',
+              vodInfo.title || '',
+              vodInfo.posterUrl
             );
             
             // Save episode-level progress (for episode resume)
@@ -1761,9 +1770,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               episodeId,
               seriesId,
               vodInfo.source_id || '',
-              0,
-              0,
-              '',
+              vodInfo.seasonNum ?? 0,
+              vodInfo.episodeNum ?? 0,
+              vodInfo.episodeInfo || '',
               Math.floor(position),
               Math.floor(duration)
             );
@@ -1774,7 +1783,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
             mediaId,
             vodInfo.type as 'movie' | 'series',
             Math.floor(position),
-            Math.floor(duration)
+            Math.floor(duration),
+            vodInfo.source_id || '',
+            vodInfo.title || '',
+            vodInfo.posterUrl
           );
         }
       }
@@ -2068,7 +2080,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               seriesId,
               'series',
               Math.floor(position),
-              Math.floor(duration)
+              Math.floor(duration),
+              vodInfo.source_id || '',
+              vodInfo.title || '',
+              vodInfo.posterUrl
             );
             
             // Save episode-level progress (for episode resume)
@@ -2076,9 +2091,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               episodeId,
               seriesId,
               vodInfo.source_id || '',
-              0,
-              0,
-              '',
+              vodInfo.seasonNum ?? 0,
+              vodInfo.episodeNum ?? 0,
+              vodInfo.episodeInfo || '',
               Math.floor(position),
               Math.floor(duration)
             );
@@ -2089,7 +2104,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
             mediaId,
             vodInfo.type as 'movie' | 'series',
             Math.floor(position),
-            Math.floor(duration)
+            Math.floor(duration),
+            vodInfo.source_id || '',
+            vodInfo.title || '',
+            vodInfo.posterUrl
           );
         }
       }
@@ -2266,11 +2284,11 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
           }
         }
         
-        // If no episode progress found, try series-level progress
+        // If no episode progress found, try movie/series-level progress
         if (resumePosition === 0) {
-          console.log('[Playback] Trying series-level progress lookup');
+          console.log('[Playback] Looking up VOD watch progress for:', mediaId, info.type);
           const savedProgress = await getVodWatchProgress(mediaId, info.type as 'movie' | 'series');
-          console.log('[Playback] Series progress result:', savedProgress);
+          console.log('[Playback] VOD progress result:', savedProgress);
           if (savedProgress && savedProgress.total_duration > 0) {
             const progressPercent = (savedProgress.progress_seconds / savedProgress.total_duration) * 100;
             // Only resume if between 10s/1% and 95% watched
@@ -2328,6 +2346,21 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
       
       console.log('[Playback] Final resume position:', resumePosition);
       
+      // Ensure initial watch entry exists in vod_history with full metadata
+      if (mediaId && info.type !== 'recording') {
+        const seriesId = info.type === 'series' && mediaId.includes('_ep_') ? mediaId.split('_ep_')[0] : mediaId;
+        void recordVodWatch(
+          seriesId,
+          info.type === 'series' ? 'series' : 'movie',
+          info.source_id || 'unknown',
+          info.title || 'Unknown',
+          info.posterUrl,
+          info.seasonNum,
+          info.episodeNum,
+          info.episodeInfo
+        ).catch(e => console.warn('[usePlayback] Failed to record initial VOD watch:', e));
+      }
+
       setCurrentChannel({
         stream_id: 'vod',
         name: info.title,
@@ -2497,7 +2530,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
                 seriesId,  // Use series_id, not episode-specific mediaId
                 'series',
                 Math.floor(position),
-                Math.floor(duration)
+                Math.floor(duration),
+                vodInfo.source_id || '',
+                vodInfo.title || '',
+                vodInfo.posterUrl
               );
               
               // Save episode-level progress (for episode resume)
@@ -2511,9 +2547,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
                 episodeId,
                 seriesId,
                 vodInfo.source_id || '',
-                0, // We'll update these from DB
-                0,
-                '',
+                vodInfo.seasonNum ?? 0,
+                vodInfo.episodeNum ?? 0,
+                vodInfo.episodeInfo || '',
                 Math.floor(position),
                 Math.floor(duration)
               );
@@ -2524,7 +2560,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               mediaId,
               vodInfo.type as 'movie' | 'series',
               Math.floor(position),
-              Math.floor(duration)
+              Math.floor(duration),
+              vodInfo.source_id || '',
+              vodInfo.title || '',
+              vodInfo.posterUrl
             );
           }
         }

@@ -3012,20 +3012,23 @@ export async function clearVodWatchHistory(mediaId: string, mediaType: 'movie' |
 }
 
 /**
- * Update progress for a watched item
+ * Update progress for a watched item (upsert: updates if exists, inserts if not)
  */
 export async function updateVodWatchProgress(
   mediaId: string,
   mediaType: 'movie' | 'series',
   progressSeconds: number,
-  totalDuration?: number
+  totalDuration?: number,
+  sourceId?: string,
+  title?: string,
+  posterUrl?: string
 ): Promise<void> {
   try {
     const dbInstance = await (db as any).dbPromise;
     
     // Get existing record to check current duration
     const existing = await dbInstance.select(
-      'SELECT total_duration FROM vod_history WHERE media_id = ? AND media_type = ? LIMIT 1',
+      'SELECT id, total_duration FROM vod_history WHERE media_id = ? AND media_type = ? LIMIT 1',
       [mediaId, mediaType]
     );
     
@@ -3037,11 +3040,20 @@ export async function updateVodWatchProgress(
       console.log('[VOD History] Preserving existing duration:', effectiveDuration, '(new value was:', totalDuration + ')');
     }
     
-    await dbInstance.execute(
-      `UPDATE vod_history SET progress_seconds = ?, total_duration = ?, watched_at = ? WHERE media_id = ? AND media_type = ?`,
-      [progressSeconds, effectiveDuration, Date.now(), mediaId, mediaType]
-    );
-    dbEvents.notify('vod_history', 'update');
+    if (existing && existing.length > 0) {
+      await dbInstance.execute(
+        `UPDATE vod_history SET progress_seconds = ?, total_duration = ?, watched_at = ? WHERE media_id = ? AND media_type = ?`,
+        [progressSeconds, effectiveDuration, Date.now(), mediaId, mediaType]
+      );
+      dbEvents.notify('vod_history', 'update');
+    } else {
+      // Entry does not exist yet; insert it so progress is never lost
+      await dbInstance.execute(
+        `INSERT INTO vod_history (media_id, media_type, source_id, title, watched_at, progress_seconds, total_duration, poster_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [mediaId, mediaType, sourceId || 'unknown', title || 'Unknown', Date.now(), progressSeconds, effectiveDuration ?? null, posterUrl ?? null]
+      );
+      dbEvents.notify('vod_history', 'add');
+    }
   } catch (error) {
     console.error('[VOD History] Failed to update progress:', error);
     throw error;
