@@ -75,6 +75,13 @@ export function tmdbMatchCacheKey(
   return `${type}|${title.toLowerCase().trim()}|${year ?? ''}`;
 }
 
+export function tmdbMatchIdCacheKey(
+  tmdbId: number,
+  type: 'movie' | 'show',
+): string {
+  return `id|${type}|${tmdbId}`;
+}
+
 function getCachedMatch(key: string): TmdbLookup | null {
   const memory = tmdbMatchMemory.get(key);
   if (memory) return memory;
@@ -123,6 +130,22 @@ export function invalidateTmdbMatchCache(
 }
 
 /**
+ * Drop a single tmdbId entry from the match cache so the next lookup re-queries TMDB.
+ */
+export function invalidateTmdbIdMatchCache(
+  tmdbId: number,
+  type: 'movie' | 'show',
+): void {
+  const key = tmdbMatchIdCacheKey(tmdbId, type);
+  tmdbMatchMemory.delete(key);
+  const stored = loadTmdbMatchStorage();
+  if (stored[key]) {
+    delete stored[key];
+    persistTmdbMatchStorage();
+  }
+}
+
+/**
  * TMDB lookup that reuses a cached confident match for the same
  * (title, year, type) and only caches new confident matches. A low-confidence
  * or failed lookup is never cached so re-matching can improve.
@@ -144,6 +167,73 @@ async function tmdbLookupCached(
     setCachedMatch(key, result);
   }
   return result;
+}
+
+/**
+ * TMDB lookup by tmdbId directly, cached by ID.
+ */
+async function tmdbLookupByIdCached(
+  token: string,
+  tmdbId: number,
+  type: 'movie' | 'show',
+  signal?: AbortSignal,
+): Promise<TmdbLookup> {
+  const key = tmdbMatchIdCacheKey(tmdbId, type);
+  const cached = getCachedMatch(key);
+  if (cached) return cached;
+
+  const result = await tmdbLookupById(token, tmdbId, type, signal);
+  if (result.tmdbId != null && (result.matchedTitle || result.poster || result.overview)) {
+    setCachedMatch(key, result);
+  }
+  return result;
+}
+
+export async function refreshTmdbEntry(
+  existing: LocalEntry,
+  tmdbToken: string | null,
+  signal?: AbortSignal,
+): Promise<LocalEntry> {
+  if (existing.tmdbId && tmdbToken) {
+    const tmdb = await tmdbLookupByIdCached(tmdbToken, existing.tmdbId, existing.type, signal).catch(
+      (e: unknown) => {
+        if (e instanceof DOMException && e.name === 'AbortError') throw e;
+        return {} as TmdbLookup;
+      },
+    );
+
+    if (tmdb.tmdbId != null && (tmdb.matchedTitle || tmdb.poster || tmdb.overview)) {
+      return {
+        ...existing,
+        title: existing.metadataLocked ? existing.title : (tmdb.matchedTitle?.trim() || existing.title),
+        year: (existing.metadataLocked ? existing.year : tmdb.matchedYear) ?? existing.year,
+        rating: tmdb.rating ?? existing.rating,
+        runtime: tmdb.runtime ?? existing.runtime,
+        poster: tmdb.poster ?? existing.poster,
+        backdrop: tmdb.backdrop ?? existing.backdrop,
+        overview: tmdb.overview ?? existing.overview,
+        tmdbId: tmdb.tmdbId,
+        imdbId: tmdb.imdbId ?? existing.imdbId,
+        needsReview: false,
+        source: 'tmdb',
+      };
+    }
+  }
+
+  const parsed = parseFilename(existing.filename);
+  const fresh = await buildTmdbEntry(
+    { path: existing.path, filename: existing.filename, size: 0 },
+    parsed,
+    tmdbToken,
+    signal,
+  );
+  return {
+    ...existing,
+    ...fresh,
+    id: existing.id,
+    path: existing.path,
+    addedAt: existing.addedAt,
+  };
 }
 
 export async function buildTmdbEntry(
@@ -736,6 +826,66 @@ export async function tmdbLookup(
     matchedTitle: top.title ?? top.name,
     matchedYear: date ? parseInt(date.slice(0, 4), 10) : null,
     overview: top.overview ?? undefined,
+    rating,
+    runtime,
+  };
+}
+
+export async function tmdbLookupById(
+  token: string,
+  tmdbId: number,
+  type: 'movie' | 'show',
+  signal?: AbortSignal,
+): Promise<TmdbLookup> {
+  const path = type === 'movie' ? 'movie' : 'tv';
+  const { headers, queryParam } = getTmdbHeadersAndParams(token);
+
+  let imdbId: string | undefined;
+  let rating: number | undefined;
+  let runtime: number | undefined;
+  let backdrop: string | undefined;
+  let poster: string | undefined;
+  let matchedTitle: string | undefined;
+  let matchedYear: number | null = null;
+  let overview: string | undefined;
+
+  try {
+    const dparams = new URLSearchParams({ append_to_response: 'external_ids' });
+    if (queryParam) dparams.set(queryParam.key, queryParam.value);
+    const dr = await rateLimitedFetch(`https://api.themoviedb.org/3/${path}/${tmdbId}?${dparams}`, { headers, signal });
+    if (dr.ok) {
+      const dj = await dr.json();
+      const imdb = dj.imdb_id ?? dj.external_ids?.imdb_id;
+      if (typeof imdb === 'string' && imdb.startsWith('tt')) imdbId = imdb;
+      if (typeof dj.vote_average === 'number' && dj.vote_average > 0) rating = dj.vote_average;
+      if (type === 'movie' && typeof dj.runtime === 'number' && dj.runtime > 0) runtime = dj.runtime;
+      if (type === 'show' && Array.isArray(dj.episode_run_time) && dj.episode_run_time[0] > 0) {
+        runtime = dj.episode_run_time[0];
+      }
+      if (dj.backdrop_path) {
+        backdrop = `https://image.tmdb.org/t/p/w1280${dj.backdrop_path}`;
+      }
+      if (dj.poster_path) {
+        poster = `https://image.tmdb.org/t/p/w342${dj.poster_path}`;
+      }
+      matchedTitle = dj.title ?? dj.name;
+      const date: string | undefined = dj.release_date ?? dj.first_air_date;
+      if (date) matchedYear = parseInt(date.slice(0, 4), 10);
+      overview = dj.overview ?? undefined;
+    }
+  } catch (e: unknown) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
+    /* noop */
+  }
+
+  return {
+    tmdbId,
+    imdbId,
+    poster,
+    backdrop,
+    matchedTitle,
+    matchedYear,
+    overview,
     rating,
     runtime,
   };

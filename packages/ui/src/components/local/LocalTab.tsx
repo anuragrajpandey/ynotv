@@ -33,6 +33,8 @@ import {
   buildTmdbEntryForFolder,
   clearTmdbMatchCache,
   invalidateTmdbMatchCache,
+  invalidateTmdbIdMatchCache,
+  refreshTmdbEntry,
 } from '../../services/local-library/scan';
 import {
   readScanStateSync,
@@ -864,14 +866,8 @@ export function LocalTab({
           const idx = next++;
           if (idx >= missing.length) return;
           const e = missing[idx];
-          const info = parseFilename(e.filename);
           try {
-            const fresh = await buildTmdbEntry(
-              { path: e.path, filename: e.filename, size: 0 },
-              info,
-              tmdbToken,
-              signal,
-            );
+            const fresh = await refreshTmdbEntry(e, tmdbToken, signal);
             if (signal.aborted) return;
             freshById.set(e.id, { ...e, ...fresh, id: e.id, path: e.path, addedAt: e.addedAt });
           } catch (err: unknown) {
@@ -1137,6 +1133,9 @@ export function LocalTab({
         return;
       }
       for (const e of entries) {
+        if (e.tmdbId) {
+          invalidateTmdbIdMatchCache(e.tmdbId, e.type);
+        }
         const parsed = parseFilename(e.filename);
         invalidateTmdbMatchCache(parsed.title, parsed.year, parsed.type);
       }

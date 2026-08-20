@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { parseFilename, groupLocal, sortGroups, getLocalEpisodeList, addLocalEntries } from '../local-library';
-import { movieFileInfo, isGenericMovieName } from '../scan';
+import { movieFileInfo, isGenericMovieName, refreshTmdbEntry, invalidateTmdbIdMatchCache } from '../scan';
 import { parseNfo } from '../sidecars';
 import type { LocalEntry } from '../types';
 
@@ -978,6 +978,177 @@ describe('Local Library - Playlist & Favorite Cleanup', () => {
     }
   });
 });
+
+describe('Local Library - Refresh Metadata by TMDB ID', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it('fetches directly by tmdbId for existing linked entries without re-searching filename', async () => {
+    const fetchedUrls: string[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      fetchedUrls.push(url);
+
+      if (url.includes('/3/tv/1399')) {
+        return {
+          ok: true,
+          json: async () => ({
+            id: 1399,
+            name: 'Game of Thrones',
+            first_air_date: '2011-04-17',
+            poster_path: '/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg',
+            backdrop_path: '/suopoADq0k8YZr4dQXcU6p0Yq6x.jpg',
+            overview: 'Seven noble families fight for control of the mythical land of Westeros.',
+            vote_average: 8.4,
+            episode_run_time: [60],
+            external_ids: { imdb_id: 'tt0944947' },
+          }),
+        } as unknown as Response;
+      }
+      return { ok: false, json: async () => ({}) } as unknown as Response;
+    });
+
+    const entry: LocalEntry = {
+      id: 'ep1',
+      path: '/media/random_filename_unrelated.mkv',
+      filename: 'random_filename_unrelated.mkv',
+      title: 'Game of Thrones',
+      year: 2011,
+      type: 'show',
+      season: 1,
+      episode: 1,
+      tmdbId: 1399,
+      metadataLocked: true,
+      addedAt: 12345,
+    };
+
+    const refreshed = await refreshTmdbEntry(entry, 'mock-token');
+
+    // Should NOT search by query
+    expect(fetchedUrls.some((u) => u.includes('/search/'))).toBe(false);
+    // Should call TMDB /tv/1399
+    expect(fetchedUrls.some((u) => u.includes('/3/tv/1399'))).toBe(true);
+
+    // Verify refreshed fields
+    expect(refreshed.tmdbId).toBe(1399);
+    expect(refreshed.imdbId).toBe('tt0944947');
+    expect(refreshed.poster).toBe('https://image.tmdb.org/t/p/w342/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg');
+    expect(refreshed.backdrop).toBe('https://image.tmdb.org/t/p/w1280/suopoADq0k8YZr4dQXcU6p0Yq6x.jpg');
+    expect(refreshed.overview).toBe('Seven noble families fight for control of the mythical land of Westeros.');
+    expect(refreshed.season).toBe(1);
+    expect(refreshed.episode).toBe(1);
+    expect(refreshed.metadataLocked).toBe(true);
+  });
+
+  it('reuses cached ID lookup for multiple episodes of the same show', async () => {
+    let apiCallCount = 0;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/3/tv/2000')) {
+        apiCallCount++;
+        return {
+          ok: true,
+          json: async () => ({
+            id: 2000,
+            name: 'Series Two',
+            first_air_date: '2020-01-01',
+            poster_path: '/series2.jpg',
+            external_ids: { imdb_id: 'tt2000' },
+          }),
+        } as unknown as Response;
+      }
+      return { ok: false, json: async () => ({}) } as unknown as Response;
+    });
+
+    const ep1: LocalEntry = {
+      id: 'ep1',
+      path: '/media/show/s01e01.mkv',
+      filename: 's01e01.mkv',
+      title: 'Series Two',
+      year: 2020,
+      type: 'show',
+      season: 1,
+      episode: 1,
+      tmdbId: 2000,
+      addedAt: 1000,
+    };
+
+    const ep2: LocalEntry = {
+      id: 'ep2',
+      path: '/media/show/s01e02.mkv',
+      filename: 's01e02.mkv',
+      title: 'Series Two',
+      year: 2020,
+      type: 'show',
+      season: 1,
+      episode: 2,
+      tmdbId: 2000,
+      addedAt: 1001,
+    };
+
+    invalidateTmdbIdMatchCache(2000, 'show');
+    await refreshTmdbEntry(ep1, 'mock-token');
+    await refreshTmdbEntry(ep2, 'mock-token');
+
+    expect(apiCallCount).toBe(1);
+  });
+
+  it('falls back to filename search if tmdbId is missing', async () => {
+    const fetchedUrls: string[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      fetchedUrls.push(url);
+      if (url.includes('/search/tv')) {
+        return {
+          ok: true,
+          json: async () => ({
+            results: [
+              {
+                id: 5000,
+                name: 'Stranger Things',
+                first_air_date: '2016-07-15',
+                poster_path: '/st.jpg',
+              },
+            ],
+          }),
+        } as unknown as Response;
+      }
+      if (url.includes('/3/tv/5000')) {
+        return {
+          ok: true,
+          json: async () => ({
+            id: 5000,
+            name: 'Stranger Things',
+            first_air_date: '2016-07-15',
+            poster_path: '/st.jpg',
+            external_ids: { imdb_id: 'tt4574334' },
+          }),
+        } as unknown as Response;
+      }
+      return { ok: false, json: async () => ({}) } as unknown as Response;
+    });
+
+    const entry: LocalEntry = {
+      id: 'unmatched1',
+      path: '/media/Stranger.Things.S01E01.mkv',
+      filename: 'Stranger.Things.S01E01.mkv',
+      title: 'Stranger Things',
+      year: null,
+      type: 'show',
+      addedAt: 1000,
+    };
+
+    const refreshed = await refreshTmdbEntry(entry, 'mock-token');
+    expect(fetchedUrls.some((u) => u.includes('/search/tv'))).toBe(true);
+    expect(refreshed.tmdbId).toBe(5000);
+    expect(refreshed.title).toBe('Stranger Things');
+  });
+});
+
 
 
 
