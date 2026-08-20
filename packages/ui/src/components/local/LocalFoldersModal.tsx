@@ -10,6 +10,7 @@ import {
 
 interface LocalFoldersModalProps {
   isOpen: boolean;
+  folderFilter?: 'movie' | 'show';
   onClose: () => void;
   onRescanFolder: (folder: string) => Promise<void>;
   onAddNewFolder: (type: FolderType) => Promise<void>;
@@ -17,6 +18,7 @@ interface LocalFoldersModalProps {
 
 export const LocalFoldersModal = memo(function LocalFoldersModal({
   isOpen,
+  folderFilter,
   onClose,
   onRescanFolder,
   onAddNewFolder,
@@ -26,6 +28,11 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
   const library = useLocalLibrary();
   const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<string | null>(null);
   const [rescanningFolder, setRescanningFolder] = useState<string | null>(null);
+
+  const filteredConfiguredFolders = useMemo(() => {
+    if (!folderFilter) return configuredFolders;
+    return configuredFolders.filter((f) => f.type === folderFilter || f.type === 'mixed');
+  }, [configuredFolders, folderFilter]);
 
   // Compute stats per configured scan root
   const folderStats = useMemo(() => {
@@ -99,9 +106,19 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
       >
         <div className="local-modal-header">
           <div>
-            <h3 className="local-modal-title">{t('manageFolders', 'Manage Local Folders')}</h3>
+            <h3 className="local-modal-title">
+              {folderFilter === 'movie'
+                ? t('manageMovieFolders', 'Manage Movie Folders')
+                : folderFilter === 'show'
+                ? t('manageSeriesFolders', 'Manage Series Folders')
+                : t('manageFolders', 'Manage Local Folders')}
+            </h3>
             <p className="local-modal-subtitle">
-              {t('manageFoldersSubtitle', 'View, rescan, or remove folder sources in your local library.')}
+              {folderFilter === 'movie'
+                ? t('manageMovieFoldersSubtitle', 'View, rescan, or remove movie folder sources in your local library.')
+                : folderFilter === 'show'
+                ? t('manageSeriesFoldersSubtitle', 'View, rescan, or remove series folder sources in your local library.')
+                : t('manageFoldersSubtitle', 'View, rescan, or remove folder sources in your local library.')}
             </p>
           </div>
           <button type="button" className="local-modal-close" onClick={onClose}>
@@ -113,13 +130,17 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
         </div>
 
         <div className="local-modal-body" style={{ gap: '14px' }}>
-          {configuredFolders.length === 0 ? (
+          {filteredConfiguredFolders.length === 0 ? (
             <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px 0' }}>
-              {t('noFoldersAdded', 'No folders have been added yet.')}
+              {folderFilter === 'movie'
+                ? t('noMovieFoldersAdded', 'No movie folders have been added yet.')
+                : folderFilter === 'show'
+                ? t('noSeriesFoldersAdded', 'No series folders have been added yet.')
+                : t('noFoldersAdded', 'No folders have been added yet.')}
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {configuredFolders.map((folder: LibraryFolder) => {
+              {filteredConfiguredFolders.map((folder: LibraryFolder) => {
                 const stats = folderStats.get(folder.path) || { total: 0, movies: 0, episodes: 0 };
                 const isRescanning = rescanningFolder === folder.path;
                 const isConfirming = confirmDeleteFolder === folder.path;
@@ -228,30 +249,34 @@ export const LocalFoldersModal = memo(function LocalFoldersModal({
           )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
-            <button
-              type="button"
-              className="local-btn local-btn--primary"
-              onClick={() => void onAddNewFolder('movie')}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                <line x1="12" y1="11" x2="12" y2="17" />
-                <line x1="9" y1="14" x2="15" y2="14" />
-              </svg>
-              {t('addMoviesFolder', 'Add Movies folder')}
-            </button>
-            <button
-              type="button"
-              className="local-btn local-btn--primary"
-              onClick={() => void onAddNewFolder('show')}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                <line x1="12" y1="11" x2="12" y2="17" />
-                <line x1="9" y1="14" x2="15" y2="14" />
-              </svg>
-              {t('addSeriesFolder', 'Add Series folder')}
-            </button>
+            {folderFilter !== 'show' && (
+              <button
+                type="button"
+                className="local-btn local-btn--primary"
+                onClick={() => void onAddNewFolder('movie')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  <line x1="12" y1="11" x2="12" y2="17" />
+                  <line x1="9" y1="14" x2="15" y2="14" />
+                </svg>
+                {t('addMoviesFolder', 'Add Movies folder')}
+              </button>
+            )}
+            {folderFilter !== 'movie' && (
+              <button
+                type="button"
+                className="local-btn local-btn--primary"
+                onClick={() => void onAddNewFolder('show')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  <line x1="12" y1="11" x2="12" y2="17" />
+                  <line x1="9" y1="14" x2="15" y2="14" />
+                </svg>
+                {t('addSeriesFolder', 'Add Series folder')}
+              </button>
+            )}
           </div>
         </div>
       </div>
