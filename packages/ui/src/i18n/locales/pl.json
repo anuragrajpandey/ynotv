@@ -924,7 +924,13 @@
         "overlayScale": "Skala nakładki",
         "overlayScaleHint": "Skaluje wysokość paska wyników. Domyślnie 100%.",
         "sportsBgOpacityHint": "Kontroluje, jak ciemne jest gradientowe tło paska wyników. Niżej = bardziej przezroczyste."
-      }
+      },
+      "avgBitrate": "Śr. bitrate",
+      "bitrate": "Bitrate",
+      "avgVideoBitrate": "Śr. bitrate wideo",
+      "avgAudioBitrate": "Śr. bitrate audio",
+      "videoBitrate": "Bitrate wideo",
+      "audioBitrate": "Bitrate audio"
     },
     "subtitles": {
       "tabs": {

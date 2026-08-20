@@ -21,6 +21,19 @@
     gap: 8px;
 }
 
+.metadata-badge.detailed.two-line {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.metadata-badge-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .metadata-badge .quality {
     color: #00d4ff;
     font-weight: 700;
@@ -36,6 +49,19 @@
 
 .metadata-badge .audio {
     color: #50e3c2;
+}
+
+.metadata-badge .bitrate {
+    color: #a78bfa;
+}
+
+.metadata-badge .audio-bitrate {
+    color: #38bdf8;
+}
+
+.metadata-badge .bitrate-sep {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 9px;
 }
 
 /* Optional: Different quality label colors */

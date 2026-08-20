@@ -1,5 +1,6 @@
 import { Bridge } from './tauri-bridge';
 import { db, ChannelMetadata } from '../db';
+import { dbEvents } from '../db/sqlite-adapter';
 
 /**
  * Video metadata capture service
@@ -8,6 +9,19 @@ import { db, ChannelMetadata } from '../db';
 
 // In-memory cache to prevent reloading when components remount (e.g., scrolling)
 const metadataCache = new Map<string, ChannelMetadata>();
+
+// Automatically clear the in-memory cache when channelMetadata table updates (e.g. from probe scans or sync)
+dbEvents.subscribe('channelMetadata', () => {
+    metadataCache.clear();
+});
+
+export function clearMetadataCache(streamId?: string) {
+    if (streamId) {
+        metadataCache.delete(streamId);
+    } else {
+        metadataCache.clear();
+    }
+}
 
 export interface VideoMetadata {
     width: number;
@@ -70,6 +84,7 @@ export async function saveChannelMetadata(
     sourceId: string,
     metadata: VideoMetadata
 ): Promise<void> {
+    const existing = await db.channelMetadata.get(streamId);
     const channelMetadata: ChannelMetadata = {
         stream_id: streamId,
         source_id: sourceId,
@@ -78,6 +93,9 @@ export async function saveChannelMetadata(
         fps: metadata.fps,
         audio_channels: formatAudioChannels(metadata.audioChannels),
         quality_label: getQualityLabel(metadata.width, metadata.height),
+        video_bitrate_kbps: existing?.video_bitrate_kbps ?? null,
+        audio_bitrate_kbps: existing?.audio_bitrate_kbps ?? null,
+        bitrate_kbps: existing?.bitrate_kbps ?? null,
         last_updated: new Date().toISOString()
     };
 
@@ -91,13 +109,15 @@ export async function saveChannelMetadata(
  * Get channel metadata from cache or database
  * Uses in-memory cache for instant retrieval on remount
  */
-export async function getChannelMetadata(streamId: string): Promise<ChannelMetadata | null> {
+export async function getChannelMetadata(streamId: string, forceRefresh = false): Promise<ChannelMetadata | null> {
     try {
-        // Check memory cache first (instant)
-        const cached = metadataCache.get(streamId);
-        if (cached) return cached;
+        // Check memory cache first unless forceRefresh is true
+        if (!forceRefresh) {
+            const cached = metadataCache.get(streamId);
+            if (cached) return cached;
+        }
 
-        // Fall back to IndexedDB
+        // Fall back to SQLite DB
         const metadata = await db.channelMetadata.get(streamId);
         if (metadata) {
             metadataCache.set(streamId, metadata);

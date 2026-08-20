@@ -154,6 +154,8 @@ export interface AppSettings {
     epgMetadataBadgeFps?: boolean;
     epgMetadataBadgeFpsSuffix?: boolean;
     epgMetadataBadgeSound?: boolean;
+    epgMetadataBadgeBitrate?: boolean;
+    epgMetadataBadgeAudioBitrate?: boolean;
     logoCacheEnabled?: boolean;
     logoCacheMaxMb?: number;
     logoCacheTtlDays?: number;

@@ -924,7 +924,13 @@
         "overlayScale": "覆盖层缩放",
         "overlayScaleHint": "缩放比分栏的高度。默认 100%。",
         "sportsBgOpacityHint": "控制比分栏渐变背景的暗度。越低越透明。"
-      }
+      },
+      "avgBitrate": "平均码率",
+      "bitrate": "码率",
+      "avgVideoBitrate": "平均视频码率",
+      "avgAudioBitrate": "平均音频码率",
+      "videoBitrate": "视频码率",
+      "audioBitrate": "音频码率"
     },
     "subtitles": {
       "tabs": {

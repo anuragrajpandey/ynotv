@@ -125,8 +125,12 @@
   --guide-category-font-weight: 600;
   /* Channel rows — currently-playing accent glow */
   --guide-row-min-height: 64px;
+  --guide-row-bitrate-min-height: 76px;
+  --guide-row-bitrate-info-padding-bottom: 24px;
   --guide-row-playlist-min-height: 84px;
   --guide-row-playlist-info-padding-bottom: 28px;
+  --guide-row-playlist-bitrate-min-height: 94px;
+  --guide-row-playlist-bitrate-info-padding-bottom: 32px;
   --guide-row-transition: background 0.2s ease;
   --guide-row-current-bg: color-mix(in srgb, var(--accent-primary, #00d4ff) 5%, transparent);
   --guide-row-current-hover-bg: color-mix(in srgb, var(--accent-primary, #00d4ff) 6%, transparent);

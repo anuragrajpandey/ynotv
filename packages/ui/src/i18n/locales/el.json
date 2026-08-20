@@ -924,7 +924,13 @@
         "overlayScale": "Κλίμακα Επικάλυψης",
         "overlayScaleHint": "Κλιμακώνει το ύψος της μπάρας αποτελεσμάτων. Προεπιλογή 100%.",
         "sportsBgOpacityHint": "Ελέγχει πόσο σκούρο είναι το διαβαθμισμένο παρασκήνιο της μπάρας αποτελεσμάτων. Χαμηλότερο = πιο διαφανές."
-      }
+      },
+      "avgBitrate": "Μέσο bitrate",
+      "bitrate": "Bitrate",
+      "avgVideoBitrate": "Μέσο bitrate βίντεο",
+      "avgAudioBitrate": "Μέσο bitrate ήχου",
+      "videoBitrate": "Bitrate βίντεο",
+      "audioBitrate": "Bitrate ήχου"
     },
     "subtitles": {
       "tabs": {

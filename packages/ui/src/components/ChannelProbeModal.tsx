@@ -689,7 +689,21 @@ export function ChannelProbeModal({
           if (res?.canceled) return;
         }
       } else if (format === 'csv') {
-        const headers = ['Name', 'Status', 'Resolution', 'FPS', 'Video Codec', 'Video Bitrate (kbps)', 'Audio Layout', 'Audio Bitrate (kbps)', 'Latency (ms)', 'Error', 'URL'];
+        const headers = [
+          'Name',
+          'Status',
+          'Resolution',
+          'FPS',
+          'Video Codec',
+          'Video Bitrate (kbps)',
+          'Audio Codec',
+          'Audio Layout',
+          'Audio Bitrate (kbps)',
+          'Total Bitrate (kbps)',
+          'Latency (ms)',
+          'Error',
+          'URL'
+        ];
         const rows = results.map((r) => [
           `"${(r.name || '').replace(/"/g, '""')}"`,
           r.status,
@@ -697,8 +711,10 @@ export function ChannelProbeModal({
           r.fps || '',
           r.video_codec || '',
           r.video_bitrate_kbps ?? '',
+          r.audio_codec || '',
           r.audio_channels || '',
           r.audio_bitrate_kbps ?? '',
+          r.bitrate_kbps ?? ((r.video_bitrate_kbps || 0) + (r.audio_bitrate_kbps || 0) || ''),
           r.latency_ms ?? '',
           `"${(r.error_reason || '').replace(/"/g, '""')}"`,
           `"${(r.url || '').replace(/"/g, '""')}"`,

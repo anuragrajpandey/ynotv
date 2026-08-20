@@ -91,6 +91,8 @@ interface ChannelRowData {
   epgMetadataBadgeResolution: boolean;
   epgMetadataBadgeFps: boolean;
   epgMetadataBadgeSound: boolean;
+  epgMetadataBadgeBitrate: boolean;
+  epgMetadataBadgeAudioBitrate: boolean;
 }
 
 const ChannelRowVirtuoso = memo(function ChannelRowVirtuoso({
@@ -132,6 +134,8 @@ const ChannelRowVirtuoso = memo(function ChannelRowVirtuoso({
       epgMetadataBadgeResolution={data.epgMetadataBadgeResolution}
       epgMetadataBadgeFps={data.epgMetadataBadgeFps}
       epgMetadataBadgeSound={data.epgMetadataBadgeSound}
+      epgMetadataBadgeBitrate={data.epgMetadataBadgeBitrate}
+      epgMetadataBadgeAudioBitrate={data.epgMetadataBadgeAudioBitrate}
     />
   );
 }, (prevProps, nextProps) => {
@@ -172,6 +176,8 @@ const ChannelRowVirtuoso = memo(function ChannelRowVirtuoso({
          prevData.epgMetadataBadgeResolution === nextData.epgMetadataBadgeResolution &&
          prevData.epgMetadataBadgeFps === nextData.epgMetadataBadgeFps &&
          prevData.epgMetadataBadgeSound === nextData.epgMetadataBadgeSound &&
+         prevData.epgMetadataBadgeBitrate === nextData.epgMetadataBadgeBitrate &&
+         prevData.epgMetadataBadgeAudioBitrate === nextData.epgMetadataBadgeAudioBitrate &&
          !recordingsChanged &&
          !programsChanged;
 });
@@ -289,6 +295,8 @@ interface ChannelPanelProps {
   epgMetadataBadgeResolution?: boolean;
   epgMetadataBadgeFps?: boolean;
   epgMetadataBadgeSound?: boolean;
+  epgMetadataBadgeBitrate?: boolean;
+  epgMetadataBadgeAudioBitrate?: boolean;
   // Current playing channel for syncing preview
   currentChannel?: StoredChannel | null;
   onTogglePlay?: () => void;
@@ -389,6 +397,8 @@ export function ChannelPanel({
   epgMetadataBadgeResolution = true,
   epgMetadataBadgeFps = true,
   epgMetadataBadgeSound = true,
+  epgMetadataBadgeBitrate = false,
+  epgMetadataBadgeAudioBitrate = false,
   currentChannel,
   onTogglePlay,
   isPlaying,
@@ -2317,11 +2327,13 @@ export function ChannelPanel({
     epgMetadataBadgeResolution,
     epgMetadataBadgeFps,
     epgMetadataBadgeSound,
+    epgMetadataBadgeBitrate,
+    epgMetadataBadgeAudioBitrate,
   }), [
     channelSortOrder, searchChannelPrograms, windowStart, windowEnd, pixelsPerHour, visibleHours,
     handleSearchChannelClick, onPlayCatchup, refreshSearchResults, categoryId, activeRecordings,
     currentLayout, onSendToSlot, onPlayInPopout, onPlayInExternal, currentChannel,
-    includeSourceInSearch, sourceNames, epgMetadataBadgeResolution, epgMetadataBadgeFps, epgMetadataBadgeSound,
+    includeSourceInSearch, sourceNames, epgMetadataBadgeResolution, epgMetadataBadgeFps, epgMetadataBadgeSound, epgMetadataBadgeBitrate, epgMetadataBadgeAudioBitrate,
   ]);
 
   const searchProgramRowContext = useMemo<SearchProgramRowData>(() => ({
@@ -2680,6 +2692,8 @@ export function ChannelPanel({
                             showResolution={epgMetadataBadgeResolution}
                             showFps={epgMetadataBadgeFps}
                             showSound={epgMetadataBadgeSound}
+                            showBitrate={epgMetadataBadgeBitrate}
+                            showAudioBitrate={epgMetadataBadgeAudioBitrate}
                           />
                         </div>
                         {showFailoverLiveTvWidget !== false && (
@@ -3398,6 +3412,8 @@ export function ChannelPanel({
                 epgMetadataBadgeResolution,
                 epgMetadataBadgeFps,
                 epgMetadataBadgeSound,
+                epgMetadataBadgeBitrate,
+                epgMetadataBadgeAudioBitrate,
               }}
               components={{
                 EmptyPlaceholder: () => (

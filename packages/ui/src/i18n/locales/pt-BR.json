@@ -924,7 +924,13 @@
         "overlayScale": "Escala do Overlay",
         "overlayScaleHint": "Dimensiona a altura da barra de placares. Padrão 100%.",
         "sportsBgOpacityHint": "Controla o quão escuro é o fundo degradê da barra de placares. Menor = mais transparente."
-      }
+      },
+      "avgBitrate": "Bitrate médio",
+      "bitrate": "Bitrate",
+      "avgVideoBitrate": "Bitrate médio vídeo",
+      "avgAudioBitrate": "Bitrate médio áudio",
+      "videoBitrate": "Bitrate vídeo",
+      "audioBitrate": "Bitrate áudio"
     },
     "subtitles": {
       "tabs": {

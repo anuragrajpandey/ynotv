@@ -924,7 +924,13 @@
         "overlayScale": "مقياس الطبقة",
         "overlayScaleHint": "يقيس ارتفاع شريط النتائج. الافتراضي 100%.",
         "sportsBgOpacityHint": "يتحكم في مدى قتامة خلفية التدرج لشريط النتائج. الأقل = شفافية أكثر."
-      }
+      },
+      "avgBitrate": "متوسط معدل البت",
+      "bitrate": "معدل البت",
+      "avgVideoBitrate": "متوسط بت الفيديو",
+      "avgAudioBitrate": "متوسط بت الصوت",
+      "videoBitrate": "بت الفيديو",
+      "audioBitrate": "بت الصوت"
     },
     "subtitles": {
       "tabs": {

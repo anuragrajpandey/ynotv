@@ -9,6 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { db, type ChannelMetadata } from '../db';
 import { dbEvents } from '../db/sqlite-adapter';
+import { clearMetadataCache } from './video-metadata';
 
 // ============================================================================
 // Types
@@ -251,22 +252,44 @@ export async function startChannelProbe(
  */
 export async function saveProbedMetadataToDb(results: ProbeChannelResult[]): Promise<number> {
   const validItems = results.filter(
-    (r) => r.status === 'alive' && (r.quality_label || r.resolution || (r.width && r.height) || r.fps || r.audio_channels)
+    (r) =>
+      r.status === 'alive' &&
+      (r.quality_label ||
+        r.resolution ||
+        (r.width && r.height) ||
+        r.fps ||
+        r.audio_channels ||
+        r.video_bitrate_kbps ||
+        r.audio_bitrate_kbps ||
+        r.bitrate_kbps)
   );
 
   if (validItems.length === 0) return 0;
 
   const nowIso = new Date().toISOString();
-  const dbItems = validItems.map((r) => ({
-    stream_id: r.stream_id,
-    source_id: r.source_id,
-    resolution_width: r.width ?? (r.resolution === '4K' ? 3840 : r.resolution === '1080p' ? 1920 : r.resolution === '720p' ? 1280 : null),
-    resolution_height: r.height ?? (r.resolution === '4K' ? 2160 : r.resolution === '1080p' ? 1080 : r.resolution === '720p' ? 720 : null),
-    fps: r.fps ?? null,
-    audio_channels: r.audio_channels ?? 'Stereo',
-    quality_label: r.quality_label || r.resolution || (r.width && r.height ? (r.width >= 3840 ? '4K' : r.width >= 1920 ? '1080p' : r.width >= 1280 ? '720p' : 'SD') : 'SD'),
-    last_updated: nowIso,
-  }));
+  const dbItems = validItems.map((r) => {
+    const videoBitrate = r.video_bitrate_kbps ? Math.round(r.video_bitrate_kbps) : null;
+    const audioBitrate = r.audio_bitrate_kbps ? Math.round(r.audio_bitrate_kbps) : null;
+    const totalBitrate = r.bitrate_kbps
+      ? Math.round(r.bitrate_kbps)
+      : (videoBitrate || 0) + (audioBitrate || 0) > 0
+        ? (videoBitrate || 0) + (audioBitrate || 0)
+        : null;
+
+    return {
+      stream_id: r.stream_id,
+      source_id: r.source_id,
+      resolution_width: r.width ?? (r.resolution === '4K' ? 3840 : r.resolution === '1080p' ? 1920 : r.resolution === '720p' ? 1280 : null),
+      resolution_height: r.height ?? (r.resolution === '4K' ? 2160 : r.resolution === '1080p' ? 1080 : r.resolution === '720p' ? 720 : null),
+      fps: r.fps ?? null,
+      audio_channels: r.audio_channels ?? 'Stereo',
+      quality_label: r.quality_label || r.resolution || (r.width && r.height ? (r.width >= 3840 ? '4K' : r.width >= 1920 ? '1080p' : r.width >= 1280 ? '720p' : 'SD') : 'SD'),
+      video_bitrate_kbps: videoBitrate,
+      audio_bitrate_kbps: audioBitrate,
+      bitrate_kbps: totalBitrate,
+      last_updated: nowIso,
+    };
+  });
 
   try {
     // Try fast Rust bulk upsert first
@@ -279,7 +302,8 @@ export async function saveProbedMetadataToDb(results: ProbeChannelResult[]): Pro
     }
   }
 
-  // Emit event so all MetadataBadge components re-render immediately
+  // Clear in-memory metadata cache and emit event so all MetadataBadge components re-render immediately
+  clearMetadataCache();
   dbEvents.notify('channelMetadata', 'update');
   return dbItems.length;
 }

@@ -924,7 +924,13 @@
         "overlayScale": "ओवरले स्केल",
         "overlayScaleHint": "स्कोर बार की ऊँचाई को स्केल करता है। डिफ़ॉल्ट 100%।",
         "sportsBgOpacityHint": "स्कोर बार की ग्रेडिएंट पृष्ठभूमि कितनी गहरी है इसे नियंत्रित करता है। कम = अधिक पारदर्शी।"
-      }
+      },
+      "avgBitrate": "औसत बिटरेट",
+      "bitrate": "बिटरेट",
+      "avgVideoBitrate": "औसत वीडियो बिटरेट",
+      "avgAudioBitrate": "औसत ऑडियो बिटरेट",
+      "videoBitrate": "वीडियो बिटरेट",
+      "audioBitrate": "ऑडियो बिटरेट"
     },
     "subtitles": {
       "tabs": {

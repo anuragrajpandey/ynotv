@@ -924,7 +924,13 @@
         "overlayScale": "Fedvény mérete",
         "overlayScaleHint": "Az eredmény sáv magasságának méretezése. Alapértelmezett: 100%.",
         "sportsBgOpacityHint": "Az eredmény sáv színátmenetes hátterének sötétségét szabályozza. Alacsonyabb = átlátszóbb."
-      }
+      },
+      "avgBitrate": "Átl. bitráta",
+      "bitrate": "Bitráta",
+      "avgVideoBitrate": "Átl. videó bitráta",
+      "avgAudioBitrate": "Átl. hang bitráta",
+      "videoBitrate": "Videó bitráta",
+      "audioBitrate": "Hang bitráta"
     },
     "subtitles": {
       "tabs": {

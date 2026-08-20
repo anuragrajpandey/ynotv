@@ -2261,7 +2261,13 @@
         "overlayScale": "Tỷ Lệ Lớp Phủ",
         "overlayScaleHint": "Phóng to chiều cao của thanh điểm. Mặc định 100%.",
         "sportsBgOpacityHint": "Kiểm soát độ tối của nền chuyển màu của thanh điểm. Thấp hơn = trong suốt hơn."
-      }
+      },
+      "avgBitrate": "Bitrate TB",
+      "bitrate": "Bitrate",
+      "avgVideoBitrate": "Bitrate video TB",
+      "avgAudioBitrate": "Bitrate audio TB",
+      "videoBitrate": "Bitrate video",
+      "audioBitrate": "Bitrate audio"
     },
     "subtitles": {
       "tabs": {

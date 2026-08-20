@@ -129,6 +129,10 @@ interface SettingsProps {
   onEpgMetadataBadgeFpsSuffixChange?: (enabled: boolean) => void;
   epgMetadataBadgeSound?: boolean;
   onEpgMetadataBadgeSoundChange?: (enabled: boolean) => void;
+  epgMetadataBadgeBitrate?: boolean;
+  onEpgMetadataBadgeBitrateChange?: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrate?: boolean;
+  onEpgMetadataBadgeAudioBitrateChange?: (enabled: boolean) => void;
   vodAutoPlayNextEpisode?: boolean;
   onVodAutoPlayNextEpisodeChange?: (enabled: boolean) => void;
   vodShowSourceBadge?: boolean;
@@ -247,6 +251,10 @@ export function Settings({
   onEpgMetadataBadgeFpsSuffixChange,
   epgMetadataBadgeSound: epgMetadataBadgeSoundProp,
   onEpgMetadataBadgeSoundChange,
+  epgMetadataBadgeBitrate: epgMetadataBadgeBitrateProp,
+  onEpgMetadataBadgeBitrateChange,
+  epgMetadataBadgeAudioBitrate: epgMetadataBadgeAudioBitrateProp,
+  onEpgMetadataBadgeAudioBitrateChange,
   vodAutoPlayNextEpisode: vodAutoPlayNextEpisodeProp,
   onVodAutoPlayNextEpisodeChange,
   vodShowSourceBadge: vodShowSourceBadgeProp,
@@ -644,6 +652,8 @@ export function Settings({
   const [epgMetadataBadgeFps, setEpgMetadataBadgeFps] = useState(epgMetadataBadgeFpsProp ?? true);
   const [epgMetadataBadgeFpsSuffix, setEpgMetadataBadgeFpsSuffix] = useState(epgMetadataBadgeFpsSuffixProp ?? true);
   const [epgMetadataBadgeSound, setEpgMetadataBadgeSound] = useState(epgMetadataBadgeSoundProp ?? true);
+  const [epgMetadataBadgeBitrate, setEpgMetadataBadgeBitrate] = useState(epgMetadataBadgeBitrateProp ?? false);
+  const [epgMetadataBadgeAudioBitrate, setEpgMetadataBadgeAudioBitrate] = useState(epgMetadataBadgeAudioBitrateProp ?? false);
   const [epgTitleFontSize, setEpgTitleFontSize] = useState(32);
   const [epgBodyFontSize, setEpgBodyFontSize] = useState(16);
   const epgView = useEpgView();
@@ -713,6 +723,8 @@ export function Settings({
   useEffect(() => { setEpgMetadataBadgeFps(epgMetadataBadgeFpsProp ?? true); }, [epgMetadataBadgeFpsProp]);
   useEffect(() => { setEpgMetadataBadgeFpsSuffix(epgMetadataBadgeFpsSuffixProp ?? true); }, [epgMetadataBadgeFpsSuffixProp]);
   useEffect(() => { setEpgMetadataBadgeSound(epgMetadataBadgeSoundProp ?? true); }, [epgMetadataBadgeSoundProp]);
+  useEffect(() => { setEpgMetadataBadgeBitrate(epgMetadataBadgeBitrateProp ?? false); }, [epgMetadataBadgeBitrateProp]);
+  useEffect(() => { setEpgMetadataBadgeAudioBitrate(epgMetadataBadgeAudioBitrateProp ?? false); }, [epgMetadataBadgeAudioBitrateProp]);
   useEffect(() => { setCastEnabled(castEnabledProp ?? false); }, [castEnabledProp]);
   useEffect(() => { setCastRewriteTs(castRewriteTsProp ?? true); }, [castRewriteTsProp]);
   
@@ -879,6 +891,8 @@ export function Settings({
         epgMetadataBadgeFps?: boolean;
         epgMetadataBadgeFpsSuffix?: boolean;
         epgMetadataBadgeSound?: boolean;
+        epgMetadataBadgeBitrate?: boolean;
+        epgMetadataBadgeAudioBitrate?: boolean;
         epgView?: 'traditional' | 'alternate';
         collapseSourceCategoriesOnStartup?: boolean;
         modernUiEnabled?: boolean | string;
@@ -1799,6 +1813,26 @@ export function Settings({
     }
     if (window.storage) {
       await window.storage.updateSettings({ epgMetadataBadgeSound: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeBitrateChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeBitrate(enabled);
+    if (onEpgMetadataBadgeBitrateChange) {
+      onEpgMetadataBadgeBitrateChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeBitrate: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeAudioBitrateChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeAudioBitrate(enabled);
+    if (onEpgMetadataBadgeAudioBitrateChange) {
+      onEpgMetadataBadgeAudioBitrateChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeAudioBitrate: enabled });
     }
   };
 
@@ -2751,6 +2785,10 @@ export function Settings({
             onEpgMetadataBadgeFpsSuffixChange={handleEpgMetadataBadgeFpsSuffixChange}
             epgMetadataBadgeSound={epgMetadataBadgeSound}
             onEpgMetadataBadgeSoundChange={handleEpgMetadataBadgeSoundChange}
+            epgMetadataBadgeBitrate={epgMetadataBadgeBitrate}
+            onEpgMetadataBadgeBitrateChange={handleEpgMetadataBadgeBitrateChange}
+            epgMetadataBadgeAudioBitrate={epgMetadataBadgeAudioBitrate}
+            onEpgMetadataBadgeAudioBitrateChange={handleEpgMetadataBadgeAudioBitrateChange}
             epgView={epgView}
             onEpgViewChange={handleEpgViewChange}
             epgTitleFontSize={epgTitleFontSize}

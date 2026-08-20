@@ -471,6 +471,10 @@ export interface SettingsState {
   setEpgMetadataBadgeFpsSuffix: (enabled: boolean) => void;
   epgMetadataBadgeSound: boolean;
   setEpgMetadataBadgeSound: (enabled: boolean) => void;
+  epgMetadataBadgeBitrate: boolean;
+  setEpgMetadataBadgeBitrate: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrate: boolean;
+  setEpgMetadataBadgeAudioBitrate: (enabled: boolean) => void;
   logoCacheEnabled: boolean;
   setLogoCacheEnabled: (enabled: boolean) => void;
   logoCacheMaxMb: number;
@@ -1148,6 +1152,16 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setEpgMetadataBadgeSound: (enabled) => {
     set({ epgMetadataBadgeSound: enabled });
     persistSettings({ epgMetadataBadgeSound: enabled });
+  },
+  epgMetadataBadgeBitrate: (cachedSettings?.epgMetadataBadgeBitrate as boolean) ?? false,
+  setEpgMetadataBadgeBitrate: (enabled) => {
+    set({ epgMetadataBadgeBitrate: enabled });
+    persistSettings({ epgMetadataBadgeBitrate: enabled });
+  },
+  epgMetadataBadgeAudioBitrate: (cachedSettings?.epgMetadataBadgeAudioBitrate as boolean) ?? false,
+  setEpgMetadataBadgeAudioBitrate: (enabled) => {
+    set({ epgMetadataBadgeAudioBitrate: enabled });
+    persistSettings({ epgMetadataBadgeAudioBitrate: enabled });
   },
   logoCacheEnabled: (cachedSettings?.logoCacheEnabled as boolean) ?? false,
   setLogoCacheEnabled: (enabled) => {

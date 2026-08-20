@@ -301,6 +301,10 @@ function App() {
   const setEpgMetadataBadgeFpsSuffix = useSettingsStore((s) => s.setEpgMetadataBadgeFpsSuffix);
   const epgMetadataBadgeSound = useSettingsStore((s) => s.epgMetadataBadgeSound);
   const setEpgMetadataBadgeSound = useSettingsStore((s) => s.setEpgMetadataBadgeSound);
+  const epgMetadataBadgeBitrate = useSettingsStore((s) => s.epgMetadataBadgeBitrate);
+  const setEpgMetadataBadgeBitrate = useSettingsStore((s) => s.setEpgMetadataBadgeBitrate);
+  const epgMetadataBadgeAudioBitrate = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrate);
+  const setEpgMetadataBadgeAudioBitrate = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrate);
   const language = useSettingsStore((s) => s.language);
   const setLanguage = useSettingsStore((s) => s.setLanguage);
   const navHiddenTabs = useUIStore((s) => s.navHiddenTabs);
@@ -5362,6 +5366,8 @@ function useTmdbPresencePoster(
         epgMetadataBadgeResolution={epgMetadataBadgeResolution}
         epgMetadataBadgeFps={epgMetadataBadgeFps}
         epgMetadataBadgeSound={epgMetadataBadgeSound}
+        epgMetadataBadgeBitrate={epgMetadataBadgeBitrate}
+        epgMetadataBadgeAudioBitrate={epgMetadataBadgeAudioBitrate}
         currentChannel={currentChannel}
         onTogglePlay={handleTogglePlay}
         isPlaying={playing}
@@ -5537,6 +5543,10 @@ function useTmdbPresencePoster(
           onEpgMetadataBadgeFpsSuffixChange={setEpgMetadataBadgeFpsSuffix}
           epgMetadataBadgeSound={epgMetadataBadgeSound}
           onEpgMetadataBadgeSoundChange={setEpgMetadataBadgeSound}
+          epgMetadataBadgeBitrate={epgMetadataBadgeBitrate}
+          onEpgMetadataBadgeBitrateChange={setEpgMetadataBadgeBitrate}
+          epgMetadataBadgeAudioBitrate={epgMetadataBadgeAudioBitrate}
+          onEpgMetadataBadgeAudioBitrateChange={setEpgMetadataBadgeAudioBitrate}
         />
       )}
 

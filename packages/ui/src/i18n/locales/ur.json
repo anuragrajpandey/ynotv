@@ -924,7 +924,13 @@
         "overlayScale": "اوورلے اسکیل",
         "overlayScaleHint": "سکور بار کی اونچائی کو اسکیل کرتا ہے۔ ڈیفالٹ 100%۔",
         "sportsBgOpacityHint": "کنٹرول کرتا ہے کہ سکور بار کا گریڈینٹ بیک گراؤنڈ کتنا گہرا ہے۔ کم = زیادہ شفاف۔"
-      }
+      },
+      "avgBitrate": "اوسط بٹ ریٹ",
+      "bitrate": "بٹ ریٹ",
+      "avgVideoBitrate": "اوسط ویڈیو بٹ ریٹ",
+      "avgAudioBitrate": "اوسط آڈیو بٹ ریٹ",
+      "videoBitrate": "ویڈیو بٹ ریٹ",
+      "audioBitrate": "آڈیو بٹ ریٹ"
     },
     "subtitles": {
       "tabs": {

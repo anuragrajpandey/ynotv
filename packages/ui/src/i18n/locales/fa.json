@@ -924,7 +924,13 @@
         "overlayScale": "مقیاس لایه",
         "overlayScaleHint": "ارتفاع نوار امتیازات را مقیاس می‌دهد. پیش‌فرض ۱۰۰٪.",
         "sportsBgOpacityHint": "میزان تیرگی پس‌زمینه گرادیانی نوار امتیازات را کنترل می‌کند. کمتر = شفاف‌تر."
-      }
+      },
+      "avgBitrate": "میانگین بیت‌ریت",
+      "bitrate": "بیت‌ریت",
+      "avgVideoBitrate": "میانگین بیت‌ریت ویدیو",
+      "avgAudioBitrate": "میانگین بیت‌ریت صدا",
+      "videoBitrate": "بیت‌ریت ویدیو",
+      "audioBitrate": "بیت‌ریت صدا"
     },
     "subtitles": {
       "tabs": {

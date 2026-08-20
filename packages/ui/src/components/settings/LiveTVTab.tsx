@@ -59,6 +59,10 @@ interface LiveTVTabProps {
   onEpgMetadataBadgeFpsSuffixChange: (enabled: boolean) => void;
   epgMetadataBadgeSound: boolean;
   onEpgMetadataBadgeSoundChange: (enabled: boolean) => void;
+  epgMetadataBadgeBitrate: boolean;
+  onEpgMetadataBadgeBitrateChange: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrate: boolean;
+  onEpgMetadataBadgeAudioBitrateChange: (enabled: boolean) => void;
   epgView: 'traditional' | 'alternate';
   onEpgViewChange: (view: 'traditional' | 'alternate') => void;
   epgTitleFontSize: number;
@@ -185,6 +189,10 @@ export function LiveTVTab({
   onEpgMetadataBadgeFpsSuffixChange,
   epgMetadataBadgeSound,
   onEpgMetadataBadgeSoundChange,
+  epgMetadataBadgeBitrate,
+  onEpgMetadataBadgeBitrateChange,
+  epgMetadataBadgeAudioBitrate,
+  onEpgMetadataBadgeAudioBitrateChange,
   epgView,
   onEpgViewChange,
   epgTitleFontSize,
@@ -471,6 +479,8 @@ export function LiveTVTab({
                       <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.resolution')}</th>
                       <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.fps')}</th>
                       <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.sound')}</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.avgVideoBitrate', 'Avg Video Bitrate')}</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.avgAudioBitrate', 'Avg Audio Bitrate')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -495,12 +505,32 @@ export function LiveTVTab({
                           <span className="toggle-slider" />
                         </label>
                       </td>
-                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                      <td style={{ padding: '16px', textAlign: 'center', borderRight: '1px solid var(--surface-border)' }}>
                         <label className="toggle-switch" style={{ margin: '0 auto' }}>
                           <input
                             type="checkbox"
                             checked={epgMetadataBadgeSound}
                             onChange={(e) => onEpgMetadataBadgeSoundChange(e.target.checked)}
+                          />
+                          <span className="toggle-slider" />
+                        </label>
+                      </td>
+                      <td style={{ padding: '16px', textAlign: 'center', borderRight: '1px solid var(--surface-border)' }}>
+                        <label className="toggle-switch" style={{ margin: '0 auto' }}>
+                          <input
+                            type="checkbox"
+                            checked={epgMetadataBadgeBitrate}
+                            onChange={(e) => onEpgMetadataBadgeBitrateChange(e.target.checked)}
+                          />
+                          <span className="toggle-slider" />
+                        </label>
+                      </td>
+                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                        <label className="toggle-switch" style={{ margin: '0 auto' }}>
+                          <input
+                            type="checkbox"
+                            checked={epgMetadataBadgeAudioBitrate}
+                            onChange={(e) => onEpgMetadataBadgeAudioBitrateChange(e.target.checked)}
                           />
                           <span className="toggle-slider" />
                         </label>

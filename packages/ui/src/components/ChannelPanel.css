@@ -1159,6 +1159,22 @@
   padding-bottom: var(--guide-row-playlist-info-padding-bottom, 26px); /* Shift content up to clear metadata badge vertically */
 }
 
+.guide-channel-row.has-bitrate-badge {
+  min-height: var(--guide-row-bitrate-min-height, 70px);
+}
+
+.guide-channel-row.has-bitrate-badge .guide-channel-info {
+  padding-bottom: var(--guide-row-bitrate-info-padding-bottom, 22px);
+}
+
+.guide-channel-row.has-playlist-name.has-bitrate-badge {
+  min-height: var(--guide-row-playlist-bitrate-min-height, 88px);
+}
+
+.guide-channel-row.has-playlist-name.has-bitrate-badge .guide-channel-info {
+  padding-bottom: var(--guide-row-playlist-bitrate-info-padding-bottom, 30px);
+}
+
 /* Soft gradient divider under each row (v3 via tokens; hidden otherwise) */
 .guide-channel-row::after {
   content: var(--guide-row-divider-content, none);
@@ -1291,6 +1307,18 @@ html.epg-highlight-border-current .guide-channel-row.currently-playing::after {
   color: white;
 }
 
+.channel-row-metadata .metadata-badge.detailed.two-line {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.channel-row-metadata .metadata-badge.detailed .metadata-badge-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .channel-row-metadata .metadata-badge.detailed .quality {
   color: var(--accent-primary, #00d4ff);
   font-weight: 700;
@@ -1302,6 +1330,19 @@ html.epg-highlight-border-current .guide-channel-row.currently-playing::after {
 
 .channel-row-metadata .metadata-badge.detailed .audio {
   color: #50e3c2;
+}
+
+.channel-row-metadata .metadata-badge.detailed .bitrate {
+  color: #a78bfa;
+}
+
+.channel-row-metadata .metadata-badge.detailed .audio-bitrate {
+  color: #38bdf8;
+}
+
+.channel-row-metadata .metadata-badge.detailed .bitrate-sep {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 8px;
 }
 
 .guide-channel-number {

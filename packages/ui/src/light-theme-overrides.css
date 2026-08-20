@@ -995,6 +995,18 @@ html.modern-ui-v3[data-theme="light"] .guide-channel-logo .logo-placeholder {
   color: var(--lt-text-success, #059669) !important;
 }
 
+[data-theme="light"] .channel-row-metadata .metadata-badge.detailed .bitrate {
+  color: #7c3aed !important;
+}
+
+[data-theme="light"] .channel-row-metadata .metadata-badge.detailed .audio-bitrate {
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .channel-row-metadata .metadata-badge.detailed .bitrate-sep {
+  color: rgba(0, 0, 0, 0.4) !important;
+}
+
 [data-theme="light"] .npb-channel-text .metadata-badge {
   background: var(--lt-bg-active, #e2e8f0) !important;
 }

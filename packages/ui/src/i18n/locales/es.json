@@ -924,7 +924,13 @@
         "overlayScale": "Escala de superposición",
         "overlayScaleHint": "Escala la altura de la barra de marcadores. Predeterminado 100 %.",
         "sportsBgOpacityHint": "Controla qué tan oscuro es el fondo de degradado de la barra de marcadores. Más bajo = más transparente."
-      }
+      },
+      "avgBitrate": "Bitrate prom.",
+      "bitrate": "Bitrate",
+      "avgVideoBitrate": "Bitrate prom. vídeo",
+      "avgAudioBitrate": "Bitrate prom. audio",
+      "videoBitrate": "Bitrate vídeo",
+      "audioBitrate": "Bitrate audio"
     },
     "subtitles": {
       "tabs": {

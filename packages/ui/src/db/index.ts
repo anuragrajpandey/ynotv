@@ -170,6 +170,9 @@ export interface ChannelMetadata {
   fps: number;                 // e.g., 30
   audio_channels: string;      // e.g., "Stereo", "5.1"
   quality_label: string;       // e.g., "4K", "1080p", "720p", "SD"
+  video_bitrate_kbps?: number | null; // e.g. 4500 (kbps)
+  audio_bitrate_kbps?: number | null; // e.g. 192 (kbps)
+  bitrate_kbps?: number | null;       // e.g. 4692 (total or probed bitrate kbps)
   last_updated: Date | string;
 }
 
@@ -593,7 +596,7 @@ class YnotvDatabase extends SqliteDatabase {
     // Each version block runs exactly ONCE. To add new columns in the future,
     // increment DB_VERSION and add a new case (do NOT modify existing cases).
     // ─────────────────────────────────────────────────────────────────────────
-    const DB_VERSION = 25;
+    const DB_VERSION = 26;
     const versionResult = await db.select('PRAGMA user_version') as Array<{ user_version: number }>;
     const currentVersion = versionResult[0]?.user_version ?? 0;
 
@@ -1002,6 +1005,17 @@ class YnotvDatabase extends SqliteDatabase {
         console.log('[DB] v25 migration: VOD metadata overrides table added');
       }
 
+      // v26: Add video_bitrate_kbps, audio_bitrate_kbps, bitrate_kbps to channelMetadata
+      if (currentVersion < 26) {
+        console.log('[DB] v26 migration: Adding bitrate columns to channelMetadata');
+        const addColumn = async (table: string, col: string, type: string) => {
+          try { await db.execute(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }
+        };
+        await addColumn('channelMetadata', 'video_bitrate_kbps', 'INTEGER');
+        await addColumn('channelMetadata', 'audio_bitrate_kbps', 'INTEGER');
+        await addColumn('channelMetadata', 'bitrate_kbps', 'INTEGER');
+      }
+
       // Bump the stored version so these migrations never run again
       await db.execute(`PRAGMA user_version = ${DB_VERSION}`);
       console.log(`[DB] Migration to v${DB_VERSION} complete`);
@@ -1266,7 +1280,10 @@ class YnotvDatabase extends SqliteDatabase {
         fps REAL,
         audio_channels TEXT,
         quality_label TEXT,
-      last_updated TEXT
+        video_bitrate_kbps INTEGER,
+        audio_bitrate_kbps INTEGER,
+        bitrate_kbps INTEGER,
+        last_updated TEXT
       )`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_metadata_source ON channelMetadata(source_id)`);
 
@@ -1463,6 +1480,9 @@ class YnotvDatabase extends SqliteDatabase {
     try { await db.execute(`ALTER TABLE programs ADD COLUMN subtitle TEXT`); } catch (e) {}
     try { await db.execute(`ALTER TABLE epg_program_overrides ADD COLUMN subtitle TEXT`); } catch (e) {}
     try { await db.execute(`ALTER TABLE team_channel_links ADD COLUMN priority INTEGER DEFAULT 0`); } catch (e) {}
+    try { await db.execute(`ALTER TABLE channelMetadata ADD COLUMN video_bitrate_kbps INTEGER`); } catch (e) {}
+    try { await db.execute(`ALTER TABLE channelMetadata ADD COLUMN audio_bitrate_kbps INTEGER`); } catch (e) {}
+    try { await db.execute(`ALTER TABLE channelMetadata ADD COLUMN bitrate_kbps INTEGER`); } catch (e) {}
 
     // ── EPG Editor: Override Tables ───────────────────────────────────────────
 

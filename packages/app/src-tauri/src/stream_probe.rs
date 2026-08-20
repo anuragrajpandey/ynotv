@@ -635,16 +635,30 @@ async fn run_ffmpeg_probe(
 
     let mut saved_screenshot_path = None;
 
+    let count_video_payload: bool;
     if capture_screenshot && screenshot_dest.is_some() {
         let dest = screenshot_dest.unwrap();
         let dest_str = dest.to_string_lossy().to_string();
         cmd.arg("-frames:v").arg("1").arg("-update").arg("1").arg("-y").arg(&dest_str);
         saved_screenshot_path = Some(dest_str);
+        count_video_payload = false;
     } else {
-        cmd.arg("-f").arg("null").arg("-");
+        // Demux only the first video stream's payload to stdout so the video
+        // bitrate is measured from pure compressed video data instead of the
+        // total input byte count (which also includes ffmpeg's initial probing
+        // reads and container overhead). Mirrors the audio measurement path.
+        cmd.arg("-map").arg("0:v:0");
+        cmd.arg("-c").arg("copy");
+        cmd.arg("-f").arg("data");
+        cmd.arg("-");
+        count_video_payload = true;
     }
 
-    cmd.stdout(std::process::Stdio::null());
+    cmd.stdout(if count_video_payload {
+        std::process::Stdio::piped()
+    } else {
+        std::process::Stdio::null()
+    });
     cmd.stderr(std::process::Stdio::piped());
 
     #[cfg(windows)]
@@ -667,6 +681,22 @@ async fn run_ffmpeg_probe(
         buf
     });
 
+    let stdout_pipe = if count_video_payload { child.stdout.take() } else { None };
+    let video_reader = tokio::spawn(async move {
+        use tokio::io::AsyncReadExt;
+        let mut total: u64 = 0;
+        let mut buf = [0u8; 65536];
+        if let Some(mut pipe) = stdout_pipe {
+            loop {
+                match pipe.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => total += n as u64,
+                }
+            }
+        }
+        total
+    });
+
     let (timed_out, _) = tokio::select! {
         _ = tokio::time::sleep(timeout_duration.max(Duration::from_secs_f64(sample_secs + 2.0))) => {
             let _ = child.kill().await;
@@ -682,7 +712,18 @@ async fn run_ffmpeg_probe(
     let _ = child.wait().await;
     let stderr_str = String::from_utf8_lossy(&stderr_buf);
 
-    let meta = parse_ffmpeg_stderr(&stderr_str, sample_secs);
+    let mut meta = parse_ffmpeg_stderr(&stderr_str, sample_secs);
+
+    // Prefer the pure demuxed video payload byte count over the input
+    // `Statistics:` figure, which includes probing reads and container overhead.
+    if count_video_payload {
+        let video_bytes = video_reader.await.unwrap_or(0);
+        meta.video_bitrate_kbps = if video_bytes > 0 && sample_secs > 0.0 {
+            Some(((video_bytes as f64 * 8.0) / 1000.0 / sample_secs).round() as u32)
+        } else {
+            None
+        };
+    }
 
     let err_msg = if timed_out && meta.width.is_none() {
         Some("FFmpeg probe timed out".to_string())
@@ -746,7 +787,10 @@ pub async fn probe_single_stream(
 
     // Step 2: FFmpeg probe
     let ffmpeg_path = find_ffmpeg();
-    let sample_secs = if measure_bitrate.unwrap_or(false) { 8.0 } else { 1.0 };
+    // Only report measured bitrates when bitrate measurement was explicitly enabled,
+    // otherwise quick probes would store 1-second spot samples in the avg columns.
+    let measure = measure_bitrate.unwrap_or(false);
+    let sample_secs = if measure { 8.0 } else { 1.0 };
     let (meta, _, ffmpeg_err) = if let Some(ref bin) = ffmpeg_path {
         run_ffmpeg_probe(bin, &url, user_agent.as_deref(), timeout, false, None, sample_secs).await
     } else {
@@ -754,7 +798,7 @@ pub async fn probe_single_stream(
     };
 
     // Audio bitrate measured from the same ffmpeg binary when requested
-    let audio_bitrate_kbps = if measure_bitrate.unwrap_or(false) {
+    let audio_bitrate_kbps = if measure {
         if let Some(ref bin) = ffmpeg_path {
             probe_audio_bitrate(bin, &url, user_agent.as_deref(), timeout, sample_secs).await
         } else {
@@ -784,7 +828,7 @@ pub async fn probe_single_stream(
         audio_channels: meta.audio_channels,
         quality_label: meta.quality_label,
         bitrate_kbps: meta.bitrate_kbps,
-        video_bitrate_kbps: meta.video_bitrate_kbps,
+        video_bitrate_kbps: if measure { meta.video_bitrate_kbps } else { None },
         audio_bitrate_kbps,
         screenshot_path: None,
         error_reason: ffmpeg_err.or(http_res.error_reason),
@@ -1037,7 +1081,9 @@ pub async fn start_channel_probe(
                             result.audio_channels = meta.audio_channels;
                             result.quality_label = meta.quality_label.clone();
                             result.bitrate_kbps = meta.bitrate_kbps;
-                            result.video_bitrate_kbps = meta.video_bitrate_kbps;
+                            if measure_bitrate {
+                                result.video_bitrate_kbps = meta.video_bitrate_kbps;
+                            }
                             if measure_bitrate {
                                 result.audio_bitrate_kbps = probe_audio_bitrate(
                                     bin,

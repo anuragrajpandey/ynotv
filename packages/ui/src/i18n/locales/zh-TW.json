@@ -924,7 +924,13 @@
         "overlayScale": "覆蓋層縮放",
         "overlayScaleHint": "縮放比分欄的高度。預設 100%。",
         "sportsBgOpacityHint": "控制比分欄漸變背景的暗度。越低越透明。"
-      }
+      },
+      "avgBitrate": "平均位元速率",
+      "bitrate": "位元速率",
+      "avgVideoBitrate": "平均視訊位元速率",
+      "avgAudioBitrate": "平均音訊位元速率",
+      "videoBitrate": "視訊位元速率",
+      "audioBitrate": "音訊位元速率"
     },
     "subtitles": {
       "tabs": {

@@ -38,6 +38,8 @@ interface ChannelRowProps {
   epgMetadataBadgeResolution?: boolean;
   epgMetadataBadgeFps?: boolean;
   epgMetadataBadgeSound?: boolean;
+  epgMetadataBadgeBitrate?: boolean;
+  epgMetadataBadgeAudioBitrate?: boolean;
 }
 
 export const ChannelRow = memo(function ChannelRow({
@@ -64,6 +66,8 @@ export const ChannelRow = memo(function ChannelRow({
   epgMetadataBadgeResolution,
   epgMetadataBadgeFps,
   epgMetadataBadgeSound,
+  epgMetadataBadgeBitrate,
+  epgMetadataBadgeAudioBitrate,
 }: ChannelRowProps) {
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ program: StoredProgram; x: number; y: number } | null>(null);
@@ -129,6 +133,7 @@ export const ChannelRow = memo(function ChannelRow({
   }
 
   const isPlaylistNameShown = Boolean(showPlaylistName);
+  const isBitrateBadgeShown = Boolean(epgMetadataBadgeBitrate || epgMetadataBadgeAudioBitrate);
   const showMultiviewButtons = Boolean(onSendToSlot && currentLayout && currentLayout !== 'main');
 
   const isSlotActive = useCallback((slotId: 1 | 2 | 3 | 4) => {
@@ -175,10 +180,10 @@ export const ChannelRow = memo(function ChannelRow({
   }, [channel, onSendToSlot]);
 
   return (
-    <div className={`guide-channel-row ${isCurrentlyPlaying ? 'currently-playing' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}>
+    <div className={`guide-channel-row ${isCurrentlyPlaying ? 'currently-playing' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}>
       {/* Channel info column */}
       <div
-        className={`guide-channel-info ${isRecording ? 'is-recording' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}
+        className={`guide-channel-info ${isRecording ? 'is-recording' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}
         style={{
           width: 'var(--epg-channel-column-width, 264px)',
           minWidth: 'var(--epg-channel-column-width, 264px)',
@@ -263,6 +268,8 @@ export const ChannelRow = memo(function ChannelRow({
             showResolution={epgMetadataBadgeResolution}
             showFps={epgMetadataBadgeFps}
             showSound={epgMetadataBadgeSound}
+            showBitrate={epgMetadataBadgeBitrate}
+            showAudioBitrate={epgMetadataBadgeAudioBitrate}
           />
         </div>
       </div>

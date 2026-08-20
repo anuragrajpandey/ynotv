@@ -924,7 +924,13 @@
         "overlayScale": "Échelle de la superposition",
         "overlayScaleHint": "Met à l’échelle la hauteur de la barre de scores. Par défaut 100 %.",
         "sportsBgOpacityHint": "Contrôle l’opacité du fond dégradé de la barre de scores. Plus bas = plus transparent."
-      }
+      },
+      "avgBitrate": "Débit moyen",
+      "bitrate": "Débit",
+      "avgVideoBitrate": "Débit vidéo moyen",
+      "avgAudioBitrate": "Débit audio moyen",
+      "videoBitrate": "Débit vidéo",
+      "audioBitrate": "Débit audio"
     },
     "subtitles": {
       "tabs": {

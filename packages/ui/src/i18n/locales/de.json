@@ -924,7 +924,13 @@
         "overlayScale": "Overlay-Skalierung",
         "overlayScaleHint": "Skaliert die Höhe der Ergebnisleiste. Standard 100%.",
         "sportsBgOpacityHint": "Steuert, wie dunkel der Verlaufshintergrund der Ergebnisleiste ist. Niedriger = transparenter."
-      }
+      },
+      "avgBitrate": "Durchschn. Bitrate",
+      "bitrate": "Bitrate",
+      "avgVideoBitrate": "Durchschn. Video-Bitrate",
+      "avgAudioBitrate": "Durchschn. Audio-Bitrate",
+      "videoBitrate": "Video-Bitrate",
+      "audioBitrate": "Audio-Bitrate"
     },
     "subtitles": {
       "tabs": {

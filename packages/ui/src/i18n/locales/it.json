@@ -924,7 +924,13 @@
         "overlayScale": "Scala overlay",
         "overlayScaleHint": "Dimensiona l'altezza della barra dei punteggi. Predefinito 100%.",
         "sportsBgOpacityHint": "Controlla quanto è scuro lo sfondo sfumato della barra dei punteggi. Più basso = più trasparente."
-      }
+      },
+      "avgBitrate": "Bitrate medio",
+      "bitrate": "Bitrate",
+      "avgVideoBitrate": "Bitrate video medio",
+      "avgAudioBitrate": "Bitrate audio medio",
+      "videoBitrate": "Bitrate video",
+      "audioBitrate": "Bitrate audio"
     },
     "subtitles": {
       "tabs": {

@@ -924,7 +924,13 @@
         "overlayScale": "Katman Ölçeği",
         "overlayScaleHint": "Skor çubuğunun yüksekliğini ölçekler. Varsayılan %100.",
         "sportsBgOpacityHint": "Skor çubuğunun degrade arka planının ne kadar koyu olduğunu kontrol eder. Düşük = daha saydam."
-      }
+      },
+      "avgBitrate": "Ort. Bit Hızı",
+      "bitrate": "Bit Hızı",
+      "avgVideoBitrate": "Ort. Video Bit Hızı",
+      "avgAudioBitrate": "Ort. Ses Bit Hızı",
+      "videoBitrate": "Video Bit Hızı",
+      "audioBitrate": "Ses Bit Hızı"
     },
     "subtitles": {
       "tabs": {

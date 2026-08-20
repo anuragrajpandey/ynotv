@@ -770,6 +770,8 @@
       "resolution": "Resolution",
       "fps": "FPS",
       "sound": "Sound",
+      "avgBitrate": "Avg Bitrate",
+      "bitrate": "Avg Bitrate",
       "fpsSuffix": "Show \"fps\" suffix",
       "fpsSuffixSub": "Display frame rate as e.g. \"60fps\" instead of just \"60\".",
       "boldTypography": "Bold Typography",
@@ -924,7 +926,11 @@
         "overlayScale": "Overlay Scale",
         "overlayScaleHint": "Scales the height of the scores bar. Default 100%.",
         "sportsBgOpacityHint": "Controls how dark the gradient background of the scores bar is. Lower = more transparent."
-      }
+      },
+      "avgVideoBitrate": "Avg Video Bitrate",
+      "avgAudioBitrate": "Avg Audio Bitrate",
+      "videoBitrate": "Avg Video Bitrate",
+      "audioBitrate": "Avg Audio Bitrate"
     },
     "subtitles": {
       "tabs": {

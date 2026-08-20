@@ -963,6 +963,12 @@ pub struct BulkChannelMetadata {
     pub fps: Option<f64>,
     pub audio_channels: Option<String>,
     pub quality_label: Option<String>,
+    #[serde(default)]
+    pub video_bitrate_kbps: Option<i64>,
+    #[serde(default)]
+    pub audio_bitrate_kbps: Option<i64>,
+    #[serde(default)]
+    pub bitrate_kbps: Option<i64>,
     pub last_updated: Option<String>,
 }
 
@@ -983,8 +989,9 @@ fn bulk_upsert_channel_metadata_inner(
 
     let mut stmt = tx.prepare(
         "INSERT INTO channelMetadata (
-            stream_id, source_id, resolution_width, resolution_height, fps, audio_channels, quality_label, last_updated
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            stream_id, source_id, resolution_width, resolution_height, fps, audio_channels, quality_label,
+            video_bitrate_kbps, audio_bitrate_kbps, bitrate_kbps, last_updated
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
         ON CONFLICT(stream_id) DO UPDATE SET
             source_id = excluded.source_id,
             resolution_width = COALESCE(excluded.resolution_width, channelMetadata.resolution_width),
@@ -992,6 +999,9 @@ fn bulk_upsert_channel_metadata_inner(
             fps = COALESCE(excluded.fps, channelMetadata.fps),
             audio_channels = COALESCE(excluded.audio_channels, channelMetadata.audio_channels),
             quality_label = COALESCE(excluded.quality_label, channelMetadata.quality_label),
+            video_bitrate_kbps = COALESCE(excluded.video_bitrate_kbps, channelMetadata.video_bitrate_kbps),
+            audio_bitrate_kbps = COALESCE(excluded.audio_bitrate_kbps, channelMetadata.audio_bitrate_kbps),
+            bitrate_kbps = COALESCE(excluded.bitrate_kbps, channelMetadata.bitrate_kbps),
             last_updated = excluded.last_updated",
     )?;
 
@@ -1008,6 +1018,9 @@ fn bulk_upsert_channel_metadata_inner(
             item.fps,
             item.audio_channels,
             item.quality_label,
+            item.video_bitrate_kbps,
+            item.audio_bitrate_kbps,
+            item.bitrate_kbps,
             updated_time,
         ])?;
         upserted += 1;

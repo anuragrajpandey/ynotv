@@ -924,7 +924,13 @@
         "overlayScale": "Overlayschaal",
         "overlayScaleHint": "Schaalt de hoogte van de resultatenbalk. Standaard 100%.",
         "sportsBgOpacityHint": "Bepaalt hoe donker de verloopachtergrond van de resultatenbalk is. Lager = meer doorzichtig."
-      }
+      },
+      "avgBitrate": "Gem. bitrate",
+      "bitrate": "Bitrate",
+      "avgVideoBitrate": "Gem. video-bitrate",
+      "avgAudioBitrate": "Gem. audio-bitrate",
+      "videoBitrate": "Video-bitrate",
+      "audioBitrate": "Audio-bitrate"
     },
     "subtitles": {
       "tabs": {

@@ -924,7 +924,13 @@
         "overlayScale": "Skala preklopa",
         "overlayScaleHint": "Skalira visinu trake rezultata. Podrazumijevano 100%.",
         "sportsBgOpacityHint": "Kontroliše koliko je tamna gradijentna pozadina trake rezultata. Niže = transparentnije."
-      }
+      },
+      "avgBitrate": "Prosj. bitrate",
+      "bitrate": "Bitrate",
+      "avgVideoBitrate": "Prosj. video bitrate",
+      "avgAudioBitrate": "Prosj. audio bitrate",
+      "videoBitrate": "Video bitrate",
+      "audioBitrate": "Audio bitrate"
     },
     "subtitles": {
       "tabs": {
