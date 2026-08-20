@@ -939,6 +939,9 @@ export function LocalTab({
       return;
     }
     for (const e of missing) {
+      if (e.tmdbId) {
+        invalidateTmdbIdMatchCache(e.tmdbId, e.type);
+      }
       const parsed = parseFilename(e.filename);
       invalidateTmdbMatchCache(parsed.title, parsed.year, parsed.type);
     }
