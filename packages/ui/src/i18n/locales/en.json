@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Enabled Channels Missing Badges",
     "scopeDeadOnly": "Dead / Disabled Channels Only",
     "scopeAll": "All Channels (Including Dead / Disabled)",
+    "scopeFailover": "Failover Channels",
+    "scopeSportsLinked": "Sports Linked Channels",
     "channelsCount": "{{count}} Channels",
     "startProbe": "Start Probe",
     "rerunDead": "Rerun Dead ({{count}})",

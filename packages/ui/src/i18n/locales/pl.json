@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Włączone kanały bez znaczków",
     "scopeDeadOnly": "Tylko martwe / wyłączone kanały",
     "scopeAll": "Wszystkie kanały (w tym martwe / wyłączone)",
+    "scopeFailover": "Kanały failover",
+    "scopeSportsLinked": "Powiązane kanały sportowe",
     "channelsCount": "{{count}} kanałów",
     "startProbe": "Rozpocznij test",
     "rerunDead": "Przetestuj martwe ponownie ({{count}})",

@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "بغیر بیجز کے فعال چینلز",
     "scopeDeadOnly": "صرف مردہ / غیر فعال چینلز",
     "scopeAll": "تمام چینلز (مردہ / غیر فعال سمیت)",
+    "scopeFailover": "فیل اوور چینلز",
+    "scopeSportsLinked": "منسلک اسپورٹس چینلز",
     "channelsCount": "{{count}} چینلز",
     "startProbe": "جانچ شروع کریں",
     "rerunDead": "مردہ دوبارہ جانچیں ({{count}})",

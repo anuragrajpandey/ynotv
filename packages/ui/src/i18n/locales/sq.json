@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Kanalet e aktivizuara pa distinktivë",
     "scopeDeadOnly": "Vetëm kanalet e vdekura / të çaktivizuara",
     "scopeAll": "Të gjitha kanalet (përfshirë të vdekurit / të çaktivizuarit)",
+    "scopeFailover": "Kanalet failover",
+    "scopeSportsLinked": "Kanalet sportive të lidhura",
     "channelsCount": "{{count}} kanale",
     "startProbe": "Fillo testin",
     "rerunDead": "Ritesto të vdekurit ({{count}})",

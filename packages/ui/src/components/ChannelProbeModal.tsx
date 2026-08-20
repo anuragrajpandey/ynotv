@@ -29,7 +29,7 @@ export interface ChannelProbeModalProps {
 }
 
 type TabFilter = 'all' | 'alive' | 'dead' | 'geoblocked' | 'drm' | '4k' | '1080p' | '720p' | 'sd';
-type ScopeFilter = 'enabled' | 'missing-badges' | 'dead-only' | 'all-including-dead';
+type ScopeFilter = 'enabled' | 'missing-badges' | 'dead-only' | 'all-including-dead' | 'failover' | 'sports-linked';
 type SortColumn = 'status' | 'name' | 'quality' | 'fps' | 'video_codec' | 'audio_channels' | 'video_bitrate' | 'audio_bitrate' | 'latency_ms';
 type SortDirection = 'asc' | 'desc';
 
@@ -71,6 +71,9 @@ export function ChannelProbeModal({
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('enabled');
+  // Membership-based scopes define the channel set directly from failover-group
+  // / sports-team-link tables, so the source & category filters don't apply.
+  const isMembershipMode = scopeFilter === 'failover' || scopeFilter === 'sports-linked';
 
   // Popover state
   const [isSourcePopoverOpen, setIsSourcePopoverOpen] = useState<boolean>(false);
@@ -190,7 +193,7 @@ export function ChannelProbeModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    if (initialChannels && initialChannels.length > 0) {
+    if (initialChannels && initialChannels.length > 0 && scopeFilter !== 'failover' && scopeFilter !== 'sports-linked') {
       let filteredInitial = initialChannels;
       if (scopeFilter === 'enabled' || scopeFilter === 'missing-badges') {
         filteredInitial = filteredInitial.filter((c) => c.enabled !== false && (c.enabled as any) !== 0);
@@ -204,39 +207,60 @@ export function ChannelProbeModal({
     let isMounted = true;
 
     async function loadChannels() {
-      let query = db.channels.toCollection();
+      let chList: StoredChannel[];
 
-      if (selectedSourceIds.length === 1) {
-        query = db.channels.where('source_id').equals(selectedSourceIds[0]);
-      } else if (selectedSourceIds.length > 1) {
-        query = db.channels.where('source_id').anyOf(selectedSourceIds);
+      // Membership-based scopes (failover groups / sports team links) define the
+      // channel set directly, ignoring source & category filters — the user wants
+      // exactly the members probed, not a slice of the playlist.
+      if (scopeFilter === 'failover' || scopeFilter === 'sports-linked') {
+        const memberIds =
+          scopeFilter === 'failover'
+            ? (await db.failoverGroupMembers.toArray()).map((m) => m.stream_id)
+            : (await db.teamChannelLinks.toArray()).map((l) => l.stream_id);
+        chList =
+          memberIds.length > 0
+            ? await db.channels.where('stream_id').anyOf(memberIds).toArray()
+            : [];
+        // Match how these channel lists display elsewhere: only enabled sources
+        if (sources.length > 0) {
+          const enabledSourceIds = new Set(sources.map((s) => s.id));
+          chList = chList.filter((c) => enabledSourceIds.has(c.source_id));
+        }
+      } else {
+        let query = db.channels.toCollection();
+
+        if (selectedSourceIds.length === 1) {
+          query = db.channels.where('source_id').equals(selectedSourceIds[0]);
+        } else if (selectedSourceIds.length > 1) {
+          query = db.channels.where('source_id').anyOf(selectedSourceIds);
+        }
+
+        chList = await query.toArray();
+
+        // If viewing all sources, only include channels from enabled sources
+        if (selectedSourceIds.length === 0 && sources.length > 0) {
+          const enabledSourceIds = new Set(sources.map((s) => s.id));
+          chList = chList.filter((c) => enabledSourceIds.has(c.source_id));
+        }
+
+        if (selectedCategoryIds.length > 0) {
+          const catSet = new Set(selectedCategoryIds);
+          chList = chList.filter((c) => c.category_ids && c.category_ids.some((id) => catSet.has(id)));
+        }
+
+        // Filter by Scope
+        if (scopeFilter === 'enabled') {
+          chList = chList.filter((c) => c.enabled !== false && (c.enabled as any) !== 0);
+        } else if (scopeFilter === 'dead-only') {
+          chList = chList.filter((c) => c.enabled === false || (c.enabled as any) === 0);
+        } else if (scopeFilter === 'missing-badges') {
+          chList = chList.filter((c) => c.enabled !== false && (c.enabled as any) !== 0);
+          const metadataItems = await db.channelMetadata.toArray();
+          const existingIds = new Set(metadataItems.map((m) => m.stream_id));
+          chList = chList.filter((c) => !existingIds.has(c.stream_id));
+        }
+        // 'all-including-dead' includes both enabled and disabled channels
       }
-
-      let chList = await query.toArray();
-
-      // If viewing all sources, only include channels from enabled sources
-      if (selectedSourceIds.length === 0 && sources.length > 0) {
-        const enabledSourceIds = new Set(sources.map((s) => s.id));
-        chList = chList.filter((c) => enabledSourceIds.has(c.source_id));
-      }
-
-      if (selectedCategoryIds.length > 0) {
-        const catSet = new Set(selectedCategoryIds);
-        chList = chList.filter((c) => c.category_ids && c.category_ids.some((id) => catSet.has(id)));
-      }
-
-      // Filter by Scope
-      if (scopeFilter === 'enabled') {
-        chList = chList.filter((c) => c.enabled !== false && (c.enabled as any) !== 0);
-      } else if (scopeFilter === 'dead-only') {
-        chList = chList.filter((c) => c.enabled === false || (c.enabled as any) === 0);
-      } else if (scopeFilter === 'missing-badges') {
-        chList = chList.filter((c) => c.enabled !== false && (c.enabled as any) !== 0);
-        const metadataItems = await db.channelMetadata.toArray();
-        const existingIds = new Set(metadataItems.map((m) => m.stream_id));
-        chList = chList.filter((c) => !existingIds.has(c.stream_id));
-      }
-      // 'all-including-dead' includes both enabled and disabled channels
 
       if (isMounted) {
         setChannels(chList);
@@ -1054,7 +1078,7 @@ export function ChannelProbeModal({
               <button
                 type="button"
                 className="cpm-multi-select-btn"
-                disabled={isScanning}
+                disabled={isScanning || isMembershipMode}
                 onClick={() => {
                   setIsSourcePopoverOpen((prev) => !prev);
                   setIsCategoryPopoverOpen(false);
@@ -1149,7 +1173,7 @@ export function ChannelProbeModal({
               <button
                 type="button"
                 className="cpm-multi-select-btn"
-                disabled={isScanning}
+                disabled={isScanning || isMembershipMode}
                 onClick={() => {
                   setIsCategoryPopoverOpen((prev) => !prev);
                   setIsSourcePopoverOpen(false);
@@ -1248,12 +1272,19 @@ export function ChannelProbeModal({
                 className="cpm-select"
                 value={scopeFilter}
                 disabled={isScanning}
-                onChange={(e) => setScopeFilter(e.target.value as ScopeFilter)}
+                onChange={(e) => {
+                  setScopeFilter(e.target.value as ScopeFilter);
+                  // Membership modes ignore source/category — close any open pickers
+                  setIsSourcePopoverOpen(false);
+                  setIsCategoryPopoverOpen(false);
+                }}
               >
                 <option value="enabled">{t('scopeEnabled')}</option>
                 <option value="missing-badges">{t('scopeMissingBadges')}</option>
                 <option value="dead-only">{t('scopeDeadOnly')}</option>
                 <option value="all-including-dead">{t('scopeAll')}</option>
+                <option value="failover">{t('scopeFailover')}</option>
+                <option value="sports-linked">{t('scopeSportsLinked')}</option>
               </select>
             </div>
 

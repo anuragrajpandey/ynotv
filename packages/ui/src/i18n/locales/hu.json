@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Engedélyezett csatornák jelvények nélkül",
     "scopeDeadOnly": "Csak halott / letiltott csatornák",
     "scopeAll": "Összes csatorna (halott / letiltott is)",
+    "scopeFailover": "Failover csatornák",
+    "scopeSportsLinked": "Sportokhoz kapcsolt csatornák",
     "channelsCount": "{{count}} csatorna",
     "startProbe": "Teszt indítása",
     "rerunDead": "Halottak újratesztelése ({{count}})",

@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Включенные каналы без значков",
     "scopeDeadOnly": "Только мертвые / отключенные каналы",
     "scopeAll": "Все каналы (включая мертвые / отключенные)",
+    "scopeFailover": "Каналы failover",
+    "scopeSportsLinked": "Привязанные спортивные каналы",
     "channelsCount": "Каналов: {{count}}",
     "startProbe": "Начать проверку",
     "rerunDead": "Перепроверить мертвые ({{count}})",

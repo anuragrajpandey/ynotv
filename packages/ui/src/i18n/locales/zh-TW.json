@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "缺少徽章的已啟用頻道",
     "scopeDeadOnly": "僅死頻道 / 已停用頻道",
     "scopeAll": "所有頻道（包括死頻道 / 已停用）",
+    "scopeFailover": "故障轉移頻道",
+    "scopeSportsLinked": "關聯的體育頻道",
     "channelsCount": "{{count}} 個頻道",
     "startProbe": "開始偵測",
     "rerunDead": "重新偵測死頻道（{{count}}）",

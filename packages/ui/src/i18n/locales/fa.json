@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "کانال‌های فعال بدون نشان",
     "scopeDeadOnly": "فقط کانال‌های مرده / غیرفعال",
     "scopeAll": "همه کانال‌ها (شامل مرده / غیرفعال)",
+    "scopeFailover": "کانال‌های فال‌اوور",
+    "scopeSportsLinked": "کانال‌های ورزشی مرتبط",
     "channelsCount": "{{count}} کانال",
     "startProbe": "شروع بررسی",
     "rerunDead": "بررسی مجدد مرده‌ها ({{count}})",

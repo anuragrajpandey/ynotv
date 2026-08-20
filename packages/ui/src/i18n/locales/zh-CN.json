@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "缺少徽章的已启用频道",
     "scopeDeadOnly": "仅死频道 / 已禁用频道",
     "scopeAll": "所有频道（包括死频道 / 已禁用）",
+    "scopeFailover": "故障转移频道",
+    "scopeSportsLinked": "关联的体育频道",
     "channelsCount": "{{count}} 个频道",
     "startProbe": "开始检测",
     "rerunDead": "重新检测死频道（{{count}}）",

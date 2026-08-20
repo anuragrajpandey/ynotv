@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Rozeti Olmayan Etkin Kanallar",
     "scopeDeadOnly": "Yalnızca Ölü / Devre Dışı Kanallar",
     "scopeAll": "Tüm Kanallar (Ölü / Devre Dışı Dahil)",
+    "scopeFailover": "Failover kanalları",
+    "scopeSportsLinked": "Bağlı spor kanalları",
     "channelsCount": "{{count}} Kanal",
     "startProbe": "Testi Başlat",
     "rerunDead": "Ölüleri Yeniden Test Et ({{count}})",

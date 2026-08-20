@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Aktivierte Sender ohne Badges",
     "scopeDeadOnly": "Nur tote / deaktivierte Sender",
     "scopeAll": "Alle Sender (einschließlich toter / deaktivierter)",
+    "scopeFailover": "Failover-Kanäle",
+    "scopeSportsLinked": "Verknüpfte Sportkanäle",
     "channelsCount": "{{count}} Sender",
     "startProbe": "Test starten",
     "rerunDead": "Tote erneut testen ({{count}})",

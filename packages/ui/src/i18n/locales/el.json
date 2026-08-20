@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Ενεργοποιημένα κανάλια χωρίς σήματα",
     "scopeDeadOnly": "Μόνο νεκρά / απενεργοποιημένα κανάλια",
     "scopeAll": "Όλα τα κανάλια (συμπεριλαμβανομένων νεκρών / απενεργοποιημένων)",
+    "scopeFailover": "Κανάλια failover",
+    "scopeSportsLinked": "Συνδεδεμένα αθλητικά κανάλια",
     "channelsCount": "{{count}} κανάλια",
     "startProbe": "Έναρξη ελέγχου",
     "rerunDead": "Επανέλεγχος νεκρών ({{count}})",

@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Kênh đã bật nhưng thiếu huy hiệu",
     "scopeDeadOnly": "Chỉ kênh chết / đã tắt",
     "scopeAll": "Tất cả kênh (bao gồm chết / đã tắt)",
+    "scopeFailover": "Kênh failover",
+    "scopeSportsLinked": "Kênh thể thao được liên kết",
     "channelsCount": "{{count}} kênh",
     "startProbe": "Bắt đầu kiểm tra",
     "rerunDead": "Kiểm tra lại kênh chết ({{count}})",

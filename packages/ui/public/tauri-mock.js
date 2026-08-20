@@ -137,7 +137,17 @@
       sql = sql.replace(/\s+/g, ' ').trim().toLowerCase();
       const ret = [];
       if (sql.includes('from channels')) {
-        return channels.map((c) => ({ ...c }));
+        let rows = channels;
+        const p = params || [];
+        if (sql.includes(' in (')) {
+          const ids = p.map(String);
+          rows = rows.filter((c) => ids.includes(String(c.stream_id)));
+        } else if (sql.includes('source_id =')) {
+          rows = rows.filter((c) => String(c.source_id) === String(p[0]));
+        } else if (sql.includes('stream_id =')) {
+          rows = rows.filter((c) => String(c.stream_id) === String(p[0]));
+        }
+        return rows.map((c) => ({ ...c }));
       }
       if (sql.includes('from failover_groups')) {
         return failoverGroups.map((g) => ({ ...g }));

@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "القنوات المفعلة بدون شارات",
     "scopeDeadOnly": "القنوات الميتة / المعطلة فقط",
     "scopeAll": "كل القنوات (بما فيها الميتة / المعطلة)",
+    "scopeFailover": "قنوات الفيلوفر",
+    "scopeSportsLinked": "قنوات رياضية مرتبطة",
     "channelsCount": "{{count}} قناة",
     "startProbe": "بدء الفحص",
     "rerunDead": "إعادة فحص الميتة ({{count}})",

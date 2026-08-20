@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "बिना बैज वाले सक्षम चैनल",
     "scopeDeadOnly": "केवल मृत / अक्षम चैनल",
     "scopeAll": "सभी चैनल (मृत / अक्षम सहित)",
+    "scopeFailover": "फ़ेलओवर चैनल",
+    "scopeSportsLinked": "खेल से जुड़े चैनल",
     "channelsCount": "{{count}} चैनल",
     "startProbe": "जाँच शुरू करें",
     "rerunDead": "मृत फिर से जाँचें ({{count}})",

@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Chaînes activées sans badges",
     "scopeDeadOnly": "Chaînes mortes / désactivées uniquement",
     "scopeAll": "Toutes les chaînes (y compris mortes / désactivées)",
+    "scopeFailover": "Chaînes de failover",
+    "scopeSportsLinked": "Chaînes sportives liées",
     "channelsCount": "{{count}} chaînes",
     "startProbe": "Démarrer le test",
     "rerunDead": "Retester les mortes ({{count}})",

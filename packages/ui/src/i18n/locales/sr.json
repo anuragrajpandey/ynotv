@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Омогућени канали без беџева",
     "scopeDeadOnly": "Само мртви / онемогућени канали",
     "scopeAll": "Сви канали (укључујући мртве / онемогућене)",
+    "scopeFailover": "Failover kanali",
+    "scopeSportsLinked": "Povezani sportski kanali",
     "channelsCount": "Канала: {{count}}",
     "startProbe": "Покрени тест",
     "rerunDead": "Поново тестирај мртве ({{count}})",

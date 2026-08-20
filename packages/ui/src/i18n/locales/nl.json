@@ -4479,6 +4479,8 @@
     "scopeMissingBadges": "Ingeschakelde kanalen zonder badges",
     "scopeDeadOnly": "Alleen dode / uitgeschakelde kanalen",
     "scopeAll": "Alle kanalen (inclusief dode / uitgeschakelde)",
+    "scopeFailover": "Failover-kanalen",
+    "scopeSportsLinked": "Gekoppelde sportkanalen",
     "channelsCount": "{{count}} kanalen",
     "startProbe": "Test starten",
     "rerunDead": "Dode opnieuw testen ({{count}})",
