@@ -304,23 +304,21 @@ export function useGamepad() {
           currentDir = 'dpad_right';
         }
 
-        // Scan D-Pad Hat Switch (DirectInput on Bluetooth DualSense / standard pads)
-        if (!currentDir) {
-          for (const axisIdx of [9, 4, 2, 3]) {
-            if (axisIdx < gp.axes.length) {
-              const hat = gp.axes[axisIdx];
-              if (hat !== undefined && hat >= -1.05 && hat <= 1.05) {
-                // DirectInput Hat standard angles
-                if (hat >= -1.05 && hat <= -0.85) {
-                  currentDir = 'dpad_up';
-                } else if (hat >= -0.55 && hat <= -0.30) {
-                  currentDir = 'dpad_right';
-                } else if (hat >= 0.00 && hat <= 0.25) {
-                  currentDir = 'dpad_down';
-                } else if (hat >= 0.55 && hat <= 0.85) {
-                  currentDir = 'dpad_left';
-                }
-              }
+        // Scan D-Pad Hat Switch ONLY on raw DirectInput / Bluetooth controllers (mapping !== 'standard')
+        // Standard gamepads and DS4Windows already have D-Pad mapped to buttons 12-15 above.
+        if (!currentDir && gp.mapping !== 'standard' && gp.axes.length > 9) {
+          const hat = gp.axes[9];
+          if (typeof hat === 'number' && hat >= -1.05 && hat <= 1.05) {
+            // DirectInput 8-way Hat angles (0.0 is resting stick/idle, strictly excluded):
+            // Up: -1.0, Right: -0.43, Down: 0.14, Left: 0.71
+            if (hat >= -1.05 && hat <= -0.80) {
+              currentDir = 'dpad_up';
+            } else if (hat >= -0.55 && hat <= -0.30) {
+              currentDir = 'dpad_right';
+            } else if (hat >= 0.08 && hat <= 0.22) {
+              currentDir = 'dpad_down';
+            } else if (hat >= 0.55 && hat <= 0.85) {
+              currentDir = 'dpad_left';
             }
           }
         }
