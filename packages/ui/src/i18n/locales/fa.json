@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "نوار عنوان",
         "category": "دسته",
-        "epg": "راهنمای برنامه (EPG)"
+        "epg": "راهنمای برنامه (EPG)",
+        "vod": "VOD"
       },
       "mainNavTabs": "زبانه‌های ناوبری اصلی",
       "mainNavDescription": "قابلیت نمایش زبانه‌های ناوبری اصلی در نوار بالای صفحه را تغییر دهید.",
@@ -589,7 +590,19 @@
       "showWatchlist": "لیست تماشا",
       "showWatchlistSub": "نمایش دسته «لیست تماشا» در نوار کناری.",
       "showRecentlyViewed": "بازدیدهای اخیر",
-      "showRecentlyViewedSub": "نمایش دسته «بازدیدهای اخیر» در نوار کناری."
+      "showRecentlyViewedSub": "نمایش دسته «بازدیدهای اخیر» در نوار کناری.",
+      "vodCategories": "قابلیت مشاهده رده VOD",
+      "vodCategoriesDescription": "کنترل کنید کدام بخش های داخلی در پیمایش نوار کناری فیلم ها و سریال ها ظاهر شوند.",
+      "showVodAll": "همه فیلم ها / سریال ها",
+      "showVodAllSub": "دسته «همه فیلم‌ها» و «همه سریال‌ها» را در نوار کناری نمایش دهید.",
+      "showVodFavorites": "موارد دلخواه",
+      "showVodFavoritesSub": "دسته \"موارد دلخواه\" را در نوار کناری نشان دهید.",
+      "showVodPlaylists": "لیست های پخش",
+      "showVodPlaylistsSub": "دسته «لیست‌های پخش» را در نوار کناری نشان دهید.",
+      "showVodLocal": "محلی",
+      "showVodLocalSub": "دسته کتابخانه «محلی» را در نوار کناری نشان دهید.",
+      "showVodRecent": "اخیر",
+      "showVodRecentSub": "دسته «اخیر» را در نوار کناری نشان دهید."
     },
     "startup": {
       "title": "رفتار راه‌اندازی",

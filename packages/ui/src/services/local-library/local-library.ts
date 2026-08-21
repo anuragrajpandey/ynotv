@@ -782,6 +782,9 @@ export function localEntryToVodPlayInfo(
     ? `local_${seriesKey}_ep_${entry.id}`
     : `local_${entry.id}`;
 
+  const imdbId = entry.imdbId || seriesGroup?.head?.imdbId || (seriesKey.startsWith('tt') ? seriesKey : undefined);
+  const tmdbId = entry.tmdbId ?? seriesGroup?.head?.tmdbId ?? undefined;
+
   return {
     url: entry.path,
     title: isSeries ? seriesTitle : entry.title,
@@ -798,8 +801,8 @@ export function localEntryToVodPlayInfo(
     posterUrl: entry.poster || entry.localArt?.poster || seriesGroup?.head?.poster || undefined,
     backdropUrl: entry.backdrop || entry.localArt?.backdrop || seriesGroup?.head?.backdrop || undefined,
     logoUrl: entry.logo || entry.localArt?.logo || undefined,
-    tmdbId: entry.tmdbId ?? undefined,
-    imdbId: entry.imdbId ?? undefined,
+    tmdbId,
+    imdbId,
   };
 }
 
@@ -836,6 +839,7 @@ export function localGroupToStoredSeries(group: { key: string; head: LocalEntry;
   const head = group.head;
   const cover = toAssetUrl(head.poster || head.localArt?.poster) || '';
   const backdrop = toAssetUrl(head.backdrop || head.localArt?.backdrop);
+  const imdbId = head.imdbId || (group.key.startsWith('tt') ? group.key : undefined);
 
   return {
     series_id: `local_${group.key}`,
@@ -848,7 +852,7 @@ export function localGroupToStoredSeries(group: { key: string; head: LocalEntry;
     plot: head.overview ?? undefined,
     rating: head.rating != null ? String(head.rating) : undefined,
     tmdb_id: head.tmdbId ?? undefined,
-    imdb_id: head.imdbId ?? undefined,
+    imdb_id: imdbId,
     backdrop_path: backdrop,
     added: new Date(head.addedAt),
     direct_url: head.path,

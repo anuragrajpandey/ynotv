@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "Titelleiste",
         "category": "Kategorie",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "Hauptnavigations-Tabs",
       "mainNavDescription": "Schalten Sie die Sichtbarkeit der Hauptnavigations-Tabs in der Kopfzeile um.",
@@ -589,7 +590,19 @@
       "showWatchlist": "Merkliste",
       "showWatchlistSub": "Kategorie \"Merkliste\" in der Seitenleiste anzeigen.",
       "showRecentlyViewed": "Zuletzt gesehen",
-      "showRecentlyViewedSub": "Kategorie \"Zuletzt gesehen\" in der Seitenleiste anzeigen."
+      "showRecentlyViewedSub": "Kategorie \"Zuletzt gesehen\" in der Seitenleiste anzeigen.",
+      "vodCategories": "Sichtbarkeit der VOD-Kategorie",
+      "vodCategoriesDescription": "Steuern Sie, welche integrierten Abschnitte in der Navigation der Seitenleiste „Filme und Serien“ angezeigt werden.",
+      "showVodAll": "Alle Filme/Serien",
+      "showVodAllSub": "Zeigen Sie die Kategorien „Alle Filme“ und „Alle Serien“ in der Seitenleiste an.",
+      "showVodFavorites": "Favoriten",
+      "showVodFavoritesSub": "Zeigen Sie die Kategorie „Favoriten“ in der Seitenleiste an.",
+      "showVodPlaylists": "Wiedergabelisten",
+      "showVodPlaylistsSub": "Zeigen Sie die Kategorie „Playlists“ in der Seitenleiste an.",
+      "showVodLocal": "Lokal",
+      "showVodLocalSub": "Zeigen Sie die Bibliothekskategorie „Lokal“ in der Seitenleiste an.",
+      "showVodRecent": "Jüngste",
+      "showVodRecentSub": "Zeigen Sie die Kategorie „Zuletzt verwendet“ in der Seitenleiste an."
     },
     "startup": {
       "title": "Startverhalten",

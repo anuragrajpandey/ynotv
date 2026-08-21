@@ -3381,20 +3381,19 @@ function useTmdbPresencePoster(
           type = 'movie';
         }
       } else {
-        // Native VOD
-        imdbId = vodInfo.mediaId && vodInfo.mediaId.startsWith('tt') ? vodInfo.mediaId : undefined;
+        // Native VOD / Local Library
+        if (vodInfo.imdbId && /tt\d{7,8}/i.test(vodInfo.imdbId)) {
+          imdbId = vodInfo.imdbId;
+        } else {
+          const match = vodInfo.mediaId?.match(/(tt\d{7,8})/i) || vodInfo.seriesId?.match(/(tt\d{7,8})/i);
+          if (match?.[1]) {
+            imdbId = match[1];
+          }
+        }
         if (vodInfo.type === 'series') {
           type = 'series';
           season = vodInfo.seasonNum;
           episode = vodInfo.episodeNum;
-          
-          // If mediaId is structured like "imdb_ep_id", extract the first part if it's an imdb id
-          if (vodInfo.mediaId && vodInfo.mediaId.includes('_ep_')) {
-            const parts = vodInfo.mediaId.split('_ep_');
-            if (parts[0] && parts[0].startsWith('tt')) {
-              imdbId = parts[0];
-            }
-          }
         }
       }
 

@@ -574,6 +574,7 @@
       "tabs": {
         "titlebar": "Titlebar",
         "category": "Category",
+        "vod": "VOD",
         "epg": "EPG"
       },
       "mainNavTabs": "Main Navigation Tabs",
@@ -589,7 +590,19 @@
       "showWatchlist": "Watchlist",
       "showWatchlistSub": "Show the \"Watchlist\" category in the sidebar.",
       "showRecentlyViewed": "Recently Viewed",
-      "showRecentlyViewedSub": "Show the \"Recently Viewed\" category in the sidebar."
+      "showRecentlyViewedSub": "Show the \"Recently Viewed\" category in the sidebar.",
+      "vodCategories": "VOD Category Visibility",
+      "vodCategoriesDescription": "Control which built-in sections appear in the Movies and Series sidebar navigation.",
+      "showVodAll": "All Movies / Series",
+      "showVodAllSub": "Show the \"All Movies\" and \"All Series\" category in the sidebar.",
+      "showVodFavorites": "Favorites",
+      "showVodFavoritesSub": "Show the \"Favorites\" category in the sidebar.",
+      "showVodPlaylists": "Playlists",
+      "showVodPlaylistsSub": "Show the \"Playlists\" category in the sidebar.",
+      "showVodLocal": "Local",
+      "showVodLocalSub": "Show the \"Local\" library category in the sidebar.",
+      "showVodRecent": "Recent",
+      "showVodRecentSub": "Show the \"Recent\" category in the sidebar."
     },
     "startup": {
       "title": "Startup Behavior",

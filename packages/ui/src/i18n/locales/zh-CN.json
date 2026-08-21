@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "标题栏",
         "category": "分类",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "主导航标签",
       "mainNavDescription": "切换标题栏中主导航标签的可见性。",
@@ -589,7 +590,19 @@
       "showWatchlist": "观看列表",
       "showWatchlistSub": "在侧边栏中显示\"观看列表\"分类。",
       "showRecentlyViewed": "最近观看",
-      "showRecentlyViewedSub": "在侧边栏中显示\"最近观看\"分类。"
+      "showRecentlyViewedSub": "在侧边栏中显示\"最近观看\"分类。",
+      "vodCategories": "VOD 类别可见性",
+      "vodCategoriesDescription": "控制哪些内置部分显示在电影和连续剧侧边栏导航中。",
+      "showVodAll": "所有电影/系列",
+      "showVodAllSub": "在侧边栏中显示“所有电影”和“所有系列”类别。",
+      "showVodFavorites": "收藏夹",
+      "showVodFavoritesSub": "在侧边栏中显示“收藏夹”类别。",
+      "showVodPlaylists": "播放列表",
+      "showVodPlaylistsSub": "在侧边栏中显示“播放列表”类别。",
+      "showVodLocal": "当地的",
+      "showVodLocalSub": "在侧边栏中显示“本地”库类别。",
+      "showVodRecent": "最近的",
+      "showVodRecentSub": "在侧边栏中显示“最近”类别。"
     },
     "startup": {
       "title": "启动行为",

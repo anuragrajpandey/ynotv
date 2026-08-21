@@ -110,6 +110,14 @@ export interface CategorySettings {
   favoritesMode: 'global' | 'perSource' | 'both';
 }
 
+export interface VodNavigationSettings {
+  showVodAll: boolean;
+  showVodFavorites: boolean;
+  showVodPlaylists: boolean;
+  showVodLocal: boolean;
+  showVodRecent: boolean;
+}
+
 export interface RetrySettings {
   streamMaxRetries: number;
   streamWatchdogSeconds: number;
@@ -347,6 +355,14 @@ export interface SettingsState {
   collapseSourceCategoriesOnStartup: boolean;
   setCategorySettings: (partial: Partial<CategorySettings>) => void;
   setCollapseSourceCategoriesOnStartup: (enabled: boolean) => void;
+
+  // VOD category sidebar visibility (Movies and Series sidebar)
+  showVodAll: boolean;
+  showVodFavorites: boolean;
+  showVodPlaylists: boolean;
+  showVodLocal: boolean;
+  showVodRecent: boolean;
+  setVodNavigationSettings: (partial: Partial<VodNavigationSettings>) => void;
 
   // Playback retry / stream-tuning knobs (read once at usePlayback mount)
   streamMaxRetries: number;
@@ -1497,6 +1513,26 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setCollapseSourceCategoriesOnStartup: (enabled) => {
     set({ collapseSourceCategoriesOnStartup: enabled });
     persistSettings({ collapseSourceCategoriesOnStartup: enabled });
+  },
+
+  // VOD category sidebar visibility (Movies and Series sidebar)
+  showVodAll: true,
+  showVodFavorites: true,
+  showVodPlaylists: true,
+  showVodLocal: true,
+  showVodRecent: true,
+  setVodNavigationSettings: (partial) => {
+    const patch: Record<string, any> = {};
+    if (partial.showVodAll !== undefined) patch.showVodAll = partial.showVodAll;
+    if (partial.showVodFavorites !== undefined) patch.showVodFavorites = partial.showVodFavorites;
+    if (partial.showVodPlaylists !== undefined) patch.showVodPlaylists = partial.showVodPlaylists;
+    if (partial.showVodLocal !== undefined) patch.showVodLocal = partial.showVodLocal;
+    if (partial.showVodRecent !== undefined) patch.showVodRecent = partial.showVodRecent;
+    set(patch);
+    persistSettings(patch);
+    if (Object.keys(patch).length > 0) {
+      dispatchAppEvent('ynotv:vod-navigation-settings-changed', patch);
+    }
   },
 
   // Playback retry / stream-tuning knobs — the setter dispatches the legacy

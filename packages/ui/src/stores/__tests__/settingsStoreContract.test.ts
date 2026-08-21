@@ -149,6 +149,8 @@ describe('useSettingsStore consumer contract', () => {
       'showAllChannels', 'showFavorites', 'showWatchlist', 'showRecentlyViewed',
       'favoritesMode', 'setCategorySettings', 'collapseSourceCategoriesOnStartup',
       'setCollapseSourceCategoriesOnStartup',
+      'showVodAll', 'showVodFavorites', 'showVodPlaylists', 'showVodLocal', 'showVodRecent',
+      'setVodNavigationSettings',
     ]) {
       expect(storeKeys.has(key)).toBe(true);
     }

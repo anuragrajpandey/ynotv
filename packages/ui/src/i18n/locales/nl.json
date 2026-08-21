@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "Titelbalk",
         "category": "Categorie",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "Hoofdnavigatietabbladen",
       "mainNavDescription": "Schakel de zichtbaarheid van hoofdnavigatietabbladen in de kopbalk in of uit.",
@@ -589,7 +590,19 @@
       "showWatchlist": "Kijklijst",
       "showWatchlistSub": "Toon de categorie «Kijklijst» in de zijbalk.",
       "showRecentlyViewed": "Recent bekeken",
-      "showRecentlyViewedSub": "Toon de categorie «Recent bekeken» in de zijbalk."
+      "showRecentlyViewedSub": "Toon de categorie «Recent bekeken» in de zijbalk.",
+      "vodCategories": "Zichtbaarheid van VOD-categorie",
+      "vodCategoriesDescription": "Bepaal welke ingebouwde secties verschijnen in de zijbalknavigatie van Films en Series.",
+      "showVodAll": "Alle films/series",
+      "showVodAllSub": "Toon de categorie 'Alle films' en 'Alle series' in de zijbalk.",
+      "showVodFavorites": "Favorieten",
+      "showVodFavoritesSub": "Toon de categorie 'Favorieten' in de zijbalk.",
+      "showVodPlaylists": "Afspeellijsten",
+      "showVodPlaylistsSub": "Toon de categorie 'Afspeellijsten' in de zijbalk.",
+      "showVodLocal": "Lokaal",
+      "showVodLocalSub": "Toon de bibliotheekcategorie 'Lokaal' in de zijbalk.",
+      "showVodRecent": "Recent",
+      "showVodRecentSub": "Toon de categorie 'Recent' in de zijbalk."
     },
     "startup": {
       "title": "Opstartgedrag",

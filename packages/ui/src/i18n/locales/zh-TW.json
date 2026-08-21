@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "標題欄",
         "category": "分類",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "主導航標籤",
       "mainNavDescription": "切換標題欄中主導航標籤的可見性。",
@@ -589,7 +590,19 @@
       "showWatchlist": "觀看列表",
       "showWatchlistSub": "在側邊欄中顯示\"觀看列表\"分類。",
       "showRecentlyViewed": "最近觀看",
-      "showRecentlyViewedSub": "在側邊欄中顯示\"最近觀看\"分類。"
+      "showRecentlyViewedSub": "在側邊欄中顯示\"最近觀看\"分類。",
+      "vodCategories": "VOD 類別可見性",
+      "vodCategoriesDescription": "控制哪些內建部分顯示在電影和連續劇側邊欄導航中。",
+      "showVodAll": "所有電影/系列",
+      "showVodAllSub": "在側邊欄中顯示“所有電影”和“所有系列”類別。",
+      "showVodFavorites": "收藏夾",
+      "showVodFavoritesSub": "在側邊欄中顯示「收藏」類別。",
+      "showVodPlaylists": "播放清單",
+      "showVodPlaylistsSub": "在側邊欄中顯示「播放清單」類別。",
+      "showVodLocal": "當地的",
+      "showVodLocalSub": "在側邊欄中顯示“本地”庫類別。",
+      "showVodRecent": "最近的",
+      "showVodRecentSub": "在側邊欄中顯示“最近”類別。"
     },
     "startup": {
       "title": "啟動行為",

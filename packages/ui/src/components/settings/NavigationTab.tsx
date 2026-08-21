@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import { useSettingsStore } from '../../stores/settingsStore';
 import './PlaybackTab.css'; // Reuse existing tab styles
 
 interface NavigationTabProps {
@@ -17,6 +18,17 @@ interface NavigationTabProps {
   onShowWatchlistChange: (enabled: boolean) => void;
   showRecentlyViewed: boolean;
   onShowRecentlyViewedChange: (enabled: boolean) => void;
+  // VOD Category props
+  showVodAll?: boolean;
+  onShowVodAllChange?: (enabled: boolean) => void;
+  showVodFavorites?: boolean;
+  onShowVodFavoritesChange?: (enabled: boolean) => void;
+  showVodPlaylists?: boolean;
+  onShowVodPlaylistsChange?: (enabled: boolean) => void;
+  showVodLocal?: boolean;
+  onShowVodLocalChange?: (enabled: boolean) => void;
+  showVodRecent?: boolean;
+  onShowVodRecentChange?: (enabled: boolean) => void;
 }
 
 const NAV_ITEMS = [
@@ -81,9 +93,53 @@ export function NavigationTab({
   onShowWatchlistChange,
   showRecentlyViewed,
   onShowRecentlyViewedChange,
+  showVodAll,
+  onShowVodAllChange,
+  showVodFavorites,
+  onShowVodFavoritesChange,
+  showVodPlaylists,
+  onShowVodPlaylistsChange,
+  showVodLocal,
+  onShowVodLocalChange,
+  showVodRecent,
+  onShowVodRecentChange,
 }: NavigationTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'titlebar' | 'category' | 'epg'>('titlebar');
+  const [activeSubTab, setActiveSubTab] = useState<'titlebar' | 'category' | 'vod' | 'epg'>('titlebar');
   const { t } = useTranslation('nav');
+  const storeShowVodAll = useSettingsStore((s) => s.showVodAll);
+  const storeShowVodFavorites = useSettingsStore((s) => s.showVodFavorites);
+  const storeShowVodPlaylists = useSettingsStore((s) => s.showVodPlaylists);
+  const storeShowVodLocal = useSettingsStore((s) => s.showVodLocal);
+  const storeShowVodRecent = useSettingsStore((s) => s.showVodRecent);
+  const setVodNavigationSettings = useSettingsStore((s) => s.setVodNavigationSettings);
+
+  const effectiveShowVodAll = showVodAll ?? storeShowVodAll;
+  const effectiveShowVodFavorites = showVodFavorites ?? storeShowVodFavorites;
+  const effectiveShowVodPlaylists = showVodPlaylists ?? storeShowVodPlaylists;
+  const effectiveShowVodLocal = showVodLocal ?? storeShowVodLocal;
+  const effectiveShowVodRecent = showVodRecent ?? storeShowVodRecent;
+
+  const handleVodAllToggle = (checked: boolean) => {
+    if (onShowVodAllChange) onShowVodAllChange(checked);
+    else setVodNavigationSettings({ showVodAll: checked });
+  };
+  const handleVodFavoritesToggle = (checked: boolean) => {
+    if (onShowVodFavoritesChange) onShowVodFavoritesChange(checked);
+    else setVodNavigationSettings({ showVodFavorites: checked });
+  };
+  const handleVodPlaylistsToggle = (checked: boolean) => {
+    if (onShowVodPlaylistsChange) onShowVodPlaylistsChange(checked);
+    else setVodNavigationSettings({ showVodPlaylists: checked });
+  };
+  const handleVodLocalToggle = (checked: boolean) => {
+    if (onShowVodLocalChange) onShowVodLocalChange(checked);
+    else setVodNavigationSettings({ showVodLocal: checked });
+  };
+  const handleVodRecentToggle = (checked: boolean) => {
+    if (onShowVodRecentChange) onShowVodRecentChange(checked);
+    else setVodNavigationSettings({ showVodRecent: checked });
+  };
+
   const isVisible = (id: string) => !navHiddenTabs.includes(id);
 
   const handleToggle = (id: string, checked: boolean) => {
@@ -118,6 +174,12 @@ export function NavigationTab({
           onClick={() => setActiveSubTab('category')}
         >
           {i18n.t('settings:navigation.tabs.category')}
+        </button>
+        <button
+          className={`settings-tab ${activeSubTab === 'vod' ? 'active' : ''}`}
+          onClick={() => setActiveSubTab('vod')}
+        >
+          {i18n.t('settings:navigation.tabs.vod')}
         </button>
         <button
           className={`settings-tab ${activeSubTab === 'epg' ? 'active' : ''}`}
@@ -234,6 +296,99 @@ export function NavigationTab({
                     type="checkbox"
                     checked={showRecentlyViewed}
                     onChange={(e) => onShowRecentlyViewedChange(e.target.checked)}
+                  />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeSubTab === 'vod' && (
+          <div className="settings-section">
+            <div className="section-header">
+              <h3>{i18n.t('settings:navigation.vodCategories')}</h3>
+            </div>
+            <p className="section-description">
+              {i18n.t('settings:navigation.vodCategoriesDescription')}
+            </p>
+
+            <div className="timeshift-settings">
+              {/* All Movies / Series Toggle */}
+              <div className="timeshift-toggle-row">
+                <div className="timeshift-toggle-info">
+                  <span className="timeshift-toggle-label">{i18n.t('settings:navigation.showVodAll')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:navigation.showVodAllSub')}</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={effectiveShowVodAll}
+                    onChange={(e) => handleVodAllToggle(e.target.checked)}
+                  />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+
+              {/* Favorites Toggle */}
+              <div className="timeshift-toggle-row" style={{ marginTop: '12px' }}>
+                <div className="timeshift-toggle-info">
+                  <span className="timeshift-toggle-label">{i18n.t('settings:navigation.showVodFavorites')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:navigation.showVodFavoritesSub')}</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={effectiveShowVodFavorites}
+                    onChange={(e) => handleVodFavoritesToggle(e.target.checked)}
+                  />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+
+              {/* Playlists Toggle */}
+              <div className="timeshift-toggle-row" style={{ marginTop: '12px' }}>
+                <div className="timeshift-toggle-info">
+                  <span className="timeshift-toggle-label">{i18n.t('settings:navigation.showVodPlaylists')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:navigation.showVodPlaylistsSub')}</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={effectiveShowVodPlaylists}
+                    onChange={(e) => handleVodPlaylistsToggle(e.target.checked)}
+                  />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+
+              {/* Local Toggle */}
+              <div className="timeshift-toggle-row" style={{ marginTop: '12px' }}>
+                <div className="timeshift-toggle-info">
+                  <span className="timeshift-toggle-label">{i18n.t('settings:navigation.showVodLocal')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:navigation.showVodLocalSub')}</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={effectiveShowVodLocal}
+                    onChange={(e) => handleVodLocalToggle(e.target.checked)}
+                  />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+
+              {/* Recent Toggle */}
+              <div className="timeshift-toggle-row" style={{ marginTop: '12px' }}>
+                <div className="timeshift-toggle-info">
+                  <span className="timeshift-toggle-label">{i18n.t('settings:navigation.showVodRecent')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:navigation.showVodRecentSub')}</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={effectiveShowVodRecent}
+                    onChange={(e) => handleVodRecentToggle(e.target.checked)}
                   />
                   <span className="toggle-slider" />
                 </label>

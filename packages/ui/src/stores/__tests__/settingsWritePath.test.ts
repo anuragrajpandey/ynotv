@@ -197,6 +197,21 @@ describe('settings store write path', () => {
     expect(detail.favoritesMode).toBe('perSource');
   });
 
+  it('setVodNavigationSettings dispatches the ynotv:vod-navigation-settings-changed event', () => {
+    const store = useSettingsStore;
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    store.getState().setVodNavigationSettings({ showVodAll: false, showVodFavorites: true });
+
+    expect(store.getState().showVodAll).toBe(false);
+    expect(store.getState().showVodFavorites).toBe(true);
+    const dispatched = dispatchSpy.mock.calls.find((c) =>
+      (c[0] as CustomEvent).type === 'ynotv:vod-navigation-settings-changed'
+    );
+    expect(dispatched).toBeTruthy();
+    const detail = (dispatched![0] as CustomEvent).detail;
+    expect(detail.showVodAll).toBe(false);
+  });
+
   it('does not touch the DOM from a setter (applier owns all DOM writes)', () => {
     // Node has no document; a setter that wrote to the DOM would throw on
     // `document.documentElement`. Reaching this assertion means the setter

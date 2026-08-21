@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "Barra de título",
         "category": "Categoria",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "Abas de navegação principal",
       "mainNavDescription": "Alterne a visibilidade das abas de navegação principal na barra de cabeçalho.",
@@ -589,7 +590,19 @@
       "showWatchlist": "Lista de acompanhamento",
       "showWatchlistSub": "Mostrar a categoria \"Lista de acompanhamento\" na barra lateral.",
       "showRecentlyViewed": "Vistos recentemente",
-      "showRecentlyViewedSub": "Mostrar a categoria \"Vistos recentemente\" na barra lateral."
+      "showRecentlyViewedSub": "Mostrar a categoria \"Vistos recentemente\" na barra lateral.",
+      "vodCategories": "Visibilidade da categoria VOD",
+      "vodCategoriesDescription": "Controle quais seções integradas aparecem na navegação da barra lateral de Filmes e Séries.",
+      "showVodAll": "Todos os filmes/séries",
+      "showVodAllSub": "Mostre a categoria “Todos os Filmes” e “Todas as Séries” na barra lateral.",
+      "showVodFavorites": "Favoritos",
+      "showVodFavoritesSub": "Mostre a categoria \"Favoritos\" na barra lateral.",
+      "showVodPlaylists": "Listas de reprodução",
+      "showVodPlaylistsSub": "Mostre a categoria \"Playlists\" na barra lateral.",
+      "showVodLocal": "Local",
+      "showVodLocalSub": "Mostre a categoria da biblioteca \"Local\" na barra lateral.",
+      "showVodRecent": "Recente",
+      "showVodRecentSub": "Mostre a categoria \"Recentes\" na barra lateral."
     },
     "startup": {
       "title": "Comportamento de inicialização",

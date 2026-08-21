@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "Traka naslova",
         "category": "Kategorija",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "Glavne navigacione kartice",
       "mainNavDescription": "Uključite/isključite vidljivost glavnih navigacionih kartica u traci zaglavlja.",
@@ -589,7 +590,19 @@
       "showWatchlist": "Lista za gledanje",
       "showWatchlistSub": "Prikaži kategoriju „Lista za gledanje\" na bočnoj traci.",
       "showRecentlyViewed": "Nedavno gledano",
-      "showRecentlyViewedSub": "Prikaži kategoriju „Nedavno gledano\" na bočnoj traci."
+      "showRecentlyViewedSub": "Prikaži kategoriju „Nedavno gledano\" na bočnoj traci.",
+      "vodCategories": "Vidljivost VOD kategorije",
+      "vodCategoriesDescription": "Kontrolirajte koji se ugrađeni odjeljci pojavljuju u bočnoj traci za navigaciju Filmovi i serije.",
+      "showVodAll": "Svi filmovi / serije",
+      "showVodAllSub": "Prikažite kategoriju \"Svi filmovi\" i \"Sve serije\" na bočnoj traci.",
+      "showVodFavorites": "Favoriti",
+      "showVodFavoritesSub": "Prikaži kategoriju \"Favoriti\" na bočnoj traci.",
+      "showVodPlaylists": "Playlists",
+      "showVodPlaylistsSub": "Prikaži kategoriju \"Playlists\" na bočnoj traci.",
+      "showVodLocal": "Lokalno",
+      "showVodLocalSub": "Prikaži kategoriju biblioteke \"Lokalna\" na bočnoj traci.",
+      "showVodRecent": "Nedavno",
+      "showVodRecentSub": "Prikaži kategoriju \"Nedavne\" na bočnoj traci."
     },
     "startup": {
       "title": "Ponašanje pri pokretanju",

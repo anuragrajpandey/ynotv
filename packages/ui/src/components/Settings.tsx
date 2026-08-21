@@ -672,6 +672,13 @@ export function Settings({
   const [showRecentlyViewed, setShowRecentlyViewed] = useState(true);
   const [favoritesMode, setFavoritesMode] = useState<'global' | 'perSource' | 'both'>('global');
 
+  // VOD Category settings state
+  const [showVodAll, setShowVodAll] = useState(true);
+  const [showVodFavorites, setShowVodFavorites] = useState(true);
+  const [showVodPlaylists, setShowVodPlaylists] = useState(true);
+  const [showVodLocal, setShowVodLocal] = useState(true);
+  const [showVodRecent, setShowVodRecent] = useState(true);
+
   // LiveTV settings state
   const [epgDarkenCurrent, setEpgDarkenCurrent] = useState(false);
   const [epgHighlightBorderCurrent, setEpgHighlightBorderCurrent] = useState(false);
@@ -821,6 +828,34 @@ export function Settings({
     window.addEventListener('ynotv:category-settings-changed', handleCategorySettingsChange);
     return () => {
       window.removeEventListener('ynotv:category-settings-changed', handleCategorySettingsChange);
+    };
+  }, []);
+
+  // Listen for VOD navigation settings changes from other components
+  useEffect(() => {
+    const handleVodNavSettingsChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        if (customEvent.detail.showVodAll !== undefined) {
+          setShowVodAll(customEvent.detail.showVodAll);
+        }
+        if (customEvent.detail.showVodFavorites !== undefined) {
+          setShowVodFavorites(customEvent.detail.showVodFavorites);
+        }
+        if (customEvent.detail.showVodPlaylists !== undefined) {
+          setShowVodPlaylists(customEvent.detail.showVodPlaylists);
+        }
+        if (customEvent.detail.showVodLocal !== undefined) {
+          setShowVodLocal(customEvent.detail.showVodLocal);
+        }
+        if (customEvent.detail.showVodRecent !== undefined) {
+          setShowVodRecent(customEvent.detail.showVodRecent);
+        }
+      }
+    };
+    window.addEventListener('ynotv:vod-navigation-settings-changed', handleVodNavSettingsChange);
+    return () => {
+      window.removeEventListener('ynotv:vod-navigation-settings-changed', handleVodNavSettingsChange);
     };
   }, []);
 
@@ -1026,12 +1061,22 @@ export function Settings({
         useScrollwheelSeek?: boolean;
         useScrollwheelSeekInvert?: boolean;
         failoverGroupShowSource?: boolean;
+        showVodAll?: boolean;
+        showVodFavorites?: boolean;
+        showVodPlaylists?: boolean;
+        showVodLocal?: boolean;
+        showVodRecent?: boolean;
       };
 
       setShowAllChannels(settings.showAllChannels ?? true);
       setShowFavorites(settings.showFavorites ?? true);
       setShowWatchlist(settings.showWatchlist ?? true);
       setShowRecentlyViewed(settings.showRecentlyViewed ?? true);
+      setShowVodAll(settings.showVodAll ?? true);
+      setShowVodFavorites(settings.showVodFavorites ?? true);
+      setShowVodPlaylists(settings.showVodPlaylists ?? true);
+      setShowVodLocal(settings.showVodLocal ?? true);
+      setShowVodRecent(settings.showVodRecent ?? true);
       const favMode = settings.favoritesMode;
       setFavoritesMode(favMode === 'perSource' || favMode === 'both' || favMode === 'global' ? favMode : 'global');
 
@@ -1786,6 +1831,31 @@ export function Settings({
   const handleShowRecentlyViewedChange = async (enabled: boolean) => {
     setShowRecentlyViewed(enabled);
     useSettingsStore.getState().setCategorySettings({ showRecentlyViewed: enabled });
+  };
+
+  const handleShowVodAllChange = async (enabled: boolean) => {
+    setShowVodAll(enabled);
+    useSettingsStore.getState().setVodNavigationSettings({ showVodAll: enabled });
+  };
+
+  const handleShowVodFavoritesChange = async (enabled: boolean) => {
+    setShowVodFavorites(enabled);
+    useSettingsStore.getState().setVodNavigationSettings({ showVodFavorites: enabled });
+  };
+
+  const handleShowVodPlaylistsChange = async (enabled: boolean) => {
+    setShowVodPlaylists(enabled);
+    useSettingsStore.getState().setVodNavigationSettings({ showVodPlaylists: enabled });
+  };
+
+  const handleShowVodLocalChange = async (enabled: boolean) => {
+    setShowVodLocal(enabled);
+    useSettingsStore.getState().setVodNavigationSettings({ showVodLocal: enabled });
+  };
+
+  const handleShowVodRecentChange = async (enabled: boolean) => {
+    setShowVodRecent(enabled);
+    useSettingsStore.getState().setVodNavigationSettings({ showVodRecent: enabled });
   };
 
   const handleEpgDarkenCurrentChange = async (enabled: boolean) => {
@@ -2756,6 +2826,16 @@ export function Settings({
             onShowWatchlistChange={handleShowWatchlistChange}
             showRecentlyViewed={showRecentlyViewed}
             onShowRecentlyViewedChange={handleShowRecentlyViewedChange}
+            showVodAll={showVodAll}
+            onShowVodAllChange={handleShowVodAllChange}
+            showVodFavorites={showVodFavorites}
+            onShowVodFavoritesChange={handleShowVodFavoritesChange}
+            showVodPlaylists={showVodPlaylists}
+            onShowVodPlaylistsChange={handleShowVodPlaylistsChange}
+            showVodLocal={showVodLocal}
+            onShowVodLocalChange={handleShowVodLocalChange}
+            showVodRecent={showVodRecent}
+            onShowVodRecentChange={handleShowVodRecentChange}
           />
         );
       case 'theme':

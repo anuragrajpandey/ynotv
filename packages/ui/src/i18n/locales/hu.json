@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "Címsor",
         "category": "Kategória",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "Fő navigációs lapok",
       "mainNavDescription": "A fő navigációs lapok láthatóságának váltása a fejlécsávban.",
@@ -589,7 +590,19 @@
       "showWatchlist": "Figyelőlista",
       "showWatchlistSub": "A „Figyelőlista” kategória megjelenítése az oldalsávban.",
       "showRecentlyViewed": "Legutóbb megtekintve",
-      "showRecentlyViewedSub": "A „Legutóbb megtekintve” kategória megjelenítése az oldalsávban."
+      "showRecentlyViewedSub": "A „Legutóbb megtekintve” kategória megjelenítése az oldalsávban.",
+      "vodCategories": "VOD kategória láthatósága",
+      "vodCategoriesDescription": "Szabályozza, hogy mely beépített részek jelenjenek meg a Filmek és sorozatok oldalsávjának navigációjában.",
+      "showVodAll": "Minden film/sorozat",
+      "showVodAllSub": "Jelenítse meg az \"Összes film\" és az \"Összes sorozat\" kategóriát az oldalsávon.",
+      "showVodFavorites": "Kedvencek",
+      "showVodFavoritesSub": "Jelenítse meg a „Kedvencek” kategóriát az oldalsávon.",
+      "showVodPlaylists": "Lejátszási listák",
+      "showVodPlaylistsSub": "Jelenítse meg a „Lejátszási listák” kategóriát az oldalsávon.",
+      "showVodLocal": "Helyi",
+      "showVodLocalSub": "Jelenítse meg a „Helyi” könyvtár kategóriát az oldalsávon.",
+      "showVodRecent": "Legutóbbi",
+      "showVodRecentSub": "Jelenítse meg a \"Legutóbbi\" kategóriát az oldalsávon."
     },
     "startup": {
       "title": "Indítási viselkedés",

@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "Başlık Çubuğu",
         "category": "Kategori",
-        "epg": "Rehber"
+        "epg": "Rehber",
+        "vod": "VOD"
       },
       "mainNavTabs": "Ana Gezinme Sekmeleri",
       "mainNavDescription": "Başlık çubuğundaki ana gezinme sekmelerinin görünürlüğünü aç/kapat.",
@@ -589,7 +590,19 @@
       "showWatchlist": "İzleme Listesi",
       "showWatchlistSub": "Kenar çubuğunda \"İzleme Listesi\" kategorisini göster.",
       "showRecentlyViewed": "Son İzlenenler",
-      "showRecentlyViewedSub": "Kenar çubuğunda \"Son İzlenenler\" kategorisini göster."
+      "showRecentlyViewedSub": "Kenar çubuğunda \"Son İzlenenler\" kategorisini göster.",
+      "vodCategories": "VOD Kategori Görünürlüğü",
+      "vodCategoriesDescription": "Filmler ve Dizi kenar çubuğu gezinmesinde hangi yerleşik bölümlerin görüneceğini kontrol edin.",
+      "showVodAll": "Tüm Filmler / Diziler",
+      "showVodAllSub": "Kenar çubuğunda \"Tüm Filmler\" ve \"Tüm Diziler\" kategorisini gösterin.",
+      "showVodFavorites": "Favoriler",
+      "showVodFavoritesSub": "Kenar çubuğunda \"Favoriler\" kategorisini gösterin.",
+      "showVodPlaylists": "Çalma listeleri",
+      "showVodPlaylistsSub": "Kenar çubuğunda \"Oynatma listeleri\" kategorisini gösterin.",
+      "showVodLocal": "Yerel",
+      "showVodLocalSub": "Kenar çubuğunda \"Yerel\" kitaplık kategorisini gösterin.",
+      "showVodRecent": "Son",
+      "showVodRecentSub": "Kenar çubuğunda \"Son\" kategorisini gösterin."
     },
     "startup": {
       "title": "Başlangıç Davranışı",

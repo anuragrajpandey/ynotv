@@ -216,6 +216,14 @@ const SETTINGS_SEARCH_INDEX: SettingsSearchResult[] = [
   { id: 'show-watchlist', label: 'Show Watchlist', description: 'Show the "Watchlist" group in the category sidebar.', tabId: 'navigation', tabLabel: 'Navigation', subTabId: 'category', section: 'Category' },
   { id: 'show-recently-viewed', label: 'Show Recently Viewed', description: 'Show the "Recently Viewed" group in the category sidebar.', tabId: 'navigation', tabLabel: 'Navigation', subTabId: 'category', section: 'Category' },
 
+  // Navigation > VOD
+  { id: 'navigation-vod-settings', label: 'VOD Sidebar Settings', description: 'Enable/disable showing All Movies/Series, Favorites, Playlists, Local, and Recent in VOD sidebar.', tabId: 'navigation', tabLabel: 'Navigation', subTabId: 'vod', section: 'VOD' },
+  { id: 'show-vod-all', label: 'Show All Movies / Series', description: 'Show the "All Movies" and "All Series" group in the VOD sidebar.', tabId: 'navigation', tabLabel: 'Navigation', subTabId: 'vod', section: 'VOD' },
+  { id: 'show-vod-favorites', label: 'Show VOD Favorites', description: 'Show the "Favorites" group in the VOD sidebar.', tabId: 'navigation', tabLabel: 'Navigation', subTabId: 'vod', section: 'VOD' },
+  { id: 'show-vod-playlists', label: 'Show VOD Playlists', description: 'Show the "Playlists" group in the VOD sidebar.', tabId: 'navigation', tabLabel: 'Navigation', subTabId: 'vod', section: 'VOD' },
+  { id: 'show-vod-local', label: 'Show VOD Local', description: 'Show the "Local" library group in the VOD sidebar.', tabId: 'navigation', tabLabel: 'Navigation', subTabId: 'vod', section: 'VOD' },
+  { id: 'show-vod-recent', label: 'Show VOD Recent', description: 'Show the "Recent" group in the VOD sidebar.', tabId: 'navigation', tabLabel: 'Navigation', subTabId: 'vod', section: 'VOD' },
+
   // --- Startup ---
   { id: 'startup-tab', label: 'Startup', tabId: 'startup', tabLabel: 'Startup', section: 'Startup' },
   { id: 'startup-view', label: 'Startup View', description: 'Choose which page opens when the app starts.', tabId: 'startup', tabLabel: 'Startup', section: 'Startup Behavior' },

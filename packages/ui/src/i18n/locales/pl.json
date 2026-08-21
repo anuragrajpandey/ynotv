@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "Pasek tytułu",
         "category": "Kategoria",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "Główne zakładki nawigacji",
       "mainNavDescription": "Przełącz widoczność głównych zakładek nawigacji na pasku nagłówka.",
@@ -589,7 +590,19 @@
       "showWatchlist": "Lista do obejrzenia",
       "showWatchlistSub": "Pokaż kategorię „Lista do obejrzenia\" na pasku bocznym.",
       "showRecentlyViewed": "Ostatnio oglądane",
-      "showRecentlyViewedSub": "Pokaż kategorię „Ostatnio oglądane\" na pasku bocznym."
+      "showRecentlyViewedSub": "Pokaż kategorię „Ostatnio oglądane\" na pasku bocznym.",
+      "vodCategories": "Widoczność kategorii VOD",
+      "vodCategoriesDescription": "Kontroluj, które wbudowane sekcje mają być wyświetlane na pasku bocznym filmów i seriali.",
+      "showVodAll": "Wszystkie filmy/seriale",
+      "showVodAllSub": "Pokaż kategorie „Wszystkie filmy” i „Wszystkie seriale” na pasku bocznym.",
+      "showVodFavorites": "Ulubione",
+      "showVodFavoritesSub": "Pokaż kategorię „Ulubione” na pasku bocznym.",
+      "showVodPlaylists": "Listy odtwarzania",
+      "showVodPlaylistsSub": "Pokaż kategorię „Playlisty” na pasku bocznym.",
+      "showVodLocal": "Lokalny",
+      "showVodLocalSub": "Pokaż kategorię biblioteki „Lokalna” na pasku bocznym.",
+      "showVodRecent": "Ostatni",
+      "showVodRecentSub": "Pokaż kategorię „Ostatnie” na pasku bocznym."
     },
     "startup": {
       "title": "Zachowanie przy uruchamianiu",

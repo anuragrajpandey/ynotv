@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "टाइटलबार",
         "category": "श्रेणी",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "मुख्य नेविगेशन टैब",
       "mainNavDescription": "हेडर बार में मुख्य नेविगेशन टैब की दृश्यता बदलें।",
@@ -589,7 +590,19 @@
       "showWatchlist": "वॉचलिस्ट",
       "showWatchlistSub": "साइडबार में «वॉचलिस्ट» श्रेणी दिखाएँ।",
       "showRecentlyViewed": "हाल में देखे गए",
-      "showRecentlyViewedSub": "साइडबार में «हाल में देखे गए» श्रेणी दिखाएँ।"
+      "showRecentlyViewedSub": "साइडबार में «हाल में देखे गए» श्रेणी दिखाएँ।",
+      "vodCategories": "वीओडी श्रेणी दृश्यता",
+      "vodCategoriesDescription": "नियंत्रित करें कि मूवी और सीरीज़ साइडबार नेविगेशन में कौन से अंतर्निहित अनुभाग दिखाई देते हैं।",
+      "showVodAll": "सभी फिल्में/श्रृंखला",
+      "showVodAllSub": "साइडबार में \"सभी फिल्में\" और \"सभी श्रृंखला\" श्रेणी दिखाएं।",
+      "showVodFavorites": "पसंदीदा",
+      "showVodFavoritesSub": "साइडबार में \"पसंदीदा\" श्रेणी दिखाएँ।",
+      "showVodPlaylists": "प्लेलिस्ट",
+      "showVodPlaylistsSub": "साइडबार में \"प्लेलिस्ट\" श्रेणी दिखाएँ।",
+      "showVodLocal": "स्थानीय",
+      "showVodLocalSub": "साइडबार में \"स्थानीय\" लाइब्रेरी श्रेणी दिखाएँ।",
+      "showVodRecent": "हाल ही का",
+      "showVodRecentSub": "साइडबार में \"हाल ही की\" श्रेणी दिखाएँ।"
     },
     "startup": {
       "title": "स्टार्टअप व्यवहार",

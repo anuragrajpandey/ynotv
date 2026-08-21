@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "Shiriti i titullit",
         "category": "Kategoria",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "Skedat kryesore të navigimit",
       "mainNavDescription": "Ndrysho dukshmërinë e skedave kryesore të navigimit në shiritin e kokës.",
@@ -589,7 +590,19 @@
       "showWatchlist": "Lista e shikimit",
       "showWatchlistSub": "Shfaq kategorinë „Lista e shikimit\" në shiritin anësor.",
       "showRecentlyViewed": "Shikuar së fundmi",
-      "showRecentlyViewedSub": "Shfaq kategorinë „Shikuar së fundmi\" në shiritin anësor."
+      "showRecentlyViewedSub": "Shfaq kategorinë „Shikuar së fundmi\" në shiritin anësor.",
+      "vodCategories": "Dukshmëria e kategorisë VOD",
+      "vodCategoriesDescription": "Kontrolloni se cilat seksione të integruara shfaqen në navigimin e shiritit anësor të Filmave dhe Serive.",
+      "showVodAll": "Të gjithë filmat / serialet",
+      "showVodAllSub": "Shfaq kategorinë \"Të gjithë filmat\" dhe \"Të gjitha seritë\" në shiritin anësor.",
+      "showVodFavorites": "Të preferuarat",
+      "showVodFavoritesSub": "Shfaq kategorinë \"Të preferuarat\" në shiritin anësor.",
+      "showVodPlaylists": "Listat e luajtjes",
+      "showVodPlaylistsSub": "Shfaq kategorinë \"Listat e luajtjes\" në shiritin anësor.",
+      "showVodLocal": "Lokale",
+      "showVodLocalSub": "Shfaq kategorinë e bibliotekës \"Local\" në shiritin anësor.",
+      "showVodRecent": "E fundit",
+      "showVodRecentSub": "Shfaq kategorinë \"Të fundit\" në shiritin anësor."
     },
     "startup": {
       "title": "Sjellja në nisje",

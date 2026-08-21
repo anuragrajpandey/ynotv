@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "شريط العنوان",
         "category": "الفئة",
-        "epg": "دليل البرامج"
+        "epg": "دليل البرامج",
+        "vod": "VOD"
       },
       "mainNavTabs": "تبويبات التنقل الرئيسية",
       "mainNavDescription": "تبديل ظهور تبويبات التنقل الرئيسية في شريط الرأس.",
@@ -589,7 +590,19 @@
       "showWatchlist": "قائمة المشاهدة",
       "showWatchlistSub": "إظهار فئة «قائمة المشاهدة» في الشريط الجانبي.",
       "showRecentlyViewed": "المُشاهَد مؤخرًا",
-      "showRecentlyViewedSub": "إظهار فئة «المُشاهَد مؤخرًا» في الشريط الجانبي."
+      "showRecentlyViewedSub": "إظهار فئة «المُشاهَد مؤخرًا» في الشريط الجانبي.",
+      "vodCategories": "رؤية فئة VOD",
+      "vodCategoriesDescription": "التحكم في الأقسام المضمنة التي تظهر في شريط التنقل الجانبي للأفلام والمسلسلات.",
+      "showVodAll": "جميع الأفلام / المسلسلات",
+      "showVodAllSub": "اعرض فئة \"جميع الأفلام\" و\"كل المسلسلات\" في الشريط الجانبي.",
+      "showVodFavorites": "المفضلة",
+      "showVodFavoritesSub": "إظهار فئة \"المفضلة\" في الشريط الجانبي.",
+      "showVodPlaylists": "قوائم التشغيل",
+      "showVodPlaylistsSub": "إظهار فئة \"قوائم التشغيل\" في الشريط الجانبي.",
+      "showVodLocal": "محلي",
+      "showVodLocalSub": "إظهار فئة المكتبة \"المحلية\" في الشريط الجانبي.",
+      "showVodRecent": "مؤخرًا",
+      "showVodRecentSub": "اعرض الفئة \"الأخيرة\" في الشريط الجانبي."
     },
     "startup": {
       "title": "سلوك بدء التشغيل",

@@ -147,7 +147,7 @@ const UNTRANSLATED_ALLOWLIST = new Set([
   'probe.tabDrm', 'probe.tab4k', 'probe.tab1080p', 'probe.tab720p', 'probe.tabSd', 'probe.colFps',
   'settings.livetv.logos.gb1', 'settings.livetv.logos.mb100', 'settings.livetv.logos.mb250',
   'settings.livetv.logos.mb500', 'settings.livetv.logos.xl56', 'settings.livetv.fps',
-  'settings.navigation.tabs.epg', 'vod.sortName', 'common.ok', 'common.rec', 'common.live',
+  'settings.navigation.tabs.epg', 'settings.navigation.tabs.vod', 'vod.sortName', 'common.ok', 'common.rec', 'common.live',
   'tvShows.nA', 'tvShows.tba', 'tvShows.tbd', 'sports.pct', 'sports.pts', 'sports.pos', 'sports.vs',
   'sports.tbd', 'sports.statusLive', 'sports.live', 'sports.statusFinal', 'sports.wins',
   'player.dl', 'player.dlWithCount', 'nuvio.tv', 'stremio.tv', 'subtitles.tv', 'tvShows.idLabel',
@@ -195,6 +195,7 @@ const UNTRANSLATED_ALLOWLIST = new Set([
   'epg.description', 'common.syncingBatchWithPrefix', 'nav.items.liveTv', 'updates.later',
   // per-locale exceptions: "Local" is the correct word in Spanish/Portuguese
   'es:vod.local', 'pt-BR:vod.local', 'es:stremio.local', 'pt-BR:stremio.local',
+  'es:settings.navigation.showVodLocal', 'pt-BR:settings.navigation.showVodLocal',
 ]);
 
 // Values with no lowercase ASCII letters ("DRM", "OK", "4K / UHD", "1 GB") or no

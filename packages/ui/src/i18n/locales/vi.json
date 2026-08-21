@@ -1868,7 +1868,8 @@
       "tabs": {
         "titlebar": "Thanh tiêu đề",
         "category": "Danh mục",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "Thẻ điều hướng chính",
       "mainNavDescription": "Bật/tắt hiển thị các thẻ điều hướng chính trên thanh tiêu đề.",
@@ -1883,7 +1884,19 @@
       "showWatchlist": "Danh Sách Xem",
       "showWatchlistSub": "Hiển thị danh mục \"Danh Sách Xem\" trong thanh bên.",
       "showRecentlyViewed": "Đã xem gần đây",
-      "showRecentlyViewedSub": "Hiện danh mục \"Đã xem gần đây\" trong thanh bên."
+      "showRecentlyViewedSub": "Hiện danh mục \"Đã xem gần đây\" trong thanh bên.",
+      "vodCategories": "Hiển thị danh mục VOD",
+      "vodCategoriesDescription": "Kiểm soát các phần tích hợp nào xuất hiện trong điều hướng thanh bên Phim và Sê-ri.",
+      "showVodAll": "Tất cả phim / loạt phim",
+      "showVodAllSub": "Hiển thị danh mục \"Tất cả phim\" và \"Tất cả loạt phim\" trong thanh bên.",
+      "showVodFavorites": "Yêu thích",
+      "showVodFavoritesSub": "Hiển thị danh mục \"Yêu thích\" trong thanh bên.",
+      "showVodPlaylists": "Danh sách phát",
+      "showVodPlaylistsSub": "Hiển thị danh mục \"Danh sách phát\" trong thanh bên.",
+      "showVodLocal": "Địa phương",
+      "showVodLocalSub": "Hiển thị danh mục thư viện \"Địa phương\" trong thanh bên.",
+      "showVodRecent": "Gần đây",
+      "showVodRecentSub": "Hiển thị danh mục \"Gần đây\" trong thanh bên."
     },
     "startup": {
       "title": "Hành vi khởi động",

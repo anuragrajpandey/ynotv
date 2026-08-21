@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "Barre de titre",
         "category": "Catégorie",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "Onglets de navigation principale",
       "mainNavDescription": "Activer ou masquer les onglets de navigation principale dans la barre d'en-tête.",
@@ -589,7 +590,19 @@
       "showWatchlist": "Liste de suivi",
       "showWatchlistSub": "Afficher la catégorie \"Liste de suivi\" dans la barre latérale.",
       "showRecentlyViewed": "Vus récemment",
-      "showRecentlyViewedSub": "Afficher la catégorie \"Vus récemment\" dans la barre latérale."
+      "showRecentlyViewedSub": "Afficher la catégorie \"Vus récemment\" dans la barre latérale.",
+      "vodCategories": "Visibilité de la catégorie VOD",
+      "vodCategoriesDescription": "Contrôlez les sections intégrées qui apparaissent dans la barre de navigation latérale Films et séries.",
+      "showVodAll": "Tous les films/séries",
+      "showVodAllSub": "Affichez les catégories « Tous les films » et « Toutes les séries » dans la barre latérale.",
+      "showVodFavorites": "Favoris",
+      "showVodFavoritesSub": "Afficher la catégorie « Favoris » dans la barre latérale.",
+      "showVodPlaylists": "Listes de lecture",
+      "showVodPlaylistsSub": "Affichez la catégorie « Playlists » dans la barre latérale.",
+      "showVodLocal": "Locale",
+      "showVodLocalSub": "Afficher la catégorie de bibliothèque « Local » dans la barre latérale.",
+      "showVodRecent": "Récent",
+      "showVodRecentSub": "Afficher la catégorie « Récent » dans la barre latérale."
     },
     "startup": {
       "title": "Comportement au démarrage",

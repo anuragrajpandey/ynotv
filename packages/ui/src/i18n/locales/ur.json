@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "ٹائٹل بار",
         "category": "کیٹیگری",
-        "epg": "ای پی جی"
+        "epg": "ای پی جی",
+        "vod": "VOD"
       },
       "mainNavTabs": "مین نیویگیشن ٹیبز",
       "mainNavDescription": "ہیڈر بار میں مین نیویگیشن ٹیبز کی مرئیت ٹوگل کریں۔",
@@ -589,7 +590,19 @@
       "showWatchlist": "دیکھنے کی فہرست",
       "showWatchlistSub": "سائڈبار میں \"دیکھنے کی فہرست\" کیٹیگری دکھائیں۔",
       "showRecentlyViewed": "حالیہ دیکھے گئے",
-      "showRecentlyViewedSub": "سائڈبار میں \"حالیہ دیکھے گئے\" کیٹیگری دکھائیں۔"
+      "showRecentlyViewedSub": "سائڈبار میں \"حالیہ دیکھے گئے\" کیٹیگری دکھائیں۔",
+      "vodCategories": "VOD زمرہ کی مرئیت",
+      "vodCategoriesDescription": "موویز اور سیریز سائڈبار نیویگیشن میں کون سے بلٹ ان سیکشنز ظاہر ہوتے ہیں اس کو کنٹرول کریں۔",
+      "showVodAll": "تمام فلمیں / سیریز",
+      "showVodAllSub": "سائڈبار میں \"تمام فلمیں\" اور \"تمام سیریز\" زمرہ دکھائیں۔",
+      "showVodFavorites": "پسندیدہ",
+      "showVodFavoritesSub": "سائڈبار میں \"پسندیدہ\" زمرہ دکھائیں۔",
+      "showVodPlaylists": "پلے لسٹس",
+      "showVodPlaylistsSub": "سائڈبار میں \"پلے لسٹس\" کا زمرہ دکھائیں۔",
+      "showVodLocal": "مقامی",
+      "showVodLocalSub": "سائڈبار میں \"مقامی\" لائبریری زمرہ دکھائیں۔",
+      "showVodRecent": "حالیہ",
+      "showVodRecentSub": "سائڈبار میں \"حالیہ\" زمرہ دکھائیں۔"
     },
     "startup": {
       "title": "اسٹارٹ اپ رویہ",

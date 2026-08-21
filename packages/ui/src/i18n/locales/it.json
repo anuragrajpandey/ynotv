@@ -574,7 +574,8 @@
       "tabs": {
         "titlebar": "Barra del titolo",
         "category": "Categoria",
-        "epg": "EPG"
+        "epg": "EPG",
+        "vod": "VOD"
       },
       "mainNavTabs": "Schede di navigazione principale",
       "mainNavDescription": "Attiva/disattiva la visibilità delle schede di navigazione principale nella barra dell'intestazione.",
@@ -589,7 +590,19 @@
       "showWatchlist": "Lista di visione",
       "showWatchlistSub": "Mostra la categoria \"Lista di visione\" nella barra laterale.",
       "showRecentlyViewed": "Visualizzati di recente",
-      "showRecentlyViewedSub": "Mostra la categoria \"Visualizzati di recente\" nella barra laterale."
+      "showRecentlyViewedSub": "Mostra la categoria \"Visualizzati di recente\" nella barra laterale.",
+      "vodCategories": "Visibilità della categoria VOD",
+      "vodCategoriesDescription": "Controlla quali sezioni integrate vengono visualizzate nella barra di navigazione laterale Film e serie.",
+      "showVodAll": "Tutti i film/serie",
+      "showVodAllSub": "Mostra la categoria \"Tutti i film\" e \"Tutte le serie\" nella barra laterale.",
+      "showVodFavorites": "Preferiti",
+      "showVodFavoritesSub": "Mostra la categoria \"Preferiti\" nella barra laterale.",
+      "showVodPlaylists": "Playlist",
+      "showVodPlaylistsSub": "Mostra la categoria \"Playlist\" nella barra laterale.",
+      "showVodLocal": "Locale",
+      "showVodLocalSub": "Mostra la categoria della libreria \"Locale\" nella barra laterale.",
+      "showVodRecent": "Recente",
+      "showVodRecentSub": "Mostra la categoria \"Recenti\" nella barra laterale."
     },
     "startup": {
       "title": "Comportamento all'avvio",
