@@ -269,6 +269,7 @@ async function hydrateSettingsStore(): Promise<void> {
         overlayOnClickOnly: data.overlayOnClickOnly ?? false,
         playerControlDesign: data.playerControlDesign ?? 'clean',
         showVolumePercent: data.showVolumePercent ?? true,
+        playerEngine: data.playerEngine ?? 'sidecar',
         hdrTonemapToSdr: data.hdrTonemapToSdr ?? false,
         showHdrQuickToggle: data.showHdrQuickToggle ?? false,
         popoutStopMain: data.popoutStopMain ?? true,

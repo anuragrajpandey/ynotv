@@ -165,6 +165,7 @@ fn apply_common_options(
         set("force-window", "immediate");
         set("gpu-api", "d3d11");
         set("vo", "gpu-next");
+        set("title", "YNOTV_MPV_MAIN");
 
         if let Some(hwnd) = embed_hwnd {
             init.set_property("wid", hwnd)
@@ -271,6 +272,13 @@ pub async fn init_mpv_with_params<R: Runtime>(
     // Start background status and event monitor
     spawn_status_monitor(app.clone(), mpv_arc, state.is_shutting_down.clone());
 
+    #[cfg(windows)]
+    {
+        if let Some(audio_state) = app.try_state::<crate::audio_capture::AudioCaptureState>() {
+            audio_state.start(app.clone(), std::process::id());
+        }
+    }
+
     let _ = app.emit("mpv-ready", true);
 
     log::info!("[ynotv::mpv_core] libmpv initialized successfully");
@@ -333,8 +341,10 @@ pub async fn load_file<R: Runtime>(app: &AppHandle<R>, url: String) -> Result<()
     let mpv = match mpv {
         Some(m) => m,
         None => {
-            log::info!("[ynotv::mpv_core] MPV not initialized on load_file, auto-initializing...");
-            init_mpv_with_params(app.clone(), Vec::new()).await?;
+            log::info!("[ynotv::mpv_core] MPV not initialized on load_file, auto-initializing with stored settings...");
+            let params = crate::get_mpv_params_from_store(app).await;
+            let safe_params = crate::sanitize_mpv_args(params);
+            init_mpv_with_params(app.clone(), safe_params).await?;
             let guard = state.mpv.lock().unwrap();
             guard.clone().ok_or("Failed to auto-initialize MPV")?
         }
@@ -630,10 +640,10 @@ pub async fn toggle_stats<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> 
     Ok(())
 }
 
-pub async fn sync_window<R: Runtime>(_app: &AppHandle<R>) -> Result<(), String> {
+pub async fn sync_window<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        if let Some(window) = _app.get_webview_window("main") {
+        if let Some(window) = app.get_webview_window("main") {
             let size = window.inner_size().map_err(|e| e.to_string())?;
             let geom = MpvGeometry {
                 css_left: 0.0,
@@ -644,36 +654,7 @@ pub async fn sync_window<R: Runtime>(_app: &AppHandle<R>) -> Result<(), String> 
                 css_view_h: size.height as f64,
             };
             let (tx, rx) = std::sync::mpsc::sync_channel(1);
-            let _ = _app.run_on_main_thread(move || {
-                let _ = tx.send(crate::mpv_render_mac::resize_to(geom));
-            });
-            let _ = rx.recv_timeout(Duration::from_millis(300));
-        }
-    }
-    Ok(())
-}
-
-pub async fn set_geometry<R: Runtime>(
-    _app: &AppHandle<R>,
-    x: i32,
-    y: i32,
-    width: u32,
-    height: u32,
-) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        if let Some(window) = _app.get_webview_window("main") {
-            let size = window.inner_size().map_err(|e| e.to_string())?;
-            let geom = MpvGeometry {
-                css_left: x as f64,
-                css_top: y as f64,
-                css_width: width as f64,
-                css_height: height as f64,
-                css_view_w: size.width as f64,
-                css_view_h: size.height as f64,
-            };
-            let (tx, rx) = std::sync::mpsc::sync_channel(1);
-            let _ = _app.run_on_main_thread(move || {
+            let _ = app.run_on_main_thread(move || {
                 let _ = tx.send(crate::mpv_render_mac::resize_to(geom));
             });
             let _ = rx.recv_timeout(Duration::from_millis(300));
@@ -681,7 +662,80 @@ pub async fn set_geometry<R: Runtime>(
     }
     #[cfg(windows)]
     {
-        let _ = (x, y, width, height);
+        set_geometry(app, 0, 0, 0, 0).await?;
+    }
+    Ok(())
+}
+
+pub async fn set_geometry<R: Runtime>(
+    app: &AppHandle<R>,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(window) = app.get_webview_window("main") {
+            let size = window.inner_size().map_err(|e| e.to_string())?;
+            let (target_x, target_y, target_w, target_h) = if width == 0 && height == 0 {
+                (0.0, 0.0, size.width as f64, size.height as f64)
+            } else {
+                (x as f64, y as f64, width as f64, height as f64)
+            };
+            let geom = MpvGeometry {
+                css_left: target_x,
+                css_top: target_y,
+                css_width: target_w,
+                css_height: target_h,
+                css_view_w: size.width as f64,
+                css_view_h: size.height as f64,
+            };
+            let (tx, rx) = std::sync::mpsc::sync_channel(1);
+            let _ = app.run_on_main_thread(move || {
+                let _ = tx.send(crate::mpv_render_mac::resize_to(geom));
+            });
+            let _ = rx.recv_timeout(Duration::from_millis(300));
+        }
+    }
+    #[cfg(windows)]
+    {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOZORDER, SWP_NOACTIVATE, GetClientRect};
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+        let window = app.get_webview_window("main")
+            .ok_or("Main window not found")?;
+        let handle = window.window_handle().map_err(|e| e.to_string())?;
+        let parent_hwnd = match handle.as_raw() {
+            RawWindowHandle::Win32(h) => HWND(h.hwnd.get() as _),
+            _ => return Err("Unsupported window handle".to_string()),
+        };
+
+        let (tx, ty, tw, th) = if width == 0 && height == 0 {
+            let mut rect = windows::Win32::Foundation::RECT::default();
+            unsafe { let _ = GetClientRect(parent_hwnd, &mut rect); }
+            (0i32, 0i32, (rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
+        } else {
+            (x, y, width, height)
+        };
+
+        let target_hwnd = crate::mpv_windows::find_mpv_hwnd_by_title(parent_hwnd.0 as isize, "YNOTV_MPV_MAIN")
+            .map(|h| HWND(h as _));
+
+        if let Some(target) = target_hwnd {
+            unsafe {
+                let _ = SetWindowPos(
+                    target,
+                    None,
+                    tx,
+                    ty,
+                    tw as i32,
+                    th as i32,
+                    SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+            }
+        }
     }
     Ok(())
 }
@@ -708,6 +762,13 @@ pub async fn kill_mpv<R: Runtime>(app: &AppHandle<R>) {
 
     if let Some(mpv) = prev {
         let _ = mpv.command("quit", &[]);
+    }
+
+    #[cfg(windows)]
+    {
+        if let Some(audio_state) = app.try_state::<crate::audio_capture::AudioCaptureState>() {
+            audio_state.stop();
+        }
     }
 
     state.is_shutting_down.store(false, std::sync::atomic::Ordering::Relaxed);

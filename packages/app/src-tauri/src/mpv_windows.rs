@@ -127,10 +127,11 @@ enum MpvResponse {
 /// Find an MPV child HWND by exact Window Title using Win32 EnumChildWindows
 pub fn find_mpv_hwnd_by_title(parent_hwnd_raw: isize, target_title: &str) -> Option<isize> {
     use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
-    use windows::Win32::UI::WindowsAndMessaging::{EnumChildWindows, GetWindowTextW, GetWindowTextLengthW};
+    use windows::Win32::UI::WindowsAndMessaging::{EnumChildWindows, GetWindowTextW, GetWindowTextLengthW, GetClassNameW};
     use std::os::windows::ffi::OsStrExt;
 
     let parent = HWND(parent_hwnd_raw as _);
+    let is_main = target_title == "YNOTV_MPV_MAIN";
     
     // Convert target title to UTF-16
     let target_utf16: Vec<u16> = std::ffi::OsStr::new(target_title)
@@ -140,11 +141,13 @@ pub fn find_mpv_hwnd_by_title(parent_hwnd_raw: isize, target_title: &str) -> Opt
 
     struct SearchData { 
         target: Vec<u16>, 
+        is_main: bool,
         result: isize 
     }
     
     let mut data = SearchData { 
         target: target_utf16, 
+        is_main,
         result: 0 
     };
 
@@ -168,6 +171,20 @@ pub fn find_mpv_hwnd_by_title(parent_hwnd_raw: isize, target_title: &str) -> Opt
                 }
             }
         }
+
+        // If searching for main player and title didn't match, check window class "mpv"
+        if data.is_main {
+            let mut class_buf = [0u16; 64];
+            let class_len = GetClassNameW(hwnd, &mut class_buf);
+            if class_len > 0 {
+                let class_str = String::from_utf16_lossy(&class_buf[..class_len as usize]);
+                if class_str.eq_ignore_ascii_case("mpv") {
+                    data.result = hwnd.0 as isize;
+                    return BOOL(0);
+                }
+            }
+        }
+
         BOOL(1)
     }
 

@@ -246,7 +246,6 @@ mod mpv_render_mac;
 mod mpv_macos;
 #[cfg(target_os = "windows")]
 mod mpv_windows;
-#[cfg(target_os = "windows")]
 mod mpv_secondary;
 mod mpv_popout;
 mod audio_capture;
@@ -257,7 +256,6 @@ pub use mpv_core::MpvCoreState;
 use mpv_macos::MpvState;
 #[cfg(target_os = "windows")]
 use mpv_windows::MpvState;
-#[cfg(target_os = "windows")]
 use mpv_secondary::SecondaryMpvState;
 use mpv_popout::PopoutMpvState;
 
@@ -277,12 +275,14 @@ pub(crate) async fn get_player_engine<R: Runtime>(app: &AppHandle<R>) -> PlayerE
     {
         if let Some(val) = read_store_setting(app, "playerEngine") {
             if let Some(s) = val.as_str() {
-                if s.eq_ignore_ascii_case("sidecar") {
+                if s.eq_ignore_ascii_case("libmpv") {
+                    return PlayerEngine::LibMpv;
+                } else if s.eq_ignore_ascii_case("sidecar") {
                     return PlayerEngine::Sidecar;
                 }
             }
         }
-        PlayerEngine::LibMpv
+        PlayerEngine::Sidecar
     }
 }
 
@@ -493,7 +493,9 @@ async fn test_proxy_connection<R: Runtime>(app: AppHandle<R>) -> Result<String, 
 
 /// Get custom MPV parameters from settings store.
 /// Supports both nested `settings` object (frontend format) and root-level keys (legacy).
-async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
+/// Get custom MPV parameters from settings store.
+/// Supports both nested `settings` object (frontend format) and root-level keys (legacy).
+pub(crate) async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
     use tauri_plugin_store::StoreExt;
 
     match app.store(".settings.dat") {
@@ -519,7 +521,7 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                 root_val
             };
 
-            // Load user-defined MPV params
+            // 1. Load user-defined MPV params (Settings -> Playback -> MPV params)
             if let Some(params) = get_value("mpvParams") {
                 if let Some(params_str) = params.as_str() {
                     let custom_args: Vec<String> = params_str
@@ -538,12 +540,12 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                 debug!("[MPV] No mpvParams found in store");
             }
 
-            // Check hardware video acceleration toggle (default true)
-            let mpv_hwdec = get_value("mpvHwdecEnabled")
+            // 2. Check hardware video acceleration toggle (Settings -> Playback / Settings -> General)
+            let mpv_hwdec = get_value("hardwareAcceleration")
+                .or_else(|| get_value("mpvHwdecEnabled"))
                 .and_then(|v| v.as_bool())
                 .unwrap_or(true);
 
-            // Robust check if user explicitly supplied hwdec or vo in their custom parameters
             let has_hwdec = args.iter().any(|a| {
                 let clean = a.trim_start_matches('-');
                 clean == "hwdec" || clean.starts_with("hwdec=") || clean.starts_with("hwdec ")
@@ -562,8 +564,6 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                     debug!("[MPV] Auto-injecting --hwdec=no (disabled in Playback settings)");
                     args.insert(0, "--hwdec=no".to_string());
                 }
-            } else {
-                debug!("[MPV] User custom parameters contain explicit hwdec flag; skipping auto-injection");
             }
 
             if mpv_hwdec && !has_vo {
@@ -571,24 +571,116 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                 args.insert(0, "--vo=gpu".to_string());
             }
 
-            // Inject timeshift back-buffer arg if enabled
+            // 3. Inject Cache settings (Settings -> Cache)
             let ts_enabled = get_value("timeshiftEnabled")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
 
-            debug!("[MPV] TimeShift enabled from store: {}", ts_enabled);
+            let has_cache = args.iter().any(|a| a.trim_start_matches('-').starts_with("cache"));
+            if !has_cache {
+                args.push("--cache=yes".to_string());
+            }
 
             if ts_enabled {
                 let cache_bytes = get_value("timeshiftCacheBytes")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(1_073_741_824); // default 1 GB
-                let flag = format!("--demuxer-max-back-bytes={}", cache_bytes);
-                debug!("[MPV] TimeShift enabled — injecting: {}", flag);
-                args.push(flag);
+                debug!("[MPV] TimeShift enabled — injecting demuxer cache bytes: {}", cache_bytes);
+                args.push(format!("--demuxer-max-back-bytes={}", cache_bytes));
+                args.push(format!("--demuxer-max-bytes={}", cache_bytes));
+                args.push("--demuxer-readahead-secs=20".to_string());
             }
 
-            // Inject audio settings from subtitleSettings (normalization, EQ profiles, stereo downmix, volume max)
+            // 4. Inject Subtitles and Audio settings (Settings -> Subtitles and Audio)
             if let Some(sub_settings) = get_value("subtitleSettings").and_then(|v| v.as_object().cloned()) {
+                // Preferred audio language
+                if let Some(alang) = sub_settings.get("defaultAudioLanguage").and_then(|v| v.as_str()) {
+                    if !alang.is_empty() && alang != "default" && alang != "auto" {
+                        debug!("[MPV] Preferred audio language configured: {}", alang);
+                        args.push(format!("--alang={}", alang));
+                    }
+                }
+
+                // Preferred subtitle language
+                if let Some(slang) = sub_settings.get("defaultLanguage").and_then(|v| v.as_str()) {
+                    if !slang.is_empty() && slang != "default" && slang != "auto" {
+                        debug!("[MPV] Preferred subtitle language configured: {}", slang);
+                        args.push(format!("--slang={}", slang));
+                    }
+                }
+
+                // Subtitle font size
+                if let Some(size) = sub_settings.get("defaultSize").and_then(|v| v.as_u64()) {
+                    if size > 0 {
+                        debug!("[MPV] Subtitle font size configured: {}", size);
+                        args.push(format!("--sub-font-size={}", size));
+                    }
+                }
+
+                // Subtitle text color
+                if let Some(color) = sub_settings.get("subColor").and_then(|v| v.as_str()) {
+                    if !color.is_empty() {
+                        debug!("[MPV] Subtitle color configured: {}", color);
+                        args.push(format!("--sub-color={}", color));
+                    }
+                }
+
+                // Subtitle outline / border color
+                if let Some(border) = sub_settings.get("subOutlineColor").and_then(|v| v.as_str()) {
+                    if !border.is_empty() {
+                        debug!("[MPV] Subtitle border color configured: {}", border);
+                        args.push(format!("--sub-border-color={}", border));
+                    }
+                }
+
+                // Subtitle vertical position offset
+                if let Some(pos) = sub_settings.get("subVerticalOffset").and_then(|v| v.as_u64()) {
+                    if pos > 0 {
+                        debug!("[MPV] Subtitle pos configured: {}", pos);
+                        args.push(format!("--sub-pos={}", pos));
+                    }
+                }
+
+                // Subtitle ASS override
+                if let Some(ass) = sub_settings.get("subAssOverride").and_then(|v| v.as_str()) {
+                    if !ass.is_empty() {
+                        debug!("[MPV] Subtitle ASS override configured: {}", ass);
+                        args.push(format!("--sub-ass-override={}", ass));
+                    }
+                }
+
+                // Subtitle alignment
+                if let Some(align) = sub_settings.get("subAlign").and_then(|v| v.as_str()) {
+                    if !align.is_empty() {
+                        debug!("[MPV] Subtitle align configured: {}", align);
+                        args.push(format!("--sub-align-x={}", align));
+                        args.push(format!("--sub-justify={}", align));
+                    }
+                }
+
+                // Subtitle delay
+                if let Some(delay) = sub_settings.get("subDelay").and_then(|v| v.as_f64()) {
+                    if delay != 0.0 {
+                        debug!("[MPV] Subtitle delay configured: {}", delay);
+                        args.push(format!("--sub-delay={}", delay));
+                    }
+                }
+
+                // Subtitle background color & opacity
+                let bg_enabled = sub_settings.get("subBackgroundEnabled").and_then(|v| v.as_bool()).unwrap_or(false);
+                if bg_enabled {
+                    if let Some(bg_color) = sub_settings.get("subBackgroundColor").and_then(|v| v.as_str()) {
+                        let opacity = sub_settings.get("subBackgroundOpacity").and_then(|v| v.as_u64()).unwrap_or(80);
+                        let alpha_hex = format!("{:02X}", (opacity as f64 * 255.0 / 100.0).round() as u8);
+                        let clean_hex = bg_color.trim_start_matches('#');
+                        if clean_hex.len() == 6 {
+                            let full_color = format!("#{}{}", alpha_hex, clean_hex);
+                            debug!("[MPV] Subtitle background color configured: {}", full_color);
+                            args.push(format!("--sub-back-color={}", full_color));
+                        }
+                    }
+                }
+
                 // Downmix surround to stereo
                 if sub_settings.get("audioDownmixStereo").and_then(|v| v.as_bool()).unwrap_or(false) {
                     debug!("[MPV] Audio downmix stereo enabled — injecting: --audio-channels=stereo");
@@ -633,7 +725,7 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                 }
             }
 
-            // Inject HDR-to-SDR Tonemapping if enabled (default false)
+            // 5. Inject HDR-to-SDR Tonemapping if enabled (default false)
             let hdr_tonemap = get_value("hdrTonemapToSdr")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
@@ -654,6 +746,14 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                 args.push("--target-trc=bt.1886".to_string());
                 args.push("--target-prim=bt.709".to_string());
                 args.push("--target-colorspace-hint=yes".to_string());
+            }
+
+            // 6. Saved Volume restoration
+            if let Some(saved_vol) = get_value("savedVolume").and_then(|v| v.as_f64()) {
+                let has_vol = args.iter().any(|a| a.trim_start_matches('-').starts_with("volume="));
+                if !has_vol && saved_vol >= 0.0 && saved_vol <= 100.0 {
+                    args.push(format!("--volume={}", saved_vol as u32));
+                }
             }
 
             return args;
@@ -1456,7 +1556,11 @@ async fn mpv_toggle_fullscreen<R: Runtime>(
         #[cfg(target_os = "windows")]
         {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            let _ = mpv_windows::mpv_set_geometry(&app, 0, 0, 0, 0).await;
+            if get_player_engine(&app).await == PlayerEngine::LibMpv {
+                let _ = mpv_core::set_geometry(&app, 0, 0, 0, 0).await;
+            } else {
+                let _ = mpv_windows::mpv_set_geometry(&app, 0, 0, 0, 0).await;
+            }
             if should_restore_maximized {
                 let _ = window.show();
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -1467,9 +1571,7 @@ async fn mpv_toggle_fullscreen<R: Runtime>(
         #[cfg(target_os = "macos")]
         {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            let pos = window.outer_position().map_err(|e| e.to_string())?;
-            let size = window.outer_size().map_err(|e| e.to_string())?;
-            mpv_macos::sync_window(&app, pos.x, pos.y, size.width, size.height).await?;
+            let _ = mpv_core::sync_window(&app).await;
         }
         
         Ok(())
@@ -1539,10 +1641,7 @@ async fn multiview_load_slot<R: Runtime>(
     width: u32,
     height: u32,
 ) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::load_slot(&app, slot_id, url, x, y, width, height).await }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = (slot_id, url, x, y, width, height); Ok(()) }
+    mpv_secondary::load_slot(&app, slot_id, url, x, y, width, height).await
 }
 
 #[tauri::command]
@@ -1550,10 +1649,7 @@ async fn multiview_stop_slot<R: Runtime>(
     app: AppHandle<R>,
     slot_id: u8,
 ) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::stop_slot(&app, slot_id).await }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = slot_id; Ok(()) }
+    mpv_secondary::stop_slot(&app, slot_id).await
 }
 
 #[tauri::command]
@@ -1563,10 +1659,7 @@ async fn multiview_set_property_slot<R: Runtime>(
     property: String,
     value: serde_json::Value,
 ) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::set_property_slot(&app, slot_id, &property, value).await }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = (slot_id, property, value); Ok(()) }
+    mpv_secondary::set_property_slot(&app, slot_id, &property, value).await
 }
 
 #[tauri::command]
@@ -1578,10 +1671,7 @@ async fn multiview_reposition_slot<R: Runtime>(
     width: u32,
     height: u32,
 ) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::reposition_slot(&app, slot_id, x, y, width, height).await }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = (slot_id, x, y, width, height); Ok(()) }
+    mpv_secondary::reposition_slot(&app, slot_id, x, y, width, height).await
 }
 
 #[tauri::command]
@@ -1589,20 +1679,16 @@ async fn multiview_kill_slot<R: Runtime>(
     app: AppHandle<R>,
     slot_id: u8,
 ) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::kill_slot(&app, slot_id).await; Ok(()) }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = slot_id; Ok(()) }
+    mpv_secondary::kill_slot(&app, slot_id).await;
+    Ok(())
 }
 
 #[tauri::command]
 async fn multiview_kill_all<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::kill_all(&app).await; Ok(()) }
-    #[cfg(not(target_os = "windows"))]
-    { Ok(()) }
+    mpv_secondary::kill_all(&app).await;
+    Ok(())
 }
 
 // ============================================================================
@@ -4692,8 +4778,7 @@ pub fn run() {
             // Apply SOCKS5 proxy settings if configured
             apply_proxy_settings(app.handle());
 
-            // Register secondary MPV state (Windows only)
-            #[cfg(target_os = "windows")]
+            // Register secondary MPV state
             app.manage(SecondaryMpvState::new());
 
             #[cfg(target_os = "windows")]
@@ -4809,8 +4894,10 @@ pub fn run() {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-                    info!("[MPV macOS] Auto-initializing MPV...");
-                    if let Err(e) = mpv_macos::init_mpv(app_handle).await {
+                    info!("[MPV macOS] Auto-initializing MPV with stored settings...");
+                    let params = get_mpv_params_from_store(&app_handle).await;
+                    let safe_params = sanitize_mpv_args(params);
+                    if let Err(e) = mpv_core::init_mpv_with_params(app_handle, safe_params).await {
                         error!("[MPV macOS] Auto-init failed: {}", e);
                     }
                 });

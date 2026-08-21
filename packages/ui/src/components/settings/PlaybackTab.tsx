@@ -154,6 +154,7 @@ export function PlaybackTab({
   const [hasChanges, setHasChanges] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
   const [showRestartModal, setShowRestartModal] = useState(false);
+  const [showEngineRestartModal, setShowEngineRestartModal] = useState(false);
 
   const isHwdecOverridden = /--?hwdec[=\s]/i.test(localParams);
   const isTonemapOverridden = /--?tone-mapping[=\s]/i.test(localParams);
@@ -166,6 +167,21 @@ export function PlaybackTab({
     showHdrQuickToggle,
     setShowHdrQuickToggle,
   } = useSettingsStore();
+
+  const handleEngineChange = async (newEngine: 'libmpv' | 'sidecar') => {
+    if (newEngine === playerEngine) return;
+    await setPlayerEngine(newEngine);
+    setShowEngineRestartModal(true);
+  };
+
+  const handleEngineRestartNow = async () => {
+    setShowEngineRestartModal(false);
+    try {
+      await relaunch();
+    } catch (e) {
+      console.error('[PlaybackTab] Failed to relaunch:', e);
+    }
+  };
 
   // Local state for retry settings (committed on blur / enter)
   const [localWatchdog, setLocalWatchdog] = useState(String(streamWatchdogSeconds));
@@ -327,7 +343,7 @@ export function PlaybackTab({
                 <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>{i18n.t('settings:playback.engineLabel', 'Playback Engine')}</span>
                   <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', background: 'rgba(0, 212, 255, 0.15)', color: 'var(--accent-color, #00d4ff)', border: '1px solid rgba(0, 212, 255, 0.3)', fontWeight: 500 }}>
-                    {playerEngine === 'libmpv' ? 'Embedded libmpv' : 'Standalone Sidecar'}
+                    {playerEngine === 'libmpv' ? 'Embedded libmpv' : 'Standalone Sidecar (Default)'}
                   </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
@@ -335,17 +351,17 @@ export function PlaybackTab({
                     <input
                       type="radio"
                       name="playerEngine"
-                      value="libmpv"
-                      checked={playerEngine === 'libmpv'}
-                      onChange={() => setPlayerEngine('libmpv')}
+                      value="sidecar"
+                      checked={playerEngine === 'sidecar'}
+                      onChange={() => handleEngineChange('sidecar')}
                       style={{ marginTop: '3px' }}
                     />
                     <div>
                       <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                        {i18n.t('settings:playback.engineLibmpv', 'Embedded libmpv (Recommended)')}
+                        {i18n.t('settings:playback.engineSidecar', 'Standalone Sidecar (mpv.exe - Default)')}
                       </span>
                       <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.35' }}>
-                        {i18n.t('settings:playback.engineLibmpvDesc', 'In-process native playback engine with instant startup, smooth seeking, Direct3D 11 / OpenGL rendering, and unified macOS/Windows support.')}
+                        {i18n.t('settings:playback.engineSidecarDesc', 'Runs MPV as an isolated external process communicating over IPC named pipes (Default).')}
                       </p>
                     </div>
                   </label>
@@ -353,17 +369,17 @@ export function PlaybackTab({
                     <input
                       type="radio"
                       name="playerEngine"
-                      value="sidecar"
-                      checked={playerEngine === 'sidecar'}
-                      onChange={() => setPlayerEngine('sidecar')}
+                      value="libmpv"
+                      checked={playerEngine === 'libmpv'}
+                      onChange={() => handleEngineChange('libmpv')}
                       style={{ marginTop: '3px' }}
                     />
                     <div>
                       <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                        {i18n.t('settings:playback.engineSidecar', 'Standalone Sidecar (mpv.exe)')}
+                        {i18n.t('settings:playback.engineLibmpv', 'Embedded libmpv')}
                       </span>
                       <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.35' }}>
-                        {i18n.t('settings:playback.engineSidecarDesc', 'Runs MPV as an isolated external process communicating over IPC named pipes (Windows fallback).')}
+                        {i18n.t('settings:playback.engineLibmpvDesc', 'In-process native playback engine with instant startup, smooth seeking, Direct3D 11 / OpenGL rendering.')}
                       </p>
                     </div>
                   </label>
@@ -807,6 +823,34 @@ export function PlaybackTab({
               </button>
               <button className="modal-btn modal-btn-primary" onClick={confirmSaveWithRestart}>
                 {i18n.t('settings:playback.restartNow')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEngineRestartModal && (
+        <div className="modal-overlay" onClick={() => setShowEngineRestartModal(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">{i18n.t('settings:playback.restartRequired', 'Restart Required')}</h3>
+            </div>
+            <div className="modal-body">
+              <p className="modal-message">
+                {i18n.t(
+                  'settings:playback.engineRestartMessage',
+                  'Changing the playback engine requires an application restart to take effect.'
+                )}
+                <br /><br />
+                {i18n.t('settings:playback.restartQuestion', 'Would you like to restart the application now?')}
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn modal-btn-secondary" onClick={() => setShowEngineRestartModal(false)}>
+                {i18n.t('common:later', 'Later')}
+              </button>
+              <button className="modal-btn modal-btn-primary" onClick={handleEngineRestartNow}>
+                {i18n.t('settings:playback.restartNow', 'Restart Now')}
               </button>
             </div>
           </div>
