@@ -1032,8 +1032,6 @@
       "maxVolume100": "100% (Standard)",
       "maxVolume150": "150%",
       "maxVolume200": "200%",
-      "maxVolume300": "300%",
-      "maxVolume600": "600% (Maximum Boost)",
       "audioLanguageSettings": "Audio Language Settings",
       "audioLanguageSettingsSub": "Configure preferred audio language for auto-selection.",
       "defaultAudioLanguage": "Default Audio Language",
