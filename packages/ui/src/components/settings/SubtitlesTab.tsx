@@ -9,6 +9,7 @@ import { DEFAULT_SUBTITLE_SETTINGS } from '../../stores/settingsStore';
 import './PlaybackTab.css'; // Reuse existing tab styles
 
 export type SubtitlesSubTabId = 'subtitles' | 'audio';
+export type AudioProfile = 'off' | 'bass' | 'voice' | 'bass-reduce' | 'night';
 
 export interface SubtitleSettings {
   subsourceApiKey: string;
@@ -30,8 +31,25 @@ export interface SubtitleSettings {
   subAssOverride?: 'yes' | 'force' | 'scale' | 'no';
   subAlign?: 'center' | 'left' | 'right';
   audioDevice?: string;
+  audioNormalize?: boolean;
+  audioProfile?: AudioProfile;
+  audioDownmixStereo?: boolean;
+  audioMaxVolume?: number;
 }
 
+const AUDIO_PROFILE_OPTIONS: { id: AudioProfile; labelKey: string; descKey: string }[] = [
+  { id: 'off', labelKey: 'settings:subtitles.profileFlat', descKey: 'settings:subtitles.profileFlatDesc' },
+  { id: 'bass', labelKey: 'settings:subtitles.profileBass', descKey: 'settings:subtitles.profileBassDesc' },
+  { id: 'voice', labelKey: 'settings:subtitles.profileVoice', descKey: 'settings:subtitles.profileVoiceDesc' },
+  { id: 'bass-reduce', labelKey: 'settings:subtitles.profileBassReduce', descKey: 'settings:subtitles.profileBassReduceDesc' },
+  { id: 'night', labelKey: 'settings:subtitles.profileNight', descKey: 'settings:subtitles.profileNightDesc' },
+];
+
+const MAX_VOLUME_OPTIONS = [
+  { value: 100, labelKey: 'settings:subtitles.maxVolume100' },
+  { value: 150, labelKey: 'settings:subtitles.maxVolume150' },
+  { value: 200, labelKey: 'settings:subtitles.maxVolume200' },
+];
 
 const LANGUAGE_OPTIONS = [
   { code: 'en', label: 'English' },
@@ -149,6 +167,30 @@ export function SubtitlesTab({ initialSubTab, settings, onSettingsChange }: Subt
     } catch (e) {
       console.error('Failed to set audio device on player:', e);
     }
+  };
+
+  const handleAudioNormalizeChange = async (enabled: boolean) => {
+    const updated = { ...merged, audioNormalize: enabled };
+    update({ audioNormalize: enabled });
+    await Bridge.applyAudioSettings(updated);
+  };
+
+  const handleAudioProfileChange = async (profile: AudioProfile) => {
+    const updated = { ...merged, audioProfile: profile };
+    update({ audioProfile: profile });
+    await Bridge.applyAudioSettings(updated);
+  };
+
+  const handleAudioDownmixChange = async (enabled: boolean) => {
+    const updated = { ...merged, audioDownmixStereo: enabled };
+    update({ audioDownmixStereo: enabled });
+    await Bridge.applyAudioSettings(updated);
+  };
+
+  const handleAudioMaxVolumeChange = async (maxVol: number) => {
+    const updated = { ...merged, audioMaxVolume: maxVol };
+    update({ audioMaxVolume: maxVol });
+    await Bridge.applyAudioSettings(updated);
   };
 
   const [osUsername, setOsUsername] = useState('');
@@ -686,8 +728,123 @@ export function SubtitlesTab({ initialSubTab, settings, onSettingsChange }: Subt
         </>
       ) : (
         <>
-          {/* Default Audio Language */}
+          {/* Audio Processing & EQ Section */}
           <div className="settings-section">
+            <div className="section-header">
+              <h3>{i18n.t('settings:subtitles.audioProcessingTitle')}</h3>
+            </div>
+            <p className="section-description">
+              {i18n.t('settings:subtitles.audioProcessingSub')}
+            </p>
+
+            <div className="timeshift-settings">
+              {/* Normalize Loudness Toggle */}
+              <div className="timeshift-toggle-row">
+                <div className="timeshift-toggle-info">
+                  <span className="timeshift-toggle-label">{i18n.t('settings:subtitles.normalizeLoudness')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:subtitles.normalizeLoudnessSub')}</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={merged.audioNormalize ?? false}
+                    onChange={(e) => handleAudioNormalizeChange(e.target.checked)}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+
+              {/* Mix surround sound down to stereo Toggle */}
+              <div className="timeshift-toggle-row">
+                <div className="timeshift-toggle-info">
+                  <span className="timeshift-toggle-label">{i18n.t('settings:subtitles.downmixStereo')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:subtitles.downmixStereoSub')}</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={merged.audioDownmixStereo ?? false}
+                    onChange={(e) => handleAudioDownmixChange(e.target.checked)}
+                  />
+                  <span className="toggle-slider"></span>
+                </label>
+              </div>
+
+              {/* Audio Profile Selector */}
+              <div className="timeshift-toggle-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
+                <div className="timeshift-toggle-info" style={{ width: '100%' }}>
+                  <span className="timeshift-toggle-label">{i18n.t('settings:subtitles.audioProfile')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:subtitles.audioProfileSub')}</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', width: '100%', marginTop: '4px' }}>
+                  {AUDIO_PROFILE_OPTIONS.map((profile) => {
+                    const active = (merged.audioProfile || 'off') === profile.id;
+                    return (
+                      <button
+                        key={profile.id}
+                        type="button"
+                        onClick={() => handleAudioProfileChange(profile.id)}
+                        style={{
+                          flex: '1 1 120px',
+                          minWidth: '110px',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          border: active
+                            ? '1px solid var(--accent-primary, #00d4ff)'
+                            : '1px solid var(--surface-border, rgba(255, 255, 255, 0.1))',
+                          backgroundColor: active
+                            ? 'var(--accent-muted, rgba(0, 212, 255, 0.15))'
+                            : 'var(--bg-tertiary, rgba(40, 40, 40, 0.6))',
+                          color: active ? 'var(--accent-primary, #00d4ff)' : 'var(--text-primary, #ffffff)',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '2px',
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t(profile.labelKey as any)}</span>
+                        <span style={{ fontSize: '0.72rem', opacity: 0.75, lineHeight: 1.2 }}>{i18n.t(profile.descKey as any)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Volume Boost Section */}
+          <div className="settings-section" style={{ marginTop: '2rem' }}>
+            <div className="section-header">
+              <h3>{i18n.t('settings:subtitles.volumeBoostTitle')}</h3>
+            </div>
+            <p className="section-description">
+              {i18n.t('settings:subtitles.volumeBoostSub')}
+            </p>
+
+            <div className="timeshift-settings">
+              <div className="timeshift-toggle-row">
+                <div className="timeshift-toggle-info">
+                  <span className="timeshift-toggle-label">{i18n.t('settings:subtitles.maxVolumeBoost')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:subtitles.maxVolumeBoostSub')}</span>
+                </div>
+                <select
+                  value={merged.audioMaxVolume || 100}
+                  onChange={(e) => handleAudioMaxVolumeChange(Number(e.target.value))}
+                >
+                  {MAX_VOLUME_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {i18n.t(opt.labelKey as any)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Default Audio Language */}
+          <div className="settings-section" style={{ marginTop: '2rem' }}>
             <div className="section-header">
               <h3>{i18n.t('settings:subtitles.audioLanguageSettings')}</h3>
             </div>

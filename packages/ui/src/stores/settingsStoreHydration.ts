@@ -66,7 +66,7 @@ const BOOLEAN_KEYS = new Set([
   'showWatchlist', 'showRecentlyViewed', 'collapseSourceCategoriesOnStartup',
   'showVodAll', 'showVodFavorites', 'showVodPlaylists', 'showVodLocal', 'showVodRecent',
   'useEventBasedReconnect', 'stallDetectionEnabled', 'showLoadingScreen',
-  'transparentGuideHideHeader', 'allowLanSources', 'v3DefaultMigrated',
+  'transparentGuideHideHeader', 'allowLanSources', 'v3DefaultMigrated', 'volumePercentDefaultMigrated',
 ] as const);
 
 const NUMBER_KEYS = new Set([
@@ -192,6 +192,20 @@ async function hydrateSettingsStore(): Promise<void> {
         }
       }
 
+      // showVolumePercent default ON migration: runs once for users upgrading or installing.
+      // If the flag is missing, turn on showVolumePercent once and mark migration done.
+      // If a user later turns it off, showVolumePercent will be false and volumePercentDefaultMigrated will be true,
+      // so it will never turn back on automatically.
+      if (!data.volumePercentDefaultMigrated) {
+        data.showVolumePercent = true;
+        data.volumePercentDefaultMigrated = true;
+        try {
+          window.storage.updateSettings({ showVolumePercent: true, volumePercentDefaultMigrated: true }).catch(() => {});
+        } catch (e) {
+          console.warn('[settingsHydration] Failed to persist volumePercentDefaultMigrated:', e);
+        }
+      }
+
       if (data.savedVolume !== undefined) {
         try {
           if (localStorage.getItem('ynotv_volume') === null) {
@@ -227,6 +241,7 @@ async function hydrateSettingsStore(): Promise<void> {
         allowLanSources: data.allowLanSources ?? false,
         modernUiEnabled: data.modernUiEnabled ?? 'v3',
         v3DefaultMigrated: data.v3DefaultMigrated ?? false,
+        volumePercentDefaultMigrated: data.volumePercentDefaultMigrated ?? false,
         categorySortOrder: data.categorySortOrder ?? 'default',
         includeAllChannelsToPlaylist: data.includeAllChannelsToPlaylist ?? false,
         hideDisabledSources: data.hideDisabledSources ?? false,
@@ -238,8 +253,8 @@ async function hydrateSettingsStore(): Promise<void> {
         channelInfoOverlayEnabled: data.channelInfoOverlayEnabled ?? false,
         channelInfoOverlayFontSize: data.channelInfoOverlayFontSize ?? 16,
         channelInfoOverlayLogoSize: data.channelInfoOverlayLogoSize ?? 42,
-        channelInfoOverlayBoxWidth: data.channelInfoOverlayBoxWidth ?? 380,
-        channelInfoOverlayOpacity: data.channelInfoOverlayOpacity ?? 55,
+        channelInfoOverlayBoxWidth: data.channelInfoOverlayBoxWidth ?? 350,
+        channelInfoOverlayOpacity: data.channelInfoOverlayOpacity ?? 70,
         channelInfoOverlayHideDescription: data.channelInfoOverlayHideDescription ?? false,
         channelInfoOverlayHideMetaBadge: data.channelInfoOverlayHideMetaBadge ?? false,
         channelInfoOverlayHideLogo: data.channelInfoOverlayHideLogo ?? false,
@@ -252,7 +267,7 @@ async function hydrateSettingsStore(): Promise<void> {
         overlayAutohideTimer: data.overlayAutohideTimer ?? 3,
         overlayOnClickOnly: data.overlayOnClickOnly ?? false,
         playerControlDesign: data.playerControlDesign ?? 'clean',
-        showVolumePercent: data.showVolumePercent ?? false,
+        showVolumePercent: data.showVolumePercent ?? true,
         popoutStopMain: data.popoutStopMain ?? true,
         popoutAlwaysOnTop: data.popoutAlwaysOnTop ?? false,
         popoutHwdecEnabled: data.popoutHwdecEnabled ?? true,

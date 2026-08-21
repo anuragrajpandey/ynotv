@@ -168,7 +168,8 @@ export function NowPlayingBar({
   const { t } = useTranslation('player');
   const showVolumePercentSetting = useSettingsStore((s) => s.showVolumePercent);
   const showFailoverMediaBarWidget = useSettingsStore((s) => s.showFailoverMediaBarWidget);
-  const showVolumePercent = propShowVolumePercent ?? showVolumePercentSetting ?? false;
+  const maxVolume = useSettingsStore((s) => s.subtitleSettings?.audioMaxVolume || 100);
+  const showVolumePercent = propShowVolumePercent ?? showVolumePercentSetting ?? true;
 
   // scrubMode: 'timeshift' | 'epgcatchup' — local toggle when channel supports both
   const [scrubMode, setScrubMode] = useState<'timeshift' | 'epgcatchup'>('timeshift');
@@ -762,7 +763,7 @@ export function NowPlayingBar({
                   type="range"
                   className="npb-clean-volume-slider"
                   min="0"
-                  max="100"
+                  max={maxVolume}
                   value={volume}
                   onChange={onVolumeChange}
                   onMouseDown={onVolumeDragStart}
@@ -1568,7 +1569,7 @@ export function NowPlayingBar({
                   type="range"
                   className="npb-volume-slider"
                   min="0"
-                  max="100"
+                  max={maxVolume}
                   value={volume}
                   onChange={onVolumeChange}
                   onMouseDown={onVolumeDragStart}
@@ -1684,7 +1685,7 @@ export function NowPlayingBar({
               type="range"
               className="npb-volume-slider"
               min="0"
-              max="100"
+              max={maxVolume}
               value={volume}
               onChange={onVolumeChange}
               onMouseDown={onVolumeDragStart}

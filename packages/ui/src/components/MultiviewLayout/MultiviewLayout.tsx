@@ -5,6 +5,7 @@ import { HlsMultiviewCell } from '../MultiviewCell/HlsMultiviewCell';
 import { ViewerSlot, type MultiviewEngineMode } from '../../hooks/useMultiview';
 import { useDraggable } from '../../hooks/useDraggable';
 import { useResizable } from '../../hooks/useResizable';
+import { useSettingsStore } from '../../stores/settingsStore';
 import './MultiviewLayout.css';
 
 interface HlsAbsoluteWrapperProps {
@@ -135,6 +136,7 @@ export function MultiviewLayout({
     syncMpvGeometry,
 }: MultiviewLayoutProps) {
     const { t } = useTranslation('player');
+    const audioMaxVolume = useSettingsStore((s) => s.subtitleSettings?.audioMaxVolume || 100);
     const slot2 = slots.find(s => s.id === 2)!;
     const slot3 = slots.find(s => s.id === 3)!;
     const slot4 = slots.find(s => s.id === 4)!;
@@ -221,7 +223,7 @@ export function MultiviewLayout({
                     <input
                         type="range"
                         min="0"
-                        max="100"
+                        max={audioMaxVolume}
                         value={mainMuted ? 0 : mainVolume}
                         onChange={(e) => onMainSetVolume(parseInt(e.target.value))}
                         className="multiview-cell-volume-slider"

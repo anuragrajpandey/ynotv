@@ -475,7 +475,7 @@ export function Settings({
     overlayOnClickOnly: false,
     uiScale: 100,
     playerControlDesign: 'clean',
-    showVolumePercent: false,
+    showVolumePercent: true,
   });
 
   // Font size state (moved to LiveTV tab)
@@ -1162,7 +1162,7 @@ export function Settings({
         overlayOnClickOnly: settings.overlayOnClickOnly ?? false,
         uiScale: settings.uiScale ?? 100,
         playerControlDesign: settings.playerControlDesign ?? 'clean',
-        showVolumePercent: settings.showVolumePercent ?? showVolumePercentProp ?? false,
+        showVolumePercent: settings.showVolumePercent ?? showVolumePercentProp ?? true,
       };
       setUiSettings(loadedUiSettings);
 

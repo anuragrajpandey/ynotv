@@ -558,6 +558,52 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                 args.push(flag);
             }
 
+            // Inject audio settings from subtitleSettings (normalization, EQ profiles, stereo downmix, volume max)
+            if let Some(sub_settings) = get_value("subtitleSettings").and_then(|v| v.as_object().cloned()) {
+                // Downmix surround to stereo
+                if sub_settings.get("audioDownmixStereo").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    debug!("[MPV] Audio downmix stereo enabled — injecting: --audio-channels=stereo");
+                    args.push("--audio-channels=stereo".to_string());
+                }
+
+                // Max volume boost
+                let max_vol = sub_settings.get("audioMaxVolume").and_then(|v| v.as_u64()).unwrap_or(100);
+                if max_vol > 100 {
+                    debug!("[MPV] Custom volume-max configured: {}", max_vol);
+                    args.push(format!("--volume-max={}", max_vol));
+                }
+
+                // Custom audio device
+                if let Some(dev) = sub_settings.get("audioDevice").and_then(|v| v.as_str()) {
+                    if !dev.is_empty() && dev != "auto" {
+                        debug!("[MPV] Custom audio-device configured: {}", dev);
+                        args.push(format!("--audio-device={}", dev));
+                    }
+                }
+
+                // Audio filters (normalization & profiles)
+                let normalize = sub_settings.get("audioNormalize").and_then(|v| v.as_bool()).unwrap_or(false);
+                let profile = sub_settings.get("audioProfile").and_then(|v| v.as_str()).unwrap_or("off");
+
+                let mut af_parts: Vec<&str> = Vec::new();
+                if normalize {
+                    af_parts.push("dynaudnorm=f=500:g=31:p=0.9:m=4");
+                }
+                match profile {
+                    "bass" => af_parts.push("lavfi=[bass=g=7:f=110:w=0.6]"),
+                    "voice" => af_parts.push("lavfi=[equalizer=f=300:t=q:w=1:g=-3,equalizer=f=2800:t=q:w=1:g=5]"),
+                    "bass-reduce" => af_parts.push("lavfi=[bass=g=-8:f=110:w=0.6]"),
+                    "night" => af_parts.push("lavfi=[acompressor=ratio=3:threshold=-20dB:attack=20:release=300:makeup=4dB]"),
+                    _ => {}
+                }
+                if !af_parts.is_empty() {
+                    af_parts.push("lavfi=[alimiter=limit=0.97]");
+                    let af_flag = format!("--af={}", af_parts.join(","));
+                    debug!("[MPV] Audio filters configured — injecting: {}", af_flag);
+                    args.push(af_flag);
+                }
+            }
+
             return args;
         }
         Err(e) => {

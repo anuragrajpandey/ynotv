@@ -1874,9 +1874,10 @@ function useTmdbPresencePoster(
       // e.deltaY < 0 means scroll wheel up (increase volume)
       // e.deltaY > 0 means scroll wheel down (decrease volume)
       const step = e.deltaY < 0 ? 5 : -5;
+      const maxVol = useSettingsStore.getState().subtitleSettings?.audioMaxVolume || 100;
 
       setVolume((prevVol) => {
-        const newVol = Math.min(100, Math.max(0, prevVol + step));
+        const newVol = Math.min(maxVol, Math.max(0, prevVol + step));
         if (newVol !== prevVol) {
           Bridge.setVolume(newVol).catch(console.error);
         }

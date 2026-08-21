@@ -192,6 +192,7 @@ export interface SettingsState {
   modernUiEnabled: 'v1' | 'v2' | 'v3' | false;
   setModernUiEnabled: (value: 'v1' | 'v2' | 'v3' | false) => void;
   v3DefaultMigrated: boolean;
+  volumePercentDefaultMigrated: boolean;
 
   // Category display
   categorySortOrder: 'default' | 'alphabetical';
@@ -612,6 +613,10 @@ export const DEFAULT_SUBTITLE_SETTINGS: SubtitleSettings = {
   subAssOverride: 'yes',
   subAlign: 'center',
   audioDevice: 'auto',
+  audioNormalize: false,
+  audioProfile: 'off',
+  audioDownmixStereo: false,
+  audioMaxVolume: 100,
 };
 
 function getInitialTheme(): ThemeId {
@@ -763,6 +768,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     persistSettings({ modernUiEnabled: value });
   },
   v3DefaultMigrated: (cachedSettings?.v3DefaultMigrated as boolean) ?? false,
+  volumePercentDefaultMigrated: (cachedSettings?.volumePercentDefaultMigrated as boolean) ?? false,
 
   // Category display
   categorySortOrder: 'default',
@@ -973,7 +979,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ playerControlDesign: design });
     persistSettings({ playerControlDesign: design });
   },
-  showVolumePercent: false,
+  showVolumePercent: (cachedSettings?.showVolumePercent as boolean) ?? true,
   setShowVolumePercent: (enabled) => {
     set({ showVolumePercent: enabled });
     persistSettings({ showVolumePercent: enabled });

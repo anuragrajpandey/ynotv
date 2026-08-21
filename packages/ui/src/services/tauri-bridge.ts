@@ -734,6 +734,81 @@ export const Bridge = {
         await invoke('mpv_set_property', { name: 'sub-align-x', value: alignX }).catch(() => {});
     },
 
+    buildAudioFilterString(settings: { audioNormalize?: boolean; audioProfile?: string }): string {
+        const parts: string[] = [];
+        if (settings.audioNormalize) {
+            parts.push('dynaudnorm=f=500:g=31:p=0.9:m=4');
+        }
+        if (settings.audioProfile && settings.audioProfile !== 'off') {
+            switch (settings.audioProfile) {
+                case 'bass':
+                    parts.push('lavfi=[bass=g=7:f=110:w=0.6]');
+                    break;
+                case 'voice':
+                    parts.push('lavfi=[equalizer=f=300:t=q:w=1:g=-3,equalizer=f=2800:t=q:w=1:g=5]');
+                    break;
+                case 'bass-reduce':
+                    parts.push('lavfi=[bass=g=-8:f=110:w=0.6]');
+                    break;
+                case 'night':
+                    parts.push('lavfi=[acompressor=ratio=3:threshold=-20dB:attack=20:release=300:makeup=4dB]');
+                    break;
+            }
+        }
+        if (parts.length > 0) {
+            parts.push('lavfi=[alimiter=limit=0.97]');
+        }
+        return parts.join(',');
+    },
+
+    async applyAudioSettings(settings: {
+        audioNormalize?: boolean;
+        audioProfile?: string;
+        audioDownmixStereo?: boolean;
+        audioMaxVolume?: number;
+        audioDevice?: string;
+    }) {
+        try {
+            const af = this.buildAudioFilterString(settings);
+            await invoke('mpv_set_property', { name: 'af', value: af }).catch(() => {});
+        } catch (e) {
+            console.warn('[Bridge] Failed to apply audio filter graph:', e);
+        }
+
+        if (settings.audioDownmixStereo !== undefined) {
+            try {
+                await invoke('mpv_set_property', {
+                    name: 'audio-channels',
+                    value: settings.audioDownmixStereo ? 'stereo' : 'auto',
+                }).catch(() => {});
+            } catch (e) {
+                console.warn('[Bridge] Failed to apply downmix channels:', e);
+            }
+        }
+
+        if (settings.audioMaxVolume !== undefined) {
+            try {
+                await invoke('mpv_set_property', {
+                    name: 'volume-max',
+                    value: settings.audioMaxVolume,
+                }).catch(() => {});
+            } catch (e) {
+                console.warn('[Bridge] Failed to apply volume-max:', e);
+            }
+        }
+
+        if (settings.audioDevice !== undefined) {
+            try {
+                await invoke('mpv_set_property', {
+                    name: 'audio-device',
+                    value: settings.audioDevice,
+                }).catch(() => {});
+            } catch (e) {
+                console.warn('[Bridge] Failed to apply audio-device:', e);
+            }
+        }
+    },
+
     async setProperty(name: string, value: any) {
         if (name === 'volume' && typeof value === 'number') {
             try {
@@ -1181,6 +1256,8 @@ export async function initPolyfills() {
         setSubtitleBorderStyle: Bridge.setSubtitleBorderStyle,
         setSubtitlePos: Bridge.setSubtitlePos,
         setSubtitleAlign: Bridge.setSubtitleAlign,
+        buildAudioFilterString: Bridge.buildAudioFilterString.bind(Bridge),
+        applyAudioSettings: Bridge.applyAudioSettings.bind(Bridge),
         destroy: () => { },
         setProperty: Bridge.setProperty,
         setProperties: Bridge.setProperties,

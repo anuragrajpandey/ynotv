@@ -2,6 +2,7 @@ import { type ChangeEvent, useRef, useState, useCallback, useEffect } from 'reac
 import { useTranslation } from 'react-i18next';
 import type { AspectRatioMode } from '../services/tauri-bridge';
 import { getAspectRatioLabel } from '../services/tauri-bridge';
+import { useSettingsStore } from '../stores/settingsStore';
 import './PiPMediaBar.css';
 
 interface TimeshiftState {
@@ -59,6 +60,7 @@ export function PiPMediaBar({
   onSetAspectRatio,
 }: PiPMediaBarProps) {
   const { t } = useTranslation('player');
+  const maxVolume = useSettingsStore((s) => s.subtitleSettings?.audioMaxVolume || 100);
   const [seekHover, setSeekHover] = useState(false);
   const [seekDrag, setSeekDrag] = useState(false);
   const [hoverPos, setHoverPos] = useState(0);
@@ -218,7 +220,7 @@ export function PiPMediaBar({
           type="range"
           className="pip-volume-slider"
           min="0"
-          max="100"
+          max={maxVolume}
           value={volume}
           onChange={onVolumeChange}
           title={t('volume')}

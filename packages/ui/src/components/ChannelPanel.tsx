@@ -456,6 +456,7 @@ export function ChannelPanel({
   const epgLazyLoadingEnabled = useSettingsStore((s) => s.epgLazyLoadingEnabled);
   const layoutSettingsLoaded = useSettingsStore((s) => s.layoutSettingsLoaded);
   const showFailoverLiveTvWidget = useSettingsStore((s) => s.showFailoverLiveTvWidget);
+  const audioMaxVolume = useSettingsStore((s) => s.subtitleSettings?.audioMaxVolume || 100);
 
   useEffect(() => {
     if (error) console.log('[ChannelPanel] Received error prop:', error);
@@ -2557,7 +2558,7 @@ export function ChannelPanel({
                 <input
                   type="range"
                   min="0"
-                  max="100"
+                  max={audioMaxVolume}
                   value={previewMuted ? 0 : previewVolume}
                   onChange={handlePreviewVolumeChange}
                   onDoubleClick={(e) => e.stopPropagation()}

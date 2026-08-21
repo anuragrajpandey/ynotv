@@ -671,7 +671,7 @@ export function UITab({ settings, onSettingsChange }: UITabProps) {
                 <label className="toggle-switch">
                   <input
                     type="checkbox"
-                    checked={settings.showVolumePercent ?? false}
+                    checked={settings.showVolumePercent ?? true}
                     onChange={(e) => onSettingsChange({ ...settings, showVolumePercent: e.target.checked })}
                   />
                   <span className="toggle-slider"></span>
