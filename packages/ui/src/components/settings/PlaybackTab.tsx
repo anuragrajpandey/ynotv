@@ -159,6 +159,8 @@ export function PlaybackTab({
   const isTonemapOverridden = /--?tone-mapping[=\s]/i.test(localParams);
 
   const {
+    playerEngine,
+    setPlayerEngine,
     hdrTonemapToSdr,
     setHdrTonemapToSdr,
     showHdrQuickToggle,
@@ -320,6 +322,54 @@ export function PlaybackTab({
       <div className="settings-tab-content">
         {activeSubTab === 'mpv' && (
           <div className="settings-section">
+              {/* Player Engine Selection (Dual Engine) */}
+              <div style={{ marginBottom: '1.25rem', background: 'var(--card-bg, var(--surface-color))', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--border-color, var(--surface-border))' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{i18n.t('settings:playback.engineLabel', 'Playback Engine')}</span>
+                  <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', background: 'rgba(0, 212, 255, 0.15)', color: 'var(--accent-color, #00d4ff)', border: '1px solid rgba(0, 212, 255, 0.3)', fontWeight: 500 }}>
+                    {playerEngine === 'libmpv' ? 'Embedded libmpv' : 'Standalone Sidecar'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="playerEngine"
+                      value="libmpv"
+                      checked={playerEngine === 'libmpv'}
+                      onChange={() => setPlayerEngine('libmpv')}
+                      style={{ marginTop: '3px' }}
+                    />
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                        {i18n.t('settings:playback.engineLibmpv', 'Embedded libmpv (Recommended)')}
+                      </span>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.35' }}>
+                        {i18n.t('settings:playback.engineLibmpvDesc', 'In-process native playback engine with instant startup, smooth seeking, Direct3D 11 / OpenGL rendering, and unified macOS/Windows support.')}
+                      </p>
+                    </div>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="playerEngine"
+                      value="sidecar"
+                      checked={playerEngine === 'sidecar'}
+                      onChange={() => setPlayerEngine('sidecar')}
+                      style={{ marginTop: '3px' }}
+                    />
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                        {i18n.t('settings:playback.engineSidecar', 'Standalone Sidecar (mpv.exe)')}
+                      </span>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.35' }}>
+                        {i18n.t('settings:playback.engineSidecarDesc', 'Runs MPV as an isolated external process communicating over IPC named pipes (Windows fallback).')}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               <div style={{ marginBottom: '1.25rem', background: 'var(--card-bg, var(--surface-color))', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--border-color, var(--surface-border))', opacity: isHwdecOverridden ? 0.75 : 1 }}>
                 <label className="genre-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: isHwdecOverridden ? 'not-allowed' : 'pointer' }}>
                   <input

@@ -239,6 +239,9 @@ mod resize_coalescing {
 use tauri::TitleBarStyle;
 
 // Platform-specific MPV modules
+mod mpv_core;
+#[cfg(target_os = "macos")]
+mod mpv_render_mac;
 #[cfg(target_os = "macos")]
 mod mpv_macos;
 #[cfg(target_os = "windows")]
@@ -249,6 +252,7 @@ mod mpv_popout;
 mod audio_capture;
 
 // Re-export the MPV state and functions based on platform
+pub use mpv_core::MpvCoreState;
 #[cfg(target_os = "macos")]
 use mpv_macos::MpvState;
 #[cfg(target_os = "windows")]
@@ -256,6 +260,31 @@ use mpv_windows::MpvState;
 #[cfg(target_os = "windows")]
 use mpv_secondary::SecondaryMpvState;
 use mpv_popout::PopoutMpvState;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerEngine {
+    LibMpv,
+    Sidecar,
+}
+
+pub(crate) async fn get_player_engine<R: Runtime>(app: &AppHandle<R>) -> PlayerEngine {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app;
+        PlayerEngine::LibMpv
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if let Some(val) = read_store_setting(app, "playerEngine") {
+            if let Some(s) = val.as_str() {
+                if s.eq_ignore_ascii_case("sidecar") {
+                    return PlayerEngine::Sidecar;
+                }
+            }
+        }
+        PlayerEngine::LibMpv
+    }
+}
 
 // DVR Module (Rust native implementation)
 mod dvr;
@@ -819,26 +848,48 @@ async fn init_mpv<R: Runtime>(app: AppHandle<R>, args: Vec<String>) -> Result<()
 
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::init_mpv_with_params(app, safe_custom_params).await
+        mpv_core::init_mpv_with_params(app, safe_custom_params).await
     }
     #[cfg(target_os = "windows")]
     {
-        let state = app.state::<MpvState>();
-        mpv_windows::init_mpv_with_params(app.clone(), state, safe_custom_params).await
+        let engine = get_player_engine(&app).await;
+        log::info!("[MPV] init_mpv engine selected: {:?}", engine);
+        if engine == PlayerEngine::LibMpv {
+            mpv_core::init_mpv_with_params(app, safe_custom_params).await
+        } else {
+            let state = app.state::<MpvState>();
+            mpv_windows::init_mpv_with_params(app.clone(), state, safe_custom_params).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::init_mpv_with_params(app, safe_custom_params).await
     }
 }
 
 #[tauri::command]
 async fn mpv_load<R: Runtime>(app: AppHandle<R>, url: String) -> Result<(), String> {
-    // Reset audio delay to 0.0 before loading the new file
-    let _ = mpv_set_property(app.clone(), "audio-delay".to_string(), serde_json::json!(0.0)).await;
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::load_file(&app, url).await
+        let _ = mpv_core::set_property(&app, "audio-delay".to_string(), serde_json::json!(0.0)).await;
+        mpv_core::load_file(&app, url).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::load_file(&app, url).await
+        let engine = get_player_engine(&app).await;
+        log::info!("[MPV] mpv_load engine selected: {:?}, url: {}", engine, url);
+        if engine == PlayerEngine::LibMpv {
+            let _ = mpv_core::set_property(&app, "audio-delay".to_string(), serde_json::json!(0.0)).await;
+            mpv_core::load_file(&app, url).await
+        } else {
+            let _ = mpv_windows::set_property(&app, "audio-delay".to_string(), serde_json::json!(0.0)).await;
+            mpv_windows::load_file(&app, url).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = mpv_set_property(app.clone(), "audio-delay".to_string(), serde_json::json!(0.0)).await;
+        mpv_core::load_file(&app, url).await
     }
 }
 
@@ -846,11 +897,19 @@ async fn mpv_load<R: Runtime>(app: AppHandle<R>, url: String) -> Result<(), Stri
 async fn mpv_play<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::play(&app).await
+        mpv_core::play(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::play(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::play(&app).await
+        } else {
+            mpv_windows::play(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::play(&app).await
     }
 }
 
@@ -858,11 +917,19 @@ async fn mpv_play<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_pause<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::pause(&app).await
+        mpv_core::pause(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::pause(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::pause(&app).await
+        } else {
+            mpv_windows::pause(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::pause(&app).await
     }
 }
 
@@ -870,11 +937,19 @@ async fn mpv_pause<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_resume<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::play(&app).await
+        mpv_core::resume(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::resume(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::resume(&app).await
+        } else {
+            mpv_windows::resume(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::resume(&app).await
     }
 }
 
@@ -882,11 +957,19 @@ async fn mpv_resume<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_stop<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::stop(&app).await
+        mpv_core::stop(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::stop(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::stop(&app).await
+        } else {
+            mpv_windows::stop(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::stop(&app).await
     }
 }
 
@@ -894,11 +977,19 @@ async fn mpv_stop<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_set_volume<R: Runtime>(app: AppHandle<R>, volume: f64) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::set_volume(&app, volume).await
+        mpv_core::set_volume(&app, volume).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::set_volume(&app, volume).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_volume(&app, volume).await
+        } else {
+            mpv_windows::set_volume(&app, volume).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_volume(&app, volume).await
     }
 }
 
@@ -906,11 +997,19 @@ async fn mpv_set_volume<R: Runtime>(app: AppHandle<R>, volume: f64) -> Result<()
 async fn mpv_seek<R: Runtime>(app: AppHandle<R>, seconds: f64) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::seek(&app, seconds).await
+        mpv_core::seek(&app, seconds).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::seek(&app, seconds).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::seek(&app, seconds).await
+        } else {
+            mpv_windows::seek(&app, seconds).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::seek(&app, seconds).await
     }
 }
 
@@ -918,11 +1017,19 @@ async fn mpv_seek<R: Runtime>(app: AppHandle<R>, seconds: f64) -> Result<(), Str
 async fn mpv_toggle_mute<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::toggle_mute(&app).await
+        mpv_core::toggle_mute(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::toggle_mute(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::toggle_mute(&app).await
+        } else {
+            mpv_windows::toggle_mute(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::toggle_mute(&app).await
     }
 }
 
@@ -930,11 +1037,19 @@ async fn mpv_toggle_mute<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_cycle_audio<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::cycle_audio(&app).await
+        mpv_core::cycle_audio(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::cycle_audio(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::cycle_audio(&app).await
+        } else {
+            mpv_windows::cycle_audio(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::cycle_audio(&app).await
     }
 }
 
@@ -942,11 +1057,19 @@ async fn mpv_cycle_audio<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_cycle_sub<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::cycle_sub(&app).await
+        mpv_core::cycle_sub(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::cycle_sub(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::cycle_sub(&app).await
+        } else {
+            mpv_windows::cycle_sub(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::cycle_sub(&app).await
     }
 }
 
@@ -954,11 +1077,19 @@ async fn mpv_cycle_sub<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_get_track_list<R: Runtime>(app: AppHandle<R>) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::get_track_list(&app).await
+        mpv_core::get_track_list(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::get_track_list(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::get_track_list(&app).await
+        } else {
+            mpv_windows::get_track_list(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::get_track_list(&app).await
     }
 }
 
@@ -966,11 +1097,19 @@ async fn mpv_get_track_list<R: Runtime>(app: AppHandle<R>) -> Result<serde_json:
 async fn mpv_set_audio<R: Runtime>(app: AppHandle<R>, id: i64) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::set_audio_track(&app, id).await
+        mpv_core::set_audio_track(&app, id).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::set_audio_track(&app, id).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_audio_track(&app, id).await
+        } else {
+            mpv_windows::set_audio_track(&app, id).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_audio_track(&app, id).await
     }
 }
 
@@ -978,11 +1117,19 @@ async fn mpv_set_audio<R: Runtime>(app: AppHandle<R>, id: i64) -> Result<(), Str
 async fn mpv_set_subtitle<R: Runtime>(app: AppHandle<R>, id: i64) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::set_subtitle_track(&app, id).await
+        mpv_core::set_subtitle_track(&app, id).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::set_subtitle_track(&app, id).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_subtitle_track(&app, id).await
+        } else {
+            mpv_windows::set_subtitle_track(&app, id).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_subtitle_track(&app, id).await
     }
 }
 
@@ -990,11 +1137,19 @@ async fn mpv_set_subtitle<R: Runtime>(app: AppHandle<R>, id: i64) -> Result<(), 
 async fn mpv_add_subtitle<R: Runtime>(app: AppHandle<R>, file_path: String, flag: Option<String>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::add_subtitle_file(&app, file_path, flag).await
+        mpv_core::add_subtitle_file(&app, file_path, flag).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::add_subtitle_file(&app, file_path, flag).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::add_subtitle_file(&app, file_path, flag).await
+        } else {
+            mpv_windows::add_subtitle_file(&app, file_path, flag).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::add_subtitle_file(&app, file_path, flag).await
     }
 }
 
@@ -1002,11 +1157,19 @@ async fn mpv_add_subtitle<R: Runtime>(app: AppHandle<R>, file_path: String, flag
 async fn mpv_remove_subtitle<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::remove_subtitle_file(&app, file_path).await
+        mpv_core::remove_subtitle_file(&app, file_path).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::remove_subtitle_file(&app, file_path).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::remove_subtitle_file(&app, file_path).await
+        } else {
+            mpv_windows::remove_subtitle_file(&app, file_path).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::remove_subtitle_file(&app, file_path).await
     }
 }
 
@@ -1015,11 +1178,21 @@ async fn mpv_get_log<R: Runtime>(app: AppHandle<R>, tail: Option<usize>) -> Resu
     let tail = tail.unwrap_or(400);
     #[cfg(target_os = "macos")]
     {
+        let _ = tail;
         Ok(serde_json::json!({ "log": "", "path": "(mpv log not available on macOS)" }))
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::get_mpv_log(&app, tail).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            Ok(serde_json::json!({ "log": "", "path": "libmpv (in-process)" }))
+        } else {
+            mpv_windows::get_mpv_log(&app, tail).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = tail;
+        Ok(serde_json::json!({ "log": "", "path": "libmpv (in-process)" }))
     }
 }
 
@@ -1033,7 +1206,17 @@ async fn mpv_set_verbose_logging<R: Runtime>(app: AppHandle<R>, enabled: bool) -
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::set_verbose_logging(&app, enabled).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            Ok(())
+        } else {
+            mpv_windows::set_verbose_logging(&app, enabled).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = app;
+        let _ = enabled;
+        Ok(())
     }
 }
 
@@ -1042,15 +1225,23 @@ async fn mpv_set_properties<R: Runtime>(
     app: AppHandle<R>,
     properties: Vec<(String, serde_json::Value)>,
 ) -> Result<(), String> {
-    for (name, value) in properties {
-        #[cfg(target_os = "macos")]
-        {
-            mpv_macos::set_property(&app, name, value).await?;
+    #[cfg(target_os = "macos")]
+    {
+        mpv_core::set_properties(&app, properties.into_iter().collect()).await?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_properties(&app, properties.into_iter().collect()).await?;
+        } else {
+            for (name, value) in properties {
+                mpv_windows::set_property(&app, name, value).await?;
+            }
         }
-        #[cfg(target_os = "windows")]
-        {
-            mpv_windows::set_property(&app, name, value).await?;
-        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_properties(&app, properties.into_iter().collect()).await?;
     }
     Ok(())
 }
@@ -1063,11 +1254,19 @@ async fn mpv_set_property<R: Runtime>(
 ) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::set_property(&app, name, value).await
+        mpv_core::set_property(&app, name, value).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::set_property(&app, name, value).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_property(&app, name, value).await
+        } else {
+            mpv_windows::set_property(&app, name, value).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_property(&app, name, value).await
     }
 }
 
@@ -1075,11 +1274,19 @@ async fn mpv_set_property<R: Runtime>(
 async fn mpv_get_property<R: Runtime>(app: AppHandle<R>, name: String) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::get_property(&app, &name).await
+        mpv_core::get_property(&app, name).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::get_property(&app, name).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::get_property(&app, name).await
+        } else {
+            mpv_windows::get_property(&app, name).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::get_property(&app, name).await
     }
 }
 
@@ -1091,23 +1298,34 @@ async fn mpv_sync_window<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::sync_window(&app, pos.x, pos.y, size.width, size.height).await
+        let _ = (pos, size);
+        mpv_core::sync_window(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::sync_window(&app, pos.x, pos.y, size.width, size.height).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::sync_window(&app).await
+        } else {
+            mpv_windows::sync_window(&app, pos.x, pos.y, size.width, size.height).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (pos, size);
+        mpv_core::sync_window(&app).await
     }
 }
 
 #[tauri::command]
 async fn mpv_kill<R: Runtime>(app: AppHandle<R>) {
-    #[cfg(target_os = "macos")]
-    {
-        mpv_macos::kill_mpv(&app).await;
-    }
+    mpv_core::kill_mpv(&app).await;
     #[cfg(target_os = "windows")]
     {
         mpv_windows::kill_mpv(&app).await;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        mpv_macos::kill_mpv(&app).await;
     }
 }
 
@@ -1262,19 +1480,23 @@ async fn mpv_toggle_fullscreen<R: Runtime>(
 
 #[tauri::command]
 async fn mpv_toggle_stats<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
-    // Send script-binding command for stats display
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::send_command(&app, serde_json::json!({ 
-            "command": ["script-binding", "stats/display-stats-toggle"] 
-        })).await?;
+        mpv_core::toggle_stats(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        use serde_json::json;
-        mpv_windows::send_command(&app, "script-binding", vec![json!("stats/display-stats-toggle")]).await?;
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::toggle_stats(&app).await
+        } else {
+            use serde_json::json;
+            mpv_windows::send_command(&app, "script-binding", vec![json!("stats/display-stats-toggle")]).await.map(|_| ())
+        }
     }
-    Ok(())
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::toggle_stats(&app).await
+    }
 }
 
 #[tauri::command]
@@ -1287,13 +1509,19 @@ async fn mpv_set_geometry<R: Runtime>(
 ) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        // On macOS, hole-punch mode uses window syncing — geometry not directly supported
-        let _ = (x, y, width, height);
-        Ok(())
+        mpv_core::set_geometry(&app, x, y, width, height).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::mpv_set_geometry(&app, x, y, width, height).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_geometry(&app, x, y, width, height).await
+        } else {
+            mpv_windows::mpv_set_geometry(&app, x, y, width, height).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_geometry(&app, x, y, width, height).await
     }
 }
 
@@ -4441,6 +4669,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         // Manage platform-specific MPV state
         .manage(MpvState::new())
+        .manage(MpvCoreState::new())
         .manage(audio_capture::AudioCaptureState::new())
         .manage(std::sync::Arc::new(cast::CastManager::new()))
         .setup(|app| {

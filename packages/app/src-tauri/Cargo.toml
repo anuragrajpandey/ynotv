@@ -80,6 +80,31 @@ url = "2"
 # FFT dependency for per-process audio visualizer
 rustfft = "6.2"
 
+# MPV bindings
+libmpv2 = "4"
+libmpv2-sys = "4"
+libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = [
+  "NSGeometry",
+  "NSThread",
+  "NSValue",
+  "NSDictionary",
+  "NSString",
+] }
+objc2-app-kit = { version = "0.3", features = [
+  "NSWindow",
+  "NSView",
+  "NSOpenGL",
+  "NSOpenGLView",
+  "NSResponder",
+] }
+objc2-web-kit = { version = "0.3", features = ["WKWebView"] }
+core-foundation = "0.10"
+core-video = "0.4"
+
 # Win32 APIs for MPV HWND resizing and WASAPI loopback audio capture (Windows only)
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.58", features = [

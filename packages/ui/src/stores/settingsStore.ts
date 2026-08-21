@@ -400,6 +400,8 @@ export interface SettingsState {
   setShowVolumePercent: (enabled: boolean) => void;
 
   // Video / MPV tuning
+  playerEngine: 'libmpv' | 'sidecar';
+  setPlayerEngine: (engine: 'libmpv' | 'sidecar') => void;
   hdrTonemapToSdr: boolean;
   setHdrTonemapToSdr: (enabled: boolean) => void;
   showHdrQuickToggle: boolean;
@@ -989,6 +991,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setShowVolumePercent: (enabled) => {
     set({ showVolumePercent: enabled });
     persistSettings({ showVolumePercent: enabled });
+  },
+  // Video / MPV tuning
+  playerEngine: (cachedSettings?.playerEngine as 'libmpv' | 'sidecar') || 'libmpv',
+  setPlayerEngine: (engine) => {
+    set({ playerEngine: engine });
+    persistSettings({ playerEngine: engine });
   },
   hdrTonemapToSdr: (cachedSettings?.hdrTonemapToSdr as boolean) ?? false,
   setHdrTonemapToSdr: (enabled) => {
