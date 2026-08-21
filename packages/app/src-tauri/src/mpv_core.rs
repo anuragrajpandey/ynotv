@@ -292,9 +292,11 @@ fn spawn_status_monitor<R: Runtime>(
 ) {
     tauri::async_runtime::spawn(async move {
         let mut last_eof_reached = false;
+        let mut was_idle = true;
+        let mut last_position: f64 = 0.0;
 
         while !shutdown.load(std::sync::atomic::Ordering::Relaxed) {
-            tokio::time::sleep(Duration::from_millis(300)).await;
+            tokio::time::sleep(Duration::from_millis(250)).await;
 
             let pause: bool = mpv.get_property("pause").unwrap_or(true);
             let volume: f64 = mpv.get_property("volume").unwrap_or(100.0);
@@ -305,15 +307,49 @@ fn spawn_status_monitor<R: Runtime>(
             let core_idle: bool = mpv.get_property("core-idle").unwrap_or(true);
             let eof_reached: bool = mpv.get_property("eof-reached").unwrap_or(false);
             let video_format: Option<String> = mpv.get_property("video-format").ok();
+            let vid: Option<i64> = mpv.get_property("vid").ok();
 
+            // Emit file-loaded & playback-restart events on transition from idle to active
+            if was_idle && !core_idle {
+                let _ = app.emit("mpv-file-loaded", true);
+                let _ = app.emit("mpv-playback-restart", true);
+            }
+            was_idle = core_idle;
+
+            // Detect seek (jump in position larger than 2 seconds not accounted for by elapsed time)
+            if (position - last_position).abs() > 2.0 && !core_idle {
+                let _ = app.emit("mpv-seek", true);
+            }
+            last_position = position;
+
+            // End-of-file & stream ended events
             if eof_reached && !last_eof_reached {
                 let _ = app.emit("mpv-end-file", json!({
                     "reason": "eof",
                     "position": position,
                     "duration": duration,
                 }));
+                let _ = app.emit("mpv-stream-ended", ());
             }
             last_eof_reached = eof_reached;
+
+            // Timeshift / Live buffer updates
+            if let Ok(demuxer_cache) = mpv.get_property::<f64>("demuxer-cache-duration") {
+                let cache_start: f64 = mpv.get_property("demuxer-cache-state/cache-start").unwrap_or(0.0);
+                let cache_end: f64 = mpv.get_property("demuxer-cache-state/cache-end").unwrap_or(position + demuxer_cache);
+                let cached_duration = (cache_end - cache_start).max(demuxer_cache);
+                let behind_live = (cache_end - position).max(0.0);
+                if cached_duration > 0.0 {
+                    let ts_state = json!({
+                        "cacheStart": cache_start,
+                        "cacheEnd": cache_end,
+                        "timePos": position,
+                        "behindLive": behind_live,
+                        "cachedDuration": cached_duration,
+                    });
+                    let _ = app.emit("timeshift-update", ts_state);
+                }
+            }
 
             let status = MpvStatus {
                 playing: !pause,
@@ -324,7 +360,7 @@ fn spawn_status_monitor<R: Runtime>(
                 paused_for_cache,
                 core_idle,
                 video_format,
-                video_track_id: None,
+                video_track_id: vid.map(Value::from),
             };
 
             let _ = app.emit("mpv-status", status);
