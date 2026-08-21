@@ -245,9 +245,9 @@ All shortcuts are fully customizable in Settings > Shortcuts.
 
 <a href="https://www.star-history.com/?repos=tbeezy%2Fynotv&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=tbeezy/ynotv&type=date&theme=dark&legend=top-left&sealed_token=swZw73xSBna7yoh6LZkqbuS33DDO_bYHch-j0zj9GTHuiAhPX1J50G2xn9GbdvS_Yy_OoIhcb2x5uNwA9Q2kvvGpd6sXhRCFf1p1UuTG0mXUasrpl9UiW7SXglhr6YAM0kbJtSs5AlTZ95ICIdz7lMW2v5iCh8FUZGQGUhwmRDo4yZoXit3WFuSoBa2l" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=tbeezy/ynotv&type=date&legend=top-left&sealed_token=swZw73xSBna7yoh6LZkqbuS33DDO_bYHch-j0zj9GTHuiAhPX1J50G2xn9GbdvS_Yy_OoIhcb2x5uNwA9Q2kvvGpd6sXhRCFf1p1UuTG0mXUasrpl9UiW7SXglhr6YAM0kbJtSs5AlTZ95ICIdz7lMW2v5iCh8FUZGQGUhwmRDo4yZoXit3WFuSoBa2l" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=tbeezy/ynotv&type=date&legend=top-left&sealed_token=swZw73xSBna7yoh6LZkqbuS33DDO_bYHch-j0zj9GTHuiAhPX1J50G2xn9GbdvS_Yy_OoIhcb2x5uNwA9Q2kvvGpd6sXhRCFf1p1UuTG0mXUasrpl9UiW7SXglhr6YAM0kbJtSs5AlTZ95ICIdz7lMW2v5iCh8FUZGQGUhwmRDo4yZoXit3WFuSoBa2l" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=tbeezy/ynotv&type=date&theme=dark&legend=top-left&sealed_token=siqZZiJV0IOChgy89MenOrL0CGYjtWbao3DnPfPuenhCb0wM4gc_7KCWwKl3vcO8WSWDlaob3kPhT44fsP8bXaZKDpDW2jg_-ybrSpv6YutO2Gi-dDCXlrrORZ1uUBUcNMczU6GRBYCt4aifgdJhY2OKPeXJ8Ix3inzPj2rPZc04lUQyZE9amauRWsPx" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=tbeezy/ynotv&type=date&legend=top-left&sealed_token=siqZZiJV0IOChgy89MenOrL0CGYjtWbao3DnPfPuenhCb0wM4gc_7KCWwKl3vcO8WSWDlaob3kPhT44fsP8bXaZKDpDW2jg_-ybrSpv6YutO2Gi-dDCXlrrORZ1uUBUcNMczU6GRBYCt4aifgdJhY2OKPeXJ8Ix3inzPj2rPZc04lUQyZE9amauRWsPx" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=tbeezy/ynotv&type=date&legend=top-left&sealed_token=siqZZiJV0IOChgy89MenOrL0CGYjtWbao3DnPfPuenhCb0wM4gc_7KCWwKl3vcO8WSWDlaob3kPhT44fsP8bXaZKDpDW2jg_-ybrSpv6YutO2Gi-dDCXlrrORZ1uUBUcNMczU6GRBYCt4aifgdJhY2OKPeXJ8Ix3inzPj2rPZc04lUQyZE9amauRWsPx" />
  </picture>
 </a>
 
