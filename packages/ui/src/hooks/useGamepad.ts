@@ -40,6 +40,25 @@ function notifyButtonPressed(action: string, rawLabel: string = action, deviceNa
   });
 }
 
+// Both the native gilrs backend and the browser Gamepad API can see the same
+// pad, so one press can arrive from each source within a few ms. Instead of
+// picking a single source up front (which breaks when a webview reports a pad
+// it can't actually poll — e.g. DualSense over Bluetooth on some WebView2
+// builds), let both sources dispatch and drop the duplicate. Whichever source
+// fires first wins; the repeat rates of held buttons (120ms+) are far above
+// this window, so long-press repeat still works.
+const lastDispatchedAction = new Map<string, number>();
+const DEDUPE_WINDOW_MS = 60;
+
+function tryDispatchAction(action: string): boolean {
+  const now = Date.now();
+  const last = lastDispatchedAction.get(action) || 0;
+  if (now - last < DEDUPE_WINDOW_MS) return false;
+  lastDispatchedAction.set(action, now);
+  executeAction(action);
+  return true;
+}
+
 // Standard HTML5 Gamepad Layout
 const STANDARD_BUTTON_MAP: Record<number, string> = {
   0: 'south', // A / Cross
@@ -99,13 +118,6 @@ export function useGamepad() {
   const deadzoneRef = useRef(controllerDeadzone);
   deadzoneRef.current = controllerDeadzone;
 
-  // When the browser Gamepad API reports any connected pad, it is the active
-  // input source and the native gilrs backend is suppressed. Most controllers
-  // are visible to BOTH sources, so without this every press would dispatch
-  // twice (double-steps in menus). gilrs remains the fallback for webviews
-  // where the Gamepad API exposes no devices.
-  const browserHasGamepadsRef = useRef(false);
-
   // 1. Tauri Native Backend Listener (gilrs & Phone Remote Server)
   useEffect(() => {
     let unlistenGamepad: (() => void) | null = null;
@@ -163,10 +175,6 @@ export function useGamepad() {
           const gpName = event.payload?.gamepad_name || 'Controller';
           if (!rawAction) return;
 
-          // Browser Gamepad API is driving this device — skip the native
-          // backend so the same press isn't dispatched twice.
-          if (browserHasGamepadsRef.current) return;
-
           if (pressed) {
             notifyButtonPressed(rawAction, event.payload.button || rawAction, gpName);
           }
@@ -174,7 +182,7 @@ export function useGamepad() {
           if (!enabledRef.current || !pressed) return;
 
           const action = mappingsRef.current[rawAction] || rawAction;
-          executeAction(action);
+          tryDispatchAction(action);
         });
 
         // Listen for Phone Remote Web commands
@@ -273,7 +281,7 @@ export function useGamepad() {
 
             if (enabledRef.current) {
               const action = mappingsRef.current[rawAction] || rawAction;
-              executeAction(action);
+              tryDispatchAction(action);
             }
           } else if (!isPressed && wasPressed) {
             prevButtonStates.set(stateKey, false);
@@ -327,7 +335,7 @@ export function useGamepad() {
 
             if (enabledRef.current) {
               const action = mappingsRef.current[currentDir] || currentDir;
-              executeAction(action);
+              tryDispatchAction(action);
             }
           } else {
             const heldDuration = now - dirHeldSince;
@@ -353,10 +361,6 @@ export function useGamepad() {
           return prev;
         });
       }
-
-      // Refresh the source-selection flag each frame (staleness of a few ms is
-      // fine — it only gates the native backend while pads are connected).
-      browserHasGamepadsRef.current = anyConnected;
 
       rafId = requestAnimationFrame(pollGamepads);
     };

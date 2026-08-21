@@ -197,7 +197,7 @@ export function ControllersTab() {
               checked={controllerEnabled}
               onChange={(e) => setControllerEnabled(e.target.checked)}
             />
-            <span className="slider round"></span>
+            <span className="toggle-slider" />
           </label>
         </div>
 
@@ -324,7 +324,7 @@ export function ControllersTab() {
               checked={remoteControlEnabled}
               onChange={(e) => setRemoteControlEnabled(e.target.checked)}
             />
-            <span className="slider round"></span>
+            <span className="toggle-slider" />
           </label>
         </div>
 

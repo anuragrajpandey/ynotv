@@ -106,7 +106,7 @@ body.tv-nav-active .settings-nav-item.tv-focused,
 body.tv-nav-active .settings-tab-btn:focus,
 body.tv-nav-active .settings-nav-item:focus,
 body.tv-nav-active .mapping-select:focus,
-body.tv-nav-active .toggle-switch input:focus + .slider {
+body.tv-nav-active .toggle-switch input:focus + .toggle-slider {
   outline: 2px solid #38bdf8 !important;
   outline-offset: 2px !important;
   background: rgba(56, 189, 248, 0.25) !important;
