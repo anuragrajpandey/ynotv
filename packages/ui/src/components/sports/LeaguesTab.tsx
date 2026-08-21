@@ -409,10 +409,6 @@ function HorizontalDateRail({ selectedDate, onSelectDate, onOpenCalendar }: Date
   const { t } = useTranslation('sports');
   const [baseDate, setBaseDate] = useState<Date>(() => new Date(selectedDate));
 
-  useEffect(() => {
-    setBaseDate(new Date(selectedDate));
-  }, [selectedDate]);
-
   const isSameDay = (d1: Date, d2: Date) => {
     return (
       d1.getFullYear() === d2.getFullYear() &&
@@ -420,6 +416,21 @@ function HorizontalDateRail({ selectedDate, onSelectDate, onOpenCalendar }: Date
       d1.getDate() === d2.getDate()
     );
   };
+
+  useEffect(() => {
+    const minVisible = new Date(baseDate);
+    minVisible.setDate(minVisible.getDate() - 3);
+    const maxVisible = new Date(baseDate);
+    maxVisible.setDate(maxVisible.getDate() + 3);
+
+    const selTime = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()).getTime();
+    const minTime = new Date(minVisible.getFullYear(), minVisible.getMonth(), minVisible.getDate()).getTime();
+    const maxTime = new Date(maxVisible.getFullYear(), maxVisible.getMonth(), maxVisible.getDate()).getTime();
+
+    if (selTime < minTime || selTime > maxTime) {
+      setBaseDate(new Date(selectedDate));
+    }
+  }, [selectedDate, baseDate]);
 
   const handlePrevWeek = () => {
     const prev = new Date(baseDate);
@@ -1028,6 +1039,14 @@ export function LeaguesTab({ onSearchChannels, onPlayChannel }: LeaguesTabProps)
       setLoading(true);
       setSelectedScheduleDate(null);
       setTeamSearchQuery('');
+      setLeagueEvents([]);
+      setLeagueTeams([]);
+      setLeagueStandings([]);
+      setLeagueStandingsGroups([]);
+      setGolfRankings([]);
+      setTennisRankings([]);
+      setRacingStandings([]);
+
       // For individual sports, default to schedule (events)
       setActiveView(isIndividualSport ? 'schedule' : 'teams');
       
@@ -1042,7 +1061,31 @@ export function LeaguesTab({ onSearchChannels, onPlayChannel }: LeaguesTabProps)
           .finally(() => setLoading(false));
       }
     }
-  }, [selectedLeague, isIndividualSport]);
+  }, [selectedLeague?.id, isIndividualSport]);
+
+  const activeScheduleDate = useMemo(() => {
+    return selectedScheduleDate || new Date();
+  }, [selectedScheduleDate]);
+
+  const displayedScheduleEvents = useMemo(() => {
+    if (isIndividualSport) {
+      return leagueEvents;
+    }
+    return leagueEvents
+      .filter((event) => {
+        const eventDate = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
+        return (
+          eventDate.getFullYear() === activeScheduleDate.getFullYear() &&
+          eventDate.getMonth() === activeScheduleDate.getMonth() &&
+          eventDate.getDate() === activeScheduleDate.getDate()
+        );
+      })
+      .sort((a, b) => {
+        const timeA = a.startTime instanceof Date ? a.startTime.getTime() : new Date(a.startTime).getTime();
+        const timeB = b.startTime instanceof Date ? b.startTime.getTime() : new Date(b.startTime).getTime();
+        return timeA - timeB;
+      });
+  }, [leagueEvents, activeScheduleDate, isIndividualSport]);
 
   const handleDateChange = useCallback((date: Date | null) => {
     if (!selectedLeague) return;
@@ -1618,22 +1661,22 @@ export function LeaguesTab({ onSearchChannels, onPlayChannel }: LeaguesTabProps)
               {activeView === 'schedule' && (
                 <section className="sports-section">
                   <HorizontalDateRail
-                    selectedDate={selectedScheduleDate || new Date()}
+                    selectedDate={activeScheduleDate}
                     onSelectDate={(d) => handleDateChange(d)}
                     onOpenCalendar={() => setIsCalendarOpen(true)}
                   />
 
                   <SportsCalendarModal
                     isOpen={isCalendarOpen}
-                    selectedDate={selectedScheduleDate || new Date()}
+                    selectedDate={activeScheduleDate}
                     leagueName={selectedLeague?.name}
                     onSelectDate={(d) => handleDateChange(d)}
                     onClose={() => setIsCalendarOpen(false)}
                   />
 
-                  {leagueEvents.length > 0 ? (
+                  {displayedScheduleEvents.length > 0 ? (
                     <div className="league-game-cards-list">
-                      {leagueEvents.slice(0, 50).map((event) => (
+                      {displayedScheduleEvents.slice(0, 50).map((event) => (
                         <LeagueGameCard
                           key={event.id}
                           event={event}
