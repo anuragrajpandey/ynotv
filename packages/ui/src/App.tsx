@@ -101,6 +101,8 @@ import { useTimeshift } from './hooks/useTimeshift';
 import { useDvrEvents } from './hooks/useDvrEvents';
 import { useDvrUrlResolver } from './hooks/useDvrUrlResolver';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useGamepad } from './hooks/useGamepad';
+import { focusFirstInteractive, applyTvFocus } from './services/spatialNavigation';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { UpdateModal } from './components/UpdateModal';
 import { registerUpdateModal } from './services/updater';
@@ -2907,6 +2909,7 @@ function useTmdbPresencePoster(
     return () => window.removeEventListener('ynotv:search-vod', searchHandler);
   }, []);
 
+
   // ==========================================================================
   // Stremio & Nuvio Progress Updater — saves watch progress every 10 seconds
   // ==========================================================================
@@ -3849,6 +3852,8 @@ function useTmdbPresencePoster(
     position,
     currentChannels,
     currentChannel,
+    categoryId,
+    setCategoryId,
     switchLayout,
     titleBarSearchRef,
     handlePlayChannel,
@@ -3872,6 +3877,323 @@ function useTmdbPresencePoster(
     onTransparentGuideZapFlash: triggerTransparentGuideZapFlash,
     handleMouseBackNavigation,
   });
+
+  // ==========================================================================
+  // Gamepad & Virtual Phone Remote Event Router
+  // ==========================================================================
+  useGamepad();
+
+  const remoteRefs = useRef({
+    activeView,
+    categoriesOpen,
+    categoriesHidden,
+    guideTransparent,
+    showSettingsPopup,
+    showSubtitleModal,
+    showAdvancedSearch,
+    showShortcutsOverlay,
+    currentChannel,
+    categoryId,
+    setCategoryId,
+    multiviewLayout,
+    handleTogglePlay,
+    handleToggleFullscreen,
+    handleToggleMute,
+    handleShowSubtitleModal,
+    handleSeek,
+    handleChannelUp,
+    handleChannelDown,
+    setActiveView,
+    setCategoriesOpen,
+    setGuideTransparent,
+    setShowSettingsPopup,
+    setShowSubtitleModal,
+    setShowAdvancedSearch,
+    setShowShortcutsOverlay,
+  });
+  remoteRefs.current = {
+    activeView,
+    categoriesOpen,
+    categoriesHidden,
+    guideTransparent,
+    showSettingsPopup,
+    showSubtitleModal,
+    showAdvancedSearch,
+    showShortcutsOverlay,
+    currentChannel,
+    categoryId,
+    setCategoryId,
+    multiviewLayout,
+    handleTogglePlay,
+    handleToggleFullscreen,
+    handleToggleMute,
+    handleShowSubtitleModal,
+    handleSeek,
+    handleChannelUp,
+    handleChannelDown,
+    setActiveView,
+    setCategoriesOpen,
+    setGuideTransparent,
+    setShowSettingsPopup,
+    setShowSubtitleModal,
+    setShowAdvancedSearch,
+    setShowShortcutsOverlay,
+  };
+
+  useEffect(() => {
+    const onNavView = (e: Event) => {
+      const { view } = (e as CustomEvent).detail || {};
+      const {
+        activeView: curView,
+        categoriesHidden: catHidden,
+        guideTransparent: isTrans,
+        showSettingsPopup: isSettingsPopup,
+        showSubtitleModal: isSubModal,
+        showAdvancedSearch: isAdvSearch,
+        showShortcutsOverlay: isShortOverlay,
+        currentChannel: curChan,
+        categoryId: curCatId,
+        setCategoryId: setCatId,
+        multiviewLayout: layout,
+        setActiveView: setView,
+        setCategoriesOpen: setCats,
+        setGuideTransparent: setTrans,
+        setShowSettingsPopup: setSettingsPopup,
+        setShowSubtitleModal: setSubModal,
+        setShowAdvancedSearch: setSearch,
+        setShowShortcutsOverlay: setShortOverlay,
+      } = remoteRefs.current;
+
+      if (!view) return;
+
+      switch (view) {
+        case 'livetv':
+          if (curView === 'guide') {
+            if (isTrans) {
+              setTrans(false);
+              setCats(!catHidden);
+            } else {
+              setView('none');
+              setCats(false);
+            }
+          } else {
+            setView('guide');
+            setCats(!catHidden);
+            if (curChan?.category_ids) {
+              const catIds = parseCategoryIds(curChan.category_ids);
+              if (catIds.length > 0 && (!curCatId || !catIds.includes(curCatId))) {
+                setCatId(catIds[0]);
+              }
+            }
+          }
+          {
+            const focusChannel = (attempts = 0) => {
+              const playingChan = document.querySelector<HTMLElement>(
+                '.guide-channel-row.currently-playing .guide-channel-info, .guide-channel-row.selected .guide-channel-info, .guide-channel-info'
+              );
+              if (playingChan) {
+                applyTvFocus(playingChan);
+              } else if (attempts < 6) {
+                setTimeout(() => focusChannel(attempts + 1), 70);
+              } else {
+                focusFirstInteractive();
+              }
+            };
+            setTimeout(() => focusChannel(), 60);
+          }
+          break;
+
+        case 'guide':
+          if (curView === 'guide') {
+            setView('none');
+            setCats(false);
+          } else {
+            setView('guide');
+            if (curChan?.category_ids) {
+              const catIds = parseCategoryIds(curChan.category_ids);
+              if (catIds.length > 0 && (!curCatId || !catIds.includes(curCatId))) {
+                setCatId(catIds[0]);
+              }
+            }
+          }
+          {
+            const focusChannel = (attempts = 0) => {
+              const playingChan = document.querySelector<HTMLElement>(
+                '.guide-channel-row.currently-playing .guide-channel-info, .guide-channel-row.selected .guide-channel-info, .guide-channel-info'
+              );
+              if (playingChan) {
+                applyTvFocus(playingChan);
+              } else if (attempts < 6) {
+                setTimeout(() => focusChannel(attempts + 1), 70);
+              } else {
+                focusFirstInteractive();
+              }
+            };
+            setTimeout(() => focusChannel(), 60);
+          }
+          break;
+
+        case 'movies':
+          setCats(false);
+          setView(curView === 'movies' ? 'none' : 'movies');
+          setTimeout(() => focusFirstInteractive(), 120);
+          break;
+
+        case 'series':
+          setCats(false);
+          setView(curView === 'series' ? 'none' : 'series');
+          setTimeout(() => focusFirstInteractive(), 120);
+          break;
+
+        case 'sports':
+          setCats(false);
+          setView(curView === 'sports' ? 'none' : 'sports');
+          setTimeout(() => focusFirstInteractive(), 120);
+          break;
+
+        case 'calendar':
+          setCats(false);
+          setView(curView === 'calendar' ? 'none' : 'calendar');
+          setTimeout(() => focusFirstInteractive(), 120);
+          break;
+
+        case 'dvr':
+          setCats(false);
+          setView(curView === 'dvr' ? 'none' : 'dvr');
+          setTimeout(() => focusFirstInteractive(), 120);
+          break;
+
+        case 'stremio':
+          setCats(false);
+          setView(curView === 'stremio' ? 'none' : 'stremio');
+          setTimeout(() => focusFirstInteractive(), 120);
+          break;
+
+        case 'nuvio':
+          setCats(false);
+          setView(curView === 'nuvio' ? 'none' : 'nuvio');
+          setTimeout(() => focusFirstInteractive(), 120);
+          break;
+
+        case 'settings':
+          if (layout !== 'main') {
+            setCats(false);
+            setView(curView === 'settings' ? 'none' : 'settings');
+          } else {
+            setSettingsPopup(!isSettingsPopup);
+          }
+          setTimeout(() => focusFirstInteractive(), 120);
+          break;
+
+        case 'search':
+          setSearch((s) => !s);
+          setTimeout(() => focusFirstInteractive(), 120);
+          break;
+
+        case 'back':
+          // Safe hierarchical back navigation - never exits the window
+          if (isAdvSearch) {
+            setSearch(false);
+          } else if (isSubModal) {
+            setSubModal(false);
+          } else if (isShortOverlay) {
+            setShortOverlay(false);
+          } else if (isSettingsPopup) {
+            setSettingsPopup(false);
+          } else if (
+            curView === 'settings' ||
+            curView === 'movies' ||
+            curView === 'series' ||
+            curView === 'sports' ||
+            curView === 'calendar' ||
+            curView === 'dvr' ||
+            curView === 'stremio' ||
+            curView === 'nuvio'
+          ) {
+            setView('none');
+            setCats(false);
+          } else if (curView === 'guide') {
+            if (isTrans) {
+              setTrans(false);
+              setCats(!catHidden);
+            } else {
+              setView('none');
+              setCats(false);
+            }
+          }
+          break;
+
+        case 'none':
+          setView('none');
+          setCats(false);
+          setSettingsPopup(false);
+          break;
+
+        default:
+          setView(view);
+          setTimeout(() => focusFirstInteractive(), 120);
+          break;
+      }
+    };
+
+    const onPlayPause = () => {
+      remoteRefs.current.handleTogglePlay?.();
+    };
+
+    const onSeek = (e: Event) => {
+      const { delta } = (e as CustomEvent).detail || {};
+      if (typeof delta === 'number') {
+        const cur = positionRef.current;
+        const dur = durationRef.current || 999999;
+        remoteRefs.current.handleSeek?.(Math.max(0, Math.min(dur, cur + delta)));
+      }
+    };
+
+    const onChannelStep = (e: Event) => {
+      const { step } = (e as CustomEvent).detail || {};
+      if (step > 0) {
+        remoteRefs.current.handleChannelDown?.();
+      } else {
+        remoteRefs.current.handleChannelUp?.();
+      }
+    };
+
+    const onFullscreen = () => {
+      remoteRefs.current.handleToggleFullscreen?.();
+    };
+
+    const onMute = () => {
+      remoteRefs.current.handleToggleMute?.();
+    };
+
+    const onSubtitles = () => {
+      remoteRefs.current.handleShowSubtitleModal?.();
+    };
+
+    const onSearch = () => {
+      remoteRefs.current.setShowAdvancedSearch((s) => !s);
+    };
+
+    window.addEventListener('ynotv:navigate-view', onNavView);
+    window.addEventListener('ynotv:gamepad-play-pause', onPlayPause);
+    window.addEventListener('ynotv:gamepad-seek', onSeek);
+    window.addEventListener('ynotv:gamepad-channel-step', onChannelStep);
+    window.addEventListener('ynotv:gamepad-toggle-fullscreen', onFullscreen);
+    window.addEventListener('ynotv:gamepad-toggle-mute', onMute);
+    window.addEventListener('ynotv:gamepad-open-subtitles', onSubtitles);
+    window.addEventListener('ynotv:gamepad-open-search', onSearch);
+
+    return () => {
+      window.removeEventListener('ynotv:navigate-view', onNavView);
+      window.removeEventListener('ynotv:gamepad-play-pause', onPlayPause);
+      window.removeEventListener('ynotv:gamepad-seek', onSeek);
+      window.removeEventListener('ynotv:gamepad-channel-step', onChannelStep);
+      window.removeEventListener('ynotv:gamepad-toggle-fullscreen', onFullscreen);
+      window.removeEventListener('ynotv:gamepad-toggle-mute', onMute);
+      window.removeEventListener('ynotv:gamepad-open-subtitles', onSubtitles);
+      window.removeEventListener('ynotv:gamepad-open-search', onSearch);
+    };
+  }, []);
 
   // ==========================================================================
   // Auto-Sync on Startup & Periodic Checking
@@ -4355,6 +4677,12 @@ function useTmdbPresencePoster(
                     // Open LiveTV, respect user's category hidden preference
                     setActiveView('guide');
                     setCategoriesOpen(!categoriesHidden);
+                    if (currentChannel?.category_ids) {
+                      const catIds = parseCategoryIds(currentChannel.category_ids);
+                      if (catIds.length > 0 && (!categoryId || !catIds.includes(categoryId))) {
+                        setCategoryId(catIds[0]);
+                      }
+                    }
                   }
                 }}
                 title={i18n.t('nav:items.liveTv')}

@@ -1,4 +1,4 @@
-import { useSettingsStore, DEFAULT_SUBTITLE_SETTINGS, DEFAULT_MAX_SEARCH_RESULTS, clampMaxSearchResults } from './settingsStore';
+import { useSettingsStore, DEFAULT_SUBTITLE_SETTINGS, DEFAULT_MAX_SEARCH_RESULTS, DEFAULT_CONTROLLER_MAPPINGS, clampMaxSearchResults } from './settingsStore';
 import type { SettingsState } from './settingsStore';
 import type { SavedLayoutState } from '../hooks/useLayoutPersistence';
 import type { ThemeId } from '../types/app';
@@ -67,7 +67,7 @@ const BOOLEAN_KEYS = new Set([
   'showVodAll', 'showVodFavorites', 'showVodPlaylists', 'showVodLocal', 'showVodRecent',
   'useEventBasedReconnect', 'stallDetectionEnabled', 'showLoadingScreen',
   'transparentGuideHideHeader', 'allowLanSources', 'v3DefaultMigrated', 'volumePercentDefaultMigrated',
-  'hdrTonemapToSdr', 'showHdrQuickToggle',
+  'hdrTonemapToSdr', 'showHdrQuickToggle', 'controllerEnabled', 'remoteControlEnabled',
 ] as const);
 
 const NUMBER_KEYS = new Set([
@@ -79,7 +79,7 @@ const NUMBER_KEYS = new Set([
   'streamMaxRetries', 'streamWatchdogSeconds', 'channelFontSize', 'categoryFontSize',
   'epgTitleFontSize', 'epgBodyFontSize', 'uiScale', 'transparentGuideHeight',
   'transparentGuideOverlayOpacity', 'transparentGuideSidebarOpacity',
-  'stremioBadgeSize', 'nuvioBadgeSize',
+  'stremioBadgeSize', 'nuvioBadgeSize', 'controllerDeadzone', 'remoteControlPort',
 ]);
 
 /** Coerce type-sensitive stored values; leave everything else untouched. */
@@ -358,6 +358,13 @@ async function hydrateSettingsStore(): Promise<void> {
         discordShowWhenBrowsing: data.discordShowWhenBrowsing ?? true,
         discordShowPoster: data.discordShowPoster ?? true,
         discordShowTimestamp: data.discordShowTimestamp ?? true,
+        controllerEnabled: data.controllerEnabled ?? true,
+        controllerDeadzone: typeof data.controllerDeadzone === 'number' ? data.controllerDeadzone : 0.45,
+        controllerMappings: data.controllerMappings && typeof data.controllerMappings === 'object'
+          ? { ...DEFAULT_CONTROLLER_MAPPINGS, ...data.controllerMappings }
+          : { ...DEFAULT_CONTROLLER_MAPPINGS },
+        remoteControlEnabled: data.remoteControlEnabled ?? true,
+        remoteControlPort: typeof data.remoteControlPort === 'number' ? data.remoteControlPort : 11470,
         enableCustomScrollbarWidth: data.enableCustomScrollbarWidth ?? false,
         customScrollbarWidth: data.customScrollbarWidth ?? 12,
         hardwareAcceleration: data.hardwareAcceleration ?? true,

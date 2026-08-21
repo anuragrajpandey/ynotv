@@ -152,7 +152,7 @@ export const ProgramBlock = memo(function ProgramBlock({
 
   return (
     <div
-      className={`program-block ${isCurrent ? 'current' : ''} ${isPast ? 'past' : ''} ${isRecording ? 'is-recording' : ''} ${isScheduled ? 'is-scheduled' : ''} ${isCatchupAvailable && (isPast || isCurrent) ? 'catchup-available' : ''}`}
+      className={`program-block epg-program-block ${isCurrent ? 'current' : ''} ${isPast ? 'past' : ''} ${isRecording ? 'is-recording' : ''} ${isScheduled ? 'is-scheduled' : ''} ${isCatchupAvailable && (isPast || isCurrent) ? 'catchup-available' : ''}`}
       style={{
         left: `${style.left}px`,
         width: `${style.width}px`,
@@ -160,6 +160,14 @@ export const ProgramBlock = memo(function ProgramBlock({
       }}
       onClick={handleProgramClick}
       onContextMenu={onContextMenu}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleProgramClick();
+        }
+      }}
       title={`${program.title}${program.subtitle ? `\n${program.subtitle}` : ''}\n${formatEpgTime(program.start)} - ${formatEpgTime(program.end)}${program.description ? `\n\n${program.description}` : ''}${isCatchupAvailable && (isPast || isCurrent) ? '\n\n' + i18n.t('epg:clickPlayCatchup') : ''}`}
     >
       {showRecordingIndicator && (

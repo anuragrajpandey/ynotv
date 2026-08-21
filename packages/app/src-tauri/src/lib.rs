@@ -320,7 +320,13 @@ use cast::{
 
 mod discord_rp;
 mod local_lib;
+mod gamepad;
+mod web_server;
 
+#[tauri::command]
+fn get_connected_gamepads() -> Vec<gamepad::GamepadInfo> {
+    gamepad::get_connected_gamepads()
+}
 
 // Bulk insert structures
 #[derive(Debug, Deserialize)]
@@ -4909,6 +4915,15 @@ pub fn run() {
             let discord_handle = app.handle().clone();
             std::thread::spawn(move || discord_rp::run_loop(discord_handle));
 
+            // Start native gamepad / controller background engine
+            gamepad::start(&app.handle());
+
+            // Start Phone Remote web server
+            let remote_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = web_server::web_serve_start(remote_handle, Some(web_server::DEFAULT_REMOTE_PORT)).await;
+            });
+
             // Note: Window size is applied by the frontend after settings are loaded
             // to ensure the user-defined startupWidth/startupHeight from Settings -> UI is respected
             // (window position was already restored at the top of setup)
@@ -4934,6 +4949,7 @@ pub fn run() {
                         let _ = window.hide();
                         return;
                     }
+                    gamepad::shutdown();
                     discord_rp::shutdown(&window.app_handle());
                     save_window_state(&window.app_handle());
                     // Flush the WAL so the next launch doesn't have to recover a
@@ -5125,7 +5141,14 @@ pub fn run() {
             // Database health / recovery
             db_health,
             // Local folder scanner
-            local_lib::scan_local_folder
+            local_lib::scan_local_folder,
+            // Gamepad commands
+            get_connected_gamepads,
+            // Phone Remote Server commands
+            web_server::web_serve_status,
+            web_server::web_serve_start,
+            web_server::web_serve_stop,
+            web_server::remote_ws_broadcast
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

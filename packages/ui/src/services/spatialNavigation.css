@@ -1,0 +1,111 @@
+/**
+ * TV Focus Ring & Spatial Navigation Styles for YNOTV
+ * ONLY shown when TV navigation is active via gamepad or virtual phone remote.
+ * Automatically hidden whenever mouse or normal keyboard interaction occurs.
+ */
+
+/* When TV navigation is active, ensure focus outlines are prominent and glowing */
+body.tv-nav-active .tv-focused,
+body.tv-nav-active *:focus-visible {
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.75), inset 0 0 8px rgba(56, 189, 248, 0.25) !important;
+  border-radius: inherit;
+  z-index: 1000 !important;
+  position: relative;
+  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.12s ease !important;
+}
+
+/* Channel info column when TV focused */
+body.tv-nav-active .guide-channel-info.tv-focused,
+body.tv-nav-active .guide-channel-item.tv-focused,
+body.tv-nav-active .guide-channel-info:focus,
+body.tv-nav-active .guide-channel-item:focus {
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: -2px !important;
+  background: rgba(56, 189, 248, 0.18) !important;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.8), inset 0 0 10px rgba(56, 189, 248, 0.3) !important;
+  z-index: 100 !important;
+}
+
+/* EPG program blocks when TV focused */
+body.tv-nav-active .program-block.tv-focused,
+body.tv-nav-active .epg-program-block.tv-focused,
+body.tv-nav-active .program-block:focus,
+body.tv-nav-active .epg-program-block:focus {
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: -2px !important;
+  background: rgba(56, 189, 248, 0.3) !important;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.85), inset 0 0 8px rgba(56, 189, 248, 0.35) !important;
+  z-index: 150 !important;
+  transform: scale(1.02);
+}
+
+/* Card zoom when TV focused */
+body.tv-nav-active .channel-card.tv-focused,
+body.tv-nav-active .movie-card.tv-focused,
+body.tv-nav-active .series-card.tv-focused,
+body.tv-nav-active .stremio-card.tv-focused,
+body.tv-nav-active .nuvio-card.tv-focused,
+body.tv-nav-active .widget-card.tv-focused,
+body.tv-nav-active .channel-card:focus,
+body.tv-nav-active .movie-card:focus,
+body.tv-nav-active .series-card:focus,
+body.tv-nav-active .stremio-card:focus,
+body.tv-nav-active .nuvio-card:focus {
+  transform: scale(1.04) !important;
+  outline: 3px solid #38bdf8 !important;
+  outline-offset: 4px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.8) !important;
+}
+
+/* Top bar buttons when TV focused */
+body.tv-nav-active .segmented-btn.tv-focused,
+body.tv-nav-active .section-btn.tv-focused,
+body.tv-nav-active .segmented-btn:focus,
+body.tv-nav-active .section-btn:focus,
+body.tv-nav-active .title-bar-settings-btn:focus,
+body.tv-nav-active .title-bar-calendar-btn:focus,
+body.tv-nav-active .title-bar-advanced-search-btn:focus {
+  outline: 2px solid #38bdf8 !important;
+  outline-offset: 2px !important;
+  background: rgba(56, 189, 248, 0.2) !important;
+  color: #ffffff !important;
+}
+
+/* Category item sidebar when TV focused */
+body.tv-nav-active .category-item.tv-focused,
+body.tv-nav-active .category-list-bar.tv-focused,
+body.tv-nav-active .category-item:focus,
+body.tv-nav-active .category-list-bar:focus {
+  outline: 2px solid #38bdf8 !important;
+  outline-offset: -2px !important;
+  background: rgba(56, 189, 248, 0.22) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.5) !important;
+}
+
+/* Settings tab and sidebar when TV focused */
+body.tv-nav-active .settings-tab-btn.tv-focused,
+body.tv-nav-active .settings-nav-item.tv-focused,
+body.tv-nav-active .settings-tab-btn:focus,
+body.tv-nav-active .settings-nav-item:focus,
+body.tv-nav-active .mapping-select:focus,
+body.tv-nav-active .toggle-switch input:focus + .slider {
+  outline: 2px solid #38bdf8 !important;
+  outline-offset: 2px !important;
+  background: rgba(56, 189, 248, 0.25) !important;
+}
+
+/* Scroll containers smooth scrolling */
+.channels-grid,
+.channel-list,
+.movies-grid,
+.series-grid,
+.vod-grid,
+.category-strip,
+.settings-tab-content,
+.epg-container,
+.channel-panel {
+  scroll-behavior: smooth;
+}

@@ -183,7 +183,7 @@ export const ChannelRow = memo(function ChannelRow({
     <div className={`guide-channel-row ${isCurrentlyPlaying ? 'currently-playing' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}>
       {/* Channel info column */}
       <div
-        className={`guide-channel-info ${isRecording ? 'is-recording' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}
+        className={`guide-channel-info guide-channel-item channel-item ${isRecording ? 'is-recording' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}
         style={{
           width: 'var(--epg-channel-column-width, 264px)',
           minWidth: 'var(--epg-channel-column-width, 264px)',
@@ -191,6 +191,14 @@ export const ChannelRow = memo(function ChannelRow({
         }}
         onClick={onPlay}
         onContextMenu={handleChannelContextMenu}
+        tabIndex={0}
+        role="button"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onPlay();
+          }
+        }}
       >
         {isRecording && (
           <div className="channel-recording-indicator">

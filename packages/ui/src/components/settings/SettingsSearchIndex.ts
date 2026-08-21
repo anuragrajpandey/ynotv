@@ -41,6 +41,7 @@ const TAB_LABELS: Record<SettingsTabId, string> = {
   proxy: 'Proxy',
   debug: 'Debug',
   shortcuts: 'Shortcuts',
+  controllers: 'Controllers & Remote',
   'export-import': 'Export / Import',
   about: 'About',
 };

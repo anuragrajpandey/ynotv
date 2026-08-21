@@ -7,6 +7,7 @@ import { SourcesTab } from './settings/SourcesTab';
 import { SecurityTab } from './settings/SecurityTab';
 import { DebugTab } from './settings/DebugTab';
 import { ShortcutsTab } from './settings/ShortcutsTab';
+import { ControllersTab } from './settings/ControllersTab';
 import { ImportExportTab } from './settings/ImportExportTab';
 import { UITab } from './settings/UITab';
 import { ThemeTab } from './settings/ThemeTab';
@@ -3100,6 +3101,8 @@ export function Settings({
         return <ScrobblingTab />;
       case 'simkl':
         return <SimklTab />;
+      case 'controllers':
+        return <ControllersTab />;
       default:
         return null;
     }

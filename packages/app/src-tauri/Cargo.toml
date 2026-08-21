@@ -85,6 +85,12 @@ libmpv2 = "4"
 libmpv2-sys = "4"
 libc = "0.2"
 
+# Gamepad & Controller support
+gilrs = "0.10"
+
+# Embedded Web & Remote WebSocket server
+axum = { version = "0.7", features = ["ws"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = [

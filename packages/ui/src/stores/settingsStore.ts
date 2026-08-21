@@ -559,6 +559,21 @@ export interface SettingsState {
   globalLiveTvUserAgent: string;
   setGlobalLiveTvUserAgent: (ua: string) => void;
 
+  // Controller & Gamepad
+  controllerEnabled: boolean;
+  setControllerEnabled: (enabled: boolean) => void;
+  controllerDeadzone: number;
+  setControllerDeadzone: (deadzone: number) => void;
+  controllerMappings: Record<string, string>;
+  setControllerMappings: (mappings: Record<string, string>) => void;
+  resetControllerMappings: () => void;
+
+  // Phone Remote Server
+  remoteControlEnabled: boolean;
+  setRemoteControlEnabled: (enabled: boolean) => void;
+  remoteControlPort: number;
+  setRemoteControlPort: (port: number) => void;
+
   // EPG cosmetic classes (load-time only — hydrated, no setters)
   epgDarkenCurrent: boolean;
   epgHighlightBorderCurrent: boolean;
@@ -625,6 +640,30 @@ export const DEFAULT_SUBTITLE_SETTINGS: SubtitleSettings = {
   audioProfile: 'off',
   audioDownmixStereo: false,
   audioMaxVolume: 100,
+};
+
+export const DEFAULT_CONTROLLER_MAPPINGS: Record<string, string> = {
+  south: 'select',
+  east: 'back',
+  north: 'search',
+  west: 'subtitles',
+  dpad_up: 'nav_up',
+  dpad_down: 'nav_down',
+  dpad_left: 'nav_left',
+  dpad_right: 'nav_right',
+  left_stick_up: 'nav_up',
+  left_stick_down: 'nav_down',
+  left_stick_left: 'nav_left',
+  left_stick_right: 'nav_right',
+  left_bumper: 'prev_channel',
+  right_bumper: 'next_channel',
+  left_trigger: 'seek_backward',
+  right_trigger: 'seek_forward',
+  left_stick_click: 'toggle_fullscreen',
+  right_stick_click: 'toggle_mute',
+  start: 'play_pause',
+  select: 'toggle_guide',
+  guide: 'toggle_guide',
 };
 
 function getInitialTheme(): ThemeId {
@@ -1609,6 +1648,39 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set(patch);
     persistSettings(patch);
     dispatchAppEvent('ynotv:auto-backup-settings-changed', {});
+  },
+
+  // Controller & Gamepad
+  controllerEnabled: cachedSettings?.controllerEnabled ?? true,
+  setControllerEnabled: (enabled) => {
+    set({ controllerEnabled: enabled });
+    persistSettings({ controllerEnabled: enabled });
+  },
+  controllerDeadzone: cachedSettings?.controllerDeadzone ?? 0.45,
+  setControllerDeadzone: (deadzone) => {
+    set({ controllerDeadzone: deadzone });
+    persistSettings({ controllerDeadzone: deadzone }, true);
+  },
+  controllerMappings: cachedSettings?.controllerMappings ?? DEFAULT_CONTROLLER_MAPPINGS,
+  setControllerMappings: (mappings) => {
+    set({ controllerMappings: mappings });
+    persistSettings({ controllerMappings: mappings });
+  },
+  resetControllerMappings: () => {
+    set({ controllerMappings: { ...DEFAULT_CONTROLLER_MAPPINGS } });
+    persistSettings({ controllerMappings: { ...DEFAULT_CONTROLLER_MAPPINGS } });
+  },
+
+  // Phone Remote Server
+  remoteControlEnabled: cachedSettings?.remoteControlEnabled ?? true,
+  setRemoteControlEnabled: (enabled) => {
+    set({ remoteControlEnabled: enabled });
+    persistSettings({ remoteControlEnabled: enabled });
+  },
+  remoteControlPort: cachedSettings?.remoteControlPort ?? 11470,
+  setRemoteControlPort: (port) => {
+    set({ remoteControlPort: port });
+    persistSettings({ remoteControlPort: port });
   },
 
   // EPG cosmetic classes (load-time only — hydrated from settings, no setters)

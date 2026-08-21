@@ -210,7 +210,7 @@ export const SearchResultRow = memo(function SearchResultRow({
     <div className={`guide-channel-row search-result-row ${isRecording ? 'is-recording' : ''} ${isCurrentlyPlaying ? 'currently-playing' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}>
       {/* Channel info column */}
       <div
-        className={`guide-channel-info ${isRecording ? 'is-recording' : ''} ${hasSourceInfo ? 'with-source' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}
+        className={`guide-channel-info guide-channel-item channel-item ${isRecording ? 'is-recording' : ''} ${hasSourceInfo ? 'with-source' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}
         style={{
           width: 'var(--epg-channel-column-width, 264px)',
           minWidth: 'var(--epg-channel-column-width, 264px)',
@@ -218,6 +218,14 @@ export const SearchResultRow = memo(function SearchResultRow({
         }}
         onClick={onPlay}
         onContextMenu={handleChannelContextMenu}
+        tabIndex={0}
+        role="button"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onPlay();
+          }
+        }}
       >
         {isRecording && (
           <div className="channel-recording-indicator">
