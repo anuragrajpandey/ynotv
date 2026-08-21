@@ -536,18 +536,21 @@ function ScheduledTab({
             <div className="dvr-filter-bar">
                 <button
                     className={`dvr-filter-btn ${filter === 'all' ? 'active' : ''}`}
+                    data-key="all"
                     onClick={() => setFilter('all')}
                 >
                     All ({scheduled.length})
                 </button>
                 <button
                     className={`dvr-filter-btn ${filter === 'single' ? 'active' : ''}`}
+                    data-key="single"
                     onClick={() => setFilter('single')}
                 >
                     One-time ({scheduled.filter(s => !s.recurrence || s.recurrence === 'once').length})
                 </button>
                 <button
                     className={`dvr-filter-btn ${filter === 'recurring' ? 'active' : ''}`}
+                    data-key="recurring"
                     onClick={() => setFilter('recurring')}
                 >
                     Recurring ({scheduled.filter(s => s.recurrence && s.recurrence !== 'once').length})
@@ -955,7 +958,7 @@ function RecordingCard({ item, progress, onEdit, onCancel, onPlay, formatDateTim
         : 0;
 
     return (
-        <div className="dvr-card recording">
+        <div className="dvr-card recording" data-id={item.id}>
             <div className="dvr-card-header">
                 <span className={`dvr-card-status-badge ${isCatchup ? 'downloading' : 'recording'}`}>
                     {isCatchup ? 'DL' : 'REC'}
@@ -1063,7 +1066,7 @@ interface ScheduledCardProps {
 
 function ScheduledCard({ item, onEdit, onCancel, formatDateTime, formatDuration }: ScheduledCardProps) {
     return (
-        <div className="dvr-card scheduled">
+        <div className="dvr-card scheduled" data-id={item.id}>
             <div className="dvr-card-header">
                 <span className="dvr-card-status-badge scheduled">{i18n.t('dvr:scheduled')}</span>
                 <div className="dvr-card-actions">

@@ -102,7 +102,7 @@ import { useDvrEvents } from './hooks/useDvrEvents';
 import { useDvrUrlResolver } from './hooks/useDvrUrlResolver';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useGamepad } from './hooks/useGamepad';
-import { focusFirstInteractive, applyTvFocus } from './services/spatialNavigation';
+import { focusFirstInteractive, applyTvFocus, tryRestoreFocus, hasFocusMemory, focusViewOnOpen } from './services/spatialNavigation';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { UpdateModal } from './components/UpdateModal';
 import { registerUpdateModal } from './services/updater';
@@ -3988,12 +3988,20 @@ function useTmdbPresencePoster(
           }
           {
             const focusChannel = (attempts = 0) => {
-              const playingChan =
-                document.querySelector<HTMLElement>('.guide-channel-row.currently-playing .guide-channel-info') ||
-                document.querySelector<HTMLElement>('.guide-channel-row.selected .guide-channel-info');
-              if (playingChan) {
-                applyTvFocus(playingChan);
-              } else if (attempts < 12) {
+              // Restore the last browsing position for this view when possible.
+              if (tryRestoreFocus()) return;
+              // Only fall back to the currently-playing channel when there is
+              // no remembered position (otherwise memory would be clobbered).
+              if (!hasFocusMemory()) {
+                const playingChan =
+                  document.querySelector<HTMLElement>('.guide-channel-row.currently-playing .guide-channel-info') ||
+                  document.querySelector<HTMLElement>('.guide-channel-row.selected .guide-channel-info');
+                if (playingChan) {
+                  applyTvFocus(playingChan);
+                  return;
+                }
+              }
+              if (attempts < 12) {
                 setTimeout(() => focusChannel(attempts + 1), 70);
               } else {
                 focusFirstInteractive();
@@ -4018,12 +4026,20 @@ function useTmdbPresencePoster(
           }
           {
             const focusChannel = (attempts = 0) => {
-              const playingChan =
-                document.querySelector<HTMLElement>('.guide-channel-row.currently-playing .guide-channel-info') ||
-                document.querySelector<HTMLElement>('.guide-channel-row.selected .guide-channel-info');
-              if (playingChan) {
-                applyTvFocus(playingChan);
-              } else if (attempts < 12) {
+              // Restore the last browsing position for this view when possible.
+              if (tryRestoreFocus()) return;
+              // Only fall back to the currently-playing channel when there is
+              // no remembered position (otherwise memory would be clobbered).
+              if (!hasFocusMemory()) {
+                const playingChan =
+                  document.querySelector<HTMLElement>('.guide-channel-row.currently-playing .guide-channel-info') ||
+                  document.querySelector<HTMLElement>('.guide-channel-row.selected .guide-channel-info');
+                if (playingChan) {
+                  applyTvFocus(playingChan);
+                  return;
+                }
+              }
+              if (attempts < 12) {
                 setTimeout(() => focusChannel(attempts + 1), 70);
               } else {
                 focusFirstInteractive();
@@ -4036,43 +4052,43 @@ function useTmdbPresencePoster(
         case 'movies':
           setCats(false);
           setView(curView === 'movies' ? 'none' : 'movies');
-          setTimeout(() => focusFirstInteractive(), 120);
+          setTimeout(() => focusViewOnOpen(), 120);
           break;
 
         case 'series':
           setCats(false);
           setView(curView === 'series' ? 'none' : 'series');
-          setTimeout(() => focusFirstInteractive(), 120);
+          setTimeout(() => focusViewOnOpen(), 120);
           break;
 
         case 'sports':
           setCats(false);
           setView(curView === 'sports' ? 'none' : 'sports');
-          setTimeout(() => focusFirstInteractive(), 120);
+          setTimeout(() => focusViewOnOpen(), 120);
           break;
 
         case 'calendar':
           setCats(false);
           setView(curView === 'calendar' ? 'none' : 'calendar');
-          setTimeout(() => focusFirstInteractive(), 120);
+          setTimeout(() => focusViewOnOpen(), 120);
           break;
 
         case 'dvr':
           setCats(false);
           setView(curView === 'dvr' ? 'none' : 'dvr');
-          setTimeout(() => focusFirstInteractive(), 120);
+          setTimeout(() => focusViewOnOpen(), 120);
           break;
 
         case 'stremio':
           setCats(false);
           setView(curView === 'stremio' ? 'none' : 'stremio');
-          setTimeout(() => focusFirstInteractive(), 120);
+          setTimeout(() => focusViewOnOpen(), 120);
           break;
 
         case 'nuvio':
           setCats(false);
           setView(curView === 'nuvio' ? 'none' : 'nuvio');
-          setTimeout(() => focusFirstInteractive(), 120);
+          setTimeout(() => focusViewOnOpen(), 120);
           break;
 
         case 'settings':
@@ -4082,12 +4098,12 @@ function useTmdbPresencePoster(
           } else {
             setSettingsPopup(!isSettingsPopup);
           }
-          setTimeout(() => focusFirstInteractive(), 120);
+          setTimeout(() => focusViewOnOpen(), 120);
           break;
 
         case 'search':
           setSearch((s) => !s);
-          setTimeout(() => focusFirstInteractive(), 120);
+          setTimeout(() => focusViewOnOpen(), 120);
           break;
 
         case 'back':
@@ -4131,7 +4147,7 @@ function useTmdbPresencePoster(
 
         default:
           setView(view);
-          setTimeout(() => focusFirstInteractive(), 120);
+          setTimeout(() => focusViewOnOpen(), 120);
           break;
       }
     };

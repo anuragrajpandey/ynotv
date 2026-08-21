@@ -4,6 +4,21 @@
  * Automatically hidden whenever mouse or normal keyboard interaction occurs.
  */
 
+/* Hide the pointer while navigating by D-pad/remote; any mouse move exits TV mode */
+body.tv-nav-active { cursor: none; }
+
+/* Edge feedback: brief shake when a direction press has no valid target */
+@keyframes tv-focus-denied {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+body.tv-nav-active .tv-focus-denied {
+  animation: tv-focus-denied 0.25s ease-in-out;
+}
+
 /* When TV navigation is active, ensure focus outlines are prominent and glowing */
 body.tv-nav-active .tv-focused,
 body.tv-nav-active *:focus-visible {

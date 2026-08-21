@@ -600,6 +600,7 @@ export function SportsHub({
               <button
                 key={tab}
                 className={`sports-topbar-item ${activeTab === tab ? 'active' : ''}`}
+                data-key={tab}
                 onClick={() => setActiveTab(tab)}
               >
                 <span className="sports-topbar-icon">{getTabIcon(tab)}</span>

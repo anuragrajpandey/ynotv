@@ -6126,3 +6126,18 @@ html.modern-ui-v3[data-theme="light"] .add-to-playlist-list::-webkit-scrollbar-t
 html.modern-ui-v3[data-theme="light"] .add-to-playlist-episodes-list::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-hover-color, var(--accent-primary, #0066cc)) !important;
 }
+
+/* TV focus ring: deeper blue for contrast on light themes */
+[data-theme="light"] body.tv-nav-active .tv-focused,
+html[data-theme="light"] body.tv-nav-active .tv-focused,
+html.modern-ui-v3[data-theme="light"] body.tv-nav-active .tv-focused {
+  outline-color: #0284c7 !important;
+}
+[data-theme="light"] body.tv-nav-active .guide-channel-info.tv-focused,
+[data-theme="light"] body.tv-nav-active .guide-channel-item.tv-focused,
+[data-theme="light"] body.tv-nav-active .program-block.tv-focused,
+[data-theme="light"] body.tv-nav-active .movie-card.tv-focused,
+[data-theme="light"] body.tv-nav-active .series-card.tv-focused {
+  background: rgba(2, 132, 199, 0.14) !important;
+  box-shadow: 0 0 16px rgba(2, 132, 199, 0.45), inset 0 0 8px rgba(2, 132, 199, 0.18) !important;
+}

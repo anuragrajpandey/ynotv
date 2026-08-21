@@ -128,6 +128,7 @@ export const MediaCard = memo(function MediaCard({ item, type, onClick, onRemove
   return (
     <div
       className={`media-card media-card--${size}`}
+      data-id={mediaId}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}

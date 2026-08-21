@@ -346,6 +346,7 @@ export const GameCard = memo(
   const compactView = (
     <div
       className={`game-card compact ${event.status}`}
+      data-key={event.id}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}
@@ -391,6 +392,7 @@ export const GameCard = memo(
   const fullView = (
     <div
       className={`game-card ${event.status} ${isUFC ? 'ufc-card' : ''} ${isRacing ? 'racing-card' : ''} ${isGolf ? 'golf-card' : ''} ${isTennis ? 'tennis-card' : ''}`}
+      data-key={event.id}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}

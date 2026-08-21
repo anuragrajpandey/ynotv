@@ -119,28 +119,186 @@ export function applyTvFocus(el: HTMLElement) {
     el.setAttribute('tabindex', '0');
   }
 
-  el.focus({ preventScroll: false });
+  // Don't let the native focus scroll fight the positioning below.
+  el.focus({ preventScroll: true });
 
-  // Intelligent smooth scrolling for lists and virtualized containers
+  // Position the focused element inside its scroll container, keeping it clear
+  // of the edges. A single instant scroll keeps rapid D-pad presses snappy;
+  // the previous mix of native focus scrolling + manual scrollTop + smooth
+  // scrollIntoView queued up competing animations that jittered in
+  // virtualized lists (rows get recycled mid-animation).
   const scroller = el.closest(
     '[data-virtuoso-scroller], [data-testid="virtuoso-scroller"], .channel-panel, .epg-content, .channels-grid, .movies-grid, .series-grid, .sports-hub, .settings-tab-content, .dvr-dashboard'
   ) as HTMLElement | null;
 
   if (scroller) {
-    const scrollerRect = scroller.getBoundingClientRect();
-    const elemRect = el.getBoundingClientRect();
+    // Temporarily disable CSS scroll-behavior so the padding-aware jump below
+    // is instant instead of animating on top of the focus scroll.
+    const prevBehavior = scroller.style.scrollBehavior;
+    scroller.style.scrollBehavior = 'auto';
+    try {
+      const scrollerRect = scroller.getBoundingClientRect();
+      const elemRect = el.getBoundingClientRect();
 
-    if (elemRect.bottom > scrollerRect.bottom - 48) {
-      scroller.scrollTop += (elemRect.bottom - scrollerRect.bottom + 70);
-    } else if (elemRect.top < scrollerRect.top + 48) {
-      scroller.scrollTop -= (scrollerRect.top - elemRect.top + 70);
+      if (elemRect.bottom > scrollerRect.bottom - 48) {
+        scroller.scrollTop += (elemRect.bottom - scrollerRect.bottom + 70);
+      } else if (elemRect.top < scrollerRect.top + 48) {
+        scroller.scrollTop -= (scrollerRect.top - elemRect.top + 70);
+      }
+    } finally {
+      scroller.style.scrollBehavior = prevBehavior;
     }
   }
 
-  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  // Horizontal alignment (EPG timeline) and non-scroller containers. Explicit
+  // 'auto' overrides CSS scroll-behavior so focus moves stay instant.
+  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+
+  // Remember this item as the view's focus position (per-view focus memory),
+  // so returning to the view restores the browsing position.
+  const view = viewKeyFor(el);
+  if (view) {
+    const key = itemKeyFor(el);
+    if (key) {
+      const scroller = findScrollerFor(el);
+      focusMemory.set(view, { key, scrollTop: scroller ? scroller.scrollTop : 0 });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Per-view focus memory & edge feedback
+// ---------------------------------------------------------------------------
+
+const VIEW_CONTAINERS: Array<[string, string]> = [
+  ['.channel-panel, .guide-panel, .epg-container', 'guide'],
+  ['.movies-grid, .vod-grid, .vod-page', 'movies'],
+  ['.series-grid', 'series'],
+  ['.sports-hub', 'sports'],
+  ['.dvr-dashboard', 'dvr'],
+  ['.tvcp-page, .tv-calendar-page, .calendar-view', 'calendar'],
+  ['.settings-body, .settings-tab-content', 'settings'],
+];
+
+const SCROLLER_SELECTOR =
+  '[data-virtuoso-scroller], [data-testid="virtuoso-scroller"], .channel-panel, .epg-content, .channels-grid, .movies-grid, .series-grid, .sports-hub, .settings-tab-content, .dvr-dashboard';
+
+const focusMemory = new Map<string, { key: string; scrollTop: number }>();
+
+function detectActiveView(): string | null {
+  for (const [sel, key] of VIEW_CONTAINERS) {
+    const el = document.querySelector<HTMLElement>(sel);
+    if (el && isElementVisible(el)) return key;
+  }
+  return null;
+}
+
+function viewKeyFor(el: HTMLElement): string | null {
+  for (const [sel, key] of VIEW_CONTAINERS) {
+    if (el.closest(sel)) return key;
+  }
+  return null;
+}
+
+function itemKeyFor(el: HTMLElement): string | null {
+  const keyed = el.closest<HTMLElement>('[data-stream-id], [data-id], [data-key]');
+  if (!keyed) return null;
+  return keyed.getAttribute('data-stream-id') || keyed.getAttribute('data-id') || keyed.getAttribute('data-key');
+}
+
+function findScrollerFor(el: HTMLElement): HTMLElement | null {
+  return el.closest<HTMLElement>(SCROLLER_SELECTOR);
+}
+
+function findFocusableByKey(key: string): HTMLElement | null {
+  const escape = (s: string) => (typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(s) : s);
+  const safe = escape(key);
+  return document.querySelector<HTMLElement>(
+    `[data-stream-id="${safe}"], [data-id="${safe}"], [data-key="${safe}"]`
+  );
+}
+
+function findActiveViewScroller(): HTMLElement | null {
+  const view = detectActiveView();
+  if (!view) return null;
+  const pair = VIEW_CONTAINERS.find(([, k]) => k === view);
+  if (!pair) return null;
+  const container = document.querySelector<HTMLElement>(pair[0]);
+  if (!container || !isElementVisible(container)) return null;
+  return (
+    container.querySelector<HTMLElement>('[data-virtuoso-scroller], [data-testid="virtuoso-scroller"]') ||
+    container
+  );
+}
+
+/** Restore the last focused item in the currently active view, if any. */
+export function tryRestoreFocus(): boolean {
+  // Never restore while a modal/overlay is open — focus belongs inside it,
+  // and the underlying view may still be visible behind it.
+  if (getActiveModal()) return false;
+
+  const view = detectActiveView();
+  if (!view) return false;
+  const mem = focusMemory.get(view);
+  if (!mem) return false;
+
+  const el = findFocusableByKey(mem.key);
+  if (el && isElementVisible(el)) {
+    applyTvFocus(el);
+    return true;
+  }
+
+  // The remembered item isn't mounted yet (virtualized list). Jump the
+  // scroller back near the position it had when focus was recorded so the
+  // list mounts it; the caller retries and applyTvFocus fine-tunes.
+  const scroller = findActiveViewScroller();
+  if (scroller && Math.abs(scroller.scrollTop - mem.scrollTop) > 40) {
+    scroller.scrollTop = mem.scrollTop;
+  }
+  return false;
+}
+
+/** Whether the active view has a remembered focus position. */
+export function hasFocusMemory(): boolean {
+  if (getActiveModal()) return false;
+  const view = detectActiveView();
+  return view ? focusMemory.has(view) : false;
+}
+
+/**
+ * Retry-aware initial focus for an opened view: restore the remembered
+ * browsing position (waiting briefly for virtualized items to mount), then
+ * fall back to the regular first-interactive logic.
+ */
+export function focusViewOnOpen(retries = 8): void {
+  const attempt = (n: number) => {
+    if (tryRestoreFocus()) return;
+    if (hasFocusMemory() && n > 0) {
+      setTimeout(() => attempt(n - 1), 70);
+      return;
+    }
+    focusFirstInteractive();
+  };
+  attempt(retries);
+}
+
+let denyTimer: number | undefined;
+
+/** Brief shake on the focused element when a direction has no target. */
+function flashNoTarget() {
+  const el = (document.activeElement as HTMLElement | null) || lastFocusedElement;
+  if (!el) return;
+  el.classList.remove('tv-focus-denied');
+  void el.offsetWidth; // restart the animation
+  el.classList.add('tv-focus-denied');
+  if (denyTimer) window.clearTimeout(denyTimer);
+  denyTimer = window.setTimeout(() => el.classList.remove('tv-focus-denied'), 300);
 }
 
 export function focusFirstInteractive(): boolean {
+  // Restore the last focused item for this view (guide/VOD browsing position).
+  if (tryRestoreFocus()) return true;
+
   const candidates = getFocusCandidates();
   if (candidates.length > 0) {
     // 1. If currently playing channel in EPG exists, focus it first
@@ -283,6 +441,9 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
     return true;
   }
 
+  // No valid target in that direction — shake the focused element so remote
+  // users get tactile feedback at list edges.
+  flashNoTarget();
   return false;
 }
 

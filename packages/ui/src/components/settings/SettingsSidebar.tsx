@@ -106,6 +106,7 @@ export function SettingsSidebar({
           <button
             key={tab.id}
             className={`settings-nav-item ${activeTab === tab.id ? 'active' : ''}`}
+            data-key={tab.id}
             onClick={() => onTabChange(tab.id)}
           >
             {tab.icon && <span className="icon">{tab.icon}</span>}
