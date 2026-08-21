@@ -15,6 +15,7 @@
     "build": "pnpm -r build",
     "css:audit": "node scripts/check-globals.mjs && node scripts/audit-tokens.mjs && node scripts/check-modern-scoped.mjs && node scripts/check-de-stack.mjs && node scripts/check-css.mjs packages/ui/src",
     "typecheck": "pnpm css:audit && pnpm -r typecheck",
+    "setup:libmpv": "powershell -ExecutionPolicy Bypass -File packages/app/src-tauri/setup-libmpv.ps1",
     "tauri": "pnpm --filter @ynotv/app tauri"
   },
   "devDependencies": {

@@ -55,7 +55,9 @@
       "bin/ffmpeg",
       "bin/yt-dlp"
     ],
-    "resources": {},
+    "resources": [
+      "libmpv/libmpv-2.dll"
+    ],
     "windows": {
       "nsis": {
         "installMode": "currentUser"
