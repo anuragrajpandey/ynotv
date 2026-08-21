@@ -362,7 +362,7 @@ async function findCandidatesForTeam(
                    AND c.source_id IN (${sourcePlaceholders})
                    AND cat.value IN (${catPlaceholders})
                    AND (( ${nameClause.sql} ) OR ( ${aliasClause.sql} ))
-                 LIMIT 50`;
+                 LIMIT 500`;
     rows = await db.query<StoredChannel>(sql, [
       ...targetSourceIds,
       ...config.categoryIds,
@@ -374,7 +374,7 @@ async function findCandidatesForTeam(
                  WHERE (c.enabled IS NULL OR c.enabled != 0)
                    AND c.source_id IN (${sourcePlaceholders})
                    AND (( ${nameClause.sql} ) OR ( ${aliasClause.sql} ))
-                 LIMIT 50`;
+                 LIMIT 500`;
     rows = await db.query<StoredChannel>(sql, [
       ...targetSourceIds,
       ...nameClause.params,
@@ -398,7 +398,7 @@ async function findCandidatesForTeam(
   }
 
   candidates.sort((a, b) => b.score - a.score);
-  return candidates.slice(0, 8);
+  return candidates;
 }
 
 /** Build one OR-of-all-teams LIKE clause so a whole league can be matched in a single query. */
