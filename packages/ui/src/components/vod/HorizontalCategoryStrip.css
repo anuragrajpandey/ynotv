@@ -178,7 +178,6 @@
   padding: 4px 8px;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
 }
 
 .h-category-strip__scroll::-webkit-scrollbar {

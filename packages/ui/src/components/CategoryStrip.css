@@ -46,13 +46,6 @@
   /* iOS-style smooth scrolling */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--guide-scroll-strip-thumb-bg, color-mix(in srgb, var(--accent-primary, #00d4ff) 80%, transparent)) transparent;
-}
-
-.category-strip:hover .category-strip-scrollable,
-.category-strip-scrollable:hover {
-  scrollbar-color: var(--guide-scroll-strip-thumb-hover-bg, var(--scrollbar-hover-color, var(--accent-primary, #00d4ff))) transparent;
 }
 
 /* Scrollbar styling */
