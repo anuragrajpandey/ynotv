@@ -62,14 +62,25 @@ import { removeFromRecentlyWatched, recordVodWatch, recordEpisodeWatch, getEpiso
 import { type MediaItem, type VodType, type VodPlayInfo } from '../types/media';
 import { type VodPlayerMode } from './vod/SplitPlayButton';
 import { LocalTab } from './local/LocalTab';
+import { LocalDetail } from './local/LocalDetail';
+import { IdentifyModal } from './local/IdentifyModal';
+import { AddToPlaylistModal } from './vod/AddToPlaylistModal';
 import {
   readLocalLibrary,
   groupLocal,
+  useLocalLibrary,
+  localEntryToVodPlayInfo,
   localEntryToStoredEpisode,
   localEntryToStoredMovie,
   localGroupToStoredSeries,
   ensureLocalLibraryLoaded,
+  removeLocalEntries,
+  updateLocalEntries,
+  extractEpisodeNumber,
+  parseFilename,
 } from '../services/local-library/local-library';
+import type { LocalGroup, LocalEntry } from '../services/local-library/types';
+import { clearTmdbMatchCache, invalidateTmdbIdMatchCache, invalidateTmdbMatchCache } from '../services/local-library/scan';
 import './VodPage.css';
 
 // Carousel row type for virtualization (all data pre-fetched)
@@ -304,6 +315,79 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
     [allFavorites, type]
   );
 
+
+  // Local library entries and groups
+  const localEntries = useLocalLibrary();
+  const localGroups = useMemo(() => groupLocal(localEntries), [localEntries]);
+
+  const [identifyTarget, setIdentifyTarget] = useState<LocalEntry[] | null>(null);
+  const [addToPlaylistTarget, setAddToPlaylistTarget] = useState<
+    | { kind: 'movie'; entry: LocalEntry }
+    | { kind: 'show'; key: string; head: LocalEntry; episodes: LocalEntry[] }
+    | null
+  >(null);
+
+  const selectedLocalGroup = useMemo<LocalGroup | null>(() => {
+    if (!selectedItem) return null;
+    const isLocal =
+      selectedItem.source_id === 'local' ||
+      ('series_id' in selectedItem && typeof selectedItem.series_id === 'string' && selectedItem.series_id.startsWith('local_')) ||
+      ('stream_id' in selectedItem && typeof selectedItem.stream_id === 'string' && selectedItem.stream_id.startsWith('local_'));
+    if (!isLocal) return null;
+
+    if ('stream_id' in selectedItem) {
+      const movie = selectedItem as StoredMovie;
+      const rawId = movie.stream_id.startsWith('local_') ? movie.stream_id.slice(6) : movie.stream_id;
+      return (
+        localGroups.find(
+          (g) =>
+            g.kind === 'movie' &&
+            (g.entry.id === rawId ||
+              g.entry.id === movie.stream_id ||
+              (movie.direct_url && g.entry.path.toLowerCase() === movie.direct_url.toLowerCase()))
+        ) || null
+      );
+    } else {
+      const series = selectedItem as StoredSeries;
+      const rawKey = series.series_id.startsWith('local_') ? series.series_id.slice(6) : series.series_id;
+      return (
+        localGroups.find(
+          (g) =>
+            g.kind === 'show' &&
+            (g.key === rawKey ||
+              'local_' + g.key === series.series_id ||
+              (series.direct_url && g.head.path.toLowerCase() === series.direct_url.toLowerCase()) ||
+              g.episodes.some((ep) => ep.id === rawKey || 'local_' + ep.id === series.series_id))
+        ) || null
+      );
+    }
+  }, [selectedItem, localGroups]);
+
+  const addToPlaylistModalProps = useMemo(() => {
+    if (!addToPlaylistTarget) return null;
+    if (addToPlaylistTarget.kind === 'movie') {
+      const movie = localEntryToStoredMovie(addToPlaylistTarget.entry);
+      return {
+        movie,
+        series: null as StoredSeries | null,
+        seasons: {} as Record<number, StoredEpisode[]>,
+        posterUrl: movie.stream_icon || null,
+      };
+    }
+    const { key, head, episodes } = addToPlaylistTarget;
+    const series = localGroupToStoredSeries({ key, head, episodes });
+    const seasons: Record<number, StoredEpisode[]> = {};
+    for (const ep of episodes) {
+      const s = ep.season ?? 1;
+      (seasons[s] ??= []).push(localEntryToStoredEpisode(ep, series.series_id, head.title));
+    }
+    return {
+      movie: null as StoredMovie | null,
+      series,
+      seasons,
+      posterUrl: series.cover || null,
+    };
+  }, [addToPlaylistTarget]);
 
   const [favoriteItems, setFavoriteItems] = useState<(StoredMovie | StoredSeries)[]>([]);
   const [favoritesLoading, setFavoritesLoading] = useState(false);
@@ -1005,8 +1089,95 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
         )}
       </main>
 
-      {/* Detail modal */}
-      {selectedItem && type === 'movie' && (
+      {/* Local Detail View for Local Movies & Series */}
+      {selectedLocalGroup && (
+        <LocalDetail
+          group={selectedLocalGroup}
+          onClose={handleCloseDetail}
+          onPlay={(entry, seriesGroup) => {
+            const info = localEntryToVodPlayInfo(entry, seriesGroup);
+            handlePlay(info, vodPlayerMode);
+          }}
+          onFixMatch={(target) => setIdentifyTarget(target)}
+          onRefreshMetadata={(entries) => {
+            if (entries.length === 0) return;
+            for (const e of entries) {
+              if (e.tmdbId) {
+                invalidateTmdbIdMatchCache(e.tmdbId, e.type);
+              }
+              const parsed = parseFilename(e.filename);
+              invalidateTmdbMatchCache(parsed.title, parsed.year, parsed.type);
+            }
+          }}
+          onRemove={(ids) => {
+            removeLocalEntries(ids);
+            handleCloseDetail();
+          }}
+          onAddToPlaylist={(group) => {
+            if (group.kind === 'movie') {
+              setAddToPlaylistTarget({ kind: 'movie', entry: group.entry });
+            } else {
+              setAddToPlaylistTarget({ kind: 'show', key: group.key, head: group.head, episodes: group.episodes });
+            }
+          }}
+        />
+      )}
+
+      {/* Identify / Match Fix Modal */}
+      {identifyTarget && (
+        <IdentifyModal
+          target={identifyTarget}
+          onClose={() => setIdentifyTarget(null)}
+          onResolved={(ids, resolution) => {
+            clearTmdbMatchCache();
+            updateLocalEntries(ids, (entry) => {
+              const epInfo = extractEpisodeNumber(entry.filename);
+              const epNum = entry.episode ?? epInfo?.episode ?? null;
+              const seasonNum = entry.season ?? epInfo?.season ?? 1;
+
+              return {
+                tmdbId: resolution.tmdbId,
+                imdbId: resolution.imdbId,
+                poster: resolution.poster,
+                backdrop: resolution.backdrop,
+                title: resolution.title,
+                year: resolution.year,
+                type: resolution.type,
+                overview: resolution.overview ?? null,
+                rating: resolution.rating ?? null,
+                runtime: resolution.runtime ?? null,
+                season: resolution.type === 'show' ? seasonNum : null,
+                episode: resolution.type === 'show' ? epNum : null,
+                needsReview: false,
+                reviewSkipped: false,
+                metadataLocked: true,
+              };
+            });
+            setIdentifyTarget(null);
+          }}
+          onSkip={() => setIdentifyTarget(null)}
+          onRemove={(ids) => {
+            removeLocalEntries(ids);
+            setIdentifyTarget(null);
+            handleCloseDetail();
+          }}
+        />
+      )}
+
+      {/* Add To Playlist Modal */}
+      {addToPlaylistModalProps && (
+        <AddToPlaylistModal
+          isOpen={true}
+          onClose={() => setAddToPlaylistTarget(null)}
+          movie={addToPlaylistModalProps.movie}
+          series={addToPlaylistModalProps.series}
+          seasons={addToPlaylistModalProps.seasons}
+          posterUrl={addToPlaylistModalProps.posterUrl}
+        />
+      )}
+
+      {/* Detail modal (non-local) */}
+      {!selectedLocalGroup && selectedItem && type === 'movie' && (
         <MovieDetail
           movie={selectedItem as StoredMovie}
           onClose={handleCloseDetail}
@@ -1040,7 +1211,7 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
           onCastClick={(personId) => setActivePersonId(personId)}
         />
       )}
-      {selectedItem && type === 'series' && (
+      {!selectedLocalGroup && selectedItem && type === 'series' && (
         <SeriesDetail
           series={selectedItem as StoredSeries}
           onClose={handleCloseDetail}
