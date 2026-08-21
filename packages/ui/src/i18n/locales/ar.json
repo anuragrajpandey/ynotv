@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "عكس اتجاه عجلة التمرير",
       "scrollwheelSeekInvertSub": "التمرير لأعلى للترجيع والتمرير لأسفل للتقديم.",
       "blurUnwatchedEpisodes": "طمس الحلقات غير المشاهدة",
-      "blurUnwatchedEpisodesSub": "طمس لقطات الحلقات التي لم يتم تمييزها كمشاهدة في صفحات تفاصيل المسلسل."
+      "blurUnwatchedEpisodesSub": "طمس لقطات الحلقات التي لم يتم تمييزها كمشاهدة في صفحات تفاصيل المسلسل.",
+      "hdrTonemapLabel": "تحويل درجات الألوان من HDR إلى SDR",
+      "hdrTonemapHint": "يحول مصادر فيديو HDR (مثل HDR10 وHLG وDolby Vision) إلى SDR لعرض ألوان وتباين دقيق على الشاشات القياسية. يوصى به إذا كان محتوى HDR يبدو باهتًا أو رماديًا.",
+      "showHdrQuickToggleLabel": "إظهار زر التبديل السريع لـ HDR في شريط المشغل",
+      "showHdrQuickToggleHint": "يعرض زر [HDR] على شريط التحكم لتبديل ميزة تحويل درجات الألوان فورًا أثناء التشغيل."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_two": "{{count}} التنزيلات قيد التقدم",
     "downloadsInProgress_few": "{{count}} التنزيلات قيد التقدم",
     "downloadsInProgress_many": "{{count}} التنزيلات قيد التقدم",
-    "downloadsInProgress_zero": "{{count}} تنزيل قيد التقدم"
+    "downloadsInProgress_zero": "{{count}} تنزيل قيد التقدم",
+    "hdrToSdrOn": "HDR إلى SDR: مفعل",
+    "hdrToSdrOff": "HDR إلى SDR: معطل"
   },
   "stremio": {
     "account": "الحساب",

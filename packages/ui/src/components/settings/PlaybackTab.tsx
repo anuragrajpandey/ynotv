@@ -11,6 +11,7 @@ import { CatchupTab } from './CatchupTab';
 import { VodTab } from './VodTab';
 import { useToastStore } from '../../stores/toastStore';
 import { useSportsSettingsStore } from '../../stores/sportsSettingsStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 export type PlaybackSubTabId = 'mpv' | 'reconnect' | 'cast' | 'popout' | 'skipintro' | 'catchup' | 'vod';
 
@@ -155,6 +156,14 @@ export function PlaybackTab({
   const [showRestartModal, setShowRestartModal] = useState(false);
 
   const isHwdecOverridden = /--?hwdec[=\s]/i.test(localParams);
+  const isTonemapOverridden = /--?tone-mapping[=\s]/i.test(localParams);
+
+  const {
+    hdrTonemapToSdr,
+    setHdrTonemapToSdr,
+    showHdrQuickToggle,
+    setShowHdrQuickToggle,
+  } = useSettingsStore();
 
   // Local state for retry settings (committed on blur / enter)
   const [localWatchdog, setLocalWatchdog] = useState(String(streamWatchdogSeconds));
@@ -333,6 +342,52 @@ export function PlaybackTab({
                     ? i18n.t('settings:playback.hwdecOverriddenHint')
                     : <>{i18n.t('settings:playback.hwdecHintPrefix')} <code style={{ color: 'var(--accent-color, #00d4ff)' }}>--hwdec=auto</code> {i18n.t('settings:playback.hwdecHintMid')} <code style={{ color: 'var(--accent-color, #00d4ff)' }}>--vo=gpu</code> {i18n.t('settings:playback.hwdecHintSuffix')}</>}
                 </p>
+              </div>
+              
+              {/* HDR-to-SDR Tonemapping Section */}
+              <div style={{ marginBottom: '1.25rem', background: 'var(--card-bg, var(--surface-color))', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--border-color, var(--surface-border))', opacity: isTonemapOverridden ? 0.75 : 1 }}>
+                <label className="genre-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: isTonemapOverridden ? 'not-allowed' : 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={hdrTonemapToSdr}
+                    disabled={isTonemapOverridden}
+                    onChange={(e) => {
+                      const newVal = e.target.checked;
+                      setHdrTonemapToSdr(newVal);
+                      (window as any).Bridge?.applyHdrSettings?.(newVal);
+                    }}
+                  />
+                  <span style={{ fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {i18n.t('settings:playback.hdrTonemapLabel', 'HDR-to-SDR Tonemapping')}
+                    {isTonemapOverridden && (
+                      <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', background: 'rgba(255, 193, 7, 0.15)', color: '#ffc107', border: '1px solid rgba(255, 193, 7, 0.3)', fontWeight: 500 }}>
+                        {i18n.t('settings:playback.hwdecManaged')}
+                      </span>
+                    )}
+                  </span>
+                </label>
+                <p style={{ marginTop: '0.4rem', marginLeft: '26px', opacity: 0.8, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4', margin: '6px 0 0 26px' }}>
+                  {i18n.t('settings:playback.hdrTonemapHint', 'Maps HDR video sources (HDR10, HLG, Dolby Vision) to SDR for accurate colors and contrast on standard displays. Recommended if HDR content looks washed-out or grey.')}
+                </p>
+
+                {/* Sub-option: Show HDR quick toggle in player controls */}
+                {hdrTonemapToSdr && (
+                  <div style={{ marginTop: '12px', marginLeft: '26px', paddingTop: '10px', borderTop: '1px solid var(--border-color, rgba(255,255,255,0.08))' }}>
+                    <label className="genre-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={showHdrQuickToggle}
+                        onChange={(e) => setShowHdrQuickToggle(e.target.checked)}
+                      />
+                      <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                        {i18n.t('settings:playback.showHdrQuickToggleLabel', 'Show HDR Quick Toggle in Player Bar')}
+                      </span>
+                    </label>
+                    <p style={{ opacity: 0.75, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.3', margin: '4px 0 0 26px' }}>
+                      {i18n.t('settings:playback.showHdrQuickToggleHint', 'Displays an [HDR] button on the player control bar to toggle HDR tonemapping on the fly during playback.')}
+                    </p>
+                  </div>
+                )}
               </div>
 
             <div className="playback-section" style={{ marginTop: 0 }}>

@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "反轉滑鼠滾輪方向",
       "scrollwheelSeekInvertSub": "向上滾動後退，向下滾動快進。",
       "blurUnwatchedEpisodes": "模糊未觀看劇集",
-      "blurUnwatchedEpisodesSub": "在劇集詳細資訊頁面上模糊未標記為已觀看的劇集截圖。"
+      "blurUnwatchedEpisodesSub": "在劇集詳細資訊頁面上模糊未標記為已觀看的劇集截圖。",
+      "hdrTonemapLabel": "HDR 轉 SDR 色調對應",
+      "hdrTonemapHint": "將 HDR 影片來源（HDR10、HLG、杜比視界）轉換為 SDR，在一般螢幕上呈現精準色彩與對比度。若 HDR 畫面發灰或泛白，建議開啟。",
+      "showHdrQuickToggleLabel": "在播放控制列顯示 HDR 快捷切換按鈕",
+      "showHdrQuickToggleHint": "在播放控制列顯示 [HDR] 按鈕，播放期間可隨時即時切換色調對應。"
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} 個下載正在進行",
     "downloadsInProgress_many": "{{count}} 個下載正在進行",
     "downloadsInProgress_two": "{{count}} 個下載正在進行",
-    "downloadsInProgress_zero": "{{count}} 個下載正在進行"
+    "downloadsInProgress_zero": "{{count}} 個下載正在進行",
+    "hdrToSdrOn": "HDR 轉 SDR：開啟",
+    "hdrToSdrOff": "HDR 轉 SDR：關閉"
   },
   "stremio": {
     "account": "帳戶",

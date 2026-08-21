@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "اسکرول وہیل کی سمت الٹیں",
       "scrollwheelSeekInvertSub": "پیچھے جانے کے لیے اوپر اسکرول کریں اور آگے جانے کے لیے نیچے اسکرول کریں۔",
       "blurUnwatchedEpisodes": "نہ دیکھی گئی اقساط کو دھندلا کریں",
-      "blurUnwatchedEpisodesSub": "سیریز کی تفصیلات کے صفحات پر ان اقساط کے اسکرین شاٹس کو دھندلا کریں جنہیں دیکھا گیا کے طور پر نشان زد نہیں کیا گیا ہے۔"
+      "blurUnwatchedEpisodesSub": "سیریز کی تفصیلات کے صفحات پر ان اقساط کے اسکرین شاٹس کو دھندلا کریں جنہیں دیکھا گیا کے طور پر نشان زد نہیں کیا گیا ہے۔",
+      "hdrTonemapLabel": "HDR سے SDR ٹون میپنگ",
+      "hdrTonemapHint": "معیاری ڈسپلے پر درست رنگوں اور کنٹراسٹ کے لیے HDR ویڈیو ذرائع (HDR10, HLG, Dolby Vision) کو SDR میں تبدیل کرتا ہے۔ اگر HDR مواد مدہم یا سرمئی نظر آئے تو تجویز کیا جاتا ہے۔",
+      "showHdrQuickToggleLabel": "پلیئر بار میں فوری HDR ٹوگل بٹن دکھائیں",
+      "showHdrQuickToggleHint": "پلے بیک کے دوران فوری طور پر HDR ٹون میپنگ کو تبدیل کرنے کے لیے کنٹرول بار پر [HDR] بٹن دکھاتا ہے۔"
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} ڈاؤن لوڈز جاری",
     "downloadsInProgress_many": "{{count}} ڈاؤن لوڈز جاری",
     "downloadsInProgress_two": "{{count}} ڈاؤن لوڈز جاری",
-    "downloadsInProgress_zero": "{{count}} ڈاؤن لوڈز جاری"
+    "downloadsInProgress_zero": "{{count}} ڈاؤن لوڈز جاری",
+    "hdrToSdrOn": "HDR سے SDR: آن",
+    "hdrToSdrOff": "HDR سے SDR: آف"
   },
   "stremio": {
     "account": "اکاؤنٹ",

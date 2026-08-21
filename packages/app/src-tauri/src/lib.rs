@@ -604,6 +604,29 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                 }
             }
 
+            // Inject HDR-to-SDR Tonemapping if enabled (default false)
+            let hdr_tonemap = get_value("hdrTonemapToSdr")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            let has_tonemap = args.iter().any(|a| {
+                let clean = a.trim_start_matches('-');
+                clean == "tone-mapping" || clean.starts_with("tone-mapping=") || clean.starts_with("tone-mapping ")
+            });
+
+            if hdr_tonemap && !has_tonemap {
+                debug!("[MPV] Auto-injecting HDR-to-SDR tonemapping arguments");
+                args.push("--tone-mapping=spline".to_string());
+                args.push("--gamut-mapping-mode=perceptual".to_string());
+                args.push("--hdr-compute-peak=yes".to_string());
+                args.push("--hdr-contrast-recovery=0.30".to_string());
+                args.push("--hdr-peak-percentile=99.995".to_string());
+                args.push("--dither-depth=auto".to_string());
+                args.push("--target-trc=bt.1886".to_string());
+                args.push("--target-prim=bt.709".to_string());
+                args.push("--target-colorspace-hint=yes".to_string());
+            }
+
             return args;
         }
         Err(e) => {

@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "Obrni smer točkića miša",
       "scrollwheelSeekInvertSub": "Pomičite točkić nagore za premotavanje unazad i nadole za premotavanje napred.",
       "blurUnwatchedEpisodes": "Замућење непрегледаних епизода",
-      "blurUnwatchedEpisodesSub": "Замућује слике епизода које нису означене као прегледане на страницама с детаљима серије."
+      "blurUnwatchedEpisodesSub": "Замућује слике епизода које нису означене као прегледане на страницама с детаљима серије.",
+      "hdrTonemapLabel": "Mapiranje tonova HDR u SDR",
+      "hdrTonemapHint": "Prilagođava HDR video izvore (HDR10, HLG, Dolby Vision) na SDR radi tačnih boja i kontrasta na standardnim ekranima. Preporučuje se ako HDR sadržaj izgleda isprano ili sivo.",
+      "showHdrQuickToggleLabel": "Prikaži brzi HDR prekidač na traci plejera",
+      "showHdrQuickToggleHint": "Prikazuje dugme [HDR] na kontrolnoj traci za trenutno uključivanje mapiranja tonova tokom reprodukcije."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} преузимања су у току",
     "downloadsInProgress_many": "{{count}} преузимања су у току",
     "downloadsInProgress_two": "{{count}} преузимања су у току",
-    "downloadsInProgress_zero": "{{count}} преузимања су у току"
+    "downloadsInProgress_zero": "{{count}} преузимања су у току",
+    "hdrToSdrOn": "HDR u SDR: Uključeno",
+    "hdrToSdrOff": "HDR u SDR: Isključeno"
   },
   "stremio": {
     "account": "Налог",

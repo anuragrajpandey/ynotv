@@ -67,6 +67,7 @@ const BOOLEAN_KEYS = new Set([
   'showVodAll', 'showVodFavorites', 'showVodPlaylists', 'showVodLocal', 'showVodRecent',
   'useEventBasedReconnect', 'stallDetectionEnabled', 'showLoadingScreen',
   'transparentGuideHideHeader', 'allowLanSources', 'v3DefaultMigrated', 'volumePercentDefaultMigrated',
+  'hdrTonemapToSdr', 'showHdrQuickToggle',
 ] as const);
 
 const NUMBER_KEYS = new Set([
@@ -268,6 +269,8 @@ async function hydrateSettingsStore(): Promise<void> {
         overlayOnClickOnly: data.overlayOnClickOnly ?? false,
         playerControlDesign: data.playerControlDesign ?? 'clean',
         showVolumePercent: data.showVolumePercent ?? true,
+        hdrTonemapToSdr: data.hdrTonemapToSdr ?? false,
+        showHdrQuickToggle: data.showHdrQuickToggle ?? false,
         popoutStopMain: data.popoutStopMain ?? true,
         popoutAlwaysOnTop: data.popoutAlwaysOnTop ?? false,
         popoutHwdecEnabled: data.popoutHwdecEnabled ?? true,

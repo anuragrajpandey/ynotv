@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "Αντιστροφή κατεύθυνσης ροδέλας",
       "scrollwheelSeekInvertSub": "Κύλιση προς τα πάνω για μετάβαση πίσω και κύλιση προς τα κάτω για μετάβαση εμπρός.",
       "blurUnwatchedEpisodes": "Θόλωση μη προβληθέντων επεισοδίων",
-      "blurUnwatchedEpisodesSub": "Θόλωση εικόνων επεισοδίων που δεν έχουν επισημανθεί ως προβληθέντα στις σελίδες λεπτομερειών της σειράς."
+      "blurUnwatchedEpisodesSub": "Θόλωση εικόνων επεισοδίων που δεν έχουν επισημανθεί ως προβληθέντα στις σελίδες λεπτομερειών της σειράς.",
+      "hdrTonemapLabel": "Χαρτογράφηση τόνων HDR σε SDR",
+      "hdrTonemapHint": "Μετατρέπει πηγές βίντεο HDR (HDR10, HLG, Dolby Vision) σε SDR για ακριβή χρώματα και αντίθεση σε τυπικές οθόνες. Συνιστάται εάν το περιεχόμενο HDR φαίνεται ξεθωριασμένο ή γκρι.",
+      "showHdrQuickToggleLabel": "Εμφάνιση κουμπιού γρήγορης εναλλαγής HDR στη γραμμή αναπαραγωγής",
+      "showHdrQuickToggleHint": "Εμφανίζει ένα κουμπί [HDR] στη γραμμή ελέγχου για άμεση εναλλαγή της χαρτογράφησης κατά την αναπαραγωγή."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} λήψεις σε εξέλιξη",
     "downloadsInProgress_many": "{{count}} λήψεις σε εξέλιξη",
     "downloadsInProgress_two": "{{count}} λήψεις σε εξέλιξη",
-    "downloadsInProgress_zero": "{{count}} λήψεις σε εξέλιξη"
+    "downloadsInProgress_zero": "{{count}} λήψεις σε εξέλιξη",
+    "hdrToSdrOn": "HDR σε SDR: Ενεργό",
+    "hdrToSdrOff": "HDR σε SDR: Ανενεργό"
   },
   "stremio": {
     "account": "Λογαριασμός",

@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "معکوس کردن جهت چرخ ماوس",
       "scrollwheelSeekInvertSub": "اسکرول به بالا برای عقب رفتن و اسکرول به پایین برای جلو رفتن.",
       "blurUnwatchedEpisodes": "مات کردن قسمت‌های تماشا نشده",
-      "blurUnwatchedEpisodesSub": "مات کردن تصاویر کوچک قسمت‌هایی که در صفحات جزئیات سریال به عنوان تماشا شده علامت‌گذاری نشده‌اند."
+      "blurUnwatchedEpisodesSub": "مات کردن تصاویر کوچک قسمت‌هایی که در صفحات جزئیات سریال به عنوان تماشا شده علامت‌گذاری نشده‌اند.",
+      "hdrTonemapLabel": "نگاشت تناژ HDR به SDR",
+      "hdrTonemapHint": "منابع ویدیویی HDR (شامل HDR10، HLG و Dolby Vision) را به SDR تبدیل می‌کند تا رنگ‌ها و کنتراست در نمایشگرهای استاندارد دقیق باشند. در صورتی که تصویر HDR رنگ‌پریده یا خاکستری به نظر می‌رسد پیشنهاد می‌شود.",
+      "showHdrQuickToggleLabel": "نمایش دکمه جابجایی سریع HDR در نوار پخش‌کننده",
+      "showHdrQuickToggleHint": "یک دکمه [HDR] در نوار کنترل نمایش می‌دهد تا نگاشت رنگ در حین پخش بلافاصله تغییر کند."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} دانلود در حال انجام",
     "downloadsInProgress_many": "{{count}} دانلود در حال انجام",
     "downloadsInProgress_two": "{{count}} دانلود در حال انجام",
-    "downloadsInProgress_zero": "{{count}} دانلود در حال انجام"
+    "downloadsInProgress_zero": "{{count}} دانلود در حال انجام",
+    "hdrToSdrOn": "HDR به SDR: روشن",
+    "hdrToSdrOff": "HDR به SDR: خاموش"
   },
   "stremio": {
     "account": "حساب",

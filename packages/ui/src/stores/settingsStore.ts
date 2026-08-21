@@ -399,6 +399,12 @@ export interface SettingsState {
   showVolumePercent: boolean;
   setShowVolumePercent: (enabled: boolean) => void;
 
+  // Video / MPV tuning
+  hdrTonemapToSdr: boolean;
+  setHdrTonemapToSdr: (enabled: boolean) => void;
+  showHdrQuickToggle: boolean;
+  setShowHdrQuickToggle: (enabled: boolean) => void;
+
   // Widget scale
   widgetScale: number;
   setWidgetScale: (scale: number) => void;
@@ -983,6 +989,16 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setShowVolumePercent: (enabled) => {
     set({ showVolumePercent: enabled });
     persistSettings({ showVolumePercent: enabled });
+  },
+  hdrTonemapToSdr: (cachedSettings?.hdrTonemapToSdr as boolean) ?? false,
+  setHdrTonemapToSdr: (enabled) => {
+    set({ hdrTonemapToSdr: enabled });
+    persistSettings({ hdrTonemapToSdr: enabled });
+  },
+  showHdrQuickToggle: (cachedSettings?.showHdrQuickToggle as boolean) ?? false,
+  setShowHdrQuickToggle: (enabled) => {
+    set({ showHdrQuickToggle: enabled });
+    persistSettings({ showHdrQuickToggle: enabled });
   },
 
   // Widget scale

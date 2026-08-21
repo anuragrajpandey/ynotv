@@ -809,6 +809,40 @@ export const Bridge = {
         }
     },
 
+    async applyHdrSettings(on: boolean) {
+        const properties: Array<[string, any]> = on
+            ? [
+                ['tone-mapping', 'spline'],
+                ['gamut-mapping-mode', 'perceptual'],
+                ['hdr-compute-peak', 'yes'],
+                ['hdr-contrast-recovery', '0.30'],
+                ['hdr-peak-percentile', '99.995'],
+                ['dither-depth', 'auto'],
+                ['target-trc', 'bt.1886'],
+                ['target-prim', 'bt.709'],
+                ['target-colorspace-hint', 'yes'],
+            ]
+            : [
+                ['tone-mapping', 'auto'],
+                ['gamut-mapping-mode', 'auto'],
+                ['hdr-compute-peak', 'auto'],
+                ['hdr-contrast-recovery', '0'],
+                ['hdr-peak-percentile', '0'],
+                ['dither-depth', 'auto'],
+                ['target-trc', 'auto'],
+                ['target-prim', 'auto'],
+                ['target-colorspace-hint', 'yes'],
+            ];
+
+        for (const [name, value] of properties) {
+            try {
+                await invoke('mpv_set_property', { name, value });
+            } catch (e) {
+                console.warn(`[Bridge] Failed to set HDR property ${name}:`, e);
+            }
+        }
+    },
+
     async setProperty(name: string, value: any) {
         if (name === 'volume' && typeof value === 'number') {
             try {
@@ -1258,6 +1292,7 @@ export async function initPolyfills() {
         setSubtitleAlign: Bridge.setSubtitleAlign,
         buildAudioFilterString: Bridge.buildAudioFilterString.bind(Bridge),
         applyAudioSettings: Bridge.applyAudioSettings.bind(Bridge),
+        applyHdrSettings: Bridge.applyHdrSettings.bind(Bridge),
         destroy: () => { },
         setProperty: Bridge.setProperty,
         setProperties: Bridge.setProperties,

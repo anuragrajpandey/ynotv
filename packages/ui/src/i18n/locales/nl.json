@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "Richting muiswiel omkeren",
       "scrollwheelSeekInvertSub": "Scrol omhoog om terug te spoelen en omlaag om vooruit te spoelen.",
       "blurUnwatchedEpisodes": "Niet-bekeken afleveringen vervagen",
-      "blurUnwatchedEpisodesSub": "Vervaag voorbeeldafbeeldingen van afleveringen die niet als bekeken zijn gemarkeerd op serie-detailpagina's."
+      "blurUnwatchedEpisodesSub": "Vervaag voorbeeldafbeeldingen van afleveringen die niet als bekeken zijn gemarkeerd op serie-detailpagina's.",
+      "hdrTonemapLabel": "HDR-naar-SDR tonemapping",
+      "hdrTonemapHint": "Zet HDR-videobronnen (HDR10, HLG, Dolby Vision) om naar SDR voor nauwkeurige kleuren en contrast op standaardschermen. Aanbevolen als HDR-content flets of grijs oogt.",
+      "showHdrQuickToggleLabel": "HDR-snelknop tonen in de spelerbalk",
+      "showHdrQuickToggleHint": "Toont een [HDR]-knop op de bedieningsbalk om HDR-tonemapping direct tijdens het afspelen in of uit te schakelen."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} downloads bezig",
     "downloadsInProgress_many": "{{count}} downloads bezig",
     "downloadsInProgress_two": "{{count}} downloads bezig",
-    "downloadsInProgress_zero": "{{count}} downloads bezig"
+    "downloadsInProgress_zero": "{{count}} downloads bezig",
+    "hdrToSdrOn": "HDR naar SDR: Aan",
+    "hdrToSdrOff": "HDR naar SDR: Uit"
   },
   "stremio": {
     "account": "Account",

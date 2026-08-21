@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "Përmbys drejtimin e rrotëzës së mausit",
       "scrollwheelSeekInvertSub": "Lëvizni lart për t'u kthyer prapa dhe poshtë për të ecur para.",
       "blurUnwatchedEpisodes": "Turbullo episodet e pashikuara",
-      "blurUnwatchedEpisodesSub": "Turbullon pamjet e episodeve që nuk janë shënuar si të shikuara në faqet e detajeve të serialit."
+      "blurUnwatchedEpisodesSub": "Turbullon pamjet e episodeve që nuk janë shënuar si të shikuara në faqet e detajeve të serialit.",
+      "hdrTonemapLabel": "Hartëzimi i Toneve HDR në SDR",
+      "hdrTonemapHint": "Përshtat burimet e videos HDR (HDR10, HLG, Dolby Vision) në SDR për ngjyra dhe kontrast të saktë në ekrane standarde. Rekomandohet nëse përmbajtja HDR duket e zbehtë ose gri.",
+      "showHdrQuickToggleLabel": "Shfaq butonin e shpejtë HDR në shiritin e luajtësit",
+      "showHdrQuickToggleHint": "Shfaq një buton [HDR] në shiritin e kontrollit për të ndryshuar menjëherë hartëzimin gjatë shikimit."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} shkarkime në vazhdim",
     "downloadsInProgress_many": "{{count}} shkarkime në vazhdim",
     "downloadsInProgress_two": "{{count}} shkarkime në vazhdim",
-    "downloadsInProgress_zero": "{{count}} shkarkime në vazhdim"
+    "downloadsInProgress_zero": "{{count}} shkarkime në vazhdim",
+    "hdrToSdrOn": "HDR në SDR: Aktiv",
+    "hdrToSdrOff": "HDR në SDR: Joaktiv"
   },
   "stremio": {
     "account": "Llogaria",

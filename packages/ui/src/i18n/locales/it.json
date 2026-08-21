@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "Inverti direzione rotellina",
       "scrollwheelSeekInvertSub": "Scorri verso l'alto per riavvolgere e verso il basso per avanzare.",
       "blurUnwatchedEpisodes": "Sfoca episodi non visti",
-      "blurUnwatchedEpisodesSub": "Sfoca le anteprime degli episodi non contrassegnati come visti nelle pagine dei dettagli della serie."
+      "blurUnwatchedEpisodesSub": "Sfoca le anteprime degli episodi non contrassegnati come visti nelle pagine dei dettagli della serie.",
+      "hdrTonemapLabel": "Mappatura tonale da HDR a SDR",
+      "hdrTonemapHint": "Converte le sorgenti video HDR (HDR10, HLG, Dolby Vision) in SDR per colori e contrasto accurati su display standard. Consigliato se i contenuti HDR appaiono sbiaditi o grigi.",
+      "showHdrQuickToggleLabel": "Mostra pulsante rapido HDR nella barra del lettore",
+      "showHdrQuickToggleHint": "Mostra un pulsante [HDR] nella barra dei controlli per attivare/disattivare la mappatura tonale al volo durante la riproduzione."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} download in corso",
     "downloadsInProgress_many": "{{count}} download in corso",
     "downloadsInProgress_two": "{{count}} download in corso",
-    "downloadsInProgress_zero": "{{count}} download in corso"
+    "downloadsInProgress_zero": "{{count}} download in corso",
+    "hdrToSdrOn": "HDR a SDR: Attivo",
+    "hdrToSdrOff": "HDR a SDR: Disattivato"
   },
   "stremio": {
     "account": "Account",

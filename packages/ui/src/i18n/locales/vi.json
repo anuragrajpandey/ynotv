@@ -1275,7 +1275,9 @@
     "downloadsInProgress_few": "{{count}} lượt tải xuống đang tiến hành",
     "downloadsInProgress_many": "{{count}} lượt tải xuống đang tiến hành",
     "downloadsInProgress_two": "{{count}} lượt tải xuống đang tiến hành",
-    "downloadsInProgress_zero": "{{count}} lượt tải xuống đang tiến hành"
+    "downloadsInProgress_zero": "{{count}} lượt tải xuống đang tiến hành",
+    "hdrToSdrOn": "HDR sang SDR: Bật",
+    "hdrToSdrOff": "HDR sang SDR: Tắt"
   },
   "subtitles": {
     "header": "Phụ Đề",
@@ -2036,7 +2038,11 @@
       "scrollwheelSeekInvert": "Đảo ngược hướng con cuộn chuột",
       "scrollwheelSeekInvertSub": "Cuộn lên để tua lùi và cuộn xuống để tua tới.",
       "blurUnwatchedEpisodes": "Làm mờ các tập chưa xem",
-      "blurUnwatchedEpisodesSub": "Làm mờ ảnh chụp màn hình của các tập chưa được đánh dấu là đã xem trên các trang chi tiết phim bộ."
+      "blurUnwatchedEpisodesSub": "Làm mờ ảnh chụp màn hình của các tập chưa được đánh dấu là đã xem trên các trang chi tiết phim bộ.",
+      "hdrTonemapLabel": "Ánh xạ tông màu HDR sang SDR",
+      "hdrTonemapHint": "Chuyển đổi nguồn video HDR (HDR10, HLG, Dolby Vision) sang SDR để hiển thị màu sắc và độ tương phản chuẩn xác trên màn hình thông thường. Khuyên dùng nếu video HDR bị nhạt hoặc mờ đục.",
+      "showHdrQuickToggleLabel": "Hiển thị nút bật tắt nhanh HDR trên thanh điều khiển",
+      "showHdrQuickToggleHint": "Hiển thị nút [HDR] trên thanh điều khiển để chuyển đổi ánh xạ HDR trực tiếp khi đang phát."
     },
     "optimization": {
       "title": "Tăng Tốc Phần Cứng",

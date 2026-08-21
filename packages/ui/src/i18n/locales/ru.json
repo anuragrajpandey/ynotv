@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "Инвертировать направление колесика",
       "scrollwheelSeekInvertSub": "Прокрутка вверх — назад, прокрутка вниз — вперед.",
       "blurUnwatchedEpisodes": "Размывать непросмотренные серии",
-      "blurUnwatchedEpisodesSub": "Размывает кадры серий, которые не отмечены как просмотренные, на страницах сведений о сериале."
+      "blurUnwatchedEpisodesSub": "Размывает кадры серий, которые не отмечены как просмотренные, на страницах сведений о сериале.",
+      "hdrTonemapLabel": "Тональная компрессия HDR в SDR",
+      "hdrTonemapHint": "Преобразует HDR-видео (HDR10, HLG, Dolby Vision) в SDR для точной цветопередачи и контраста на обычных экранах. Рекомендуется, если HDR-видео выглядит блеклым или серым.",
+      "showHdrQuickToggleLabel": "Показывать кнопку быстрого переключения HDR в плеере",
+      "showHdrQuickToggleHint": "Отображает кнопку [HDR] на панели управления для быстрого включения/выключения тональной компрессии во время воспроизведения."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} загрузки в процессе",
     "downloadsInProgress_many": "{{count}} загрузок в процессе",
     "downloadsInProgress_two": "{{count}} загрузки в процессе",
-    "downloadsInProgress_zero": "{{count}} загрузки в процессе"
+    "downloadsInProgress_zero": "{{count}} загрузки в процессе",
+    "hdrToSdrOn": "HDR в SDR: Вкл",
+    "hdrToSdrOff": "HDR в SDR: Выкл"
   },
   "stremio": {
     "account": "Учётная запись",

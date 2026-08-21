@@ -171,6 +171,16 @@ export function NowPlayingBar({
   const maxVolume = useSettingsStore((s) => s.subtitleSettings?.audioMaxVolume || 100);
   const showVolumePercent = propShowVolumePercent ?? showVolumePercentSetting ?? true;
 
+  const showHdrQuickToggle = useSettingsStore((s) => s.showHdrQuickToggle);
+  const hdrTonemapToSdr = useSettingsStore((s) => s.hdrTonemapToSdr);
+  const setHdrTonemapToSdr = useSettingsStore((s) => s.setHdrTonemapToSdr);
+
+  const handleToggleHdrTonemap = () => {
+    const nextVal = !hdrTonemapToSdr;
+    setHdrTonemapToSdr(nextVal);
+    (window as any).Bridge?.applyHdrSettings?.(nextVal);
+  };
+
   // scrubMode: 'timeshift' | 'epgcatchup' — local toggle when channel supports both
   const [scrubMode, setScrubMode] = useState<'timeshift' | 'epgcatchup'>('timeshift');
   // Modal state
@@ -1026,6 +1036,32 @@ export function NowPlayingBar({
                   <SubtitleIcon />
                 </button>
 
+                {showHdrQuickToggle && (
+                  <button
+                    className={`npb-clean-btn npb-hdr-btn ${hdrTonemapToSdr ? 'active' : ''}`}
+                    onClick={handleToggleHdrTonemap}
+                    disabled={!canControl}
+                    title={hdrTonemapToSdr ? t('hdrToSdrOn', 'HDR to SDR: On') : t('hdrToSdrOff', 'HDR to SDR: Off')}
+                    style={{
+                      fontWeight: 700,
+                      fontSize: '0.72rem',
+                      letterSpacing: '0.5px',
+                      padding: '0 6px',
+                      minWidth: '32px',
+                      height: '28px',
+                      borderRadius: '4px',
+                      border: hdrTonemapToSdr ? '1px solid var(--accent-color, #00d4ff)' : '1px solid rgba(255, 255, 255, 0.2)',
+                      color: hdrTonemapToSdr ? 'var(--accent-color, #00d4ff)' : 'rgba(255, 255, 255, 0.7)',
+                      background: hdrTonemapToSdr ? 'rgba(0, 212, 255, 0.15)' : 'transparent',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    HDR
+                  </button>
+                )}
+
                 {isStremioNuvio && onSwitchStream && stremioSourceId && stremioSourceType && (
                   <button
                     className="npb-clean-btn npb-source-picker-btn"
@@ -1400,6 +1436,31 @@ export function NowPlayingBar({
                 >
                   <SubtitleIcon />
                 </button>
+                {showHdrQuickToggle && (
+                  <button
+                    className={`npb-btn npb-hdr-btn ${hdrTonemapToSdr ? 'active' : ''}`}
+                    onClick={handleToggleHdrTonemap}
+                    disabled={!canControl}
+                    title={hdrTonemapToSdr ? t('hdrToSdrOn', 'HDR to SDR: On') : t('hdrToSdrOff', 'HDR to SDR: Off')}
+                    style={{
+                      fontWeight: 700,
+                      fontSize: '0.72rem',
+                      letterSpacing: '0.5px',
+                      padding: '0 6px',
+                      minWidth: '32px',
+                      height: '28px',
+                      borderRadius: '4px',
+                      border: hdrTonemapToSdr ? '1px solid var(--accent-color, #00d4ff)' : '1px solid rgba(255, 255, 255, 0.2)',
+                      color: hdrTonemapToSdr ? 'var(--accent-color, #00d4ff)' : 'rgba(255, 255, 255, 0.7)',
+                      background: hdrTonemapToSdr ? 'rgba(0, 212, 255, 0.15)' : 'transparent',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    HDR
+                  </button>
+                )}
                 <button
                   className={`npb-btn${hasAudioDelay ? ' has-badge' : ''}`}
                   onClick={onShowAudioModal}

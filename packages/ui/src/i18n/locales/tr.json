@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "Fare Tekerleği Yönünü Tersine Çevir",
       "scrollwheelSeekInvertSub": "Geri sarmak için yukarı, ileri sarmak için aşağı kaydırın.",
       "blurUnwatchedEpisodes": "İzlenmemiş bölümleri bulanıklaştır",
-      "blurUnwatchedEpisodesSub": "Dizi ayrıntıları sayfalarında izlendi olarak işaretlenmemiş bölümlerin önizleme resimlerini bulanıklaştırır."
+      "blurUnwatchedEpisodesSub": "Dizi ayrıntıları sayfalarında izlendi olarak işaretlenmemiş bölümlerin önizleme resimlerini bulanıklaştırır.",
+      "hdrTonemapLabel": "HDR'den SDR'ye Ton Eşleme",
+      "hdrTonemapHint": "HDR video kaynaklarını (HDR10, HLG, Dolby Vision) standart ekranlarda doğru renkler ve kontrast için SDR'ye dönüştürür. HDR içeriği soluk veya grimsi görünüyorsa önerilir.",
+      "showHdrQuickToggleLabel": "Oynatıcı çubuğunda hızlı HDR düğmesini göster",
+      "showHdrQuickToggleHint": "Oynatma sırasında HDR ton eşlemeyi anında değiştirmek için kontrol çubuğunda bir [HDR] düğmesi gösterir."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} indirme sürüyor",
     "downloadsInProgress_many": "{{count}} indirme sürüyor",
     "downloadsInProgress_two": "{{count}} indirme sürüyor",
-    "downloadsInProgress_zero": "{{count}} indirme sürüyor"
+    "downloadsInProgress_zero": "{{count}} indirme sürüyor",
+    "hdrToSdrOn": "HDR'den SDR'ye: Açık",
+    "hdrToSdrOff": "HDR'den SDR'ye: Kapalı"
   },
   "stremio": {
     "account": "Hesap",

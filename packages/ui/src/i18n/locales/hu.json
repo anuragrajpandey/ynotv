@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "Görgetőkerék irányának megfordítása",
       "scrollwheelSeekInvertSub": "Görgessen felfelé a visszatekeréshez és lefelé az előretekeréshez.",
       "blurUnwatchedEpisodes": "Nem látott epizódok elhomályosítása",
-      "blurUnwatchedEpisodesSub": "Elhomályosítja azon epizódok előnézeti képeit a sorozat részletező oldalain, amelyek nincsenek megtekintettként megjelölve."
+      "blurUnwatchedEpisodesSub": "Elhomályosítja azon epizódok előnézeti képeit a sorozat részletező oldalain, amelyek nincsenek megtekintettként megjelölve.",
+      "hdrTonemapLabel": "HDR - SDR tónusleképezés",
+      "hdrTonemapHint": "A HDR videoforrásokat (HDR10, HLG, Dolby Vision) SDR-re alakítja a pontos színek és kontraszt érdekében a hagyományos kijelzőkön. Ajánlott, ha a HDR tartalom fakónak vagy szürkének tűnik.",
+      "showHdrQuickToggleLabel": "HDR gyorsgomb megjelenítése a lejátszó sávján",
+      "showHdrQuickToggleHint": "Megjelenít egy [HDR] gombot a vezérlősávon a tónusleképezés azonnali váltásához lejátszás közben."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} letöltés folyamatban",
     "downloadsInProgress_many": "{{count}} letöltés folyamatban",
     "downloadsInProgress_two": "{{count}} letöltés folyamatban",
-    "downloadsInProgress_zero": "{{count}} letöltés folyamatban"
+    "downloadsInProgress_zero": "{{count}} letöltés folyamatban",
+    "hdrToSdrOn": "HDR - SDR: Be",
+    "hdrToSdrOff": "HDR - SDR: Ki"
   },
   "stremio": {
     "account": "Fiók",

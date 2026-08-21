@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "Invertir dirección de la rueda del ratón",
       "scrollwheelSeekInvertSub": "Desplaza hacia arriba para retroceder y hacia abajo para avanzar.",
       "blurUnwatchedEpisodes": "Desenfocar episodios no vistos",
-      "blurUnwatchedEpisodesSub": "Desenfoca las capturas de episodios que no estén marcados como vistos en las páginas de detalles de series."
+      "blurUnwatchedEpisodesSub": "Desenfoca las capturas de episodios que no estén marcados como vistos en las páginas de detalles de series.",
+      "hdrTonemapLabel": "Mapeo de tonos HDR a SDR",
+      "hdrTonemapHint": "Convierte fuentes de video HDR (HDR10, HLG, Dolby Vision) a SDR para obtener colores y contraste precisos en pantallas estándar. Recomendado si el contenido HDR se ve lavado o gris.",
+      "showHdrQuickToggleLabel": "Mostrar botón rápido de HDR en la barra del reproductor",
+      "showHdrQuickToggleHint": "Muestra un botón [HDR] en la barra de controles para activar o desactivar el mapeo HDR al instante durante la reproducción."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} descargas en curso",
     "downloadsInProgress_many": "{{count}} descargas en curso",
     "downloadsInProgress_two": "{{count}} descargas en curso",
-    "downloadsInProgress_zero": "{{count}} descargas en curso"
+    "downloadsInProgress_zero": "{{count}} descargas en curso",
+    "hdrToSdrOn": "HDR a SDR: Activado",
+    "hdrToSdrOff": "HDR a SDR: Desactivado"
   },
   "stremio": {
     "account": "Cuenta",

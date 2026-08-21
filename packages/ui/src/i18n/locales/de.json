@@ -742,7 +742,11 @@
       "scrollwheelSeekInvert": "Mausrad-Richtung umkehren",
       "scrollwheelSeekInvertSub": "Nach oben scrollen zum Zurückspulen und nach unten scrollen zum Vorspulen.",
       "blurUnwatchedEpisodes": "Ungesehene Episoden weichzeichnen",
-      "blurUnwatchedEpisodesSub": "Episodenvorschaubilder für Episoden, die nicht als gesehen markiert sind, auf Seriendetailseiten weichzeichnen."
+      "blurUnwatchedEpisodesSub": "Episodenvorschaubilder für Episoden, die nicht als gesehen markiert sind, auf Seriendetailseiten weichzeichnen.",
+      "hdrTonemapLabel": "HDR-zu-SDR Tonemapping",
+      "hdrTonemapHint": "Passt HDR-Videoquellen (HDR10, HLG, Dolby Vision) an SDR an, um präzise Farben und Kontraste auf Standard-Displays zu gewährleisten. Empfohlen, wenn HDR-Inhalte verwaschen oder gräulich wirken.",
+      "showHdrQuickToggleLabel": "HDR-Schnellumschalter in der Player-Leiste anzeigen",
+      "showHdrQuickToggleHint": "Zeigt eine [HDR]-Schaltfläche in der Steuerleiste an, um das Tonemapping während der Wiedergabe direkt umzuschalten."
     },
     "livetv": {
       "tabs": {
@@ -3737,7 +3741,9 @@
     "downloadsInProgress_few": "{{count}} Downloads laufen",
     "downloadsInProgress_many": "{{count}} Downloads laufen",
     "downloadsInProgress_two": "{{count}} Downloads laufen",
-    "downloadsInProgress_zero": "{{count}} Downloads laufen"
+    "downloadsInProgress_zero": "{{count}} Downloads laufen",
+    "hdrToSdrOn": "HDR zu SDR: Ein",
+    "hdrToSdrOff": "HDR zu SDR: Aus"
   },
   "stremio": {
     "account": "Konto",
