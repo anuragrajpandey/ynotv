@@ -1284,21 +1284,19 @@ async fn mpv_get_log<R: Runtime>(app: AppHandle<R>, tail: Option<usize>) -> Resu
     let tail = tail.unwrap_or(400);
     #[cfg(target_os = "macos")]
     {
-        let _ = tail;
-        Ok(serde_json::json!({ "log": "", "path": "(mpv log not available on macOS)" }))
+        mpv_core::get_log(&app, tail).await
     }
     #[cfg(target_os = "windows")]
     {
         if get_player_engine(&app).await == PlayerEngine::LibMpv {
-            Ok(serde_json::json!({ "log": "", "path": "libmpv (in-process)" }))
+            mpv_core::get_log(&app, tail).await
         } else {
             mpv_windows::get_mpv_log(&app, tail).await
         }
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let _ = tail;
-        Ok(serde_json::json!({ "log": "", "path": "libmpv (in-process)" }))
+        mpv_core::get_log(&app, tail).await
     }
 }
 
@@ -1306,23 +1304,19 @@ async fn mpv_get_log<R: Runtime>(app: AppHandle<R>, tail: Option<usize>) -> Resu
 async fn mpv_set_verbose_logging<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        let _ = app;
-        let _ = enabled;
-        Ok(())
+        mpv_core::set_verbose_logging(&app, enabled).await
     }
     #[cfg(target_os = "windows")]
     {
         if get_player_engine(&app).await == PlayerEngine::LibMpv {
-            Ok(())
+            mpv_core::set_verbose_logging(&app, enabled).await
         } else {
             mpv_windows::set_verbose_logging(&app, enabled).await
         }
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let _ = app;
-        let _ = enabled;
-        Ok(())
+        mpv_core::set_verbose_logging(&app, enabled).await
     }
 }
 
@@ -4918,11 +4912,21 @@ pub fn run() {
             // Start native gamepad / controller background engine
             gamepad::start(&app.handle());
 
-            // Start Phone Remote web server
-            let remote_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                let _ = web_server::web_serve_start(remote_handle, Some(web_server::DEFAULT_REMOTE_PORT)).await;
-            });
+            // Start Phone Remote web server — only when the user has the
+            // feature enabled. The frontend writes remoteControlEnabled to the
+            // settings store; honor it here so a disabled remote doesn't
+            // silently bind an open port on every launch.
+            let remote_enabled = read_store_setting(&app.handle(), "remoteControlEnabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            if remote_enabled {
+                let remote_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = web_server::web_serve_start(remote_handle, Some(web_server::DEFAULT_REMOTE_PORT)).await;
+                });
+            } else {
+                log::info!("[remote-server] Phone Remote disabled in settings; not starting server");
+            }
 
             // Note: Window size is applied by the frontend after settings are loaded
             // to ensure the user-defined startupWidth/startupHeight from Settings -> UI is respected

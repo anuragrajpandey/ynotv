@@ -3988,12 +3988,12 @@ function useTmdbPresencePoster(
           }
           {
             const focusChannel = (attempts = 0) => {
-              const playingChan = document.querySelector<HTMLElement>(
-                '.guide-channel-row.currently-playing .guide-channel-info, .guide-channel-row.selected .guide-channel-info, .guide-channel-info'
-              );
+              const playingChan =
+                document.querySelector<HTMLElement>('.guide-channel-row.currently-playing .guide-channel-info') ||
+                document.querySelector<HTMLElement>('.guide-channel-row.selected .guide-channel-info');
               if (playingChan) {
                 applyTvFocus(playingChan);
-              } else if (attempts < 6) {
+              } else if (attempts < 12) {
                 setTimeout(() => focusChannel(attempts + 1), 70);
               } else {
                 focusFirstInteractive();
@@ -4018,12 +4018,12 @@ function useTmdbPresencePoster(
           }
           {
             const focusChannel = (attempts = 0) => {
-              const playingChan = document.querySelector<HTMLElement>(
-                '.guide-channel-row.currently-playing .guide-channel-info, .guide-channel-row.selected .guide-channel-info, .guide-channel-info'
-              );
+              const playingChan =
+                document.querySelector<HTMLElement>('.guide-channel-row.currently-playing .guide-channel-info') ||
+                document.querySelector<HTMLElement>('.guide-channel-row.selected .guide-channel-info');
               if (playingChan) {
                 applyTvFocus(playingChan);
-              } else if (attempts < 6) {
+              } else if (attempts < 12) {
                 setTimeout(() => focusChannel(attempts + 1), 70);
               } else {
                 focusFirstInteractive();

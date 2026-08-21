@@ -1,14 +1,18 @@
 //! Unified libmpv player core for ynotv
 //! Supporting in-process playback on macOS (via AppKit OpenGL) and Windows (via HWND wid / D3D11)
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use libmpv2::events::{Event, EventContext};
 use libmpv2::{Mpv, MpvInitializer};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
+
+/// Upper bound for the in-memory libmpv log ring buffer served by `get_log`.
+const MAX_LOG_LINES: usize = 8000;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -113,6 +117,13 @@ pub struct MpvCoreState {
     pub mpv: Arc<Mutex<Option<Arc<Mpv>>>>,
     pub current_url: Mutex<Option<String>>,
     pub is_shutting_down: Arc<std::sync::atomic::AtomicBool>,
+    /// Embedded main-player HWND on Windows, cached so geometry updates stay
+    /// deterministic even if the window title lookup races window creation.
+    #[cfg(windows)]
+    pub main_hwnd: Mutex<isize>,
+    /// Ring buffer of libmpv log lines (mpv `log-message` events), served by
+    /// `get_log` for the Diagnostics panel.
+    pub log_lines: Arc<Mutex<VecDeque<String>>>,
 }
 
 impl MpvCoreState {
@@ -121,6 +132,9 @@ impl MpvCoreState {
             mpv: Arc::new(Mutex::new(None)),
             current_url: Mutex::new(None),
             is_shutting_down: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            #[cfg(windows)]
+            main_hwnd: Mutex::new(0),
+            log_lines: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 }
@@ -189,6 +203,28 @@ fn apply_common_options(
         }
     }
 
+    // Re-assert engine-critical options AFTER custom params. The shared param
+    // builder auto-injects --vo=gpu when HW accel is on, and users may pass
+    // arbitrary flags; overriding vo/gpu-api/wid/title here would break the
+    // embedded render path (macOS requires vo=libmpv) and the window-title
+    // based HWND discovery used by multiview geometry.
+    #[cfg(target_os = "macos")]
+    {
+        set("vo", "libmpv");
+        set("force-window", "no");
+    }
+
+    #[cfg(windows)]
+    {
+        set("force-window", "immediate");
+        set("gpu-api", "d3d11");
+        set("vo", "gpu-next");
+        set("title", "YNOTV_MPV_MAIN");
+        if let Some(hwnd) = embed_hwnd {
+            let _ = init.set_property("wid", hwnd);
+        }
+    }
+
     Ok(())
 }
 
@@ -200,6 +236,22 @@ pub async fn init_mpv_with_params<R: Runtime>(
 
     // Stop and teardown any existing MPV session
     kill_mpv(&app).await;
+
+    // If the user switched engines in settings without restarting, a stale
+    // sidecar mpv.exe may still be embedded in the window. Tear it down too so
+    // we never have two players drawing over each other.
+    #[cfg(windows)]
+    {
+        if app
+            .state::<crate::mpv_windows::MpvState>()
+            .process
+            .lock()
+            .unwrap()
+            .is_some()
+        {
+            crate::mpv_windows::kill_mpv(&app).await;
+        }
+    }
 
     let mut embed_hwnd: Option<i64> = None;
     #[cfg(windows)]
@@ -268,6 +320,13 @@ pub async fn init_mpv_with_params<R: Runtime>(
         let mut guard = state.mpv.lock().unwrap();
         *guard = Some(mpv_arc.clone());
     }
+
+    // Capture libmpv log-message events for the Diagnostics panel
+    spawn_log_capture(
+        mpv_arc.clone(),
+        state.is_shutting_down.clone(),
+        state.log_lines.clone(),
+    );
 
     // Start background status and event monitor
     spawn_status_monitor(app.clone(), mpv_arc, state.is_shutting_down.clone());
@@ -366,6 +425,96 @@ fn spawn_status_monitor<R: Runtime>(
             let _ = app.emit("mpv-status", status);
         }
     });
+}
+
+/// Drain mpv `log-message` events into a bounded ring buffer so the
+/// Diagnostics panel can show in-process libmpv logs. Stops on the same
+/// `is_shutting_down` flag as the status monitor; `mpv_destroy` also wakes the
+/// waiter with a `Shutdown` event, which exits the drain early.
+fn spawn_log_capture(
+    mpv: Arc<Mpv>,
+    shutdown: Arc<std::sync::atomic::AtomicBool>,
+    log_lines: Arc<Mutex<VecDeque<String>>>,
+) {
+    tauri::async_runtime::spawn(async move {
+        let mut ec = EventContext::new(mpv.ctx);
+        // Default verbosity matches the sidecar engine's --msg-level=all=warn;
+        // mpv_set_verbose_logging raises it to "v" on demand.
+        if let Ok(level) = std::ffi::CString::new("warn") {
+            unsafe {
+                libmpv2_sys::mpv_request_log_messages(mpv.ctx.as_ptr(), level.as_ptr());
+            }
+        }
+        while !shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+            while let Some(ev) = ec.wait_event(0.0) {
+                match ev {
+                    Ok(Event::LogMessage {
+                        prefix,
+                        level,
+                        text,
+                        ..
+                    }) => {
+                        let line = format!("[{}:{}] {}", prefix, level, text.trim_end());
+                        let mut buf = log_lines.lock().unwrap();
+                        if buf.len() >= MAX_LOG_LINES {
+                            buf.pop_front();
+                        }
+                        buf.push_back(line);
+                    }
+                    Ok(Event::Shutdown) => break,
+                    _ => {}
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    });
+}
+
+/// Toggle libmpv client log verbosity ("v" / "warn") for the Diagnostics panel.
+pub async fn set_verbose_logging<R: Runtime>(app: &AppHandle<R>, enabled: bool) -> Result<(), String> {
+    let state = app.state::<MpvCoreState>();
+    let mpv = {
+        let guard = state.mpv.lock().unwrap();
+        guard.clone()
+    };
+    if let Some(mpv) = mpv {
+        let level = if enabled { "v" } else { "warn" };
+        if let Ok(c) = std::ffi::CString::new(level) {
+            unsafe {
+                libmpv2_sys::mpv_request_log_messages(mpv.ctx.as_ptr(), c.as_ptr());
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Return the tail of the in-memory libmpv log, filtered to diagnostics-relevant
+/// lines, in the same shape as the sidecar engine's log.
+pub async fn get_log<R: Runtime>(app: &AppHandle<R>, tail: usize) -> Result<Value, String> {
+    let state = app.state::<MpvCoreState>();
+    let lines: Vec<String> = {
+        let buf = state.log_lines.lock().unwrap();
+        buf.iter().cloned().collect()
+    };
+    let scan = tail.max(MAX_LOG_LINES);
+    let start = lines.len().saturating_sub(scan);
+    let keywords = [
+        "sub", "sid", "ass", "osd", "track", "refresh", "fontselect", "srt", "vtt", "subrip",
+        "mov_text",
+    ];
+    let mut kept: Vec<String> = lines[start..]
+        .iter()
+        .filter(|line| keywords.iter().any(|k| line.to_ascii_lowercase().contains(k)))
+        .cloned()
+        .collect();
+    if kept.len() > 2000 {
+        kept = kept[kept.len() - 2000..].to_vec();
+    }
+    Ok(json!({
+        "log": kept.join("\n"),
+        "path": "libmpv (in-process)",
+        "filtered": true,
+    }))
 }
 
 pub async fn load_file<R: Runtime>(app: &AppHandle<R>, url: String) -> Result<(), String> {
@@ -756,8 +905,28 @@ pub async fn set_geometry<R: Runtime>(
             (x, y, width, height)
         };
 
-        let target_hwnd = crate::mpv_windows::find_mpv_hwnd_by_title(parent_hwnd.0 as isize, "YNOTV_MPV_MAIN")
-            .map(|h| HWND(h as _));
+        // Prefer the cached main-player HWND (validated below), and only fall
+        // back to a child-window search when the cache is empty or stale. This
+        // keeps main geometry deterministic in multiview: the title/class search
+        // is only used when there is exactly one mpv window, so it can never
+        // grab a secondary slot.
+        let state = app.state::<MpvCoreState>();
+        let cached = *state.main_hwnd.lock().unwrap();
+        let mut target_hwnd = if cached != 0 && is_valid_mpv_hwnd(cached) {
+            Some(HWND(cached as _))
+        } else {
+            if cached != 0 {
+                *state.main_hwnd.lock().unwrap() = 0;
+            }
+            None
+        };
+
+        if target_hwnd.is_none() {
+            if let Some(found) = crate::mpv_windows::find_mpv_hwnd_by_title(parent_hwnd.0 as isize, "YNOTV_MPV_MAIN") {
+                *state.main_hwnd.lock().unwrap() = found;
+                target_hwnd = Some(HWND(found as _));
+            }
+        }
 
         if let Some(target) = target_hwnd {
             unsafe {
@@ -774,6 +943,22 @@ pub async fn set_geometry<R: Runtime>(
         }
     }
     Ok(())
+}
+
+/// True if `hwnd_raw` still points at a live mpv window (class "mpv").
+#[cfg(windows)]
+fn is_valid_mpv_hwnd(hwnd_raw: isize) -> bool {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::GetClassNameW;
+    unsafe {
+        let mut class_buf = [0u16; 64];
+        let class_len = GetClassNameW(HWND(hwnd_raw as _), &mut class_buf);
+        if class_len == 0 {
+            return false;
+        }
+        let class_str = String::from_utf16_lossy(&class_buf[..class_len as usize]);
+        class_str.eq_ignore_ascii_case("mpv")
+    }
 }
 
 pub async fn kill_mpv<R: Runtime>(app: &AppHandle<R>) {
@@ -805,6 +990,9 @@ pub async fn kill_mpv<R: Runtime>(app: &AppHandle<R>) {
         if let Some(audio_state) = app.try_state::<crate::audio_capture::AudioCaptureState>() {
             audio_state.stop();
         }
+        // The embedded window is destroyed with the mpv instance; drop the
+        // cached HWND so the next init re-discovers it.
+        *state.main_hwnd.lock().unwrap() = 0;
     }
 
     state.is_shutting_down.store(false, std::sync::atomic::Ordering::Relaxed);

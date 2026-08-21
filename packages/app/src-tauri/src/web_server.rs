@@ -1,5 +1,5 @@
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::State;
+use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{Query, State};
 use axum::http::{header, HeaderValue, Response, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
@@ -7,19 +7,56 @@ use axum::Router;
 use futures_util::{SinkExt, StreamExt};
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::net::TcpListener;
 use tokio::sync::{broadcast, oneshot, Mutex as AsyncMutex};
+use uuid::Uuid;
+
+/// Close code sent when a remote client presents no (or an invalid) pairing
+/// token. The served remote page shows a "pair with the app" message on this.
+const WS_CLOSE_NOT_PAIRED: u16 = 4001;
 
 pub const DEFAULT_REMOTE_PORT: u16 = 11470;
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 static ACTIVE_PORT: Mutex<u16> = Mutex::new(DEFAULT_REMOTE_PORT);
 static NEXT_CLIENT_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Random pairing token embedded in the QR/link shown by the desktop app; the
+/// remote page and WebSocket require it, so discovering the port alone is not
+/// enough to control the app. Persisted in the app data dir so phones stay
+/// paired across app launches instead of needing a fresh QR scan every run.
+fn pairing_token(app: &AppHandle) -> &'static str {
+    static TOKEN: OnceLock<String> = OnceLock::new();
+    TOKEN.get_or_init(|| load_or_create_token(app))
+}
+
+fn token_path(app: &AppHandle) -> std::path::PathBuf {
+    app.path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::env::temp_dir())
+        .join("remote_pairing_token.txt")
+}
+
+fn load_or_create_token(app: &AppHandle) -> String {
+    let path = token_path(app);
+    if let Ok(contents) = std::fs::read_to_string(&path) {
+        let existing = contents.trim().to_string();
+        if !existing.is_empty() {
+            return existing;
+        }
+    }
+    let token = Uuid::new_v4().simple().to_string();
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let _ = std::fs::write(&path, &token);
+    token
+}
 
 #[derive(Clone)]
 struct ServeState {
@@ -46,6 +83,9 @@ pub struct WebServeStatus {
     pub remote_url: String,
     pub all_urls: Vec<String>,
     pub connected_clients: usize,
+    /// Pairing token embedded in `remote_url`/`all_urls`. Required by the
+    /// remote page and WebSocket; re-generated on every app launch.
+    pub token: String,
 }
 
 pub fn get_local_lan_ip() -> String {
@@ -77,14 +117,15 @@ pub fn get_all_local_ips() -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn web_serve_status() -> WebServeStatus {
+pub fn web_serve_status(app: AppHandle) -> WebServeStatus {
     let running = RUNNING.load(Ordering::Relaxed);
     let port = *ACTIVE_PORT.lock().unwrap_or_else(|e| e.into_inner());
+    let token = pairing_token(&app);
     let ip = get_local_lan_ip();
-    let remote_url = format!("http://{}:{}/remote", ip, port);
+    let remote_url = format!("http://{}:{}/remote?token={}", ip, port, token);
     let all_urls = get_all_local_ips()
         .into_iter()
-        .map(|i| format!("http://{}:{}/remote", i, port))
+        .map(|i| format!("http://{}:{}/remote?token={}", i, port, token))
         .collect();
     WebServeStatus {
         running,
@@ -93,6 +134,7 @@ pub fn web_serve_status() -> WebServeStatus {
         remote_url,
         all_urls,
         connected_clients: 0,
+        token: token.to_string(),
     }
 }
 
@@ -103,7 +145,7 @@ pub async fn web_serve_start(app: AppHandle, port: Option<u16>) -> Result<WebSer
     if RUNNING.load(Ordering::SeqCst) {
         let cur_port = *ACTIVE_PORT.lock().unwrap_or_else(|e| e.into_inner());
         if cur_port == target_port {
-            return Ok(web_serve_status());
+            return Ok(web_serve_status(app));
         }
         web_serve_stop();
     }
@@ -161,7 +203,7 @@ pub async fn web_serve_start(app: AppHandle, port: Option<u16>) -> Result<WebSer
         info!("[remote-server] Server stopped");
     });
 
-    Ok(web_serve_status())
+    Ok(web_serve_status(app))
 }
 
 #[tauri::command]
@@ -191,11 +233,27 @@ pub fn remote_ws_broadcast(payload: String) -> Result<(), String> {
 async fn remote_ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<ServeState>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_remote_socket(socket, state))
+    let presented = params.get("token").map(|s| s.as_str()).unwrap_or("");
+    let authorized = !presented.is_empty() && presented == pairing_token(&state.app);
+    ws.on_upgrade(move |socket| handle_remote_socket(socket, state, authorized))
 }
 
-async fn handle_remote_socket(socket: WebSocket, state: ServeState) {
+async fn handle_remote_socket(socket: WebSocket, state: ServeState, authorized: bool) {
+    if !authorized {
+        // Reject unpaired clients with a distinct close code so the remote
+        // page can surface "pair from the app" instead of reconnecting.
+        let (mut sender, _receiver) = socket.split();
+        let _ = sender
+            .send(Message::Close(Some(CloseFrame {
+                code: WS_CLOSE_NOT_PAIRED,
+                reason: "not paired".into(),
+            })))
+            .await;
+        return;
+    }
+
     let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::Relaxed);
     {
         let mut set = state.clients.lock().await;
@@ -418,9 +476,66 @@ async fn serve_remote_html() -> impl IntoResponse {
       flex: 1.4;
     }
     .media-btn.play-btn:active { background: #1d4ed8; }
+
+    /* Pairing Screen */
+    .app-root[hidden], .pair-screen[hidden] { display: none !important; }
+    .pair-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: #0d0f14;
+    }
+    .pair-card {
+      max-width: 420px;
+      width: 100%;
+      background: #141721;
+      border: 1px solid #232738;
+      border-radius: 18px;
+      padding: 28px 26px;
+      text-align: center;
+    }
+    .pair-icon { font-size: 40px; margin-bottom: 12px; }
+    .pair-title { font-size: 22px; font-weight: 800; margin-bottom: 8px; color: #f3f4f6; }
+    .pair-desc { font-size: 13.5px; line-height: 1.5; color: #9ca3af; margin-bottom: 18px; }
+    .pair-steps {
+      text-align: left;
+      margin: 0 auto 18px;
+      padding-left: 20px;
+      color: #cbd5e1;
+      font-size: 13.5px;
+      line-height: 1.9;
+    }
+    .pair-steps strong { color: #f3f4f6; }
+    .pair-link {
+      display: inline-block;
+      color: #60a5fa;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      margin-bottom: 14px;
+    }
+    .pair-link:active { color: #93c5fd; }
+    .pair-retry {
+      display: block;
+      width: 100%;
+      height: 44px;
+      background: #2563eb;
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .pair-retry:active { background: #1d4ed8; }
   </style>
 </head>
 <body>
+  <div id="app-root">
   <header>
     <div class="logo">YNOTV Remote</div>
     <div id="status" class="status-badge">
@@ -469,28 +584,77 @@ async fn serve_remote_html() -> impl IntoResponse {
       <button class="media-btn" onclick="sendAction('next_channel')">⏭ Ch +</button>
     </div>
   </footer>
+  </div>
+
+  <!-- Not-paired overlay: replaces the remote UI when the pairing token is missing or rejected -->
+  <div id="pair-screen" class="pair-screen" hidden>
+    <div class="pair-card">
+      <div class="pair-icon">🔒</div>
+      <h1 class="pair-title" id="pair-title">Not paired</h1>
+      <p class="pair-desc" id="pair-desc"></p>
+      <ol class="pair-steps">
+        <li>Open <strong>YNOTV</strong> on your computer</li>
+        <li>Go to <strong>Settings → Controllers</strong></li>
+        <li>Make sure <strong>Virtual Phone Remote</strong> is enabled</li>
+        <li>Scan the <strong>QR code</strong> shown there with this phone's camera</li>
+      </ol>
+      <a class="pair-link" href="https://github.com/tbeezy/ynotv" target="_blank" rel="noopener">Pairing instructions on GitHub ↗</a>
+      <button class="pair-retry" id="pair-retry">Try again</button>
+    </div>
+  </div>
 
   <script>
     let ws = null;
     const statusEl = document.getElementById('status');
     const statusTextEl = document.getElementById('status-text');
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const appRoot = document.getElementById('app-root');
+    const pairScreen = document.getElementById('pair-screen');
+    const pairTitle = document.getElementById('pair-title');
+    const pairDesc = document.getElementById('pair-desc');
+    const pairRetry = document.getElementById('pair-retry');
+
+    function showPairScreen(kind) {
+      if (kind === 'missing') {
+        pairTitle.innerText = 'Not paired';
+        pairDesc.innerText = 'This link has no pairing code. Scan the QR code shown in the YNOTV app on your computer to get a valid pairing link.';
+        pairRetry.style.display = 'none';
+      } else {
+        pairTitle.innerText = 'Not paired';
+        pairDesc.innerText = 'This pairing code was rejected by YNOTV. It may be out of date - scan a fresh QR code from the app to pair again.';
+        pairRetry.style.display = 'block';
+      }
+      pairScreen.hidden = false;
+      appRoot.hidden = true;
+    }
+
+    function showApp() {
+      pairScreen.hidden = true;
+      appRoot.hidden = false;
+    }
 
     function connect() {
       const loc = window.location;
       const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProto}//${loc.host}/api/remote`;
+      const wsUrl = `${wsProto}//${loc.host}/api/remote?token=${encodeURIComponent(token)}`;
       
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
+        showApp();
         statusEl.className = 'status-badge connected';
         statusTextEl.innerText = 'Connected';
       };
 
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
         statusEl.className = 'status-badge';
-        statusTextEl.innerText = 'Reconnecting...';
-        setTimeout(connect, 1500);
+        if (ev.code === 4001) {
+          showPairScreen('invalid');
+        } else {
+          statusTextEl.innerText = 'Reconnecting...';
+          setTimeout(connect, 1500);
+        }
       };
 
       ws.onerror = () => {
@@ -517,7 +681,16 @@ async fn serve_remote_html() -> impl IntoResponse {
       send({ action: 'openView', view });
     }
 
-    connect();
+    pairRetry.onclick = () => {
+      showApp();
+      connect();
+    };
+
+    if (!token) {
+      showPairScreen('missing');
+    } else {
+      connect();
+    }
   </script>
 </body>
 </html>"#;

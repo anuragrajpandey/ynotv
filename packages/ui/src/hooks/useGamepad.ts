@@ -99,6 +99,13 @@ export function useGamepad() {
   const deadzoneRef = useRef(controllerDeadzone);
   deadzoneRef.current = controllerDeadzone;
 
+  // When the browser Gamepad API reports any connected pad, it is the active
+  // input source and the native gilrs backend is suppressed. Most controllers
+  // are visible to BOTH sources, so without this every press would dispatch
+  // twice (double-steps in menus). gilrs remains the fallback for webviews
+  // where the Gamepad API exposes no devices.
+  const browserHasGamepadsRef = useRef(false);
+
   // 1. Tauri Native Backend Listener (gilrs & Phone Remote Server)
   useEffect(() => {
     let unlistenGamepad: (() => void) | null = null;
@@ -155,6 +162,10 @@ export function useGamepad() {
           const pressed = event.payload?.pressed;
           const gpName = event.payload?.gamepad_name || 'Controller';
           if (!rawAction) return;
+
+          // Browser Gamepad API is driving this device — skip the native
+          // backend so the same press isn't dispatched twice.
+          if (browserHasGamepadsRef.current) return;
 
           if (pressed) {
             notifyButtonPressed(rawAction, event.payload.button || rawAction, gpName);
@@ -342,6 +353,10 @@ export function useGamepad() {
           return prev;
         });
       }
+
+      // Refresh the source-selection flag each frame (staleness of a few ms is
+      // fine — it only gates the native backend while pads are connected).
+      browserHasGamepadsRef.current = anyConnected;
 
       rafId = requestAnimationFrame(pollGamepads);
     };

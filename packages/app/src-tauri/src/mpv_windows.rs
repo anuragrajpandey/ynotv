@@ -139,32 +139,37 @@ pub fn find_mpv_hwnd_by_title(parent_hwnd_raw: isize, target_title: &str) -> Opt
         .chain(std::iter::once(0))
         .collect();
 
-    struct SearchData { 
-        target: Vec<u16>, 
+    struct SearchData {
+        target: Vec<u16>,
         is_main: bool,
-        result: isize 
+        result: isize,
+        // Count of mpv-class windows seen so far, plus the first one.
+        mpv_class_count: i32,
+        first_mpv_class_hwnd: isize,
     }
-    
-    let mut data = SearchData { 
-        target: target_utf16, 
+
+    let mut data = SearchData {
+        target: target_utf16,
         is_main,
-        result: 0 
+        result: 0,
+        mpv_class_count: 0,
+        first_mpv_class_hwnd: 0,
     };
 
     unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let data = &mut *(lparam.0 as *mut SearchData);
-        
+
         let len = GetWindowTextLengthW(hwnd);
         if len > 0 {
             // Include space for null terminator
             let mut buf = vec![0u16; (len + 1) as usize];
             let actual_len = GetWindowTextW(hwnd, &mut buf);
-            
+
             if actual_len > 0 {
                 // Compare excluding null terminators
                 let text = &buf[..actual_len as usize];
                 let target = &data.target[..data.target.len() - 1]; // strip null
-                
+
                 if text == target {
                     data.result = hwnd.0 as isize;
                     return BOOL(0);
@@ -172,15 +177,23 @@ pub fn find_mpv_hwnd_by_title(parent_hwnd_raw: isize, target_title: &str) -> Opt
             }
         }
 
-        // If searching for main player and title didn't match, check window class "mpv"
+        // For the main player, track mpv-class windows so we can fall back to
+        // a class-only match when the exact title hasn't been applied yet.
+        // Every mpv window (main AND multiview secondary slots) uses the "mpv"
+        // window class, so a class-only match is only safe when exactly ONE
+        // mpv window exists. With multiple mpv windows (multiview) a class
+        // match would grab an arbitrary slot, leaving the slots randomly
+        // displaced, so in that case require the exact title match.
         if data.is_main {
             let mut class_buf = [0u16; 64];
             let class_len = GetClassNameW(hwnd, &mut class_buf);
             if class_len > 0 {
                 let class_str = String::from_utf16_lossy(&class_buf[..class_len as usize]);
                 if class_str.eq_ignore_ascii_case("mpv") {
-                    data.result = hwnd.0 as isize;
-                    return BOOL(0);
+                    if data.mpv_class_count == 0 {
+                        data.first_mpv_class_hwnd = hwnd.0 as isize;
+                    }
+                    data.mpv_class_count += 1;
                 }
             }
         }
@@ -194,6 +207,10 @@ pub fn find_mpv_hwnd_by_title(parent_hwnd_raw: isize, target_title: &str) -> Opt
             Some(enum_proc),
             LPARAM(&mut data as *mut SearchData as isize),
         );
+    }
+
+    if data.result == 0 && data.is_main && data.mpv_class_count == 1 {
+        data.result = data.first_mpv_class_hwnd;
     }
 
     if data.result == 0 { None } else { Some(data.result) }
@@ -702,6 +719,19 @@ pub async fn init_mpv_with_params<R: Runtime>(
     state: tauri::State<'_, MpvState>,
     custom_params: Vec<String>,
 ) -> Result<(), String> {
+    // If the user switched engines in settings without restarting, a stale
+    // in-process libmpv instance may still be embedded in the window. Tear it
+    // down so we never have two players drawing over each other.
+    if app
+        .state::<crate::mpv_core::MpvCoreState>()
+        .mpv
+        .lock()
+        .unwrap()
+        .is_some()
+    {
+        crate::mpv_core::kill_mpv(&app).await;
+    }
+
     let (has_proc, pid) = {
         let proc = state.process.lock().unwrap();
         let pid = *state.pid.lock().unwrap();
