@@ -246,7 +246,6 @@ mod mpv_render_mac;
 mod mpv_macos;
 #[cfg(target_os = "windows")]
 mod mpv_windows;
-mod mpv_secondary;
 mod mpv_canvas;
 mod mpv_popout;
 mod audio_capture;
@@ -257,7 +256,6 @@ pub use mpv_core::MpvCoreState;
 use mpv_macos::MpvState;
 #[cfg(target_os = "windows")]
 use mpv_windows::MpvState;
-use mpv_secondary::SecondaryMpvState;
 use mpv_canvas::CanvasMultiviewState;
 use mpv_popout::PopoutMpvState;
 
@@ -1629,69 +1627,7 @@ async fn mpv_set_geometry<R: Runtime>(
     }
 }
 
-// ============================================================================
-// Secondary MPV commands for multiview
-// ============================================================================
 
-#[tauri::command]
-async fn multiview_load_slot<R: Runtime>(
-    app: AppHandle<R>,
-    slot_id: u8,
-    url: String,
-    x: i32,
-    y: i32,
-    width: u32,
-    height: u32,
-) -> Result<(), String> {
-    mpv_secondary::load_slot(&app, slot_id, url, x, y, width, height).await
-}
-
-#[tauri::command]
-async fn multiview_stop_slot<R: Runtime>(
-    app: AppHandle<R>,
-    slot_id: u8,
-) -> Result<(), String> {
-    mpv_secondary::stop_slot(&app, slot_id).await
-}
-
-#[tauri::command]
-async fn multiview_set_property_slot<R: Runtime>(
-    app: AppHandle<R>,
-    slot_id: u8,
-    property: String,
-    value: serde_json::Value,
-) -> Result<(), String> {
-    mpv_secondary::set_property_slot(&app, slot_id, &property, value).await
-}
-
-#[tauri::command]
-async fn multiview_reposition_slot<R: Runtime>(
-    app: AppHandle<R>,
-    slot_id: u8,
-    x: i32,
-    y: i32,
-    width: u32,
-    height: u32,
-) -> Result<(), String> {
-    mpv_secondary::reposition_slot(&app, slot_id, x, y, width, height).await
-}
-
-#[tauri::command]
-async fn multiview_kill_slot<R: Runtime>(
-    app: AppHandle<R>,
-    slot_id: u8,
-) -> Result<(), String> {
-    mpv_secondary::kill_slot(&app, slot_id).await;
-    Ok(())
-}
-
-#[tauri::command]
-async fn multiview_kill_all<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<(), String> {
-    mpv_secondary::kill_all(&app).await;
-    Ok(())
-}
 
 // ============================================================================
 // Popout MPV Commands
@@ -4780,8 +4716,6 @@ pub fn run() {
             // Apply SOCKS5 proxy settings if configured
             apply_proxy_settings(app.handle());
 
-            // Register secondary MPV state
-            app.manage(SecondaryMpvState::new());
             // Register canvas multiview state
             app.manage(CanvasMultiviewState::new());
 
@@ -5031,13 +4965,6 @@ pub fn run() {
             mpv_kill,
             mpv_get_cache_debug,
             mpv_get_params_debug,
-            // Multiview secondary MPV commands
-            multiview_load_slot,
-            multiview_stop_slot,
-            multiview_set_property_slot,
-            multiview_reposition_slot,
-            multiview_kill_slot,
-            multiview_kill_all,
             // Multiview canvas (software-rendered) commands
             mpv_canvas::multiview_canvas_start,
             mpv_canvas::multiview_canvas_stop,

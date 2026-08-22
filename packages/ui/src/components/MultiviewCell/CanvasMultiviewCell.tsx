@@ -9,7 +9,6 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke, Channel } from '@tauri-apps/api/core';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { CellContextMenu } from './MultiviewCell';
 import './CanvasMultiviewCell.css';
 
 interface CanvasMultiviewCellProps {
@@ -286,7 +285,7 @@ export function CanvasMultiviewCell({
 
             {/* Context Menu on right click */}
             {contextMenu && (
-                <CellContextMenu
+                <CanvasCellContextMenu
                     position={contextMenu}
                     channelName={channelName}
                     onPlay={() => {
@@ -310,6 +309,49 @@ export function CanvasMultiviewCell({
                     onClose={() => setContextMenu(null)}
                 />
             )}
+        </div>
+    );
+}
+
+function CanvasCellContextMenu({
+    position,
+    channelName,
+    onPlay,
+    onPause,
+    onReload,
+    onStop,
+    onClose,
+}: {
+    position: { x: number; y: number };
+    channelName: string | null;
+    onPlay: () => void;
+    onPause: () => void;
+    onReload: () => void;
+    onStop: () => void;
+    onClose: () => void;
+}) {
+    const ref = useRef<HTMLDivElement>(null);
+    const { t } = useTranslation('player');
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [onClose]);
+
+    return (
+        <div
+            ref={ref}
+            className="cell-context-menu"
+            style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 9999 }}
+        >
+            {channelName && <div className="cell-context-header">{channelName}</div>}
+            <button className="cell-context-item" onClick={onPlay}>▶ {t('playStream')}</button>
+            <button className="cell-context-item" onClick={onPause}>⏸ {t('pauseStream')}</button>
+            <button className="cell-context-item" onClick={onReload}>🔄 {t('reloadStream')}</button>
+            <button className="cell-context-item cell-context-danger" onClick={onStop}>⏹ {t('stopClearSlot')}</button>
         </div>
     );
 }

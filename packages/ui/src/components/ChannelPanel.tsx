@@ -60,7 +60,7 @@ import { MetadataBadge } from './MetadataBadge';
 import { EpgShiftModal } from './EpgShiftModal';
 import { dbEvents } from '../db/sqlite-adapter';
 import { primaryRect } from '../hooks/useMultiview';
-import type { LayoutMode, ViewerSlot } from '../hooks/useMultiview';
+import type { LayoutMode, ViewerSlot, MultiviewEngineMode } from '../hooks/useMultiview';
 import './ChannelPanel.css';
 
 
@@ -281,7 +281,7 @@ interface ChannelPanelProps {
   onWatchlistRefresh?: () => void;
   // Multiview props
   currentLayout?: string;
-  multiviewEngineMode?: 'mpv' | 'hls' | 'mpv_canvas';
+  multiviewEngineMode?: MultiviewEngineMode;
   onSendToSlot?: (slotId: 2 | 3 | 4, channelName: string, channelUrl: string, sourceName?: string | null) => void;
   multiviewSlots?: ViewerSlot[];
   onSwapWithMain?: (slotId: 2 | 3 | 4) => void;
@@ -385,7 +385,7 @@ export function ChannelPanel({
   watchlistItems,
   onWatchlistRefresh,
   currentLayout,
-  multiviewEngineMode = 'mpv',
+  multiviewEngineMode = 'mpv_canvas',
   onSendToSlot,
   multiviewSlots = [],
   onSwapWithMain,
@@ -2127,64 +2127,6 @@ export function ChannelPanel({
         lastMainGeometry = nextMainGeometry;
         invoke('mpv_set_geometry', { x: sx, y: sy, width: sw, height: sh }).catch(() => {});
       }
-
-      // Reposition secondary MPV slots inside EPG preview container cells (only if engineMode is 'mpv')
-      if (multiviewEngineMode === 'mpv') {
-        const isEpgModalOpen = showEpgShiftModal || showFailoverGroupModal || showPlaylistListModal || !!managingCustomGroup || !!managingCategory || managingFavorites;
-        const shouldHideSecondaries = isEpgModalOpen || showSettingsPopup;
-
-        if (multiviewEngineMode === 'mpv') {
-          const secondaryIds: (2 | 3 | 4)[] = [2, 3, 4];
-          secondaryIds.forEach((slotId) => {
-            const slot = multiviewSlots.find((s) => s.id === slotId);
-            const active = slot?.active ?? false;
-
-            // If a slot is not active, or if we want to hide them (because a modal/settings is open):
-            if (!active || shouldHideSecondaries) {
-              const hiddenGeometry = '-10000:-10000:1:1';
-              if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
-                lastSecondaryGeometries.set(slotId, hiddenGeometry);
-                invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
-              }
-              return;
-            }
-
-            // Otherwise, find the placeholder container inside EPG
-            const id = `epg-slot-container-${slotId}`;
-            const el = document.getElementById(id);
-            if (!el) {
-              const hiddenGeometry = '-10000:-10000:1:1';
-              if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
-                lastSecondaryGeometries.set(slotId, hiddenGeometry);
-                invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
-              }
-              return;
-            }
-
-            const cellRect = el.getBoundingClientRect();
-            if (cellRect.width === 0 || cellRect.height === 0) {
-              const hiddenGeometry = '-10000:-10000:1:1';
-              if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
-                lastSecondaryGeometries.set(slotId, hiddenGeometry);
-                invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
-              }
-              return;
-            }
-
-            const d = window.devicePixelRatio || 1;
-            const sx = Math.round(cellRect.left * d);
-            const sy = Math.round(cellRect.top * d);
-            const sw = Math.round(cellRect.width * d);
-            const sh = Math.round(cellRect.height * d);
-            const nextSlotGeometry = `${sx}:${sy}:${sw}:${sh}`;
-
-            if (force || lastSecondaryGeometries.get(slotId) !== nextSlotGeometry) {
-              lastSecondaryGeometries.set(slotId, nextSlotGeometry);
-              invoke('multiview_reposition_slot', { slotId, x: sx, y: sy, width: sw, height: sh }).catch(() => {});
-            }
-          });
-        }
-      }
     };
 
     const scheduleVideoPositionUpdate = () => {
@@ -2239,9 +2181,10 @@ export function ChannelPanel({
     // Animation loop for CSS transitions (sidebar/category strip opening/closing)
     let animationFrameId: number;
     const startTime = performance.now();
-    const DURATION = 500; // ms - covers CSS transition time
+    const DURATION = 1000; // ms - covers CSS transition time and layout settles
 
     const animate = () => {
+      forceNextUpdate = true;
       updateVideoPosition();
       if (performance.now() - startTime < DURATION) {
         animationFrameId = requestAnimationFrame(animate);
@@ -2260,19 +2203,6 @@ export function ChannelPanel({
       if (dragSettleTimer !== null) clearTimeout(dragSettleTimer);
       if (rafId !== null) cancelAnimationFrame(rafId);
       cancelAnimationFrame(animationFrameId);
-      // NOTE: Do NOT call onPreviewVideoRectChange(null) here.
-      // This cleanup runs on every dependency change (e.g. currentLayout/showMultiviewGrid),
-      // not just when the panel closes. Nulling the rect here triggers App.tsx to reset
-      // video-zoom to 0, which races against the new effect's updateVideoPosition call
-      // and leaves the MPV fullscreen instead of scaled into the preview cell.
-      // The null is sent by the dedicated visibility-change effect below instead.
-
-      if (multiviewEngineMode === 'mpv') {
-        const secondaryIds: (2 | 3 | 4)[] = [2, 3, 4];
-        secondaryIds.forEach((slotId) => {
-          invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
-        });
-      }
     };
     // Re-run when layout changes (sidebar/category visibility) or when visibility/selection changes
     // Include selectedChannelId to trigger resize when returning to view with a selection

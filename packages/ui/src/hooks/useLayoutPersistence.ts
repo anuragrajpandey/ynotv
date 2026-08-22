@@ -235,7 +235,7 @@ export function useLayoutPersistence(options: UseLayoutPersistenceOptions) {
           // Only restore slots that aren't already active
           for (const slot of slotsToRestore) {
             if (!currentlyActiveSlots.has(slot.id)) {
-              await baseSendToSlot(slot.id, slot.channelName || '', slot.channelUrl || '', slot.sourceName || null, true);
+              await baseSendToSlot(slot.id, slot.channelName || '', slot.channelUrl || '', slot.sourceName || null);
               await new Promise((r) => setTimeout(r, 200));
             }
           }
@@ -344,8 +344,7 @@ export function useLayoutPersistence(options: UseLayoutPersistenceOptions) {
               slot.id,
               slot.channelName || '',
               slot.channelUrl || '',
-              slot.sourceName || null,
-              true // force - bypass tab check
+              slot.sourceName || null
             );
             await new Promise((resolve) => setTimeout(resolve, slotDelay));
           }
@@ -364,19 +363,16 @@ export function useLayoutPersistence(options: UseLayoutPersistenceOptions) {
       if (hasRestoredRef.current) return;
       hasRestoredRef.current = true;
 
-      const restoredEngineMode = state.engineMode ?? 'mpv';
+      const restoredEngineMode: MultiviewEngineMode = (state.engineMode === 'hls' || state.engineMode === 'mpv_canvas') ? state.engineMode : 'mpv_canvas';
 
       // Step 1: Restore engine mode FIRST so engineModeRef is correct before any slot loading.
-      // setEngineMode is now async (kills MPV windows when switching MPV→HLS).
       await setEngineMode(restoredEngineMode);
 
       // Step 2: Switch to the saved layout (this mounts MultiviewLayout)
-      // Use baseSwitchLayout directly to avoid triggering the post-switch restore logic
       await baseSwitchLayout(state.layout);
 
       // Step 3: Wait for layout to fully render
-      // Need to wait for MultiviewLayout to mount and DOM elements to exist
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Step 4: Load main channel if present
       if (state.mainChannel.channelUrl) {
@@ -400,24 +396,19 @@ export function useLayoutPersistence(options: UseLayoutPersistenceOptions) {
       }
 
       // Step 5: Wait for main to load and React to render
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Step 6: Load secondary slots - now MultiviewLayout should be fully rendered
+      // Step 6: Load secondary slots
       const slotsToRestore = state.slots.filter((s) => s.active && s.channelUrl);
-
-      // In HLS mode secondary slots are in-DOM <video> elements — no native window creation,
-      // so a much shorter inter-slot delay is sufficient.
-      const slotDelay = restoredEngineMode === 'hls' ? 50 : 300;
 
       for (const slot of slotsToRestore) {
         await baseSendToSlot(
           slot.id,
           slot.channelName || '',
           slot.channelUrl || '',
-          slot.sourceName || null,
-          true // force - bypass tab mode check during restore
+          slot.sourceName || null
         );
-        await new Promise((resolve) => setTimeout(resolve, slotDelay));
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
 
       // Update saved state refs to match restored state

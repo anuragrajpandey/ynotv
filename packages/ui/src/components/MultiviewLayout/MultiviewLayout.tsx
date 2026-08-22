@@ -1,6 +1,5 @@
 import { useRef, useState, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MultiviewCell } from '../MultiviewCell/MultiviewCell';
 import { HlsMultiviewCell } from '../MultiviewCell/HlsMultiviewCell';
 import { CanvasMultiviewCell } from '../MultiviewCell/CanvasMultiviewCell';
 import { ViewerSlot, type MultiviewEngineMode } from '../../hooks/useMultiview';
@@ -106,7 +105,7 @@ interface MultiviewLayoutProps {
     onStop: (slotId: 2 | 3 | 4) => void;
     onReload: (slotId: 2 | 3 | 4) => void;
     onSetProperty: (slotId: 2 | 3 | 4, property: string, value: any) => void;
-    onReposition: () => void;
+    onReposition?: () => void;
     onSwitchLayout?: (layout: 'main' | 'pip' | '2x2' | 'bigbottom' | 'sbs') => void;
     hidden?: boolean;
     activeView: string;
@@ -144,10 +143,10 @@ export function MultiviewLayout({
     const pipDragRef = useRef<HTMLDivElement>(null);
     const pipResizeRef = useRef<HTMLDivElement>(null);
     useDraggable(pipDragRef, () => {
-        onReposition();
+        onReposition?.();
     });
     useResizable(pipResizeRef, pipDragRef, () => {
-        onReposition();
+        onReposition?.();
     }, 16 / 9, 36);
 
     // Sync native MPV geometry when placeholder renders on the Hero page
@@ -158,7 +157,9 @@ export function MultiviewLayout({
         if (!placeholder) return;
 
         const updatePosition = () => {
-            syncMpvGeometry?.();
+            if (activeView === 'none') {
+                syncMpvGeometry?.();
+            }
         };
 
         const observer = new ResizeObserver(() => {
@@ -181,33 +182,15 @@ export function MultiviewLayout({
     const isHls = engineMode === 'hls';
     const isCanvas = engineMode === 'mpv_canvas';
 
-    // Render slots inside the layouts (placeholders for DOM-rendered engines HLS and Canvas)
-    const cell = (slot: ViewerSlot) => {
-        if (isHls || isCanvas) {
-            return (
-                <div 
-                    key={slot.id}
-                    id={`multiview-slot-container-${slot.id}`} 
-                    className="multiview-cell-container hls-cell-container"
-                    style={{ background: 'transparent' }}
-                />
-            );
-        }
-        return (
-            <MultiviewCell
-                key={slot.id}
-                slotId={slot.id}
-                channelName={slot.channelName}
-                channelUrl={slot.channelUrl}
-                sourceName={slot.sourceName}
-                active={slot.active}
-                onSwapWithMain={() => onSwapWithMain(slot.id)}
-                onStop={() => onStop(slot.id)}
-                onReload={() => onReload(slot.id)}
-                onSetProperty={(prop: string, val: any) => onSetProperty(slot.id, prop, val)}
-            />
-        );
-    };
+    // Render slot placeholder inside the layouts for in-DOM positioning
+    const cell = (slot: ViewerSlot) => (
+        <div 
+            key={slot.id}
+            id={`multiview-slot-container-${slot.id}`} 
+            className="multiview-cell-container hls-cell-container"
+            style={{ background: 'transparent' }}
+        />
+    );
 
     if (layout === 'main') {
         // MPV fills the window — no cells visible

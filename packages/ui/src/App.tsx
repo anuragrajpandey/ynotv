@@ -776,9 +776,6 @@ function App() {
     stopSlot,
     reloadSlot,
     setSlotProperty,
-    repositionSecondarySlots,
-    enterTabMode,
-    exitTabMode,
     notifyMainLoaded,
     syncMpvGeometry,
     isRestoring,
@@ -1212,7 +1209,6 @@ function App() {
   const nav = useNavigation({
     playing,
     multiviewLayout,
-    multiviewExitTabMode: exitTabMode,
     setCategoryId,
     overlayAutohideTimer,
     overlayOnClickOnly,
@@ -1589,16 +1585,6 @@ function useTmdbPresencePoster(
   const setActiveView = useCallback((newView: any) => {
     const nextView = typeof newView === 'function' ? newView(activeView) : newView;
     const isCurrentlyNuvioSettings = (activeView === 'nuvio' && useUIStore.getState().nuvioView === 'settings') || (showSettingsPopup && settingsTab === 'nuvio');
-    
-    const updateTabMode = (view: any) => {
-      if (view === 'guide' || view === 'sports' || view === 'dvr' ||
-          view === 'settings' || view === 'movies' || view === 'series' ||
-          view === 'calendar' || view === 'stremio' || view === 'nuvio') {
-        enterTabMode(view);
-      } else {
-        exitTabMode();
-      }
-    };
 
     if (isCurrentlyNuvioSettings && nuvioHasUnsavedHomeLayout) {
       showConfirm(
@@ -1608,7 +1594,6 @@ function useTmdbPresencePoster(
           try {
             await nuvioTabSaveFn?.();
             useUIStore.setState({ nuvioHasUnsavedHomeLayout: false });
-            updateTabMode(nextView);
             rawSetActiveView(nextView);
           } catch (err) {
             // Error was already alerted inside child component
@@ -1616,54 +1601,22 @@ function useTmdbPresencePoster(
         },
         () => {
           useUIStore.setState({ nuvioHasUnsavedHomeLayout: false });
-          updateTabMode(nextView);
           rawSetActiveView(nextView);
         },
         'Save',
         'Discard Changes'
       );
     } else {
-      updateTabMode(nextView);
       rawSetActiveView(nextView);
     }
-  }, [activeView, showSettingsPopup, settingsTab, nuvioHasUnsavedHomeLayout, nuvioTabSaveFn, rawSetActiveView, showConfirm, enterTabMode, exitTabMode]);
+  }, [activeView, showSettingsPopup, settingsTab, nuvioHasUnsavedHomeLayout, nuvioTabSaveFn, rawSetActiveView, showConfirm]);
 
-  // Wrapped switchLayout to toggle EPG visibility when entering HLS or MPV multiview
-  // to force the native MPV window geometry to correctly sync with EPG cell bounds.
   const switchLayout = useCallback(async (newLayout: LayoutMode) => {
-    const isEpgOpen = activeView === 'guide';
-    const isTargetMultiview = newLayout === '2x2' || newLayout === 'bigbottom';
-
-    if (isEpgOpen && isTargetMultiview) {
-      setActiveView('none');
-      await rawSwitchLayout(newLayout);
-      setTimeout(() => {
-        setActiveView('guide');
-      }, 100);
-    } else {
-      await rawSwitchLayout(newLayout);
-    }
-  }, [activeView, rawSwitchLayout, setActiveView]);
+    await rawSwitchLayout(newLayout);
+  }, [rawSwitchLayout]);
 
   const switchLayoutRef = useRef(switchLayout);
   useEffect(() => { switchLayoutRef.current = switchLayout; }, [switchLayout]);
-
-  // Reposition secondary slots on the Hero page when the layout picker is toggled
-  useEffect(() => {
-    if (multiviewEngineMode === 'mpv' && multiviewLayout !== 'main') {
-      if (layoutPickerOpen) {
-        // Push secondary slots off-screen so they don't cover the dropdown menu on the Hero page
-        const secondaryIds = [2, 3, 4];
-        secondaryIds.forEach(async (slotId) => {
-          const { invoke } = await import('@tauri-apps/api/core');
-          invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
-        });
-      } else {
-        // Reposition them back to their layout slots
-        repositionSecondarySlots(multiviewLayout);
-      }
-    }
-  }, [layoutPickerOpen, multiviewEngineMode, multiviewLayout, repositionSecondarySlots]);
 
   const setShowSettingsPopup = useCallback((val: boolean | ((prev: boolean) => boolean)) => {
     const nextVal = typeof val === 'function' ? val(showSettingsPopup) : val;
@@ -2099,17 +2052,21 @@ function useTmdbPresencePoster(
 
   // Reset video scale and alignment to fullscreen globally when returning to main hero view without an active preview pane
   useEffect(() => {
-    if (!previewVideoRect && activeView === 'none' && multiviewLayout === 'main') {
-      Bridge.setProperties({
-        'video-zoom': 0,
-        'video-align-x': 0,
-        'video-align-y': 0,
-        'video-aspect-override': -1,
-        'keepaspect': true,
-      }).catch(() => { });
-      invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
+    if (!previewVideoRect && activeView === 'none') {
+      if (multiviewLayout === 'main') {
+        Bridge.setProperties({
+          'video-zoom': 0,
+          'video-align-x': 0,
+          'video-align-y': 0,
+          'video-aspect-override': -1,
+          'keepaspect': true,
+        }).catch(() => { });
+        invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
+      } else {
+        syncMpvGeometry(multiviewLayout);
+      }
     }
-  }, [previewVideoRect, activeView, multiviewLayout]);
+  }, [previewVideoRect, activeView, multiviewLayout, syncMpvGeometry]);
 
   const triggerChannelChangeFlash = useCallback(() => {
     if (!channelInfoOverlayEnabled) return;
@@ -5569,7 +5526,6 @@ function useTmdbPresencePoster(
           onStop={stopSlot}
           onReload={reloadSlot}
           onSetProperty={setSlotProperty}
-          onReposition={repositionSecondarySlots}
           onSwitchLayout={switchLayout}
           activeView={activeView}
           syncMpvGeometry={syncMpvGeometry}

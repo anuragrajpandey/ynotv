@@ -108,10 +108,8 @@
 
 .layout-2x2-cells {
     position: absolute;
-    top: 32px;
-    /* Below title bar */
+    top: 0;
     bottom: 0;
-    /* Removed media bar gap */
     left: 0;
     right: 0;
     display: grid;
@@ -119,18 +117,16 @@
     grid-template-rows: 1fr 1fr;
     gap: 2px;
     background: transparent;
-    /* Transparent so MPV windows show through */
     z-index: 5;
-    pointer-events: none;
+    pointer-events: all;
 }
 
-/* Top-left quadrant is occupied by MPV (transparent placeholder) */
+/* Top-left quadrant is occupied by primary MPV */
 .layout-2x2-mpv {
     position: relative;
     grid-column: 1;
     grid-row: 1;
     pointer-events: none;
-    box-shadow: 0 0 0 4000px #000;
 }
 
 /* Allow pointer events for the primary MPV controls */
@@ -142,7 +138,6 @@
     bottom: 0;
     left: 0;
     right: 0;
-    /* Controls autohide like the secondary cells — controlled by .app:not(.controls-hidden) */
     opacity: 0;
     transition: opacity 0.3s ease;
 }
@@ -154,7 +149,6 @@
     opacity: 1;
 }
 
-/* HLS & Canvas cells need pointer events */
 .layout-2x2-cells .multiview-cell-container,
 .layout-sbs-cells .multiview-cell-container,
 .layout-2x2-cells .canvas-cell-container,
@@ -166,7 +160,7 @@
 
 .layout-sbs-cells {
     position: absolute;
-    top: 32px;
+    top: 0;
     bottom: 0;
     left: 0;
     right: 0;
@@ -176,7 +170,8 @@
     gap: 2px;
     background: transparent;
     z-index: 5;
-    pointer-events: none;
+    pointer-events: all;
+    overflow: hidden;
 }
 
 .layout-sbs-mpv,
@@ -199,26 +194,22 @@
 
 .layout-bigbottom-cells {
     position: absolute;
-    top: 32px;
-    /* Below title bar */
+    top: 0;
     bottom: 0;
-    /* Removed media bar gap */
     left: 0;
     right: 0;
     display: grid;
     grid-template-rows: 1fr 320px;
     gap: 2px;
     background: transparent;
-    /* Transparent so MPV windows show through */
     z-index: 5;
-    pointer-events: none;
+    pointer-events: all;
 }
 
 .layout-bigbottom-mpv {
     position: relative;
     grid-row: 1;
     pointer-events: none;
-    box-shadow: 0 0 0 4000px #000;
 }
 
 .layout-bottom-bar {
@@ -227,24 +218,5 @@
     grid-template-columns: 1fr 1fr 1fr;
     gap: 2px;
     pointer-events: all;
-}
-
-/* ── HLS ENGINE MODE overrides ──────────────────────────────────────── */
-
-/*
- * In HLS mode, secondary cells are real DOM <video> elements so the whole
- * grid container must receive pointer events (the container itself is
- * pointer-events:none in MPV mode to let clicks pass through to native windows).
- * Also, the grid can stretch into the titlebar area (top: 0) because the 
- * titlebar has a higher z-index in the DOM.
- */
-.layout-2x2-cells[data-engine="hls"],
-.layout-bigbottom-cells[data-engine="hls"],
-.layout-sbs-cells[data-engine="hls"],
-.layout-2x2-cells[data-engine="mpv_canvas"],
-.layout-bigbottom-cells[data-engine="mpv_canvas"],
-.layout-sbs-cells[data-engine="mpv_canvas"] {
-    pointer-events: all;
-    top: 0;
 }
 

@@ -106,13 +106,6 @@ export function LayoutPicker({ currentLayout, onSelect, engineMode, onEngineChan
                                 CANVAS
                             </button>
                             <button
-                                className={`lp-engine-pill ${engineMode === 'mpv' ? 'lp-engine-pill-active' : ''}`}
-                                onClick={() => onEngineChange('mpv')}
-                                title={t('mpvNativeWindows')}
-                            >
-                                MPV
-                            </button>
-                            <button
                                 className={`lp-engine-pill lp-engine-pill-hls ${engineMode === 'hls' ? 'lp-engine-pill-active lp-engine-pill-hls-active' : ''}`}
                                 onClick={() => onEngineChange('hls')}
                                 title={t('hlsInBrowser')}

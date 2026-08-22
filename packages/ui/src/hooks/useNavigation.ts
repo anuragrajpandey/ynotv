@@ -52,14 +52,13 @@ export interface NavigationState {
 interface UseNavigationOptions {
   playing: boolean;
   multiviewLayout: import('./useLayoutPersistence').LayoutMode;
-  multiviewExitTabMode: () => void;
   setCategoryId: (catId: string | null) => void;
   overlayAutohideTimer: number;
   overlayOnClickOnly: boolean;
 }
 
 export function useNavigation(options: UseNavigationOptions): NavigationState {
-  const { playing, multiviewLayout, multiviewExitTabMode, setCategoryId, overlayAutohideTimer, overlayOnClickOnly } = options;
+  const { playing, multiviewLayout, setCategoryId, overlayAutohideTimer, overlayOnClickOnly } = options;
 
   // View state
   const [activeView, setActiveView] = useState<View>('none');
@@ -125,20 +124,8 @@ export function useNavigation(options: UseNavigationOptions): NavigationState {
     return () => window.removeEventListener('open-settings', handleOpenSettings);
   }, []);
 
-  // Tab Mode: enter when EPG, Sports, DVR, Settings, Movies, Series, or Settings popup opens; exit when they close
   const multiviewLayoutRef = useRef(multiviewLayout);
   useEffect(() => { multiviewLayoutRef.current = multiviewLayout; }, [multiviewLayout]);
-
-  useEffect(() => {
-    if (activeView === 'guide' || activeView === 'sports' || activeView === 'dvr' ||
-        activeView === 'settings' || activeView === 'movies' || activeView === 'series' ||
-        activeView === 'calendar' || activeView === 'stremio' || activeView === 'nuvio' || showSettingsPopup) {
-
-      // Note: enterTabMode is called via the multiview hook in App.tsx
-    } else {
-      multiviewExitTabMode();
-    }
-  }, [activeView, showSettingsPopup, multiviewExitTabMode]);
 
   // Ensure video software scaling is reset when completely exiting tab views
   useEffect(() => {
