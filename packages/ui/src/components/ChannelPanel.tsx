@@ -2177,25 +2177,40 @@ export function ChannelPanel({
       }).catch(() => {});
     }).catch(() => {});
 
-    // Animation loop for CSS transitions (sidebar/category strip opening/closing)
+    // Settle loop for CSS transitions (sidebar/category strip opening/closing).
+    // Runs on rAF while the preview geometry is still changing (plus a short
+    // stable grace window), then stops — replaces the old perpetual 100ms
+    // interval that fired mpv_set_geometry ~10x/sec while the Guide sat open.
+    // The ResizeObserver above covers element size changes; this loop catches
+    // position-only shifts (translateX slides) for the duration of the move.
     let animationFrameId: number;
+    let stableFrames = 0;
+    let lastLoopGeometry = '';
     const startTime = performance.now();
-    const DURATION = 1000; // ms - covers CSS transition time and layout settles
+    const MAX_LOOP_DURATION = 2000; // watchdog: never run longer than any CSS transition
+    const MAX_STABLE_FRAMES = 3; // frames with no geometry change => settled, stop
 
     const animate = () => {
       forceNextUpdate = true;
       updateVideoPosition();
-      if (performance.now() - startTime < DURATION) {
+      const rect = previewRef.current?.getBoundingClientRect();
+      const geom = rect
+        ? `${rect.left}:${rect.top}:${rect.width}:${rect.height}`
+        : '';
+      stableFrames = geom === lastLoopGeometry ? stableFrames + 1 : 0;
+      lastLoopGeometry = geom;
+      if (
+        performance.now() - startTime < MAX_LOOP_DURATION &&
+        stableFrames < MAX_STABLE_FRAMES
+      ) {
         animationFrameId = requestAnimationFrame(animate);
       }
     };
 
     animate();
-    const intervalId = setInterval(updateVideoPosition, 100);
 
     return () => {
       disposed = true;
-      clearInterval(intervalId);
       observer.disconnect();
       window.removeEventListener('resize', handleWindowResize);
       if (unlistenMove) unlistenMove();

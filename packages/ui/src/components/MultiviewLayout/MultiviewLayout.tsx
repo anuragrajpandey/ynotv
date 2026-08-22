@@ -255,6 +255,12 @@ export function MultiviewLayout({
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onStop(2);
+                                // If the pip slot had no active stream, don't
+                                // strand the user in an empty pip layout — the
+                                // close button promises a return to Main View.
+                                if (!slot2.active) {
+                                    onSwitchLayout?.('main');
+                                }
                             }}
                             title={t('closeReturnMain')}
                         >

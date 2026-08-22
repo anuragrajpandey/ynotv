@@ -19,9 +19,12 @@ export interface VirtualGridProps<T> {
   className?: string;
   style?: React.CSSProperties;
   onRangeChange?: (range: { startIndex: number; endIndex: number }) => void;
-}
-
-function VirtualGridComponent<T>(
+  /** Name this grid listens to on the ynotv:spatial-scroll-to-index window
+   *  event (default 'vod-grid'). Spatial navigation dispatches with this
+   *  surface when it needs the virtualizer to mount a data index beyond the
+   *  rendered window, so each virtualized grid scrolls its own scroller. */
+  surface?: string;
+}  function VirtualGridComponent<T>(
   {
     items,
     scrollRef,
@@ -35,6 +38,7 @@ function VirtualGridComponent<T>(
     className = '',
     style,
     onRangeChange,
+    surface,
   }: VirtualGridProps<T>,
   ref: React.ForwardedRef<VirtualGridHandle>
 ) {
@@ -113,6 +117,23 @@ function VirtualGridComponent<T>(
     }),
     [cols, rowVirtualizer]
   );
+
+  // Remote/gamepad spatial navigation: when the spatial engine asks this grid
+  // to mount a specific data index (surface event), scroll it into the render
+  // window. Centralized here so consumers no longer need their own listeners.
+  const surfaceName = surface ?? 'vod-grid';
+  useEffect(() => {
+    const handleSpatialIndexRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ surface?: string; index?: number }>).detail;
+      if (detail?.surface !== surfaceName || !Number.isInteger(detail.index) || detail.index! < 0) return;
+      if (cols <= 0) return;
+      const rowIndex = Math.floor(detail.index! / cols);
+      rowVirtualizer.scrollToIndex(rowIndex, { align: 'center' });
+    };
+
+    window.addEventListener('ynotv:spatial-scroll-to-index', handleSpatialIndexRequest);
+    return () => window.removeEventListener('ynotv:spatial-scroll-to-index', handleSpatialIndexRequest);
+  }, [surfaceName, cols, rowVirtualizer]);
 
   // Notify range changes when virtual items update
   const virtualRows = rowVirtualizer.getVirtualItems();

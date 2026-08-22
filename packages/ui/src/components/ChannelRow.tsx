@@ -183,7 +183,7 @@ export const ChannelRow = memo(function ChannelRow({
     <div className={`guide-channel-row ${isCurrentlyPlaying ? 'currently-playing' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}>
       {/* Channel info column */}
       <div
-        className={`guide-channel-info guide-channel-item channel-item ${isRecording ? 'is-recording' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}
+        className={`guide-channel-info guide-channel-item ${isRecording ? 'is-recording' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}
         data-stream-id={channel.stream_id}
         data-index={index}
         style={{
