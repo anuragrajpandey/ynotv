@@ -1258,11 +1258,19 @@ export function SourcesTab({
           });
           success = !!(result.success && result.data && result.data.ok);
         } else {
-          const response = await fetch(url, {
-            method: 'HEAD',
-            headers: { 'User-Agent': finalUa }
-          });
-          success = response.ok;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          try {
+            const response = await fetch(url, {
+              method: 'GET',
+              headers: { 'User-Agent': finalUa, 'Range': 'bytes=0-1024' },
+              signal: controller.signal,
+            });
+            success = response.ok || response.status === 206;
+          } finally {
+            clearTimeout(timeoutId);
+            controller.abort(); // Do not download the full playlist body for a ping test
+          }
         }
       }
 

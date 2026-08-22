@@ -2567,6 +2567,9 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
       series_no: ch.series_no ?? null,
       live: ch.live ?? 1,
       xtream_stream_id: ch.xtream_stream_id ?? null,
+      catchup_type: ch.catchup_type ?? null,
+      catchup_source: ch.catchup_source ?? null,
+      catchup_days: ch.catchup_days ?? null,
     });
 
     // Convert to BulkCategory format

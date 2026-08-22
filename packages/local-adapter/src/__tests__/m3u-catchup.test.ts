@@ -72,4 +72,44 @@ https://akariko-bck1.sankuria.sbs/stream/jp/fuji_tv/stream-output.m3u8?mode=hls
 
     expect(url).toContain('http://server.com/live.m3u8?utc=1750000000&lutc=');
   });
+
+  it('should inherit global #EXTM3U catchup settings when channel EXTINF omits them', () => {
+    const m3uContent = `#EXTM3U catchup="default" catchup-days="7" catchup-source="https://server.com/replay.m3u8?ch={catchup-id}&start=\${start}"
+#EXTINF:-1 tvg-id="ch1",Channel One
+https://server.com/stream1.m3u8
+#EXTINF:-1 tvg-id="ch2" catchup="shift" catchup-days="3",Channel Two
+https://server.com/stream2.m3u8
+`;
+
+    const result = parseM3U(m3uContent, 'source_test');
+    expect(result.channels.length).toBe(2);
+
+    // Channel 1 inherits header defaults
+    expect(result.channels[0].name).toBe('Channel One');
+    expect(result.channels[0].tv_archive).toBe(1);
+    expect(result.channels[0].catchup_type).toBe('default');
+    expect(result.channels[0].catchup_days).toBe(7);
+    expect(result.channels[0].catchup_source).toBe('https://server.com/replay.m3u8?ch={catchup-id}&start=${start}');
+
+    // Channel 2 overrides catchup_type and catchup_days but inherits catchup_source
+    expect(result.channels[1].name).toBe('Channel Two');
+    expect(result.channels[1].tv_archive).toBe(1);
+    expect(result.channels[1].catchup_type).toBe('shift');
+    expect(result.channels[1].catchup_days).toBe(3);
+    expect(result.channels[1].catchup_source).toBe('https://server.com/replay.m3u8?ch={catchup-id}&start=${start}');
+  });
+
+  it('should parse single-quoted and unquoted catchup attributes', () => {
+    const m3uContent = `#EXTM3U
+#EXTINF:-1 tvg-id='ch1' catchup='default' catchup-days=5 catchup-source='https://server.com/replay.m3u8?start=\${start}',Channel Single
+https://server.com/stream1.m3u8
+`;
+
+    const result = parseM3U(m3uContent, 'source_test');
+    expect(result.channels.length).toBe(1);
+    expect(result.channels[0].tv_archive).toBe(1);
+    expect(result.channels[0].catchup_type).toBe('default');
+    expect(result.channels[0].catchup_days).toBe(5);
+    expect(result.channels[0].catchup_source).toBe('https://server.com/replay.m3u8?start=${start}');
+  });
 });
