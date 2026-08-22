@@ -545,16 +545,16 @@
 }
 
 .stremio-detail-video-thumb-container {
-  width: 120px;
-  height: 68px;
-  border-radius: 6px;
+  width: var(--stremio-ep-thumb-width, 120px);
+  height: var(--stremio-ep-thumb-height, 68px);
+  border-radius: var(--stremio-ep-thumb-radius, 6px);
   overflow: hidden;
   flex-shrink: 0;
-  background: var(--surface-color, rgba(255, 255, 255, 0.03));
+  background: var(--stremio-ep-thumb-bg, var(--surface-color, rgba(255, 255, 255, 0.03)));
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.04));
+  border: var(--stremio-ep-thumb-border, 1px solid var(--surface-border, rgba(255, 255, 255, 0.04)));
 }
 
 .stremio-detail-video-thumb {
@@ -879,11 +879,11 @@
 /* The thumb container needs relative positioning for overlays */
 .stremio-ep-thumb-wrap {
   position: relative;
-  width: var(--stremio-ep-thumb-width, auto);
-  height: var(--stremio-ep-thumb-height, auto);
-  border-radius: var(--stremio-ep-thumb-radius, 0);
-  border: var(--stremio-ep-thumb-border, none);
-  background: var(--stremio-ep-thumb-bg, transparent);
+  width: var(--stremio-ep-thumb-width, 120px);
+  height: var(--stremio-ep-thumb-height, 68px);
+  border-radius: var(--stremio-ep-thumb-radius, 6px);
+  border: var(--stremio-ep-thumb-border, 1px solid var(--surface-border, rgba(255, 255, 255, 0.04)));
+  background: var(--stremio-ep-thumb-bg, var(--surface-color, rgba(255, 255, 255, 0.03)));
 }
 
 /* Progress bar at the bottom of the episode thumbnail */
