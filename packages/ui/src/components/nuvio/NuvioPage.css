@@ -43,27 +43,19 @@
 }
 
 .nuvio-home-section {
-  content-visibility: auto;
-  contain-intrinsic-size: 300px;
-  contain: style layout paint;
+  contain: layout paint;
 }
 
 .nuvio-home-section-hero {
-  content-visibility: auto;
-  contain-intrinsic-size: 400px;
-  contain: style layout paint;
+  contain: layout paint;
 }
 
 .nuvio-home-section-cw {
-  content-visibility: auto;
-  contain-intrinsic-size: 220px;
-  contain: style layout paint;
+  contain: layout paint;
 }
 
 .nuvio-home-section-sp {
-  content-visibility: auto;
-  contain-intrinsic-size: 130px;
-  contain: style layout paint;
+  contain: layout paint;
 }
 
 .nuvio-main:hover {

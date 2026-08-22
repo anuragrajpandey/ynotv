@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import i18n from '../i18n';
 import { isMouseBackButtonActive } from '../constants/shortcuts';
 import { useSettingsStore } from '../stores/settingsStore';
-import { VirtualList } from './common/VirtualList';
 import { HeroSection } from './vod/HeroSection';
 import { HorizontalCarousel } from './vod/HorizontalCarousel';
 import { VerticalSidebar } from './vod/VerticalSidebar';
@@ -1064,8 +1063,8 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
             onItemClick={handleItemClick}
           />
         ) : (
-          // Home view: Hero + virtualized carousels
-          <div className="vod-page__home flex-1 min-h-0 overflow-y-auto">
+          // Home view: Hero + carousels
+          <div className="vod-page__home">
             {featuredItems.length > 0 && (
               <HeroSection
                 items={featuredItems}
@@ -1077,13 +1076,13 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
                 onSelectVodPlayerMode={onSelectVodPlayerMode}
               />
             )}
-            <VirtualList
-              items={carouselRows}
-              estimateItemHeight={280}
-              getKey={(row) => row.key}
-              renderItem={(row, index) => CarouselRowContent(index, row, homeVirtuosoContext)}
-              overscan={3}
-            />
+            <div className="vod-page__carousels pb-8">
+              {carouselRows.map((row, index) => (
+                <div key={row.key} className="vod-page__carousel-slot">
+                  {CarouselRowContent(index, row, homeVirtuosoContext)}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </main>

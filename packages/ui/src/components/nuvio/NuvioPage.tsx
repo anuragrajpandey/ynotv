@@ -546,15 +546,6 @@ function NuvioPageContent({
       });
     });
 
-    console.log('[NuvioPage:homeRows] Info:', {
-      collectionsCount: collections.length,
-      addonsCount: addons.length,
-      addonsList: addons.map(a => ({ id: a.id, name: a.manifest?.name, catalogs: a.manifest?.catalogs?.map(c => c.id) })),
-      catalogRowsCount: catalogRows.length,
-      catalogRowsKeys: catalogRows.map(r => r.key),
-      homeCatalogSettings: authStore.homeCatalogSettings,
-    });
-
     // Default Fallback: If settings aren't fetched/configured, display collections and Cinemeta popular/featured catalogs
     if (!authStore.homeCatalogSettings || !authStore.homeCatalogSettings.items || authStore.homeCatalogSettings.items.length === 0) {
       const defaultRows: any[] = [];

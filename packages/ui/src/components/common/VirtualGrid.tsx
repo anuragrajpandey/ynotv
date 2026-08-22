@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useImperativeHandle, forwardRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef, type ReactNode, type RefObject } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 export interface VirtualGridHandle {
@@ -39,25 +39,45 @@ function VirtualGridComponent<T>(
   ref: React.ForwardedRef<VirtualGridHandle>
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [cols, setCols] = useState(1);
 
-  // Measure container width and compute column count
-  useEffect(() => {
+  // Initialize with a realistic column count based on viewport rather than 1
+  const [cols, setCols] = useState(() => {
+    if (typeof window !== 'undefined' && minColumnWidth > 0) {
+      const approx = Math.max(300, window.innerWidth - 300);
+      return Math.max(1, Math.floor((approx + gapX) / (minColumnWidth + gapX)));
+    }
+    return 1;
+  });
+
+  const measureCols = useCallback(() => {
+    const el = containerRef.current || (scrollRef?.current as HTMLElement | null);
+    if (!el) return;
+    const w = el.clientWidth || el.getBoundingClientRect().width;
+    if (w <= 0) return;
+    const next = Math.max(1, Math.floor((w + gapX) / (minColumnWidth + gapX)));
+    setCols((prev) => (prev !== next ? next : prev));
+  }, [gapX, minColumnWidth, scrollRef]);
+
+  // Measure on layout and observe element/scroll container resizes
+  useLayoutEffect(() => {
+    measureCols();
     const el = containerRef.current;
     if (!el) return;
 
-    const measure = () => {
-      const w = el.clientWidth;
-      if (w <= 0) return;
-      const next = Math.max(1, Math.floor((w + gapX) / (minColumnWidth + gapX)));
-      setCols((prev) => (prev !== next ? next : prev));
-    };
-
-    measure();
-    const ro = new ResizeObserver(measure);
+    const ro = new ResizeObserver(() => {
+      measureCols();
+    });
     ro.observe(el);
+    if (scrollRef?.current && scrollRef.current !== el) {
+      ro.observe(scrollRef.current);
+    }
     return () => ro.disconnect();
-  }, [gapX, minColumnWidth]);
+  }, [measureCols, scrollRef]);
+
+  // Re-measure when items transition from empty to populated
+  useEffect(() => {
+    measureCols();
+  }, [items.length, measureCols]);
 
   const rowCount = Math.max(0, Math.ceil(items.length / cols));
 
@@ -105,54 +125,54 @@ function VirtualGridComponent<T>(
     onRangeChange({ startIndex, endIndex });
   }, [virtualRows, cols, items.length, onRangeChange]);
 
-  if (items.length === 0) return null;
-
   return (
-    <div ref={containerRef} className={`virtual-grid ${className}`} style={{ width: '100%', ...style }}>
-      <div
-        className="virtual-grid__inner relative w-full"
-        style={{
-          height: `${rowVirtualizer.getTotalSize()}px`,
-          position: 'relative',
-          width: '100%',
-        }}
-      >
-        {virtualRows.map((row) => {
-          const start = row.index * cols;
-          const slice = items.slice(start, start + cols);
-          return (
-            <div
-              key={row.key}
-              data-index={row.index}
-              ref={rowVirtualizer.measureElement}
-              className="virtual-grid__row absolute start-0 grid w-full"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${row.start}px)`,
-                willChange: 'transform',
-                contain: 'layout paint',
-                display: 'grid',
-                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-                columnGap: `${gapX}px`,
-                rowGap: `${gapY}px`,
-              }}
-            >
-              {slice.map((item, i) => {
-                const itemIndex = start + i;
-                const key = getKey ? getKey(item, itemIndex) : itemIndex;
-                return (
-                  <div key={key} className="virtual-grid__cell" style={{ minWidth: 0 }}>
-                    {renderItem(item, itemIndex)}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
+    <div ref={containerRef} className={`virtual-grid ${className}`} style={{ width: '100%', minHeight: '100%', ...style }}>
+      {items.length > 0 && (
+        <div
+          className="virtual-grid__inner relative w-full"
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            position: 'relative',
+            width: '100%',
+          }}
+        >
+          {virtualRows.map((row) => {
+            const start = row.index * cols;
+            const slice = items.slice(start, start + cols);
+            return (
+              <div
+                key={row.key}
+                data-index={row.index}
+                ref={rowVirtualizer.measureElement}
+                className="virtual-grid__row absolute start-0 grid w-full"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${row.start}px)`,
+                  willChange: 'transform',
+                  contain: 'layout paint',
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                  columnGap: `${gapX}px`,
+                  rowGap: `${gapY}px`,
+                }}
+              >
+                {slice.map((item, i) => {
+                  const itemIndex = start + i;
+                  const key = getKey ? getKey(item, itemIndex) : itemIndex;
+                  return (
+                    <div key={key} className="virtual-grid__cell" style={{ minWidth: 0 }}>
+                      {renderItem(item, itemIndex)}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

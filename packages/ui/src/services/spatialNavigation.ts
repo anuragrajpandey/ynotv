@@ -25,10 +25,28 @@ const INTERACTIVE_SELECTOR = [
   '.category-item',
   '.category-list-bar',
   '.segmented-btn',
+  '.media-card',
   '.movie-card',
   '.series-card',
   '.stremio-card',
+  '.stremio-row-card',
+  '.stremio-meta-card',
+  '.stremio-cw-card',
+  '.stremio-cal-ep-card',
+  '.stremio-rank-card-container',
+  '.stremio-detail-video-card',
+  '.stremio-service-item',
   '.nuvio-card',
+  '.nuvio-row-card',
+  '.nuvio-cw-wide-card',
+  '.nuvio-cw-poster-card',
+  '.nuvio-cw-card',
+  '.nuvio-catalog-card',
+  '.nuvio-folder-card',
+  '.nuvio-folder-detail-item',
+  '.nuvio-collection-folder-card',
+  '.nuvio-catalog-item',
+  '.nuvio-service-item',
   '.widget-card',
   '.nav-item',
   '.settings-tab-btn',
@@ -264,6 +282,8 @@ const VIEW_CONTAINERS: Array<[string, string]> = [
   ['.channel-panel, .guide-panel, .epg-container', 'guide'],
   ['.movies-grid, .vod-grid, .vod-page, .vod-browse', 'movies'],
   ['.series-grid', 'series'],
+  ['.nuvio-page, .nuvio-main', 'nuvio'],
+  ['.stremio-page, .stremio-home, .stremio-main', 'stremio'],
   ['.sports-hub', 'sports'],
   ['.dvr-dashboard', 'dvr'],
   ['.tvcp-page, .tv-calendar-page, .calendar-view', 'calendar'],
@@ -271,7 +291,7 @@ const VIEW_CONTAINERS: Array<[string, string]> = [
 ];
 
 const SCROLLER_SELECTOR =
-  '[data-virtuoso-scroller], .vod-grid-scroller, [data-testid="virtuoso-scroller"], .channel-panel, .epg-content, .channels-grid, .movies-grid, .series-grid, .vod-browse__grid, .local-grid, .sports-hub, .settings-tab-content, .dvr-dashboard';
+  '.nuvio-main, .stremio-main, .stremio-home, .nuvio-scroll-rail, .stremio-scroll-rail, .vod-page__home, .vod-browse__grid-scroll, .local-grid-scroll, .guide-channels, [data-virtuoso-scroller], .vod-grid-scroller, [data-testid="virtuoso-scroller"], .channel-panel, .epg-content, .channels-grid, .movies-grid, .series-grid, .vod-browse__grid, .local-grid, .sports-hub, .settings-tab-content, .dvr-dashboard';
 
 const focusMemory = new Map<string, { key: string; scrollTop: number }>();
 
@@ -300,6 +320,15 @@ function findScrollerFor(el: HTMLElement): HTMLElement | null {
   let node: HTMLElement | null = el.parentElement;
   while (node && node !== document.body && node !== document.documentElement) {
     if (
+      node.classList.contains('nuvio-main') ||
+      node.classList.contains('stremio-main') ||
+      node.classList.contains('stremio-home') ||
+      node.classList.contains('nuvio-scroll-rail') ||
+      node.classList.contains('stremio-scroll-rail') ||
+      node.classList.contains('vod-page__home') ||
+      node.classList.contains('vod-browse__grid-scroll') ||
+      node.classList.contains('local-grid-scroll') ||
+      node.classList.contains('guide-channels') ||
       node.hasAttribute('data-virtuoso-scroller') ||
       node.classList.contains('vod-grid-scroller') ||
       node.classList.contains('vod-browse__grid') ||
