@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Virtuoso } from 'react-virtuoso';
+import { VirtualList } from '../common/VirtualList';
 import type { LocalGroup } from '../../services/local-library/types';
 
 interface ReviewUnmatchedModalProps {
@@ -225,75 +225,76 @@ export const ReviewUnmatchedModal = memo(function ReviewUnmatchedModal({
           </div>
 
           {/* Virtualized list of review units (one per series/movie) */}
-          <Virtuoso
-            className="local-batch-list"
-            style={{ height: 'min(45vh, 400px)' }}
-            data={filtered}
-            computeItemKey={(_, g) => groupKey(g)}
-            itemContent={(_index, g) => {
-              const key = groupKey(g);
-              const checked = selectedKeys.has(key);
-              const isMovie = g.kind === 'movie';
-              const title = isMovie ? g.entry.title : g.head.title;
-              const count = isMovie ? 1 : g.episodes.length;
-              const folder = groupFolder(g);
-              return (
-                <div
-                  className={`local-batch-row${checked ? ' selected' : ''}`}
-                  onClick={() => toggle(key)}
-                >
-                  <span className={`local-batch-checkbox${checked ? ' checked' : ''}`}>
-                    {checked && (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </span>
-                  <div className="local-batch-row__info">
-                    <span className="local-batch-row__title" title={title}>
-                      {title || (isMovie ? g.entry.filename : g.head.filename)}
+          <div className="local-batch-list overflow-y-auto" style={{ height: 'min(45vh, 400px)' }}>
+            <VirtualList
+              items={filtered}
+              estimateItemHeight={56}
+              getKey={(g) => groupKey(g)}
+              renderItem={(g) => {
+                const key = groupKey(g);
+                const checked = selectedKeys.has(key);
+                const isMovie = g.kind === 'movie';
+                const title = isMovie ? g.entry.title : g.head.title;
+                const count = isMovie ? 1 : g.episodes.length;
+                const folder = groupFolder(g);
+                return (
+                  <div
+                    className={`local-batch-row${checked ? ' selected' : ''}`}
+                    onClick={() => toggle(key)}
+                  >
+                    <span className={`local-batch-checkbox${checked ? ' checked' : ''}`}>
+                      {checked && (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
                     </span>
-                    <span className="local-batch-row__meta">
-                      {isMovie
-                        ? t('movie', 'Movie')
-                        : `${count} ${count === 1 ? t('episode', 'episode') : t('episodes', 'episodes')}`}
-                      {folder ? ` · ${folder}` : ''}
-                    </span>
+                    <div className="local-batch-row__info">
+                      <span className="local-batch-row__title" title={title}>
+                        {title || (isMovie ? g.entry.filename : g.head.filename)}
+                      </span>
+                      <span className="local-batch-row__meta">
+                        {isMovie
+                          ? t('movie', 'Movie')
+                          : `${count} ${count === 1 ? t('episode', 'episode') : t('episodes', 'episodes')}`}
+                        {folder ? ` · ${folder}` : ''}
+                      </span>
+                    </div>
+                    {/* Per-row actions: remove from library, or skip matching and move to the next item */}
+                    <div className="local-batch-row__actions">
+                      <button
+                        type="button"
+                        className="local-row-btn local-row-btn--skip"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          skipGroup(g);
+                        }}
+                        title={t('reviewSkipRow', 'Skip matching this item')}
+                      >
+                        {t('skip', 'Skip')}
+                      </button>
+                      <button
+                        type="button"
+                        className="local-row-btn local-row-btn--remove"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeGroup(g);
+                        }}
+                        title={t('reviewRemoveRow', 'Remove this item from the library')}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                        {t('common:remove', 'Remove')}
+                      </button>
+                    </div>
                   </div>
-                  {/* Per-row actions: remove from library, or skip matching and move to the next item */}
-                  <div className="local-batch-row__actions">
-                    <button
-                      type="button"
-                      className="local-row-btn local-row-btn--skip"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        skipGroup(g);
-                      }}
-                      title={t('reviewSkipRow', 'Skip matching this item')}
-                    >
-                      {t('skip', 'Skip')}
-                    </button>
-                    <button
-                      type="button"
-                      className="local-row-btn local-row-btn--remove"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeGroup(g);
-                      }}
-                      title={t('reviewRemoveRow', 'Remove this item from the library')}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                      </svg>
-                      {t('common:remove', 'Remove')}
-                    </button>
-                  </div>
-                </div>
-              );
-            }}
-            overscan={120}
-          />
+                );
+              }}
+              overscan={4}
+            />
+          </div>
         </div>
 
         {/* Footer actions: match the selected series, skip them, or remove them */}

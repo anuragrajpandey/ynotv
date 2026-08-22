@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { VirtuosoGrid, type VirtuosoGridHandle } from 'react-virtuoso';
+import { VirtualGrid, type VirtualGridHandle } from '../common/VirtualGrid';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import type { FolderType, IdentifyResolution, LocalEntry, LocalGroup, LocalSortKey, ScannedFile, SortDir } from '../../services/local-library/types';
@@ -221,7 +221,8 @@ export function LocalTab({
       return 'desc';
     }
   });
-  const virtuosoRef = useRef<VirtuosoGridHandle>(null);
+  const virtuosoRef = useRef<VirtualGridHandle>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [visibleRange, setVisibleRange] = useState({ startIndex: 0, endIndex: 0 });
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1765,24 +1766,30 @@ export function LocalTab({
           </div>
         </div>
       ) : (
-        <VirtuosoGrid
-          ref={virtuosoRef}
-          className="local-grid"
+        <div
+          ref={scrollRef}
+          className="local-grid-scroll flex-1 min-h-0 overflow-y-auto"
           style={
             {
               '--local-poster-size': `${posterSize}px`,
               '--local-item-height': `${itemHeight}px`,
             } as React.CSSProperties
           }
-          data={filteredGroups}
-          context={gridContext}
-          computeItemKey={(_, g) => (g.kind === 'movie' ? g.entry.id : g.key)}
-          itemContent={LocalGridItem}
-          overscan={1400}
-          rangeChanged={(range) => setVisibleRange(range)}
-          listClassName="local-grid-list"
-          itemClassName="local-grid-item"
-        />
+        >
+          <VirtualGrid
+            ref={virtuosoRef}
+            items={filteredGroups}
+            scrollRef={scrollRef}
+            minColumnWidth={posterSize}
+            gapX={12}
+            gapY={16}
+            estimateRowHeight={itemHeight}
+            getKey={(g) => (g.kind === 'movie' ? g.entry.id : g.key)}
+            renderItem={(g, idx) => LocalGridItem(idx, g, gridContext)}
+            onRangeChange={(range) => setVisibleRange(range)}
+            overscan={4}
+          />
+        </div>
       )}
 
       {/* A-Z quick jump rail (name order only, like the category view) */}

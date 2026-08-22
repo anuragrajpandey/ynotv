@@ -26,7 +26,7 @@ export function useVirtuosoListHeight(scroller: HTMLElement | null): number {
     };
 
     const attach = () => {
-      const el = scroller.querySelector('[data-testid="virtuoso-item-list"]');
+      const el = scroller.querySelector('.virtual-list__inner, [data-testid="virtuoso-item-list"]');
       if (!(el instanceof HTMLElement)) {
         // List removed (e.g. no rows) -> fall back to full-height line
         if (listEl) {

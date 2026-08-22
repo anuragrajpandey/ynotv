@@ -82,40 +82,22 @@
   background: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff));
 }
 
-/* Virtuoso Grid */
-.vod-browse__grid {
+/* Virtual Grid */
+.vod-browse__grid-scroll {
   flex: 1;
   min-height: 0;
-  /* Allow flex shrink */
-  /* Margin shrinks what Virtuoso measures - ensures column count matches */
-  /* Increased right margin to push scrollbar left, making room for alphabet rail */
   margin-left: 24px;
   margin-right: 60px;
+  padding-bottom: 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.vod-browse__grid-list {
-  /* Virtuoso uses absolute positioning - flexbox is for fallback only */
-  display: flex;
-  flex-wrap: wrap;
-  padding: 8px 0 16px;
+.vod-browse__grid-scroll .virtual-grid {
+  padding-top: 8px;
 }
 
-.vod-browse__grid-item {
-  /* Dynamic dimensions based on CSS variables */
-  /* padding: 2px all around = 4px horizontal gap, 4px vertical gap */
-  width: var(--vod-item-width, 164px);
-  height: var(--vod-item-height, 276px);
-  padding: 2px;
-  box-sizing: border-box;
-  margin: 0 !important;
-}
-
-.vod-browse__grid-item * {
-  margin: 0;
-}
-
-/* Ensure the card fills the tightly fitted slot regardless of its default size variant */
-.vod-browse__grid-item .media-card {
+.vod-browse__grid-scroll .virtual-grid__cell .media-card {
   width: var(--vod-card-width, 160px);
   height: var(--vod-card-height, 276px);
 }

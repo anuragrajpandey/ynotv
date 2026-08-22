@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import i18n, { translateNativeError } from '../../i18n';
 import { isMouseBackButtonActive } from '../../constants/shortcuts';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { Virtuoso } from 'react-virtuoso';
 import { useNuvioAuthStore } from '../../stores/nuvioAuthStore';
 import { useNuvioCollectionStore } from '../../stores/nuvioCollectionStore';
 import { useNuvioAddonStore } from '../../stores/nuvioAddonStore';

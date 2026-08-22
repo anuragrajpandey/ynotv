@@ -342,33 +342,21 @@
   gap: 10px;
 }
 
-/* Grid Layout — virtualized (react-virtuoso): only visible items are mounted,
-   so 50k+ entry libraries stay instant. Item geometry is fixed per poster size
-   (poster aspect 2/3 + title/subtitle block) so Virtuoso can size rows. */
-.local-grid {
+/* Grid Layout — virtualized (@tanstack/react-virtual): only visible items are mounted,
+   so 50k+ entry libraries stay instant. */
+.local-grid-scroll {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 24px;
 }
 
-.local-grid-list {
-  display: flex;
-  flex-wrap: wrap;
-  padding: 4px 0 16px;
+.local-grid-scroll .virtual-grid {
+  padding-top: 4px;
 }
 
-.local-grid-item {
-  width: var(--local-poster-size, 170px);
-  height: var(--local-item-height, 299px);
-  padding: 2px;
-  box-sizing: border-box;
-  margin: 0 !important;
-}
-
-.local-grid-item * {
-  margin: 0;
-}
-
-.local-grid-item .local-card {
+.local-grid-scroll .virtual-grid__cell .local-card {
   width: 100%;
   height: 100%;
 }

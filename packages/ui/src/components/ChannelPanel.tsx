@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useSourceVersion } from '../contexts/SourceVersionContext';
-import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
+import { VirtualList, type VirtualListHandle } from './common/VirtualList';
 import { useChannels, useCategories, useAllPrograms, useProgramsInRange, parseCategoryIds } from '../hooks/useChannels';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useLiveQuery } from '../hooks/useSqliteLiveQuery';
@@ -1991,8 +1991,8 @@ export function ChannelPanel({
   // Track last channel ID to maintain resize when channel data is loading
   const lastChannelIdRef = useRef<string | null>(null);
 
-  // Virtuoso scrolling refs
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  // VirtualList scrolling refs
+  const virtuosoRef = useRef<VirtualListHandle>(null);
   const visibleRangeRef = useRef({ startIndex: 0, endIndex: 0 });
   const blockAutoScrollRef = useRef(false);
   // Track last channel click for double-click detection to close LiveTV
@@ -3286,28 +3286,21 @@ export function ChannelPanel({
                 searchChannels && searchChannels.length > 0 ? (
                   <div className="search-section search-channels-section">
                     <div className="search-channels-timeline">
-                      <Virtuoso
-                        key="search-channels"
-                        data={searchChannels}
-                        className="search-virtuoso"
-                        scrollerRef={handleSearchScrollerRef}
-                        itemContent={(index, channel, context) => (
-                          <ChannelRowVirtuoso
-                            index={index}
-                            channel={channel}
-                            data={context}
-                          />
-                        )}
-                        context={searchChannelRowContext}
-                        components={{
-                          EmptyPlaceholder: () => (
-                            <div className="guide-empty">
-                              <h3>{t('noResultsFound')}</h3>
-                              <p>{t('tryDifferentTerm')}</p>
-                            </div>
-                          ),
-                        }}
-                      />
+                      <div ref={handleSearchScrollerRef} className="search-virtuoso overflow-y-auto max-h-full">
+                        <VirtualList
+                          key="search-channels"
+                          items={searchChannels}
+                          estimateItemHeight={52}
+                          renderItem={(channel, index) => (
+                            <ChannelRowVirtuoso
+                              index={index}
+                              channel={channel}
+                              data={searchChannelRowContext}
+                            />
+                          )}
+                          overscan={4}
+                        />
+                      </div>
                       {/* Current time indicator - spans the channel rows only */}
                       {currentTimeIndicatorPosition !== null && (
                         <div
@@ -3332,20 +3325,21 @@ export function ChannelPanel({
               {effectiveSearchTab === 'live' && searchScope !== 'channels' && (
                 liveChannels.length > 0 ? (
                   <div className="search-section search-programs-section">
-                    <Virtuoso
-                      key="search-live"
-                      data={liveChannels}
-                      className="search-virtuoso"
-                      scrollerRef={handleSearchScrollerRef}
-                      itemContent={(index, entry, context) => (
-                        <SearchResultRowVirtuoso
-                          index={index}
-                          entry={entry}
-                          data={context}
-                        />
-                      )}
-                      context={searchProgramRowContext}
-                    />
+                    <div ref={handleSearchScrollerRef} className="search-virtuoso overflow-y-auto max-h-full">
+                      <VirtualList
+                        key="search-live"
+                        items={liveChannels}
+                        estimateItemHeight={80}
+                        renderItem={(entry, index) => (
+                          <SearchResultRowVirtuoso
+                            index={index}
+                            entry={entry}
+                            data={searchProgramRowContext}
+                          />
+                        )}
+                        overscan={4}
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="guide-empty">
@@ -3359,20 +3353,21 @@ export function ChannelPanel({
               {effectiveSearchTab === 'upcoming' && searchScope !== 'channels' && (
                 upcomingChannels.length > 0 ? (
                   <div className="search-section search-programs-section">
-                    <Virtuoso
-                      key="search-upcoming"
-                      data={upcomingChannels}
-                      className="search-virtuoso"
-                      scrollerRef={handleSearchScrollerRef}
-                      itemContent={(index, entry, context) => (
-                        <SearchResultRowVirtuoso
-                          index={index}
-                          entry={entry}
-                          data={context}
-                        />
-                      )}
-                      context={searchProgramRowContext}
-                    />
+                    <div ref={handleSearchScrollerRef} className="search-virtuoso overflow-y-auto max-h-full">
+                      <VirtualList
+                        key="search-upcoming"
+                        items={upcomingChannels}
+                        estimateItemHeight={80}
+                        renderItem={(entry, index) => (
+                          <SearchResultRowVirtuoso
+                            index={index}
+                            entry={entry}
+                            data={searchProgramRowContext}
+                          />
+                        )}
+                        overscan={4}
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="guide-empty">
@@ -3384,61 +3379,66 @@ export function ChannelPanel({
             </div>
           ) : (
             /* Normal EPG Grid View */
-            <Virtuoso
-              key={`channel-list-${categoryId ?? 'all'}-${favoritesVersion}-${channelSearchQuery}`}
-              ref={virtuosoRef}
-              data={filteredChannels}
-              className="guide-channels"
-              scrollerRef={handleGuideScrollerRef}
-              rangeChanged={(range) => {
-                visibleRangeRef.current = range;
-                if (!shouldTrackVisibleRange) return;
-                setVisibleIndices((prev) =>
-                  prev.startIndex === range.startIndex && prev.endIndex === range.endIndex
-                    ? prev
-                    : range
-                );
-              }}
-              itemContent={(index, channel, context) => (
-                <ChannelRowVirtuoso
-                  index={index}
-                  channel={channel}
-                  data={context}
+            filteredChannels.length === 0 ? (
+              <div ref={handleGuideScrollerRef} className="guide-channels overflow-y-auto flex-1 min-h-0">
+                <div className="guide-empty">
+                  <h3>{channelSearchQuery ? t('noChannelsFound') : t('noChannels')}</h3>
+                </div>
+              </div>
+            ) : (
+              <div
+                ref={handleGuideScrollerRef}
+                className="guide-channels overflow-y-auto flex-1 min-h-0"
+              >
+                <VirtualList
+                  key={`channel-list-${categoryId ?? 'all'}-${favoritesVersion}-${channelSearchQuery}`}
+                  ref={virtuosoRef}
+                  items={filteredChannels}
+                  estimateItemHeight={52}
+                  onRangeChange={(range) => {
+                    visibleRangeRef.current = range;
+                    if (!shouldTrackVisibleRange) return;
+                    setVisibleIndices((prev) =>
+                      prev.startIndex === range.startIndex && prev.endIndex === range.endIndex
+                        ? prev
+                        : range
+                    );
+                  }}
+                  renderItem={(channel, index) => (
+                    <ChannelRowVirtuoso
+                      index={index}
+                      channel={channel}
+                      data={{
+                        channelSortOrder,
+                        programs,
+                        windowStart,
+                        windowEnd,
+                        pixelsPerHour,
+                        visibleHours,
+                        handleChannelClick,
+                        onPlayCatchup,
+                        handleFavoriteToggle,
+                        categoryId,
+                        activeRecordings,
+                        currentLayout,
+                        onSendToSlot,
+                        onPlayInPopout,
+                        onPlayInExternal,
+                        currentChannel,
+                        showPlaylistName: categoryId === '__recent__' ? showRecentPlaylistName : categoryId === '__favorites__' ? showFavPlaylistName : isCustomCategory ? showCustomPlaylistName : false,
+                        sourceNames,
+                        epgMetadataBadgeResolution,
+                        epgMetadataBadgeFps,
+                        epgMetadataBadgeSound,
+                        epgMetadataBadgeBitrate,
+                        epgMetadataBadgeAudioBitrate,
+                      }}
+                    />
+                  )}
+                  overscan={5}
                 />
-              )}
-              context={{
-                channelSortOrder,
-                programs,
-                windowStart,
-                windowEnd,
-                pixelsPerHour,
-                visibleHours,
-                handleChannelClick,
-                onPlayCatchup,
-                handleFavoriteToggle,
-                categoryId,
-                activeRecordings,
-                currentLayout,
-                onSendToSlot,
-                onPlayInPopout,
-                onPlayInExternal,
-                currentChannel,
-                showPlaylistName: categoryId === '__recent__' ? showRecentPlaylistName : categoryId === '__favorites__' ? showFavPlaylistName : isCustomCategory ? showCustomPlaylistName : false,
-                sourceNames,
-                epgMetadataBadgeResolution,
-                epgMetadataBadgeFps,
-                epgMetadataBadgeSound,
-                epgMetadataBadgeBitrate,
-                epgMetadataBadgeAudioBitrate,
-              }}
-              components={{
-                EmptyPlaceholder: () => (
-                  <div className="guide-empty">
-                    <h3>{channelSearchQuery ? t('noChannelsFound') : t('noChannels')}</h3>
-                  </div>
-                ),
-              }}
-            />
+              </div>
+            )
           )}
           {/* Current time indicator - spans through all channel rows, but stops
               at the last rendered row instead of the bottom of the panel */}

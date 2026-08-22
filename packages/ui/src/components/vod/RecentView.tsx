@@ -4,8 +4,8 @@
  * Shows recently watched items with progress bars and episode info
  */
 
-import { useState, useCallback, useMemo, useRef, forwardRef } from 'react';
-import { VirtuosoGrid, VirtuosoGridHandle } from 'react-virtuoso';
+import { useCallback, useMemo, useRef } from 'react';
+import { VirtualGrid, type VirtualGridHandle } from '../common/VirtualGrid';
 import { MediaCard } from './MediaCard';
 import type { StoredMovie, StoredSeries } from '../../db';
 import type { RecentlyWatchedItem } from '../../hooks/useVod';
@@ -13,18 +13,7 @@ import { useSourceNameMap } from '../../hooks/useChannels';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
-import './VodBrowse.css'; // Reuse VodBrowse styles for consistent grid
-
-// Custom Scroller - force scrollbar always visible
-const GridScroller = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  (props, ref) => (
-    <div
-      ref={ref}
-      {...props}
-      style={{ ...props.style, overflowY: 'scroll' }}
-    />
-  )
-);
+import './VodBrowse.css';
 
 export interface RecentViewProps {
   type: 'movie' | 'series';
@@ -44,18 +33,14 @@ export function RecentView({
   onPlayItem,
 }: RecentViewProps) {
   useTranslation();
-  const virtuosoRef = useRef<VirtuosoGridHandle>(null);
-  const [visibleRange, setVisibleRange] = useState({ startIndex: 0, endIndex: 0 });
+  const virtualGridRef = useRef<VirtualGridHandle>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const vodShowSourceBadge = useSettingsStore((s) => s.vodShowSourceBadge);
   const sourceNameMap = useSourceNameMap();
 
-  // Debug logging
-  console.log('[RecentView] Props:', { type, itemsCount: items.length, loading, items });
-
   // Extract raw items for the grid
   const rawItems = useMemo(() => {
-    console.log('[RecentView] Extracting raw items from:', items);
     return items.map(i => i.item);
   }, [items]);
 
@@ -87,13 +72,8 @@ export function RecentView({
   }, [items, type]);
 
   // Grid item renderer
-  const itemContent = useCallback((index: number) => {
-    console.log('[RecentView] Rendering item at index:', index, 'rawItems length:', rawItems.length);
-    const item = rawItems[index];
-    if (!item) {
-      console.log('[RecentView] No item at index:', index);
-      return null;
-    }
+  const ItemContent = useCallback((index: number, item: StoredMovie | StoredSeries) => {
+    if (!item) return null;
 
     const itemId = type === 'movie' 
       ? (item as StoredMovie).stream_id 
@@ -109,6 +89,7 @@ export function RecentView({
       <MediaCard
         item={item}
         type={type}
+        index={index}
         onClick={(clickedItem) => {
           onItemClick(
             clickedItem,
@@ -134,9 +115,7 @@ export function RecentView({
         } : undefined}
       />
     );
-  }, [rawItems, type, progressMap, episodeDataMap, vodShowSourceBadge, sourceNameMap, onItemClick, onRemove, onPlayItem]);
-
-  console.log('[RecentView] Render check:', { loading, itemsLength: items.length, rawItemsLength: rawItems.length });
+  }, [type, progressMap, episodeDataMap, vodShowSourceBadge, sourceNameMap, onItemClick, onRemove, onPlayItem]);
 
   if (loading) {
     return (
@@ -162,19 +141,19 @@ export function RecentView({
 
   return (
     <div className="vod-browse">
-      <VirtuosoGrid
-        ref={virtuosoRef}
-        className="vod-browse__grid"
-        data={rawItems}
-        totalCount={rawItems.length}
-        itemContent={itemContent}
-        components={{
-          Scroller: GridScroller,
-        }}
-        listClassName="vod-browse__grid-list"
-        itemClassName="vod-browse__grid-item"
-        rangeChanged={setVisibleRange}
-      />
+      <div ref={scrollRef} className="vod-browse__grid-scroll flex-1 min-h-0 overflow-y-auto">
+        <VirtualGrid
+          ref={virtualGridRef}
+          items={rawItems}
+          scrollRef={scrollRef}
+          minColumnWidth={164}
+          gapX={8}
+          gapY={12}
+          estimateRowHeight={276}
+          renderItem={(item, index) => ItemContent(index, item)}
+          overscan={4}
+        />
+      </div>
     </div>
   );
 }

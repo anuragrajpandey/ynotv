@@ -142,8 +142,17 @@ function getFocusCandidates(): HTMLElement[] {
     // center sits mid-list, so it wins the scoring whenever no card row aligns
     // with the focused item — pressing right from the VOD sidebar (or left
     // from the alphabet rail) would "highlight the whole list" instead of a
-    // poster. A scroll container is a scroll target, never a nav target.
-    if (el.hasAttribute('data-virtuoso-scroller') || el.classList.contains('vod-grid-scroller')) return false;
+    // A scroll container is a scroll target, never a nav target.
+    if (
+      el.hasAttribute('data-virtuoso-scroller') ||
+      el.classList.contains('vod-grid-scroller') ||
+      el.classList.contains('virtual-grid') ||
+      el.classList.contains('virtual-list') ||
+      el.classList.contains('virtual-grid__inner') ||
+      el.classList.contains('virtual-list__inner')
+    ) {
+      return false;
+    }
 
     const isScrollContainer =
       el.scrollHeight > el.clientHeight + 4 || el.scrollWidth > el.clientWidth + 4;
@@ -319,41 +328,52 @@ function findScrollerFor(el: HTMLElement): HTMLElement | null {
 }
 
 /**
- * Virtuoso mounts a requested item asynchronously. Observe its scroller rather
- * than relying on a few animation frames: large categories can take longer
- * than a frame budget to render the requested row.
+ * Poll for a virtualized target element after Virtuoso has been asked to
+ * scroll/mount it. Uses document.querySelector so there is no dependency on
+ * the exact scroller DOM object (avoids object-identity mismatches from
+ * findScrollerFor being called with different elements). pendingVirtualFocus
+ * stays true for the entire polling window so the scoring loop and lost-focus
+ * recovery cannot steal focus to chrome or the sidebar.
  */
-function focusWhenVirtualTargetMounts(scroller: HTMLElement, selector: string): void {
+function focusVirtualTargetByPolling(selector: string, maxFrames = 20): void {
   cancelPendingVirtualFocus?.();
 
   pendingVirtualFocus = true;
 
-  let settled = false;
-  let observer: MutationObserver | null = null;
-  let timeout: number | undefined;
+  let frames = 0;
+  let rafId: number | undefined;
 
   const cleanup = () => {
-    if (settled) return;
-    settled = true;
-    observer?.disconnect();
-    if (timeout !== undefined) window.clearTimeout(timeout);
+    if (rafId !== undefined) cancelAnimationFrame(rafId);
     if (cancelPendingVirtualFocus === cleanup) cancelPendingVirtualFocus = null;
     pendingVirtualFocus = false;
   };
 
   const tryFocus = () => {
-    if (settled) return;
-    const target = scroller.querySelector<HTMLElement>(selector);
-    if (!target || !isElementVisible(target)) return;
-    cleanup();
-    applyTvFocus(target);
+    frames++;
+    // Use document.querySelector (not scroller.querySelector) so we never
+    // depend on finding the exact scroller DOM object — the same element
+    // found via a class-name walk vs the overflow check can be a different
+    // object, making scroller.querySelector miss the newly mounted item.
+    const target = document.querySelector<HTMLElement>(selector);
+    if (target && isElementVisible(target)) {
+      cleanup();
+      applyTvFocus(target);
+      return;
+    }
+    if (frames < maxFrames) {
+      rafId = requestAnimationFrame(tryFocus);
+    } else {
+      // Virtuoso did not mount the target in time. Release the lock so the
+      // user is not permanently stuck, but do NOT focus chrome elements.
+      cleanup();
+    }
   };
 
-  observer = new MutationObserver(tryFocus);
-  observer.observe(scroller, { childList: true, subtree: true });
-  timeout = window.setTimeout(cleanup, 2000);
   cancelPendingVirtualFocus = cleanup;
-  tryFocus();
+  // Start on the next animation frame so Virtuoso's scrollToIndex has a
+  // chance to schedule its DOM work before we begin polling.
+  rafId = requestAnimationFrame(tryFocus);
 }
 
 function findFocusableByKey(key: string): HTMLElement | null {
@@ -668,18 +688,27 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
   // next-row target over geometric scoring: at the bottom of the rendered
   // range, the score can only see chrome while the next grid row is mounting.
   if (isMediaCard && (dir === 'down' || dir === 'up')) {
-    const scroller = findScrollerFor(current);
-    const currentIndex = parseInt(current.getAttribute('data-index') || '-1', 10);
-    if (scroller && currentIndex >= 0) {
-      const cards = Array.from(document.querySelectorAll<HTMLElement>('.media-card')).filter(
-        (card) => findScrollerFor(card) === scroller
-      );
-      const currentRow = cards.filter(
-        (card) => Math.abs(card.getBoundingClientRect().top - curRect.top) < 10
+    // Always read data-index from the .media-card element itself, not from a
+    // focused child element inside the card (which would return -1).
+    const cardEl = current.classList.contains('media-card')
+      ? current
+      : current.closest<HTMLElement>('.media-card');
+    const currentIndex = cardEl ? parseInt(cardEl.getAttribute('data-index') || '-1', 10) : -1;
+    if (currentIndex >= 0) {
+      // Collect only cards that are in the same visual row as the focused card.
+      // Use the cardEl rect (not curRect) in case current is a child element.
+      const cardRect = cardEl!.getBoundingClientRect();
+      const allCards = Array.from(document.querySelectorAll<HTMLElement>('.media-card'));
+      const currentRow = allCards.filter(
+        (card) => Math.abs(card.getBoundingClientRect().top - cardRect.top) < 10
       );
       const columns = Math.max(currentRow.length, 1);
       const targetIndex = currentIndex + (dir === 'down' ? columns : -columns);
-      const target = cards.find((card) => card.getAttribute('data-index') === String(targetIndex));
+      // Look for the target by data-index across all mounted media cards —
+      // no scroller identity filter to avoid object-mismatch false negatives.
+      const target = allCards.find(
+        (card) => card.getAttribute('data-index') === String(targetIndex)
+      );
       if (target) {
         applyTvFocus(target);
         return true;
@@ -688,7 +717,10 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
         window.dispatchEvent(
           new CustomEvent('ynotv:spatial-scroll-to-index', { detail: { surface: 'vod-grid', index: targetIndex } })
         );
-        focusWhenVirtualTargetMounts(scroller, `.media-card[data-index="${targetIndex}"]`);
+        // Poll with rAF until Virtuoso mounts the target row. document.querySelector
+        // is used inside focusVirtualTargetByPolling so there is no scroller
+        // object-identity dependency.
+        focusVirtualTargetByPolling(`.media-card[data-index="${targetIndex}"]`);
         return true;
       }
     }
@@ -698,12 +730,15 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
   // makes each Up/Down move deterministic and keeps focus in the channel
   // column even while the list recycles rows.
   if (isChannelInfo && (dir === 'down' || dir === 'up')) {
-    const scroller = findScrollerFor(current);
     const currentIndex = parseInt(current.getAttribute('data-index') || '-1', 10);
-    if (scroller && currentIndex >= 0) {
+    if (currentIndex >= 0) {
       const targetIndex = currentIndex + (dir === 'down' ? 1 : -1);
+      // Search all channel rows without a scroller identity filter — the
+      // object-identity check (findScrollerFor(row) === scroller) can fail when
+      // findScrollerFor terminates through different code paths for different
+      // elements, causing the target to appear "not found" even when it is mounted.
       const target = Array.from(document.querySelectorAll<HTMLElement>('.guide-channel-info')).find(
-        (row) => row.getAttribute('data-index') === String(targetIndex) && findScrollerFor(row) === scroller
+        (row) => row.getAttribute('data-index') === String(targetIndex)
       );
       if (target) {
         applyTvFocus(target);
@@ -713,7 +748,8 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
         window.dispatchEvent(
           new CustomEvent('ynotv:spatial-scroll-to-index', { detail: { surface: 'channel-list', index: targetIndex } })
         );
-        focusWhenVirtualTargetMounts(scroller, `.guide-channel-info[data-index="${targetIndex}"]`);
+        // Poll with rAF until Virtuoso mounts the target row.
+        focusVirtualTargetByPolling(`.guide-channel-info[data-index="${targetIndex}"]`);
         return true;
       }
     }
@@ -912,131 +948,6 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
   if (bestElement) {
     applyTvFocus(bestElement);
     return true;
-  }
-
-  // Virtualization Edge Handler (poster grids):
-  // When at the rendered DOM boundary of a virtualized grid, advance the scroller
-  // and focus the target row on the next animation frame when Virtuoso mounts it.
-  if (isMediaCard && (dir === 'down' || dir === 'up')) {
-    const scroller = findScrollerFor(current);
-    if (scroller) {
-      const canScrollDown = dir === 'down' && scroller.scrollTop < scroller.scrollHeight - scroller.clientHeight - 10;
-      const canScrollUp = dir === 'up' && scroller.scrollTop > 10;
-
-      if (canScrollDown || canScrollUp) {
-        const curIdx = parseInt(current.getAttribute('data-index') || '-1', 10);
-        const allCards = Array.from(document.querySelectorAll<HTMLElement>('.vod-browse__grid .media-card, .local-grid .media-card, .vod-grid-scroller .media-card'));
-        const firstRowCards = allCards.filter(c => Math.abs(c.getBoundingClientRect().top - allCards[0].getBoundingClientRect().top) < 10);
-        const cols = Math.max(firstRowCards.length, 1);
-        const targetIdx = curIdx !== -1 ? (dir === 'down' ? curIdx + cols : curIdx - cols) : -1;
-        const delta = dir === 'down' ? Math.max(curRect.height, 280) : -Math.max(curRect.height, 280);
-        const originLeft = curRect.left;
-        const beforeCenterY = curRect.top + curRect.height / 2;
-
-        scroller.scrollTop += delta;
-
-        let frames = 0;
-        const checkTarget = () => {
-          frames++;
-          let targetEl: HTMLElement | null = null;
-
-          if (targetIdx !== -1) {
-            // data-index is the Virtuoso data index, so it is the reliable
-            // target even after scrolling changes the item's screen position.
-            targetEl = Array.from(document.querySelectorAll<HTMLElement>(`.media-card[data-index="${targetIdx}"]`))
-              .find((card) => findScrollerFor(card) === scroller) || null;
-          }
-
-          if (!targetEl) {
-            const newCards = Array.from(document.querySelectorAll<HTMLElement>('.vod-browse__grid .media-card, .local-grid .media-card, .vod-grid-scroller .media-card'));
-            const expectedCenterY = beforeCenterY - delta;
-            let bestDistance = Infinity;
-            for (const c of newCards) {
-              const r = c.getBoundingClientRect();
-              if (Math.abs(r.left - originLeft) > 60) continue;
-              const centerY = r.top + r.height / 2;
-              const correctDir = dir === 'down' ? centerY > expectedCenterY + 10 : centerY < expectedCenterY - 10;
-              if (!correctDir) continue;
-              const distance = Math.abs(centerY - expectedCenterY);
-              if (distance < bestDistance) {
-                bestDistance = distance;
-                targetEl = c;
-              }
-            }
-          }
-
-          if (targetEl && isElementVisible(targetEl)) {
-            applyTvFocus(targetEl);
-          } else if (frames < 8) {
-            requestAnimationFrame(checkTarget);
-          }
-        };
-        requestAnimationFrame(checkTarget);
-        return true;
-      }
-    }
-  }
-
-  // Virtualization Edge Handler (LiveTV channel list): the channel list is a
-  // plain Virtuoso list. Scroll one row and focus the next channel in the
-  // same column once Virtuoso mounts it.
-  if (isChannelInfo && (dir === 'down' || dir === 'up')) {
-    const scroller = findScrollerFor(current);
-    if (scroller) {
-      const canScrollDown = dir === 'down' && scroller.scrollTop < scroller.scrollHeight - scroller.clientHeight - 10;
-      const canScrollUp = dir === 'up' && scroller.scrollTop > 10;
-
-      if (canScrollDown || canScrollUp) {
-        const originLeft = curRect.left;
-        const beforeCenterY = curRect.top + curRect.height / 2;
-        const delta = dir === 'down' ? Math.max(curRect.height, 56) : -Math.max(curRect.height, 56);
-        const currentIndex = parseInt(current.getAttribute('data-index') || '-1', 10);
-        const targetIndex = currentIndex === -1 ? -1 : currentIndex + (dir === 'down' ? 1 : -1);
-
-        scroller.scrollTop += delta;
-
-        let frames = 0;
-        const checkTarget = () => {
-          frames++;
-          const expectedCenterY = beforeCenterY - delta;
-          const rows = Array.from(document.querySelectorAll<HTMLElement>('.guide-channel-info'));
-          let target: HTMLElement | null = null;
-          let bestDistance = Infinity;
-
-          if (targetIndex >= 0) {
-            target = rows.find(
-              (row) => row.getAttribute('data-index') === String(targetIndex) && findScrollerFor(row) === scroller
-            ) || null;
-          }
-
-          if (target) {
-            applyTvFocus(target);
-            return;
-          }
-
-          for (const r of rows) {
-            const rect = r.getBoundingClientRect();
-            if (Math.abs(rect.left - originLeft) > 60) continue;
-            const centerY = rect.top + rect.height / 2;
-            const correctDir = dir === 'down' ? centerY > expectedCenterY + 10 : centerY < expectedCenterY - 10;
-            if (!correctDir) continue;
-            const distance = Math.abs(centerY - expectedCenterY);
-            if (distance < bestDistance) {
-              bestDistance = distance;
-              target = r;
-            }
-          }
-
-          if (target && isElementVisible(target)) {
-            applyTvFocus(target);
-          } else if (frames < 8) {
-            requestAnimationFrame(checkTarget);
-          }
-        };
-        requestAnimationFrame(checkTarget);
-        return true;
-      }
-    }
   }
 
   // No valid target in that direction — shake the focused element so remote

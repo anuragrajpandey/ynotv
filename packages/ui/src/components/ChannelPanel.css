@@ -1113,10 +1113,16 @@
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   scroll-behavior: auto;
+  contain: layout paint;
+}
+
+.guide-channels .virtual-list,
+.search-virtuoso .virtual-list {
+  contain: layout paint;
 }
 
 /* Scrollbar - shared by the LiveTV EPG grid and the virtualized search
-   Channels tab (both use a Virtuoso scroller, so the same rules apply) */
+   Channels tab */
 .guide-channels::-webkit-scrollbar,
 .search-virtuoso::-webkit-scrollbar {
   width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));

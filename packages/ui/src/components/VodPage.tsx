@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import i18n from '../i18n';
 import { isMouseBackButtonActive } from '../constants/shortcuts';
 import { useSettingsStore } from '../stores/settingsStore';
-import { Virtuoso } from 'react-virtuoso';
+import { VirtualList } from './common/VirtualList';
 import { HeroSection } from './vod/HeroSection';
 import { HorizontalCarousel } from './vod/HorizontalCarousel';
 import { VerticalSidebar } from './vod/VerticalSidebar';
@@ -111,28 +111,7 @@ interface HomeVirtuosoContext {
   onSelectVodPlayerMode?: (mode: VodPlayerMode) => void;
 }
 
-// Header component for Virtuoso (defined outside render to prevent remounting)
-const HomeHeader: React.ComponentType<{ context?: HomeVirtuosoContext }> = ({ context }) => {
-  if (!context) return null;
-  const { featuredItems, type, onHeroPlay, onItemClick, tmdbApiKey, heroLoading, vodPlayerMode, onSelectVodPlayerMode } = context;
-  
-  if (featuredItems.length === 0 && !heroLoading) return null;
-  
-  return (
-    <HeroSection
-      items={featuredItems}
-      type={type}
-      onPlay={onHeroPlay}
-      onMoreInfo={onItemClick}
-      loading={heroLoading}
-      vodPlayerMode={vodPlayerMode}
-      onSelectVodPlayerMode={onSelectVodPlayerMode}
-    />
-  );
-};
-
-// Item renderer for Virtuoso (defined outside render)
-// All data is pre-fetched, so this just renders the carousel
+// Item renderer for carousels
 const CarouselRowContent = (
   _index: number,
   row: CarouselRow,
@@ -171,11 +150,6 @@ const CarouselRowContent = (
       onPlayItem={onPlayItem}
     />
   );
-};
-
-// Stable components object for Virtuoso
-const homeVirtuosoComponents = {
-  Header: HomeHeader,
 };
 
 interface VodPageProps {
@@ -1091,15 +1065,26 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
           />
         ) : (
           // Home view: Hero + virtualized carousels
-          <Virtuoso
-            className="vod-page__home"
-            data={carouselRows}
-            context={homeVirtuosoContext}
-            overscan={200}
-            computeItemKey={(_, row) => row.key}
-            components={homeVirtuosoComponents}
-            itemContent={CarouselRowContent}
-          />
+          <div className="vod-page__home flex-1 min-h-0 overflow-y-auto">
+            {featuredItems.length > 0 && (
+              <HeroSection
+                items={featuredItems}
+                type={type}
+                onPlay={handleHeroPlay}
+                onMoreInfo={handleItemClick}
+                loading={heroLoading}
+                vodPlayerMode={vodPlayerMode}
+                onSelectVodPlayerMode={onSelectVodPlayerMode}
+              />
+            )}
+            <VirtualList
+              items={carouselRows}
+              estimateItemHeight={280}
+              getKey={(row) => row.key}
+              renderItem={(row, index) => CarouselRowContent(index, row, homeVirtuosoContext)}
+              overscan={3}
+            />
+          </div>
         )}
       </main>
 
