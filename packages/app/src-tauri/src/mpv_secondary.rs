@@ -266,7 +266,9 @@ async fn spawn_slot_sidecar<R: Runtime>(
     tokio::time::sleep(Duration::from_millis(1200)).await;
 
     let target_title = format!("YNOTV_MPV_SLOT_{}", slot_id);
-    let hwnd_raw = crate::mpv_windows::find_mpv_hwnd_by_title(parent_hwnd_raw, &target_title).unwrap_or(0);
+    let hwnd_raw = crate::mpv_windows::find_mpv_hwnd_by_pid(parent_hwnd_raw, pid)
+        .or_else(|| crate::mpv_windows::find_mpv_hwnd_by_title(parent_hwnd_raw, &target_title))
+        .unwrap_or(0);
     if hwnd_raw != 0 {
         let _ = set_hwnd_rect(hwnd_raw, x, y, width, height, true);
     }
@@ -457,7 +459,18 @@ pub async fn reposition_slot<R: Runtime>(
             if hwnd == 0 {
                 if let Ok(parent_hwnd_raw) = get_parent_hwnd(app) {
                     let target_title = format!("YNOTV_MPV_SLOT_{}", slot_id);
-                    if let Some(found) = crate::mpv_windows::find_mpv_hwnd_by_title(parent_hwnd_raw, &target_title) {
+                    let found_hwnd = {
+                        let state = app.state::<SecondaryMpvState>();
+                        let slots = state.slots.lock().unwrap();
+                        match slots.get(&slot_id) {
+                            Some(SecondarySlot::Sidecar { pid, .. }) => {
+                                crate::mpv_windows::find_mpv_hwnd_by_pid(parent_hwnd_raw, *pid)
+                                    .or_else(|| crate::mpv_windows::find_mpv_hwnd_by_title(parent_hwnd_raw, &target_title))
+                            }
+                            _ => crate::mpv_windows::find_mpv_hwnd_by_title(parent_hwnd_raw, &target_title),
+                        }
+                    };
+                    if let Some(found) = found_hwnd {
                         hwnd = found;
                         let state = app.state::<SecondaryMpvState>();
                         let mut slots = state.slots.lock().unwrap();

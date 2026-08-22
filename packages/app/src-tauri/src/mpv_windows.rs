@@ -18,6 +18,7 @@ pub struct MpvState {
     pub process: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
     pub child: Mutex<Option<CommandChild>>,
     pub pid: Mutex<u32>,
+    pub main_hwnd: Mutex<isize>,
     pub socket_connected: Mutex<bool>,
     pub ipc_tx: Mutex<Option<tokio::sync::mpsc::Sender<String>>>,
     pub pending_requests: Arc<Mutex<HashMap<u64, tokio::sync::oneshot::Sender<Result<Value, String>>>>>,
@@ -31,6 +32,7 @@ impl MpvState {
             process: Mutex::new(None),
             child: Mutex::new(None),
             pid: Mutex::new(0),
+            main_hwnd: Mutex::new(0),
             socket_connected: Mutex::new(false),
             ipc_tx: Mutex::new(None),
             pending_requests: Arc::new(Mutex::new(HashMap::new())),
@@ -66,6 +68,10 @@ fn kill_and_clear_state(state: &tauri::State<'_, MpvState>) {
     {
         let mut pid = state.pid.lock().unwrap();
         *pid = 0;
+    }
+    {
+        let mut main_hwnd = state.main_hwnd.lock().unwrap();
+        *main_hwnd = 0;
     }
     {
         let mut init = state.initializing.lock().unwrap();
@@ -214,6 +220,123 @@ pub fn find_mpv_hwnd_by_title(parent_hwnd_raw: isize, target_title: &str) -> Opt
     }
 
     if data.result == 0 { None } else { Some(data.result) }
+}
+
+/// True if `hwnd_raw` still points at a live mpv window (class "mpv").
+#[cfg(target_os = "windows")]
+pub fn is_valid_mpv_hwnd(hwnd_raw: isize) -> bool {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{GetClassNameW, IsWindow};
+    unsafe {
+        let hwnd = HWND(hwnd_raw as _);
+        if !IsWindow(hwnd).as_bool() {
+            return false;
+        }
+        let mut class_buf = [0u16; 64];
+        let class_len = GetClassNameW(hwnd, &mut class_buf);
+        if class_len == 0 {
+            return false;
+        }
+        let class_str = String::from_utf16_lossy(&class_buf[..class_len as usize]);
+        class_str.eq_ignore_ascii_case("mpv")
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn is_valid_mpv_hwnd(_hwnd_raw: isize) -> bool {
+    false
+}
+
+/// Find an MPV child HWND belonging to a specific process ID.
+/// Uses Win32 GetWindowThreadProcessId to match the exact PID created by the mpv sidecar.
+#[cfg(target_os = "windows")]
+pub fn find_mpv_hwnd_by_pid(parent_hwnd_raw: isize, target_pid: u32) -> Option<isize> {
+    use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{EnumChildWindows, EnumWindows, GetClassNameW, GetWindowThreadProcessId};
+
+    if target_pid == 0 {
+        return None;
+    }
+
+    struct SearchData {
+        target_pid: u32,
+        result: isize,
+    }
+
+    let mut data = SearchData {
+        target_pid,
+        result: 0,
+    };
+
+    unsafe extern "system" fn enum_child_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let data = &mut *(lparam.0 as *mut SearchData);
+        let mut process_id: u32 = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+        if process_id == data.target_pid {
+            let mut class_buf = [0u16; 64];
+            let class_len = GetClassNameW(hwnd, &mut class_buf);
+            if class_len > 0 {
+                let class_str = String::from_utf16_lossy(&class_buf[..class_len as usize]);
+                if class_str.eq_ignore_ascii_case("mpv") {
+                    data.result = hwnd.0 as isize;
+                    return BOOL(0);
+                }
+            }
+        }
+        BOOL(1)
+    }
+
+    if parent_hwnd_raw != 0 {
+        let parent = HWND(parent_hwnd_raw as _);
+        unsafe {
+            let _ = EnumChildWindows(
+                parent,
+                Some(enum_child_proc),
+                LPARAM(&mut data as *mut SearchData as isize),
+            );
+        }
+    }
+
+    if data.result != 0 {
+        return Some(data.result);
+    }
+
+    // Fallback: search top-level windows in case mpv was not an immediate child
+    unsafe extern "system" fn enum_top_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let data = &mut *(lparam.0 as *mut SearchData);
+        let mut process_id: u32 = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+        if process_id == data.target_pid {
+            let mut class_buf = [0u16; 64];
+            let class_len = GetClassNameW(hwnd, &mut class_buf);
+            if class_len > 0 {
+                let class_str = String::from_utf16_lossy(&class_buf[..class_len as usize]);
+                if class_str.eq_ignore_ascii_case("mpv") {
+                    data.result = hwnd.0 as isize;
+                    return BOOL(0);
+                }
+            }
+        }
+        BOOL(1)
+    }
+
+    unsafe {
+        let _ = EnumWindows(
+            Some(enum_top_proc),
+            LPARAM(&mut data as *mut SearchData as isize),
+        );
+    }
+
+    if data.result != 0 {
+        Some(data.result)
+    } else {
+        None
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn find_mpv_hwnd_by_pid(_parent_hwnd_raw: isize, _target_pid: u32) -> Option<isize> {
+    None
 }
 
 fn get_socket_path() -> String {
@@ -417,6 +540,14 @@ async fn try_spawn_mpv<R: Runtime>(app: &AppHandle<R>, state: &tauri::State<'_, 
     if connect_res.is_err() {
         log::error!("[MPV] IPC connection failed: {:?}", connect_res);
         kill_and_clear_state(state);
+    } else {
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(found) = find_mpv_hwnd_by_pid(hwnd as isize, pid) {
+                *state.main_hwnd.lock().unwrap() = found;
+                log::info!("[MPV] Main MPV HWND cached on spawn: {}", found);
+            }
+        }
     }
 
     *state.initializing.lock().unwrap() = false;
@@ -924,15 +1055,36 @@ pub async fn mpv_set_geometry<R: Runtime>(
         (x, y, width, height)
     };
 
-    let pid = { *app.state::<MpvState>().pid.lock().unwrap() };
-
-    let target_hwnd = if pid > 0 {
-        find_mpv_hwnd_by_title(parent_hwnd.0 as isize, "YNOTV_MPV_MAIN").map(|h| HWND(h as _))
+    let state = app.state::<MpvState>();
+    let cached = *state.main_hwnd.lock().unwrap();
+    let mut target_hwnd = if cached != 0 && is_valid_mpv_hwnd(cached) {
+        Some(HWND(cached as _))
     } else {
+        if cached != 0 {
+            *state.main_hwnd.lock().unwrap() = 0;
+        }
         None
     };
 
     if target_hwnd.is_none() {
+        let pid = { *state.pid.lock().unwrap() };
+        if pid > 0 {
+            if let Some(found) = find_mpv_hwnd_by_pid(parent_hwnd.0 as isize, pid) {
+                *state.main_hwnd.lock().unwrap() = found;
+                target_hwnd = Some(HWND(found as _));
+            }
+        }
+    }
+
+    if target_hwnd.is_none() {
+        if let Some(found) = find_mpv_hwnd_by_title(parent_hwnd.0 as isize, "YNOTV_MPV_MAIN") {
+            *state.main_hwnd.lock().unwrap() = found;
+            target_hwnd = Some(HWND(found as _));
+        }
+    }
+
+    if target_hwnd.is_none() {
+        log::warn!("[MPV] mpv_set_geometry: target MPV window not found (pid={})", *state.pid.lock().unwrap());
         // MPV window not found — fall back to IPC zoom/align
         return Ok(());
     }
@@ -978,6 +1130,10 @@ pub async fn kill_mpv<R: Runtime>(app: &AppHandle<R>) {
     {
         let mut pid = state.pid.lock().unwrap();
         *pid = 0;
+    }
+    {
+        let mut main_hwnd = state.main_hwnd.lock().unwrap();
+        *main_hwnd = 0;
     }
 }
 

@@ -250,6 +250,9 @@ export function useMultiview() {
             } else {
                 try {
                     await Bridge.setProperty('keepaspect', true);
+                    await Bridge.setProperty('video-zoom', 0);
+                    await Bridge.setProperty('video-align-x', 0);
+                    await Bridge.setProperty('video-align-y', 0);
                 } catch (e) {
                     // Ignore reset errors
                 }
