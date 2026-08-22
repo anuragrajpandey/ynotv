@@ -52,6 +52,7 @@ import { RecordingIndicator } from './components/RecordingIndicator';
 import { DownloadIndicator } from './components/DownloadIndicator';
 import { Logo } from './components/Logo';
 import { useSelectedCategory, useChannelSearch, useProgramSearch, useChannels, useCategories, useCurrentProgram, useSourceNameMap, parseCategoryIds } from './hooks/useChannels';
+import { epgTimeMs } from './utils/epgTime';
 import { usePhoneRemoteCompanion } from './hooks/usePhoneRemoteCompanion';
 import { useSportsSettingsStore } from './stores/sportsSettingsStore';
 import { useSportsPolling, isSportsCacheFresh } from './hooks/useSportsPolling';
@@ -1421,6 +1422,10 @@ function useTmdbPresencePoster(
     let title: string | null = null;
     let subtitle: string | undefined = undefined;
     let posterUrl: string | undefined = undefined;
+    let startTs: number | undefined = undefined;
+    let endTs: number | undefined = undefined;
+    let positionSec = position;
+    let durationSec = duration;
 
     const isVodPlayback = vodInfo != null || currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_');
 
@@ -1453,6 +1458,29 @@ function useTmdbPresencePoster(
       }
       // Use default App Icon from Discord Dev Portal for Live TV
       posterUrl = undefined;
+
+      // Live IPTV: mpv's duration is only the network buffer (~19s), which would
+      // render a bogus tiny timeline in Discord. Use the EPG program window as
+      // absolute start/end timestamps instead — Discord fills the bar from wall
+      // clock between the two, so the position tracks the program automatically.
+      // Catchup keeps the real seekable mpv timeline. Without EPG data the
+      // timeline is dropped entirely rather than showing the buffer bar.
+      if (!isCatchup && currentProgram) {
+        const startMs = epgTimeMs(currentProgram.start);
+        const endMs = epgTimeMs(currentProgram.end);
+        if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
+          startTs = Math.floor(startMs / 1000);
+          endTs = Math.floor(endMs / 1000);
+          positionSec = 0;
+          durationSec = 0;
+        } else {
+          positionSec = 0;
+          durationSec = 0;
+        }
+      } else if (!isCatchup) {
+        positionSec = 0;
+        durationSec = 0;
+      }
     }
 
     return {
@@ -1461,8 +1489,10 @@ function useTmdbPresencePoster(
       title,
       subtitle,
       posterUrl,
-      positionSec: position,
-      durationSec: duration,
+      positionSec,
+      durationSec,
+      startTs,
+      endTs,
     };
   }, [currentChannel, currentProgram, isCatchup, catchupInfo, vodInfo, tmdbPresencePoster, playing, position, duration]);
 

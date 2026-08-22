@@ -19,6 +19,11 @@ export type PlaybackPresence = {
   paused: boolean;
   positionSec: number;
   durationSec: number;
+  /** Absolute unix-seconds start/end (live TV EPG window). When both are
+   *  present they override positionSec/durationSec, so the Discord progress
+   *  bar spans the program itself instead of the small network buffer. */
+  startTs?: number;
+  endTs?: number;
 };
 
 export type BrowsePresence = {
@@ -68,8 +73,16 @@ function computeBase(): Base {
       };
     }
     const nowSec = Math.floor(Date.now() / 1000);
+    // Live TV with an EPG window: use the program's absolute start/end directly
+    // so the progress bar spans the program rather than the mpv network buffer.
+    const hasAbsTimeline =
+      playback.startTs != null &&
+      playback.endTs != null &&
+      playback.endTs > playback.startTs &&
+      playback.startTs <= nowSec &&
+      playback.endTs > nowSec;
     const remaining = playback.durationSec - playback.positionSec;
-    const live = !playback.paused && playback.durationSec > 0 && remaining > 0;
+    const live = !playback.paused && (hasAbsTimeline || (playback.durationSec > 0 && remaining > 0));
     const state = playback.paused
       ? i18n.t('discord:paused')
       : playback.subtitle || (playback.year != null ? String(playback.year) : undefined);
@@ -81,8 +94,17 @@ function computeBase(): Base {
         smallImageUrl: (config.showPoster && playback.smallImageUrl) || undefined,
         largeText: playback.year != null ? `${playback.title} (${playback.year})` : playback.title,
         startTs:
-          live && config.showTimestamp ? nowSec - Math.floor(playback.positionSec) : undefined,
-        endTs: live && config.showTimestamp ? nowSec + Math.floor(remaining) : undefined,
+          live && config.showTimestamp
+            ? hasAbsTimeline
+              ? Math.floor(playback.startTs!)
+              : nowSec - Math.floor(playback.positionSec)
+            : undefined,
+        endTs:
+          live && config.showTimestamp
+            ? hasAbsTimeline
+              ? Math.floor(playback.endTs!)
+              : nowSec + Math.floor(remaining)
+            : undefined,
         paused: playback.paused,
       },
       key: `play:${playback.title}|${state ?? ''}|${playback.paused}|${playback.posterUrl ?? ''}|${live ? 'ts' : 'nots'}`,
