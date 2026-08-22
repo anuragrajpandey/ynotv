@@ -20,7 +20,11 @@ const AVAILABLE_ACTIONS: Array<{ id: string; label: string }> = [
   { id: 'toggle_mute', label: 'Toggle Mute' },
   { id: 'search', label: 'Search' },
   { id: 'subtitles', label: 'Audio & Subtitle Tracks' },
-  { id: 'toggle_guide', label: 'TV Guide (EPG)' },
+  { id: 'toggle_livetv', label: 'Toggle LiveTV' },
+  { id: 'toggle_nuvio', label: 'Toggle Nuvio' },
+  { id: 'toggle_stremio', label: 'Toggle Stremio' },
+  { id: 'toggle_transparent_overlay', label: 'Toggle Transparent Overlay' },
+  { id: 'toggle_overlay', label: 'Toggle Overlay' },
   { id: 'open_movies', label: 'Open Movies' },
   { id: 'open_series', label: 'Open TV Series' },
   { id: 'open_sports', label: 'Open Sports Hub' },
@@ -438,7 +442,11 @@ export function ControllersTab() {
               </div>
               <select
                 className="mapping-select"
-                value={controllerMappings[btn.id] || DEFAULT_CONTROLLER_MAPPINGS[btn.id] || 'none'}
+                value={
+                  (controllerMappings[btn.id] || DEFAULT_CONTROLLER_MAPPINGS[btn.id]) === 'toggle_guide'
+                    ? 'toggle_livetv'
+                    : controllerMappings[btn.id] || DEFAULT_CONTROLLER_MAPPINGS[btn.id] || 'none'
+                }
                 onChange={(e) => handleMappingChange(btn.id, e.target.value)}
               >
                 {AVAILABLE_ACTIONS.map((act) => (

@@ -101,33 +101,47 @@ if (typeof window !== 'undefined') {
   window.addEventListener('wheel', clearTvFocusMode, { passive: true });
 }
 
+export function onUserManualScroll() {
+  if (lastFocusedElement) {
+    const r = lastFocusedElement.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) {
+      lastFocusedElement.classList.remove('tv-focused');
+      lastFocusedElement = null;
+    }
+  }
+}
+
 function isElementVisible(el: HTMLElement): boolean {
   if (!el.isConnected) return false;
 
-  // A parent can hide its whole subtree without the child's own style
-  // changing: opacity is not inherited (guide panel fades out), and fixed
-  // panels slide fully off-screen with transforms (the LiveTV CategoryStrip
-  // slides left with translateX(-100%), the guide panel slides down). Their
-  // descendants still report non-zero rects, so a plain per-element check lets
-  // spatial focus jump into invisible off-screen containers and "disappear".
-  // Walk every ancestor and reject anything hidden or entirely outside the
-  // viewport. (Element-level rects are intentionally NOT viewport-clamped —
-  // items scrolled below the fold inside a visible scroller must stay
-  // reachable so d-pad movement keeps scrolling the list.)
+  // Walk ancestors and reject anything hidden or off-screen.
+  // Overlay/fixed panels (e.g. guide panel sliding out or category strip) that
+  // are slid completely off-screen are rejected.
+  // Normal content containers inside scrollable views (rows/cards below the fold
+  // or horizontally overflowing) must NOT be viewport-clipped so spatial navigation
+  // can discover them and scroll them into view.
   let node: HTMLElement | null = el;
   while (node && node !== document.documentElement) {
     const style = window.getComputedStyle(node);
     if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
       return false;
     }
-    if (node !== el) {
-      const rect = node.getBoundingClientRect();
-      if (
-        rect.width > 0 &&
-        rect.height > 0 &&
-        (rect.bottom <= 0 || rect.right <= 0 || rect.top >= window.innerHeight || rect.left >= window.innerWidth)
-      ) {
-        return false;
+    if (node !== el && (style.position === 'fixed' || style.position === 'absolute')) {
+      const isOverlayPanel =
+        node.classList.contains('guide-panel') ||
+        node.classList.contains('category-strip') ||
+        node.classList.contains('settings-panel') ||
+        node.classList.contains('modal-backdrop') ||
+        node.classList.contains('video-controls');
+      if (isOverlayPanel) {
+        const rect = node.getBoundingClientRect();
+        if (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          (rect.bottom <= 0 || rect.right <= 0 || rect.top >= window.innerHeight || rect.left >= window.innerWidth)
+        ) {
+          return false;
+        }
       }
     }
     node = node.parentElement;
@@ -155,11 +169,6 @@ function getFocusCandidates(): HTMLElement[] {
   return rawElements.filter((el) => {
     if (!isElementVisible(el)) return false;
 
-    // react-virtuoso renders its scrollable list as a div with tabIndex=0, so
-    // it matches [tabindex="0"] and competes with real content items. Its
-    // center sits mid-list, so it wins the scoring whenever no card row aligns
-    // with the focused item — pressing right from the VOD sidebar (or left
-    // from the alphabet rail) would "highlight the whole list" instead of a
     // A scroll container is a scroll target, never a nav target.
     if (
       el.hasAttribute('data-virtuoso-scroller') ||
@@ -186,8 +195,73 @@ function getFocusCandidates(): HTMLElement[] {
       return false;
     }
 
+    // Exclude titlebar search bar & integrated search items so spatial nav skips over them
+    if (
+      el.classList.contains('title-bar-search-input') ||
+      el.classList.contains('title-bar-search-clear') ||
+      el.classList.contains('title-bar-advanced-search-btn') ||
+      Boolean(el.closest('.title-bar-search-integrated, .title-bar-search-history'))
+    ) {
+      return false;
+    }
+
+    // Exclude hero pagination dots so Down moves directly into catalog/continue watching rows
+    if (el.classList.contains('stremio-hero-indicator-dot')) {
+      return false;
+    }
+
     return true;
   });
+}
+
+function scrollIntoViewTv(el: HTMLElement) {
+  let node: HTMLElement | null = el.parentElement;
+  const isCard =
+    el.classList.contains('media-card') ||
+    el.classList.contains('movie-card') ||
+    el.classList.contains('series-card') ||
+    el.classList.contains('nuvio-card') ||
+    el.classList.contains('stremio-card');
+  const edgePaddingY = isCard ? 24 : 12;
+  const edgePaddingX = isCard ? 32 : 16;
+
+  while (node && node !== document.body && node !== document.documentElement) {
+    const style = window.getComputedStyle(node);
+    const canScrollY =
+      (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+      node.scrollHeight > node.clientHeight + 4;
+    const canScrollX =
+      (style.overflowX === 'auto' || style.overflowX === 'scroll') &&
+      node.scrollWidth > node.clientWidth + 4;
+
+    if (canScrollY || canScrollX) {
+      const prevBehavior = node.style.scrollBehavior;
+      node.style.scrollBehavior = 'auto';
+      try {
+        const scrollerRect = node.getBoundingClientRect();
+        const elemRect = el.getBoundingClientRect();
+
+        if (canScrollY) {
+          if (elemRect.bottom > scrollerRect.bottom - edgePaddingY) {
+            node.scrollTop += elemRect.bottom - scrollerRect.bottom + edgePaddingY;
+          } else if (elemRect.top < scrollerRect.top + edgePaddingY) {
+            node.scrollTop -= scrollerRect.top - elemRect.top + edgePaddingY;
+          }
+        }
+
+        if (canScrollX) {
+          if (elemRect.right > scrollerRect.right - edgePaddingX) {
+            node.scrollLeft += elemRect.right - scrollerRect.right + edgePaddingX;
+          } else if (elemRect.left < scrollerRect.left + edgePaddingX) {
+            node.scrollLeft -= scrollerRect.left - elemRect.left + edgePaddingX;
+          }
+        }
+      } finally {
+        node.style.scrollBehavior = prevBehavior;
+      }
+    }
+    node = node.parentElement;
+  }
 }
 
 export function applyTvFocus(el: HTMLElement) {
@@ -223,45 +297,9 @@ export function applyTvFocus(el: HTMLElement) {
   // Don't let the native focus scroll fight the positioning below.
   el.focus({ preventScroll: true });
 
-  // Position the focused element inside its scroll container, keeping it clear
-  // of the edges. A single instant scroll keeps rapid D-pad presses snappy;
-  // the previous mix of native focus scrolling + manual scrollTop + smooth
-  // scrollIntoView queued up competing animations that jittered in
-  // virtualized lists (rows get recycled mid-animation).
-  const scroller = findScrollerFor(el);
-
-  if (scroller) {
-    // Temporarily disable CSS scroll-behavior so the padding-aware jump below
-    // is instant instead of animating on top of the focus scroll.
-    const prevBehavior = scroller.style.scrollBehavior;
-    scroller.style.scrollBehavior = 'auto';
-    try {
-      const scrollerRect = scroller.getBoundingClientRect();
-      const elemRect = el.getBoundingClientRect();
-      // Keep the focused item clear of the edge, but only by the amount
-      // required.  Scrolling a whole extra row here makes Virtuoso recycle the
-      // newly focused card/channel.  The next Down press then has no current
-      // content item and the general spatial search can land on the sidebar
-      // or search field instead.
-      const isCard = el.classList.contains('media-card') || el.classList.contains('movie-card') || el.classList.contains('series-card');
-      // A small margin is enough here. Larger margins effectively skip rows
-      // in a virtualized list and can cause the browser/virtualizer to correct
-      // the scroll position in the opposite direction.
-      const edgePadding = isCard ? 16 : 12;
-
-      if (elemRect.bottom > scrollerRect.bottom - edgePadding) {
-        scroller.scrollTop += elemRect.bottom - scrollerRect.bottom + edgePadding;
-      } else if (elemRect.top < scrollerRect.top + edgePadding) {
-        scroller.scrollTop -= scrollerRect.top - elemRect.top + edgePadding;
-      }
-    } finally {
-      scroller.style.scrollBehavior = prevBehavior;
-    }
-  } else {
-    // Horizontal alignment (EPG timeline) and non-scroller containers. Explicit
-    // 'auto' overrides CSS scroll-behavior so focus moves stay instant.
-    el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
-  }
+  // Scroll all scrollable parent containers (both horizontal rails and vertical views)
+  // so the newly focused item is comfortably inside the viewport.
+  scrollIntoViewTv(el);
 
   // Remember this item as the view's focus position (per-view focus memory),
   // so returning to the view restores the browsing position.
@@ -420,10 +458,10 @@ function findActiveViewScroller(): HTMLElement | null {
   if (!pair) return null;
   const container = document.querySelector<HTMLElement>(pair[0]);
   if (!container || !isElementVisible(container)) return null;
-  return (
-    container.querySelector<HTMLElement>('[data-virtuoso-scroller], [data-testid="virtuoso-scroller"]') ||
-    container
-  );
+  const directScroller = container.matches(SCROLLER_SELECTOR)
+    ? container
+    : container.querySelector<HTMLElement>(SCROLLER_SELECTOR);
+  return directScroller || container;
 }
 
 /** Restore the last focused item in the currently active view, if any. */
@@ -666,35 +704,85 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
 
   if (!candidates.length) return false;
 
-  // If nothing is focused or focus is outside the candidates (e.g. the focused
-  // item was virtualized out of the DOM while scrolling the grid), don't snap
-  // back to the view start (the VOD Home button) — resume where the user was.
-  if (!current || current === document.body || !candidates.includes(current)) {
-    // 1. Restore the per-view remembered position when the item is mounted.
-    if (tryRestoreFocus()) return true;
-
-    // 2. The remembered item may need a beat to re-mount after the scroller
-    // jump (virtualized lists); retry briefly. Only fall back to a
-    // direction-aware content resume — never to the view start or chrome.
-    if (hasFocusMemory()) {
-      let attempts = 6;
-      const retry = () => {
-        if (tryRestoreFocus()) return;
-        if (--attempts > 0) {
-          setTimeout(retry, 60);
-        } else if (!resumeInDirection(dir)) {
-          focusFirstInteractive();
+  // Check if current focused element is still visible within the viewport & its scroll container
+  let isCurrentVisible = false;
+  if (current && current !== document.body && candidates.includes(current)) {
+    const cr = current.getBoundingClientRect();
+    if (
+      cr.width > 0 &&
+      cr.height > 0 &&
+      cr.bottom > 0 &&
+      cr.top < window.innerHeight &&
+      cr.right > 0 &&
+      cr.left < window.innerWidth
+    ) {
+      const scroller = findScrollerFor(current);
+      if (scroller) {
+        const sr = scroller.getBoundingClientRect();
+        if (cr.bottom > sr.top + 8 && cr.top < sr.bottom - 8) {
+          isCurrentVisible = true;
         }
-      };
-      retry();
+      } else {
+        isCurrentVisible = true;
+      }
+    }
+  }
+
+  // If nothing is focused, or the focused element was scrolled out of the visible screen/viewport
+  // (e.g. after scrolling with the right thumbstick or mouse wheel):
+  // Land immediately on the visible content items in the current viewable section!
+  if (!current || !isCurrentVisible) {
+    const visibleContent = candidates.filter((c) => {
+      if (isRailOrChrome(c)) return false;
+      const r = c.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return false;
+      if (r.bottom <= 0 || r.top >= window.innerHeight || r.right <= 0 || r.left >= window.innerWidth) return false;
+      const scroller = findScrollerFor(c);
+      if (scroller) {
+        const sr = scroller.getBoundingClientRect();
+        if (r.bottom <= sr.top + 8 || r.top >= sr.bottom - 8) return false;
+      }
       return true;
+    });
+
+    if (visibleContent.length > 0) {
+      visibleContent.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+      // When pressing Down or Right, start at the topmost visible item on screen
+      // When pressing Up or Left, start at the bottommost visible item on screen
+      const target =
+        dir === 'down' || dir === 'right'
+          ? visibleContent[0]
+          : visibleContent[visibleContent.length - 1];
+
+      if (target) {
+        applyTvFocus(target);
+        return true;
+      }
     }
 
-    // 3. No saved memory: resume near the last focused spot, preferring the
-    // direction the user just pressed, so deep-scroll navigation keeps its
-    // place instead of resetting to the top-left corner.
-    if (resumeInDirection(dir)) return true;
+    const anyVisible = candidates.filter((c) => {
+      const r = c.getBoundingClientRect();
+      return (
+        r.width > 0 &&
+        r.height > 0 &&
+        r.bottom > 0 &&
+        r.top < window.innerHeight &&
+        r.right > 0 &&
+        r.left < window.innerWidth
+      );
+    });
 
+    if (anyVisible.length > 0) {
+      anyVisible.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+      const target =
+        dir === 'down' || dir === 'right' ? anyVisible[0] : anyVisible[anyVisible.length - 1];
+      if (target) {
+        applyTvFocus(target);
+        return true;
+      }
+    }
+
+    if (resumeInDirection(dir)) return true;
     focusFirstInteractive();
     return true;
   }
@@ -976,6 +1064,11 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
 
   if (bestElement) {
     applyTvFocus(bestElement);
+    return true;
+  }
+
+  // If no mounted target was found in that direction, attempt scrolling the active view
+  if (scrollActiveViewInDirection(dir)) {
     return true;
   }
 

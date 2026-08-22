@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSettingsStore } from '../stores/settingsStore';
-import { dispatchSpatialNav } from '../services/spatialNavigation';
+import { dispatchSpatialNav, onUserManualScroll } from '../services/spatialNavigation';
 
 export interface GamepadDeviceInfo {
   id: number;
@@ -57,6 +57,70 @@ function tryDispatchAction(action: string): boolean {
   lastDispatchedAction.set(action, now);
   executeAction(action);
   return true;
+}
+
+function scrollActiveContainerByStick(rawX: number, rawY: number, deadzone: number) {
+  if (typeof document === 'undefined') return;
+
+  const getScroller = (): HTMLElement | null => {
+    // 1. If an active modal is open, find its scroller
+    const modal = document.querySelector<HTMLElement>(
+      '.modal-content, [role="dialog"], .settings-modal, .advanced-search-modal, .subtitle-modal, .details-modal, .movie-detail, .series-detail, .stremio-detail'
+    );
+    if (modal) {
+      const modalScroller = modal.querySelector<HTMLElement>(
+        '.settings-tab-content, .movie-detail__scroll, .series-detail__scroll, .stremio-detail-body, [data-virtuoso-scroller]'
+      );
+      return modalScroller || modal;
+    }
+
+    // 2. Focused element's scrollable ancestor
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body) {
+      let node: HTMLElement | null = active.parentElement;
+      while (node && node !== document.body && node !== document.documentElement) {
+        const style = window.getComputedStyle(node);
+        if (
+          (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflowX === 'auto' || style.overflowX === 'scroll') &&
+          (node.scrollHeight > node.clientHeight + 4 || node.scrollWidth > node.clientWidth + 4)
+        ) {
+          return node;
+        }
+        node = node.parentElement;
+      }
+    }
+
+    // 3. Known active page scrollers
+    const known = document.querySelector<HTMLElement>(
+      '.nuvio-main, .stremio-home, .stremio-main, .vod-page__home, .vod-browse__grid-scroll, .local-grid-scroll, .guide-channels, .sports-hub, .dvr-dashboard, .tv-calendar-page, .channel-panel, .epg-content'
+    );
+    if (known) return known;
+
+    return (document.scrollingElement as HTMLElement | null) || document.documentElement;
+  };
+
+  const scroller = getScroller();
+  if (!scroller) return;
+
+  // Exponential response curve for fine precision and rapid sweeping
+  const calcDelta = (val: number) => {
+    const abs = Math.abs(val);
+    if (abs <= deadzone) return 0;
+    const norm = (abs - deadzone) / (1 - deadzone);
+    return Math.sign(val) * Math.pow(norm, 1.6) * 22;
+  };
+
+  const deltaY = calcDelta(rawY);
+  const deltaX = calcDelta(rawX);
+
+  if (deltaY !== 0) {
+    scroller.scrollTop += deltaY;
+    onUserManualScroll();
+  }
+  if (deltaX !== 0) {
+    scroller.scrollLeft += deltaX;
+    onUserManualScroll();
+  }
 }
 
 // Standard HTML5 Gamepad Layout
@@ -351,6 +415,29 @@ export function useGamepad() {
         } else if (activeDir) {
           activeDir = null;
         }
+
+        // Scan Right Analog Stick (Axes 2 & 3/5) for smooth variable-speed page scrolling
+        if (enabledRef.current) {
+          let rightStickX = 0;
+          let rightStickY = 0;
+
+          if (gp.axes.length > 2) {
+            rightStickX = gp.axes[2] || 0;
+          }
+          if (gp.axes.length > 3) {
+            const axis3 = gp.axes[3];
+            const axis5 = gp.axes.length > 5 ? gp.axes[5] : null;
+            if (gp.mapping !== 'standard' && typeof axis5 === 'number' && Math.abs(axis3 + 1) < 0.05) {
+              rightStickY = axis5;
+            } else {
+              rightStickY = axis3 || 0;
+            }
+          }
+
+          if (Math.abs(rightStickY) > deadzone || Math.abs(rightStickX) > deadzone) {
+            scrollActiveContainerByStick(rightStickX, rightStickY, deadzone);
+          }
+        }
       }
 
       if (anyConnected && connectedList.length > 0) {
@@ -433,8 +520,21 @@ export function executeAction(action: string) {
     case 'subtitles':
       window.dispatchEvent(new CustomEvent('ynotv:gamepad-open-subtitles'));
       break;
+    case 'toggle_livetv':
     case 'toggle_guide':
-      window.dispatchEvent(new CustomEvent('ynotv:navigate-view', { detail: { view: 'guide' } }));
+      window.dispatchEvent(new CustomEvent('ynotv:navigate-view', { detail: { view: 'livetv' } }));
+      break;
+    case 'toggle_nuvio':
+      window.dispatchEvent(new CustomEvent('ynotv:navigate-view', { detail: { view: 'nuvio' } }));
+      break;
+    case 'toggle_stremio':
+      window.dispatchEvent(new CustomEvent('ynotv:navigate-view', { detail: { view: 'stremio' } }));
+      break;
+    case 'toggle_transparent_overlay':
+      window.dispatchEvent(new CustomEvent('ynotv:gamepad-toggle-transparent-guide'));
+      break;
+    case 'toggle_overlay':
+      window.dispatchEvent(new CustomEvent('ynotv:gamepad-toggle-overlay'));
       break;
     case 'open_movies':
       window.dispatchEvent(new CustomEvent('ynotv:navigate-view', { detail: { view: 'movies' } }));

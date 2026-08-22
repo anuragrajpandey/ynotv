@@ -62,18 +62,38 @@ body.tv-nav-active .channel-card.tv-focused,
 body.tv-nav-active .movie-card.tv-focused,
 body.tv-nav-active .series-card.tv-focused,
 body.tv-nav-active .stremio-card.tv-focused,
+body.tv-nav-active .stremio-row-card.tv-focused,
+body.tv-nav-active .stremio-meta-card.tv-focused,
+body.tv-nav-active .stremio-cw-card.tv-focused,
+body.tv-nav-active .stremio-cal-ep-card.tv-focused,
+body.tv-nav-active .stremio-rank-card-container.tv-focused,
 body.tv-nav-active .nuvio-card.tv-focused,
+body.tv-nav-active .nuvio-row-card.tv-focused,
+body.tv-nav-active .nuvio-cw-wide-card.tv-focused,
+body.tv-nav-active .nuvio-cw-poster-card.tv-focused,
+body.tv-nav-active .nuvio-cw-card.tv-focused,
+body.tv-nav-active .nuvio-folder-card.tv-focused,
+body.tv-nav-active .nuvio-folder-detail-item.tv-focused,
+body.tv-nav-active .nuvio-service-tile-btn.tv-focused,
 body.tv-nav-active .widget-card.tv-focused,
 body.tv-nav-active .media-card:focus,
 body.tv-nav-active .channel-card:focus,
 body.tv-nav-active .movie-card:focus,
 body.tv-nav-active .series-card:focus,
 body.tv-nav-active .stremio-card:focus,
-body.tv-nav-active .nuvio-card:focus {
+body.tv-nav-active .stremio-row-card:focus,
+body.tv-nav-active .stremio-meta-card:focus,
+body.tv-nav-active .nuvio-card:focus,
+body.tv-nav-active .nuvio-cw-wide-card:focus,
+body.tv-nav-active .nuvio-cw-poster-card:focus,
+body.tv-nav-active .nuvio-cw-card:focus,
+body.tv-nav-active .nuvio-folder-card:focus,
+body.tv-nav-active .nuvio-service-tile-btn:focus {
   transform: scale(1.04) !important;
   outline: 3px solid #38bdf8 !important;
   outline-offset: 4px !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.8) !important;
+  border-radius: 8px !important;
 }
 
 /* Alphabet rail letter when TV focused */

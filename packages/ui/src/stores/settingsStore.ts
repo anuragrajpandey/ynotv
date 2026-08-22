@@ -662,8 +662,8 @@ export const DEFAULT_CONTROLLER_MAPPINGS: Record<string, string> = {
   left_stick_click: 'toggle_fullscreen',
   right_stick_click: 'toggle_mute',
   start: 'play_pause',
-  select: 'toggle_guide',
-  guide: 'toggle_guide',
+  select: 'toggle_livetv',
+  guide: 'toggle_livetv',
 };
 
 function getInitialTheme(): ThemeId {

@@ -3977,11 +3977,14 @@ function useTmdbPresencePoster(
     setShowSubtitleModal,
     setShowAdvancedSearch,
     setShowShortcutsOverlay,
+    setShowControls,
+    categoriesHiddenTransparent,
   });
   remoteRefs.current = {
     activeView,
     categoriesOpen,
     categoriesHidden,
+    categoriesHiddenTransparent,
     guideTransparent,
     showSettingsPopup,
     showSubtitleModal,
@@ -4005,6 +4008,7 @@ function useTmdbPresencePoster(
     setShowSubtitleModal,
     setShowAdvancedSearch,
     setShowShortcutsOverlay,
+    setShowControls,
   };
 
   useEffect(() => {
@@ -4257,6 +4261,37 @@ function useTmdbPresencePoster(
       remoteRefs.current.setShowAdvancedSearch((s) => !s);
     };
 
+    const onToggleTransparentGuide = () => {
+      const {
+        activeView: curView,
+        guideTransparent: isTrans,
+        categoriesHiddenTransparent: catHiddenTrans,
+        setActiveView: setView,
+        setGuideTransparent: setTrans,
+        setCategoriesOpen: setCats,
+        setShowControls: setControls,
+      } = remoteRefs.current;
+      setControls?.(true);
+      if (curView === 'guide') {
+        if (isTrans) {
+          setView('none');
+          setCats(false);
+        } else {
+          setTrans(true);
+          setCats(!catHiddenTrans);
+        }
+      } else {
+        setTrans(true);
+        setView('guide');
+        setCats(!catHiddenTrans);
+      }
+      setTimeout(() => focusViewOnOpen(), 120);
+    };
+
+    const onToggleOverlay = () => {
+      remoteRefs.current.setShowControls?.((prev: boolean) => !prev);
+    };
+
     window.addEventListener('ynotv:navigate-view', onNavView);
     window.addEventListener('ynotv:gamepad-play-pause', onPlayPause);
     window.addEventListener('ynotv:gamepad-seek', onSeek);
@@ -4265,6 +4300,8 @@ function useTmdbPresencePoster(
     window.addEventListener('ynotv:gamepad-toggle-mute', onMute);
     window.addEventListener('ynotv:gamepad-open-subtitles', onSubtitles);
     window.addEventListener('ynotv:gamepad-open-search', onSearch);
+    window.addEventListener('ynotv:gamepad-toggle-transparent-guide', onToggleTransparentGuide);
+    window.addEventListener('ynotv:gamepad-toggle-overlay', onToggleOverlay);
 
     return () => {
       window.removeEventListener('ynotv:navigate-view', onNavView);
@@ -4275,6 +4312,8 @@ function useTmdbPresencePoster(
       window.removeEventListener('ynotv:gamepad-toggle-mute', onMute);
       window.removeEventListener('ynotv:gamepad-open-subtitles', onSubtitles);
       window.removeEventListener('ynotv:gamepad-open-search', onSearch);
+      window.removeEventListener('ynotv:gamepad-toggle-transparent-guide', onToggleTransparentGuide);
+      window.removeEventListener('ynotv:gamepad-toggle-overlay', onToggleOverlay);
     };
   }, []);
 
