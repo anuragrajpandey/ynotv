@@ -154,9 +154,11 @@
     opacity: 1;
 }
 
-/* HLS cells need pointer events */
+/* HLS & Canvas cells need pointer events */
 .layout-2x2-cells .multiview-cell-container,
-.layout-sbs-cells .multiview-cell-container {
+.layout-sbs-cells .multiview-cell-container,
+.layout-2x2-cells .canvas-cell-container,
+.layout-sbs-cells .canvas-cell-container {
     pointer-events: all;
 }
 
@@ -178,7 +180,8 @@
 }
 
 .layout-sbs-mpv,
-.layout-sbs-cells .multiview-cell-container {
+.layout-sbs-cells .multiview-cell-container,
+.layout-sbs-cells .canvas-cell-container {
     width: 100%;
     height: auto;
     max-width: calc(50% - 1px);
@@ -237,7 +240,10 @@
  */
 .layout-2x2-cells[data-engine="hls"],
 .layout-bigbottom-cells[data-engine="hls"],
-.layout-sbs-cells[data-engine="hls"] {
+.layout-sbs-cells[data-engine="hls"],
+.layout-2x2-cells[data-engine="mpv_canvas"],
+.layout-bigbottom-cells[data-engine="mpv_canvas"],
+.layout-sbs-cells[data-engine="mpv_canvas"] {
     pointer-events: all;
     top: 0;
 }

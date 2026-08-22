@@ -281,7 +281,7 @@ interface ChannelPanelProps {
   onWatchlistRefresh?: () => void;
   // Multiview props
   currentLayout?: string;
-  multiviewEngineMode?: 'mpv' | 'hls';
+  multiviewEngineMode?: 'mpv' | 'hls' | 'mpv_canvas';
   onSendToSlot?: (slotId: 2 | 3 | 4, channelName: string, channelUrl: string, sourceName?: string | null) => void;
   multiviewSlots?: ViewerSlot[];
   onSwapWithMain?: (slotId: 2 | 3 | 4) => void;
@@ -2140,55 +2140,57 @@ export function ChannelPanel({
         const isEpgModalOpen = showEpgShiftModal || showFailoverGroupModal || showPlaylistListModal || !!managingCustomGroup || !!managingCategory || managingFavorites;
         const shouldHideSecondaries = isEpgModalOpen || showSettingsPopup;
 
-        const secondaryIds: (2 | 3 | 4)[] = [2, 3, 4];
-        secondaryIds.forEach((slotId) => {
-          const slot = multiviewSlots.find((s) => s.id === slotId);
-          const active = slot?.active ?? false;
+        if (multiviewEngineMode === 'mpv') {
+          const secondaryIds: (2 | 3 | 4)[] = [2, 3, 4];
+          secondaryIds.forEach((slotId) => {
+            const slot = multiviewSlots.find((s) => s.id === slotId);
+            const active = slot?.active ?? false;
 
-          // If a slot is not active, or if we want to hide them (because a modal/settings is open):
-          if (!active || shouldHideSecondaries) {
-            const hiddenGeometry = '-10000:-10000:1:1';
-            if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
-              lastSecondaryGeometries.set(slotId, hiddenGeometry);
-              invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
+            // If a slot is not active, or if we want to hide them (because a modal/settings is open):
+            if (!active || shouldHideSecondaries) {
+              const hiddenGeometry = '-10000:-10000:1:1';
+              if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
+                lastSecondaryGeometries.set(slotId, hiddenGeometry);
+                invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
+              }
+              return;
             }
-            return;
-          }
 
-          // Otherwise, find the placeholder container inside EPG
-          const id = `epg-slot-container-${slotId}`;
-          const el = document.getElementById(id);
-          if (!el) {
-            const hiddenGeometry = '-10000:-10000:1:1';
-            if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
-              lastSecondaryGeometries.set(slotId, hiddenGeometry);
-              invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
+            // Otherwise, find the placeholder container inside EPG
+            const id = `epg-slot-container-${slotId}`;
+            const el = document.getElementById(id);
+            if (!el) {
+              const hiddenGeometry = '-10000:-10000:1:1';
+              if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
+                lastSecondaryGeometries.set(slotId, hiddenGeometry);
+                invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
+              }
+              return;
             }
-            return;
-          }
 
-          const cellRect = el.getBoundingClientRect();
-          if (cellRect.width === 0 || cellRect.height === 0) {
-            const hiddenGeometry = '-10000:-10000:1:1';
-            if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
-              lastSecondaryGeometries.set(slotId, hiddenGeometry);
-              invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
+            const cellRect = el.getBoundingClientRect();
+            if (cellRect.width === 0 || cellRect.height === 0) {
+              const hiddenGeometry = '-10000:-10000:1:1';
+              if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
+                lastSecondaryGeometries.set(slotId, hiddenGeometry);
+                invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
+              }
+              return;
             }
-            return;
-          }
 
-          const d = window.devicePixelRatio || 1;
-          const sx = Math.round(cellRect.left * d);
-          const sy = Math.round(cellRect.top * d);
-          const sw = Math.round(cellRect.width * d);
-          const sh = Math.round(cellRect.height * d);
-          const nextSlotGeometry = `${sx}:${sy}:${sw}:${sh}`;
+            const d = window.devicePixelRatio || 1;
+            const sx = Math.round(cellRect.left * d);
+            const sy = Math.round(cellRect.top * d);
+            const sw = Math.round(cellRect.width * d);
+            const sh = Math.round(cellRect.height * d);
+            const nextSlotGeometry = `${sx}:${sy}:${sw}:${sh}`;
 
-          if (force || lastSecondaryGeometries.get(slotId) !== nextSlotGeometry) {
-            lastSecondaryGeometries.set(slotId, nextSlotGeometry);
-            invoke('multiview_reposition_slot', { slotId, x: sx, y: sy, width: sw, height: sh }).catch(() => {});
-          }
-        });
+            if (force || lastSecondaryGeometries.get(slotId) !== nextSlotGeometry) {
+              lastSecondaryGeometries.set(slotId, nextSlotGeometry);
+              invoke('multiview_reposition_slot', { slotId, x: sx, y: sy, width: sw, height: sh }).catch(() => {});
+            }
+          });
+        }
       }
     };
 

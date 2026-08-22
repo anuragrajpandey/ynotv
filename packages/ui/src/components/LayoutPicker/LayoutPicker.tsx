@@ -99,6 +99,13 @@ export function LayoutPicker({ currentLayout, onSelect, engineMode, onEngineChan
                         <span className="lp-engine-label">{t('viewerEngine')}</span>
                         <div className="lp-engine-pills">
                             <button
+                                className={`lp-engine-pill ${engineMode === 'mpv_canvas' ? 'lp-engine-pill-active lp-engine-pill-canvas-active' : ''}`}
+                                onClick={() => onEngineChange('mpv_canvas')}
+                                title="libmpv In-DOM Canvas with full Overlay support"
+                            >
+                                CANVAS
+                            </button>
+                            <button
                                 className={`lp-engine-pill ${engineMode === 'mpv' ? 'lp-engine-pill-active' : ''}`}
                                 onClick={() => onEngineChange('mpv')}
                                 title={t('mpvNativeWindows')}

@@ -180,7 +180,7 @@ export function MultiviewCell({
     );
 }
 
-function CellContextMenu({
+export function CellContextMenu({
     position,
     channelName,
     onPlay,

@@ -2,6 +2,7 @@ import { useRef, useState, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MultiviewCell } from '../MultiviewCell/MultiviewCell';
 import { HlsMultiviewCell } from '../MultiviewCell/HlsMultiviewCell';
+import { CanvasMultiviewCell } from '../MultiviewCell/CanvasMultiviewCell';
 import { ViewerSlot, type MultiviewEngineMode } from '../../hooks/useMultiview';
 import { useDraggable } from '../../hooks/useDraggable';
 import { useResizable } from '../../hooks/useResizable';
@@ -178,17 +179,21 @@ export function MultiviewLayout({
     }, [layout, activeView, syncMpvGeometry]);
 
     const isHls = engineMode === 'hls';
+    const isCanvas = engineMode === 'mpv_canvas';
 
-    // Render placeholder slots inside the layouts when using HLS engine
-    const cell = (slot: ViewerSlot) =>
-        isHls ? (
-            <div 
-                key={slot.id}
-                id={`multiview-slot-container-${slot.id}`} 
-                className="multiview-cell-container hls-cell-container"
-                style={{ width: '100%', height: '100%', background: 'transparent' }}
-            />
-        ) : (
+    // Render slots inside the layouts (placeholders for DOM-rendered engines HLS and Canvas)
+    const cell = (slot: ViewerSlot) => {
+        if (isHls || isCanvas) {
+            return (
+                <div 
+                    key={slot.id}
+                    id={`multiview-slot-container-${slot.id}`} 
+                    className="multiview-cell-container hls-cell-container"
+                    style={{ background: 'transparent' }}
+                />
+            );
+        }
+        return (
             <MultiviewCell
                 key={slot.id}
                 slotId={slot.id}
@@ -202,6 +207,7 @@ export function MultiviewLayout({
                 onSetProperty={(prop: string, val: any) => onSetProperty(slot.id, prop, val)}
             />
         );
+    };
 
     if (layout === 'main') {
         // MPV fills the window — no cells visible
@@ -351,6 +357,28 @@ export function MultiviewLayout({
                         onSwapWithMain={() => onSwapWithMain(slot.id)}
                         onStop={() => onStop(slot.id)}
                         onReload={() => onReload(slot.id)}
+                    />
+                </HlsAbsoluteWrapper>
+            ))}
+            {isCanvas && slots.map(slot => (
+                <HlsAbsoluteWrapper 
+                    key={slot.id} 
+                    slotId={slot.id as 2 | 3 | 4} 
+                    activeView={activeView}
+                    layout={layout}
+                    hidden={hidden}
+                    active={slot.active}
+                >
+                    <CanvasMultiviewCell
+                        slotId={slot.id as 2 | 3 | 4}
+                        channelName={slot.channelName}
+                        channelUrl={slot.channelUrl}
+                        sourceName={slot.sourceName}
+                        active={slot.active}
+                        onSwapWithMain={() => onSwapWithMain(slot.id)}
+                        onStop={() => onStop(slot.id)}
+                        onReload={() => onReload(slot.id)}
+                        hidden={hidden}
                     />
                 </HlsAbsoluteWrapper>
             ))}

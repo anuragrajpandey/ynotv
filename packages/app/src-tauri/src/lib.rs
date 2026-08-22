@@ -247,6 +247,7 @@ mod mpv_macos;
 #[cfg(target_os = "windows")]
 mod mpv_windows;
 mod mpv_secondary;
+mod mpv_canvas;
 mod mpv_popout;
 mod audio_capture;
 
@@ -257,6 +258,7 @@ use mpv_macos::MpvState;
 #[cfg(target_os = "windows")]
 use mpv_windows::MpvState;
 use mpv_secondary::SecondaryMpvState;
+use mpv_canvas::CanvasMultiviewState;
 use mpv_popout::PopoutMpvState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4780,6 +4782,8 @@ pub fn run() {
 
             // Register secondary MPV state
             app.manage(SecondaryMpvState::new());
+            // Register canvas multiview state
+            app.manage(CanvasMultiviewState::new());
 
             #[cfg(target_os = "windows")]
             if let Some(window) = app.get_webview_window("main") {
@@ -5034,6 +5038,12 @@ pub fn run() {
             multiview_reposition_slot,
             multiview_kill_slot,
             multiview_kill_all,
+            // Multiview canvas (software-rendered) commands
+            mpv_canvas::multiview_canvas_start,
+            mpv_canvas::multiview_canvas_stop,
+            mpv_canvas::multiview_canvas_resize,
+            mpv_canvas::multiview_canvas_set_property,
+            mpv_canvas::multiview_canvas_stop_all,
             // Popout MPV commands
             popout_open,
             popout_load,

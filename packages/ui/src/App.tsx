@@ -5552,7 +5552,7 @@ function useTmdbPresencePoster(
       {/* Multiview Layout */}
       {multiviewLayout !== 'main' && (
         <MultiviewLayout
-          hidden={activeView !== 'none'}
+          hidden={activeView !== 'none' && activeView !== 'guide'}
           layout={multiviewLayout}
           slots={multiviewSlots}
           engineMode={multiviewEngineMode}
