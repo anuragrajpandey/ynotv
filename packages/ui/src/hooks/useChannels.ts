@@ -23,7 +23,7 @@ let categoryIndexBuiltFor = -1;
 let channelsVersion = 0;
 dbEvents.subscribe('channels', () => { channelsVersion++; });
 
-async function ensureCategoryStreamIndex(): Promise<Map<string, string[]>> {
+export async function ensureCategoryStreamIndex(): Promise<Map<string, string[]>> {
   if (categoryIndexBuiltFor === channelsVersion) {
     return categoryStreamIndex;
   }

@@ -73,6 +73,14 @@ function SortableSidebarItem({ id, children, disabled, className = '', stickySty
       {...attributes}
       {...listeners}
       className={`sortable-sidebar-item ${className} ${isDragging ? 'dragging' : ''}${dropIndicator ? ` drop-${dropIndicator}` : ''}`}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          const btn = (e.currentTarget as HTMLElement).querySelector<HTMLButtonElement>('button');
+          if (btn) {
+            btn.click();
+          }
+        }
+      }}
     >
       {children}
     </div>

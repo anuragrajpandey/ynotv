@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 // Auto-sync check interval: 10 minutes
 const AUTO_SYNC_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+
+// The phone remote uses short layout names ('single'/'split'/'quad'/'triple');
+// translate them to the app's LayoutMode before switching.
+const REMOTE_LAYOUT_MAP: Record<string, LayoutMode> = {
+  single: 'main',
+  split: 'sbs',
+  quad: '2x2',
+  triple: 'bigbottom',
+};
 let hasStartupAutoSyncTriggered = false;
 import { invoke } from '@tauri-apps/api/core';
 import i18n, { translateNativeError } from './i18n';
@@ -42,7 +51,10 @@ import { useSearchHistory } from './hooks/useSearchHistory';
 import { RecordingIndicator } from './components/RecordingIndicator';
 import { DownloadIndicator } from './components/DownloadIndicator';
 import { Logo } from './components/Logo';
-import { useSelectedCategory, useChannelSearch, useProgramSearch, useChannels, useCurrentProgram, useSourceNameMap, parseCategoryIds } from './hooks/useChannels';
+import { useSelectedCategory, useChannelSearch, useProgramSearch, useChannels, useCategories, useCurrentProgram, useSourceNameMap, parseCategoryIds } from './hooks/useChannels';
+import { usePhoneRemoteCompanion } from './hooks/usePhoneRemoteCompanion';
+import { useSportsSettingsStore } from './stores/sportsSettingsStore';
+import { useSportsPolling, isSportsCacheFresh } from './hooks/useSportsPolling';
 import { useActiveTmdbToken } from './hooks/useTmdbLists';
 import { getTmdbImageUrl, searchMovies, searchTvShows, getMovieDetails, getTvShowDetails } from './services/tmdb';
 import { cleanTitleForSearch } from './utils/cleanTitle';
@@ -1471,6 +1483,61 @@ function useTmdbPresencePoster(
   );
 
   usePlaybackPresence(playbackPresenceState);
+
+  // Virtual Phone Remote Second-Screen Companion Integration.
+  // Sports polling is scoped to active remote sessions: while a phone is connected
+  // we poll scores on a modest interval; the moment the last phone disconnects the
+  // poll stops. Between sessions the shared sports cache (populated by the Sports
+  // view/overlay) is served as-is, with a one-shot refresh when a phone asks and
+  // the cache is stale.
+  const phoneRemoteLiveLeagues = useSportsSettingsStore((s) => s.liveLeagues);
+  const companionCategories = useCategories();
+
+  const { isRemoteClientConnected } = usePhoneRemoteCompanion({
+    currentChannel,
+    currentProgram,
+    categories: companionCategories || [],
+    activeView,
+    multiviewLayout,
+    multiviewSlots: multiviewSlots || [],
+    onPlayChannel: handlePlayChannel,
+    onSendToSlot: async (slotIndex: number, channel: StoredChannel) => {
+      // The phone sends the app's slot ids (2|3|4); keep accepting 0-based ids
+      // from other callers for backward compatibility.
+      const slotId =
+        slotIndex >= 2 && slotIndex <= 4
+          ? (slotIndex as 2 | 3 | 4)
+          : (((slotIndex % 3) + 2) as 2 | 3 | 4);
+      // Ensure we're in a layout that supports the target slot, otherwise the
+      // slot window would land at a degenerate position.
+      const cur = multiviewLayoutRef.current;
+      const needsQuad = slotId === 3 || slotId === 4;
+      if (
+        (needsQuad && cur !== '2x2' && cur !== 'bigbottom') ||
+        (!needsQuad && (cur === 'main' || cur === 'pip'))
+      ) {
+        await rawSwitchLayout(needsQuad ? '2x2' : 'sbs');
+      }
+      sendToSlot(slotId, channel.alias || channel.name, channel.direct_url || '', channel.source_id);
+    },
+    onSwitchLayout: (layout: string) => {
+      const mapped = REMOTE_LAYOUT_MAP[layout];
+      if (mapped) {
+        rawSwitchLayout(mapped);
+      }
+    },
+    onRequestSportsRefresh: async () => {
+      // One-shot refresh only when the shared cache is stale — never a poll loop.
+      if (isSportsCacheFresh()) return;
+      await refreshPhoneSports();
+    },
+  });
+
+  const { refresh: refreshPhoneSports } = useSportsPolling({
+    leagues: phoneRemoteLiveLeagues,
+    pollingInterval: 30000,
+    enabled: isRemoteClientConnected,
+  });
 
   // ==========================================================================
   // PiP (Picture-in-Picture) Mode

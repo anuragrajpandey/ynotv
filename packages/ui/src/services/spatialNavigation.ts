@@ -41,6 +41,15 @@ const INTERACTIVE_SELECTOR = [
 ].join(', ');
 
 let lastFocusedElement: HTMLElement | null = null;
+// Last known position of the focused element (captured before any scroll
+// adjustments). Used to resume near the user's spot when the focused item is
+// virtualized out of the DOM mid-scroll, instead of snapping to the view start.
+let lastFocusedRect: DOMRect | null = null;
+let lastFocusedView: string | null = null;
+// Kind of content the user was last focused on (media-card, channel, program,
+// …). Used so a lost-focus resume lands on the same kind of content instead
+// of drifting to unrelated chrome/rails/toolbars.
+let lastFocusedKind: string | null = null;
 
 if (typeof window !== 'undefined') {
   let lastMouseMoveX = -1;
@@ -74,10 +83,36 @@ if (typeof window !== 'undefined') {
 
 function isElementVisible(el: HTMLElement): boolean {
   if (!el.isConnected) return false;
-  const style = window.getComputedStyle(el);
-  if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
-    return false;
+
+  // A parent can hide its whole subtree without the child's own style
+  // changing: opacity is not inherited (guide panel fades out), and fixed
+  // panels slide fully off-screen with transforms (the LiveTV CategoryStrip
+  // slides left with translateX(-100%), the guide panel slides down). Their
+  // descendants still report non-zero rects, so a plain per-element check lets
+  // spatial focus jump into invisible off-screen containers and "disappear".
+  // Walk every ancestor and reject anything hidden or entirely outside the
+  // viewport. (Element-level rects are intentionally NOT viewport-clamped —
+  // items scrolled below the fold inside a visible scroller must stay
+  // reachable so d-pad movement keeps scrolling the list.)
+  let node: HTMLElement | null = el;
+  while (node && node !== document.documentElement) {
+    const style = window.getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      return false;
+    }
+    if (node !== el) {
+      const rect = node.getBoundingClientRect();
+      if (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        (rect.bottom <= 0 || rect.right <= 0 || rect.top >= window.innerHeight || rect.left >= window.innerWidth)
+      ) {
+        return false;
+      }
+    }
+    node = node.parentElement;
   }
+
   const rect = el.getBoundingClientRect();
   return rect.width > 0 && rect.height > 0;
 }
@@ -85,7 +120,7 @@ function isElementVisible(el: HTMLElement): boolean {
 export function getActiveModal(): HTMLElement | null {
   const modals = Array.from(
     document.querySelectorAll<HTMLElement>(
-      '.modal-content, [role="dialog"], .settings-modal, .advanced-search-modal, .subtitle-modal, .details-modal, .context-menu, .settings-panel'
+      '.modal-content, [role="dialog"], .settings-modal, .advanced-search-modal, .subtitle-modal, .details-modal, .context-menu, .settings-panel, .movie-detail, .series-detail, .stremio-detail, [class$="-modal"]'
     )
   );
   return modals.reverse().find(isElementVisible) || null;
@@ -97,7 +132,33 @@ function getFocusCandidates(): HTMLElement[] {
   const root = openModal ? openModal : document.body;
 
   const rawElements = Array.from(root.querySelectorAll<HTMLElement>(INTERACTIVE_SELECTOR));
-  return rawElements.filter(isElementVisible);
+  return rawElements.filter((el) => {
+    if (!isElementVisible(el)) return false;
+
+    // react-virtuoso renders its scrollable list as a div with tabIndex=0, so
+    // it matches [tabindex="0"] and competes with real content items. Its
+    // center sits mid-list, so it wins the scoring whenever no card row aligns
+    // with the focused item — pressing right from the VOD sidebar (or left
+    // from the alphabet rail) would "highlight the whole list" instead of a
+    // poster. A scroll container is a scroll target, never a nav target.
+    if (el.hasAttribute('data-virtuoso-scroller')) return false;
+
+    const isScrollContainer =
+      el.scrollHeight > el.clientHeight + 4 || el.scrollWidth > el.clientWidth + 4;
+    if (
+      isScrollContainer &&
+      el.tagName !== 'BUTTON' &&
+      el.tagName !== 'INPUT' &&
+      el.tagName !== 'SELECT' &&
+      el.tagName !== 'TEXTAREA' &&
+      el.tagName !== 'A' &&
+      (el.hasAttribute('tabindex') || el.hasAttribute('role'))
+    ) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 export function applyTvFocus(el: HTMLElement) {
@@ -112,6 +173,17 @@ export function applyTvFocus(el: HTMLElement) {
   }
 
   lastFocusedElement = el;
+  // Capture the on-screen position BEFORE the scroll-into-view below so a
+  // later unmount (virtualization) still knows where the user was looking.
+  lastFocusedRect = el.getBoundingClientRect();
+  lastFocusedView = viewKeyFor(el);
+  lastFocusedKind = el.classList.contains('media-card')
+    ? 'media-card'
+    : el.classList.contains('guide-channel-info')
+      ? 'channel'
+      : el.classList.contains('program-block') || el.classList.contains('epg-program-block')
+        ? 'program'
+        : 'generic';
   el.classList.add('tv-focused');
 
   // Ensure element has tabindex so it can receive DOM focus
@@ -156,12 +228,11 @@ export function applyTvFocus(el: HTMLElement) {
 
   // Remember this item as the view's focus position (per-view focus memory),
   // so returning to the view restores the browsing position.
-  const view = viewKeyFor(el);
-  if (view) {
+  if (lastFocusedView) {
     const key = itemKeyFor(el);
     if (key) {
       const scroller = findScrollerFor(el);
-      focusMemory.set(view, { key, scrollTop: scroller ? scroller.scrollTop : 0 });
+      focusMemory.set(lastFocusedView, { key, scrollTop: scroller ? scroller.scrollTop : 0 });
     }
   }
 }
@@ -310,13 +381,19 @@ export function focusFirstInteractive(): boolean {
       return true;
     }
 
-    // 2. Prioritize EPG channels over category sidebar
+    // 2. Prioritize EPG channels over category sidebar; VOD pages land on the
+    // sidebar's Home item (first .vertical-sidebar__item in DOM order) so a
+    // fresh open starts from the top-left corner instead of an arbitrary card.
     const preferred =
       candidates.find(c => c.classList.contains('guide-channel-info')) ||
-      candidates.find(c => c.classList.contains('movie-card') || c.classList.contains('series-card')) ||
+      candidates.find(c => c.classList.contains('vertical-sidebar__item')) ||
+      candidates.find(
+        c => c.classList.contains('media-card') || c.classList.contains('movie-card') || c.classList.contains('series-card')
+      ) ||
       candidates.find(c => c.classList.contains('sports-card') || c.classList.contains('calendar-card')) ||
       candidates.find(c => c.classList.contains('settings-tab-btn')) ||
       candidates.find(c => c.classList.contains('category-item')) ||
+      candidates.find((c) => !isChromeEl(c)) ||
       candidates[0];
 
     applyTvFocus(preferred);
@@ -325,14 +402,112 @@ export function focusFirstInteractive(): boolean {
   return false;
 }
 
+/**
+ * Refocus the candidate nearest to where the user last had focus in this
+ * view. Used when the focused item was virtualized out of the DOM, so a deep
+ * scroll keeps its place instead of snapping to the view start (e.g. Home).
+ * Sidebar/category-strip items are avoided unless nothing else is available.
+ */
+function resumeNearLastRect(candidates: HTMLElement[]): boolean {
+  // Content excludes sidebars and app chrome (title bar, now-playing bar) — a
+  // deep-scroll resume must land on view content, never on those.
+  const content = candidates.filter((c) => {
+    if (c.closest('.vertical-sidebar, .category-strip')) return false;
+    if (c.closest('.title-bar, .now-playing-bar')) return false;
+    return true;
+  });
+
+  // Resume to the same kind of content the user was browsing (poster grid →
+  // poster, channel list → channel, EPG → program), so an unmount mid-scroll
+  // can never drift onto the alphabet rail, toolbar, or search. Falls back to
+  // the general content pool only when none of that kind is mounted.
+  let pool = content;
+  if (lastFocusedKind === 'media-card') {
+    const cards = content.filter((c) => c.classList.contains('media-card'));
+    if (cards.length > 0) pool = cards;
+  } else if (lastFocusedKind === 'channel') {
+    const channels = content.filter((c) => c.classList.contains('guide-channel-info'));
+    if (channels.length > 0) pool = channels;
+  } else if (lastFocusedKind === 'program') {
+    const programs = content.filter(
+      (c) => c.classList.contains('program-block') || c.classList.contains('epg-program-block')
+    );
+    if (programs.length > 0) pool = programs;
+  }
+  if (pool.length === 0) pool = candidates;
+
+  // Prefer the last known focus spot; fall back to the viewport center when
+  // the memory is stale or from another view, so a mid-scroll resume still
+  // lands in content instead of snapping to chrome or the view start.
+  const origin =
+    lastFocusedRect &&
+    lastFocusedRect.width > 0 &&
+    lastFocusedView === detectActiveView()
+      ? {
+          x: lastFocusedRect.left + lastFocusedRect.width / 2,
+          y: lastFocusedRect.top + lastFocusedRect.height / 2,
+        }
+      : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  const dist = (cand: HTMLElement) => {
+    const r = cand.getBoundingClientRect();
+    return Math.abs(r.left + r.width / 2 - origin.x) + Math.abs(r.top + r.height / 2 - origin.y);
+  };
+  let nearest: HTMLElement | null = null;
+  let best = Infinity;
+  for (const cand of pool) {
+    const d = dist(cand);
+    if (d < best) {
+      best = d;
+      nearest = cand;
+    }
+  }
+  if (nearest) {
+    applyTvFocus(nearest);
+    return true;
+  }
+  return false;
+}
+
+/** App chrome (title bar, now-playing bar) is never a spatial-nav target. */
+function isChromeEl(el: HTMLElement): boolean {
+  return Boolean(el.closest('.title-bar, .now-playing-bar'));
+}
+
 export function moveSpatialFocus(dir: SpatialDir): boolean {
   const current = (document.activeElement as HTMLElement | null) || lastFocusedElement;
   const candidates = getFocusCandidates();
 
   if (!candidates.length) return false;
 
-  // If nothing is focused or focus is outside the candidates, focus the first candidate
+  // If nothing is focused or focus is outside the candidates (e.g. the focused
+  // item was virtualized out of the DOM while scrolling the grid), don't snap
+  // back to the view start (the VOD Home button) — resume where the user was.
   if (!current || current === document.body || !candidates.includes(current)) {
+    // 1. Restore the per-view remembered position when the item is mounted.
+    if (tryRestoreFocus()) return true;
+
+    // 2. The remembered item may need a beat to re-mount after the scroller
+    // jump (virtualized lists); retry briefly. Only fall back to a positional
+    // resume — never to the view start — so focus stays near the user's spot.
+    if (hasFocusMemory()) {
+      let attempts = 6;
+      const retry = () => {
+        if (tryRestoreFocus()) return;
+        if (--attempts > 0) {
+          setTimeout(retry, 60);
+        } else {
+          resumeNearLastRect(candidates);
+        }
+      };
+      retry();
+      return true;
+    }
+
+    // 3. No saved memory: resume at the candidate nearest the last focused
+    // spot in this view, so deep-scroll navigation keeps its place instead of
+    // resetting to the top-left corner.
+    if (resumeNearLastRect(candidates)) return true;
+
     focusFirstInteractive();
     return true;
   }
@@ -346,6 +521,10 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
   const isChannelInfo = current.classList.contains('guide-channel-info');
   const isFavoriteBtn = current.classList.contains('favorite-btn');
   const isProgramBlock = current.classList.contains('program-block');
+  const isDetailContext = Boolean(current.closest('.movie-detail, .series-detail, .stremio-detail'));
+  const isVodSidebarItem = Boolean(current.closest('.vertical-sidebar'));
+  const isAlphabetLetter = current.classList.contains('alphabet-rail__letter');
+  const isMediaCard = current.classList.contains('media-card');
 
   let bestElement: HTMLElement | null = null;
   let minScore = Infinity;
@@ -430,6 +609,73 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
       }
     }
 
+    // 5. Detail pages (movie/series/Stremio): keep left/right moves within the
+    // same row — the primary action cluster (back, play, favorite) walks
+    // horizontally before descending into the content sections. Generic across
+    // the whole detail container so rows without dedicated classes (series
+    // action row, cast links, episode lists) behave the same way.
+    if ((dir === 'left' || dir === 'right') && isDetailContext && cand.closest('.movie-detail, .series-detail, .stremio-detail')) {
+      if (Math.abs(dy) < 30) {
+        score -= 300;
+      }
+    }
+
+    // 6. Moving right from the VOD sidebar always enters the posters — never
+    // the toolbar or search (when the grid is scrolled deep, those have a
+    // smaller weighted distance than the below-the-fold cards and would win).
+    // The card whose row contains the current item wins outright; otherwise
+    // the nearest card wins and the grid scrolls to it.
+    if (dir === 'right' && isVodSidebarItem) {
+      if (!cand.classList.contains('media-card')) continue;
+      if (rect.top <= curCenter.y && rect.bottom >= curCenter.y) {
+        score -= 800;
+      } else if (Math.abs(dy) < 260) {
+        score -= 300;
+      }
+    }
+
+    // 7. Moving left from the alphabet rail returns to the posters — never the
+    // toolbar or the sidebar, which can win the weighted score when the grid
+    // is scrolled deep.
+    if (dir === 'left' && isAlphabetLetter) {
+      if (!cand.classList.contains('media-card')) continue;
+      if (Math.abs(dy) < 160) {
+        score -= 400;
+      }
+    }
+
+    // 8. Moving up/down inside a poster grid (VOD/local/carousel media cards)
+    // stays in the same column so rows walk vertically instead of drifting to
+    // the sidebar or a neighboring column.
+    if ((dir === 'up' || dir === 'down') && isMediaCard && cand.classList.contains('media-card')) {
+      if (Math.abs(dx) < 120) {
+        score -= 150;
+      }
+    }
+
+    // 9. Up/down never enters the sidebar/category strip — those lists are
+    // taller than the viewport, so their below-the-fold items are valid
+    // up/down targets that steal focus at grid edges, stranding the user deep
+    // in the sidebar with no posters at that depth. Sidebars are left/right
+    // destinations only (unless the user is already navigating inside one).
+    if (
+      (dir === 'up' || dir === 'down') &&
+      !current.closest('.vertical-sidebar, .category-strip') &&
+      cand.closest('.vertical-sidebar, .category-strip')
+    ) {
+      continue;
+    }
+
+    // 10. From inside a poster grid, up/down only moves to other posters (or
+    // the toolbar at the top of the page) — never to unrelated app chrome
+    // like the now-playing bar or overlay buttons that sit behind the view
+    // and steal focus at the grid's edges.
+    if ((dir === 'up' || dir === 'down') && isMediaCard) {
+      const isGridTarget =
+        cand.classList.contains('media-card') || Boolean(cand.closest('.vod-browse__toolbar'));
+      if (!isGridTarget) continue;
+    }
+
     if (score < minScore) {
       minScore = score;
       bestElement = cand;
@@ -455,21 +701,60 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
   if (action === 'select') {
     const active = (document.activeElement as HTMLElement | null) || lastFocusedElement;
     if (active && active !== document.body) {
-      // Find the actionable button, input, or interactive element
-      const actionable = (active.tagName === 'BUTTON' || active.tagName === 'INPUT' || active.tagName === 'A')
-        ? active
-        : active.querySelector<HTMLElement>('button, a, input, [role="button"]') || active;
+      let actionable: HTMLElement = active;
+
+      // 1. If active is a sortable wrapper div, resolve to the inner button
+      if (
+        active.classList.contains('sortable-sidebar-item') ||
+        (active.tagName === 'DIV' && active.querySelector('button.category-item, button.category-folder-header, button'))
+      ) {
+        const innerBtn = active.querySelector<HTMLElement>(
+          'button.category-item, button.category-folder-header, button:not(.favorite-btn):not(.fav-btn):not([aria-label*="favorite" i]), a, input'
+        );
+        if (innerBtn) {
+          actionable = innerBtn;
+        }
+      }
+      // 2. Direct interactive elements (buttons, inputs, links, and direct row containers)
+      else if (
+        active.tagName === 'BUTTON' ||
+        active.tagName === 'INPUT' ||
+        active.tagName === 'A' ||
+        active.classList.contains('guide-channel-info') ||
+        active.classList.contains('guide-channel-row') ||
+        active.classList.contains('channel-item') ||
+        active.classList.contains('movie-card') ||
+        active.classList.contains('series-card') ||
+        active.classList.contains('sports-card') ||
+        active.classList.contains('program-block')
+      ) {
+        actionable = active;
+      } else {
+        // Fallback for wrapper containers: find primary actionable child (strictly excluding favorite buttons)
+        const innerBtn = active.querySelector<HTMLElement>(
+          'button:not(.favorite-btn):not(.fav-btn):not([aria-label*="favorite" i]), a, input, [role="button"]:not(.favorite-btn)'
+        );
+        if (innerBtn) {
+          actionable = innerBtn;
+        }
+      }
 
       actionable.click();
-      actionable.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
 
       // If user selected a category item in the sidebar, transfer spatial focus into the channels list
       const isCategorySelection =
         active.classList.contains('category-item') ||
-        active.classList.contains('category-list-bar') ||
+        actionable.classList.contains('category-item') ||
+        active.classList.contains('sortable-sidebar-item') ||
         Boolean(active.closest('.category-strip-scrollable, .category-strip-top'));
 
-      if (isCategorySelection && !active.classList.contains('category-source-header')) {
+      const isFolderOrSourceHeader =
+        active.classList.contains('category-source-header') ||
+        active.classList.contains('category-folder-header') ||
+        actionable.classList.contains('category-source-header') ||
+        actionable.classList.contains('category-folder-header');
+
+      if (isCategorySelection && !isFolderOrSourceHeader) {
         setTimeout(() => {
           const firstChan = document.querySelector<HTMLElement>('.guide-channel-info, .channel-item, .channel-card');
           if (firstChan && isElementVisible(firstChan)) {
@@ -477,6 +762,25 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
           }
         }, 150);
       }
+
+      // If this selection opened a modal/detail overlay (movie/series/Stremio
+      // detail page), move spatial focus inside it right away. This also clears
+      // the .tv-focused highlight left on the card behind the overlay, and
+      // keeps d-pad movement from mixing overlay buttons with background cards.
+      const retryModalFocus = (attempts = 4) => {
+        const modal = getActiveModal();
+        if (modal) {
+          const first = Array.from(modal.querySelectorAll<HTMLElement>(INTERACTIVE_SELECTOR)).find(isElementVisible);
+          if (first) {
+            applyTvFocus(first);
+            return;
+          }
+        }
+        if (attempts > 0) {
+          setTimeout(() => retryModalFocus(attempts - 1), 60);
+        }
+      };
+      setTimeout(() => retryModalFocus(4), 60);
 
       return true;
     }
@@ -494,7 +798,7 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
     const openModal = getActiveModal();
     if (openModal) {
       const modalClose = openModal.querySelector<HTMLElement>(
-        '.modal-close, .modal-close-btn, [data-action="close"], .dialog-close'
+        '.modal-close, .modal-close-btn, [data-action="close"], .dialog-close, .movie-detail__back, .series-detail__back'
       );
       if (modalClose && isElementVisible(modalClose)) {
         modalClose.click();

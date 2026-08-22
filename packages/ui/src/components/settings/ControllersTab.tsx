@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSettingsStore, DEFAULT_CONTROLLER_MAPPINGS } from '../../stores/settingsStore';
 import { subscribeGamepadButtonPress, type GamepadDeviceInfo, type LiveButtonEvent } from '../../hooks/useGamepad';
-import { generateQrSvg } from '../../utils/qrCode';
+import { generateQrDataUrl } from '../../utils/qrCode';
 import './ControllersTab.css';
 
 const AVAILABLE_ACTIONS: Array<{ id: string; label: string }> = [
@@ -173,7 +173,14 @@ export function ControllersTab() {
     }
   };
 
-  const qrSvgString = generateQrSvg(remoteStatus.remote_url, 150);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (!remoteStatus.remote_url) return;
+    generateQrDataUrl(remoteStatus.remote_url, 240)
+      .then(setQrDataUrl)
+      .catch((e) => console.error('[ControllersTab] QR code generation error:', e));
+  }, [remoteStatus.remote_url]);
 
   return (
     <div className="settings-tab-content controllers-tab">
@@ -331,10 +338,39 @@ export function ControllersTab() {
         {remoteControlEnabled && (
           <div className="phone-remote-card">
             <div className="remote-qr-box">
-              <div
-                className="qr-svg-wrapper"
-                dangerouslySetInnerHTML={{ __html: qrSvgString }}
-              />
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt="Remote QR Code"
+                  className="qr-img"
+                  style={{
+                    width: '160px',
+                    height: '160px',
+                    borderRadius: '10px',
+                    background: '#ffffff',
+                    padding: '8px',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
+                    display: 'block',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '160px',
+                    height: '160px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#ffffff',
+                    borderRadius: '10px',
+                    color: '#64748b',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                  }}
+                >
+                  Generating QR...
+                </div>
+              )}
               <span className="qr-hint">Scan with phone camera</span>
             </div>
             <div className="remote-details">
