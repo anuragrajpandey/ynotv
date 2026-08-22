@@ -16,6 +16,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Hls from 'hls.js';
 import { useSettingsStore } from '../../stores/settingsStore';
+import './multiviewCellShared.css';
 import './HlsMultiviewCell.css';
 
 interface HlsMultiviewCellProps {

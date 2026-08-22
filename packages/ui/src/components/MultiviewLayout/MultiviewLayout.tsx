@@ -6,6 +6,7 @@ import { ViewerSlot, type MultiviewEngineMode } from '../../hooks/useMultiview';
 import { useDraggable } from '../../hooks/useDraggable';
 import { useResizable } from '../../hooks/useResizable';
 import { useSettingsStore } from '../../stores/settingsStore';
+import '../MultiviewCell/multiviewCellShared.css';
 import './MultiviewLayout.css';
 
 interface HlsAbsoluteWrapperProps {
@@ -149,7 +150,9 @@ export function MultiviewLayout({
         onReposition?.();
     }, 16 / 9, 36);
 
-    // Sync native MPV geometry when placeholder renders on the Hero page
+    // Sync native MPV geometry when placeholder renders on the Hero page.
+    // Event-driven only (mount, window resize, placeholder size change) plus a
+    // single post-paint pass — the old continuous 100ms polling interval is gone.
     useLayoutEffect(() => {
         if (activeView !== 'none' || layout === 'main') return;
 
@@ -168,14 +171,16 @@ export function MultiviewLayout({
         observer.observe(placeholder);
 
         window.addEventListener('resize', updatePosition);
-        
-        // Frequent updates during layout changes/mounts
-        const intervalId = setInterval(updatePosition, 100);
+
+        // Immediate sync on mount, plus one-shot after the next paint so the
+        // geometry reflects the settled post-commit layout.
+        updatePosition();
+        const rafId = requestAnimationFrame(() => requestAnimationFrame(updatePosition));
 
         return () => {
             observer.disconnect();
             window.removeEventListener('resize', updatePosition);
-            clearInterval(intervalId);
+            cancelAnimationFrame(rafId);
         };
     }, [layout, activeView, syncMpvGeometry]);
 

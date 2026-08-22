@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke, Channel } from '@tauri-apps/api/core';
 import { useSettingsStore } from '../../stores/settingsStore';
+import './multiviewCellShared.css';
 import './CanvasMultiviewCell.css';
 
 interface CanvasMultiviewCellProps {

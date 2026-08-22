@@ -2075,7 +2075,6 @@ export function ChannelPanel({
     let forceNextUpdate = false;
     let isDragging = false;
     let dragSettleTimer: ReturnType<typeof setTimeout> | null = null;
-    const lastSecondaryGeometries = new Map<2 | 3 | 4, string>();
 
     const updateVideoPosition = () => {
       if (!previewRef.current) {

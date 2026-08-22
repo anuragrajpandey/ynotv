@@ -160,12 +160,15 @@ export function useMultiview() {
 
     const switchLayout = useCallback(async (newLayout: LayoutMode) => {
         if (newLayout === 'main') {
-            await invoke('multiview_canvas_stop_all').catch(() => { });
+            // Only canvas engine keeps native streams in the backend; HLS cells stop on unmount
+            if (engineModeRef.current === 'mpv_canvas') {
+                await invoke('multiview_canvas_stop_all').catch(() => { });
+            }
             setSlots(EMPTY_SLOTS.map(s => ({ ...s })));
         } else if (newLayout === 'pip' || newLayout === 'sbs') {
             // Stop and clear slots 3 and 4
             for (const id of [3, 4]) {
-                if (slotsRef.current.find(s => s.id === id)?.active) {
+                if (slotsRef.current.find(s => s.id === id)?.active && engineModeRef.current === 'mpv_canvas') {
                     invoke('multiview_canvas_stop', { slotId: id }).catch(() => { });
                 }
             }
@@ -174,6 +177,10 @@ export function useMultiview() {
 
         setLayout(newLayout);
         await syncMpvGeometry(newLayout);
+        // One-shot re-sync after React commits the new layout and any CSS
+        // transitions settle — replaces the old continuous 100ms polling in
+        // MultiviewLayout. Idempotent, so extra calls are harmless.
+        setTimeout(() => { syncMpvGeometry(newLayout); }, 100);
     }, [syncMpvGeometry]);
 
     /** Load a stream URL into a secondary slot */
@@ -207,7 +214,9 @@ export function useMultiview() {
                     : s
             ));
         } else {
-            invoke('multiview_canvas_stop', { slotId }).catch(() => { });
+            if (engineModeRef.current === 'mpv_canvas') {
+                invoke('multiview_canvas_stop', { slotId }).catch(() => { });
+            }
             setSlots(prev => prev.map(s =>
                 s.id === slotId ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s
             ));
@@ -215,7 +224,10 @@ export function useMultiview() {
     }, []);
 
     const stopSlot = useCallback(async (slotId: 2 | 3 | 4) => {
-        invoke('multiview_canvas_stop', { slotId }).catch(() => { });
+        // Only canvas engine keeps native streams in the backend; HLS cells stop on unmount
+        if (engineModeRef.current === 'mpv_canvas') {
+            invoke('multiview_canvas_stop', { slotId }).catch(() => { });
+        }
         setSlots(prev => prev.map(s =>
             s.id === slotId ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s
         ));

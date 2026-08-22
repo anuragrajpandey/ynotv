@@ -119,14 +119,21 @@
     background: transparent;
     z-index: 5;
     pointer-events: all;
+    overflow: hidden;
 }
 
-/* Top-left quadrant is occupied by primary MPV */
+/* Top-left quadrant is occupied by primary MPV.
+   The 4000px box-shadow is the black backdrop that fills the grid gaps and any
+   letterbox area: the app window is transparent and the primary MPV is an
+   embedded HWND beneath the WebView, so the DOM must stay transparent over the
+   video. A shadow paints around the element (never over its own rect), and
+   overflow:hidden on the grid clips it so it can never leak over other views. */
 .layout-2x2-mpv {
     position: relative;
     grid-column: 1;
     grid-row: 1;
     pointer-events: none;
+    box-shadow: 0 0 0 4000px #000;
 }
 
 /* Allow pointer events for the primary MPV controls */
@@ -187,6 +194,11 @@
 .layout-sbs-mpv {
     position: relative;
     pointer-events: none;
+    /* Letterbox backdrop: the two 16:9 cells are vertically centered, so the
+       transparent window would otherwise show the desktop above/below them.
+       The shadow fills everything except the element's own rect (where the
+       embedded MPV HWND shows through the transparent DOM); overflow:hidden on
+       .layout-sbs-cells clips it to the window. */
     box-shadow: 0 0 0 4000px #000;
 }
 
@@ -204,12 +216,15 @@
     background: transparent;
     z-index: 5;
     pointer-events: all;
+    overflow: hidden;
 }
 
 .layout-bigbottom-mpv {
     position: relative;
     grid-row: 1;
     pointer-events: none;
+    /* Black backdrop for the main-cell area and grid gaps — see .layout-2x2-mpv */
+    box-shadow: 0 0 0 4000px #000;
 }
 
 .layout-bottom-bar {
