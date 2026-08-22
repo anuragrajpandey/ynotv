@@ -255,17 +255,22 @@ export function MultiviewLayout({
     const layoutContent = (() => {
         if (layout === 'pip') {
             return (
-                <div className="layout-pip-container" style={{ display: hidden ? 'none' : undefined }}>
-                    <div className="layout-pip-overlay" ref={pipDragRef}>
+                <div 
+                    className="layout-pip-overlay" 
+                    data-engine={engineMode} 
+                    ref={pipDragRef}
+                    style={{ display: hidden || activeView !== 'none' ? 'none' : undefined }}
+                >
+                    <div className="layout-pip-container">
                         <button
                             className="layout-pip-close"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onSwitchLayout?.('main');
+                                onStop(2);
                             }}
                             title={t('closeReturnMain')}
                         >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="18" y1="6" x2="6" y2="18" />
                                 <line x1="6" y1="6" x2="18" y2="18" />
                             </svg>
@@ -279,7 +284,7 @@ export function MultiviewLayout({
 
         if (layout === '2x2') {
             return (
-                <div className="layout-2x2-cells" data-engine={engineMode} style={{ display: hidden ? 'none' : undefined }}>
+                <div className="layout-2x2-cells" data-engine={engineMode} style={{ display: hidden || activeView !== 'none' ? 'none' : undefined }}>
                     {/* Top-left grid cell: occupied by primary MPV (renders behind this div).
                         Must always be rendered so slots 2/3/4 land in the correct grid positions.
                         CSS removes the box-shadow curtain in HLS mode. */}
@@ -295,7 +300,7 @@ export function MultiviewLayout({
 
         if (layout === 'sbs') {
             return (
-                <div className="layout-sbs-cells" data-engine={engineMode} style={{ display: hidden ? 'none' : undefined }}>
+                <div className="layout-sbs-cells" data-engine={engineMode} style={{ display: hidden || activeView !== 'none' ? 'none' : undefined }}>
                     <div className="layout-mpv-placeholder layout-sbs-mpv">
                         {mainControls}
                     </div>
@@ -315,7 +320,7 @@ export function MultiviewLayout({
                     className="layout-bigbottom-cells" 
                     data-engine={engineMode} 
                     style={{ 
-                        display: hidden ? 'none' : undefined,
+                        display: hidden || activeView !== 'none' ? 'none' : undefined,
                         gridTemplateRows: `1fr ${cellH}px`
                     }}
                 >

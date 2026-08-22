@@ -2078,10 +2078,7 @@ export function ChannelPanel({
     const lastSecondaryGeometries = new Map<2 | 3 | 4, string>();
 
     const updateVideoPosition = () => {
-      // Use last known channel ID if current selection is null but we have one cached
-      const effectiveChannelId = selectedChannel?.stream_id || lastChannelIdRef.current || currentChannel?.stream_id;
-
-      if (!previewRef.current || !effectiveChannelId) {
+      if (!previewRef.current) {
         if (onPreviewVideoRectChange) {
           onPreviewVideoRectChange(null);
         }
@@ -2100,10 +2097,6 @@ export function ChannelPanel({
 
       // Safety check for zero dimensions — can happen transiently during React layout
       // transitions (e.g. switching multiview grid layouts) before the browser has painted.
-      // The effect returns early at the top when !visible, so reaching here means the panel
-      // is open. Skip this frame silently; the animation loop retries every rAF until paint
-      // settles and correct dimensions are available. Do NOT null the rect here — that would
-      // trigger App.tsx to reset video-zoom to 0, breaking the preview.
       if (rect.width === 0 || rect.height === 0) {
         return;
       }
@@ -2256,9 +2249,11 @@ export function ChannelPanel({
     };
 
     animate();
+    const intervalId = setInterval(updateVideoPosition, 100);
 
     return () => {
       disposed = true;
+      clearInterval(intervalId);
       observer.disconnect();
       window.removeEventListener('resize', handleWindowResize);
       if (unlistenMove) unlistenMove();

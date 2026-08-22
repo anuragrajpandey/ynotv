@@ -665,9 +665,23 @@ export function useMultiview() {
                 await Promise.all(ops).catch(() => { });
             }
 
-            // Temporarily reset primary MPV geometry to fullscreen so the Guide preview
-            // pane's `video-zoom` and `video-align` software scaling can work normally.
-            await invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
+            try {
+                const { Bridge } = await import('../services/tauri-bridge');
+                await Bridge.setProperties({
+                    'video-zoom': 0,
+                    'video-align-x': 0,
+                    'video-align-y': 0,
+                    'video-aspect-override': -1,
+                    'keepaspect': true,
+                });
+            } catch (e) {
+                // Ignore property reset errors
+            }
+
+            // Only reset primary MPV geometry to fullscreen for full-page tabs without an embedded video preview
+            if (tabName !== 'guide' && tabName !== 'sports') {
+                await invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
+            }
         }
     }, []);
 

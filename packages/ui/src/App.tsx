@@ -2097,9 +2097,9 @@ function useTmdbPresencePoster(
     }
   }, [activeView]);
 
-  // Reset video scale and alignment to fullscreen globally when no preview pane is active
+  // Reset video scale and alignment to fullscreen globally when returning to main hero view without an active preview pane
   useEffect(() => {
-    if (!previewVideoRect) {
+    if (!previewVideoRect && activeView === 'none' && multiviewLayout === 'main') {
       Bridge.setProperties({
         'video-zoom': 0,
         'video-align-x': 0,
@@ -2109,7 +2109,7 @@ function useTmdbPresencePoster(
       }).catch(() => { });
       invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
     }
-  }, [previewVideoRect]);
+  }, [previewVideoRect, activeView, multiviewLayout]);
 
   const triggerChannelChangeFlash = useCallback(() => {
     if (!channelInfoOverlayEnabled) return;

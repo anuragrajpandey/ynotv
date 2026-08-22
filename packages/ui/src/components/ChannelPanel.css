@@ -2953,9 +2953,9 @@ html[data-theme]:has(.guide-transparent-mode) .category-strip {
 .modern-ui-v3 .guide-info-pane.multiview-split-active {
   padding: 0 !important;
   overflow: hidden !important;
-  margin-left: 16px !important;
-  margin-bottom: 16px !important;
-  border-radius: 20px !important;
+  margin-left: 8px !important;
+  margin-bottom: 0 !important;
+  border-radius: var(--guide-preview-radius, 12px) !important;
 }
 
 .modern-ui-v3 .guide-preview-split-cell {
