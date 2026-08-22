@@ -1999,6 +1999,21 @@ export function ChannelPanel({
   const lastChannelClickRef = useRef<{ streamId: string; timestamp: number } | null>(null);
   const DOUBLE_CLICK_MS = 500;
 
+  // The channel list is virtualized. Remote navigation requests a data index
+  // when its next row is outside the current DOM window; Virtuoso is the only
+  // reliable owner of that scroll position.
+  useEffect(() => {
+    const handleSpatialIndexRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ surface?: string; index?: number }>).detail;
+      if (detail?.surface !== 'channel-list' || !Number.isInteger(detail.index) || detail.index! < 0) return;
+      blockAutoScrollRef.current = true;
+      virtuosoRef.current?.scrollToIndex({ index: detail.index!, align: 'center', behavior: 'auto' });
+    };
+
+    window.addEventListener('ynotv:spatial-scroll-to-index', handleSpatialIndexRequest);
+    return () => window.removeEventListener('ynotv:spatial-scroll-to-index', handleSpatialIndexRequest);
+  }, []);
+
   // Handle auto-scrolling to keep the selected channel near the middle/visible
   useEffect(() => {
     if (!visible) return;

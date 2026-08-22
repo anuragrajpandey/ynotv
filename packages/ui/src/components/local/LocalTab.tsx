@@ -1778,7 +1778,7 @@ export function LocalTab({
           context={gridContext}
           computeItemKey={(_, g) => (g.kind === 'movie' ? g.entry.id : g.key)}
           itemContent={LocalGridItem}
-          overscan={150}
+          overscan={1400}
           rangeChanged={(range) => setVisibleRange(range)}
           listClassName="local-grid-list"
           itemClassName="local-grid-item"

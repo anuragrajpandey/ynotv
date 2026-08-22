@@ -57,12 +57,14 @@ body.tv-nav-active .epg-program-block:focus {
 }
 
 /* Card zoom when TV focused */
+body.tv-nav-active .media-card.tv-focused,
 body.tv-nav-active .channel-card.tv-focused,
 body.tv-nav-active .movie-card.tv-focused,
 body.tv-nav-active .series-card.tv-focused,
 body.tv-nav-active .stremio-card.tv-focused,
 body.tv-nav-active .nuvio-card.tv-focused,
 body.tv-nav-active .widget-card.tv-focused,
+body.tv-nav-active .media-card:focus,
 body.tv-nav-active .channel-card:focus,
 body.tv-nav-active .movie-card:focus,
 body.tv-nav-active .series-card:focus,
@@ -72,6 +74,17 @@ body.tv-nav-active .nuvio-card:focus {
   outline: 3px solid #38bdf8 !important;
   outline-offset: 4px !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.8) !important;
+}
+
+/* Alphabet rail letter when TV focused */
+body.tv-nav-active .alphabet-rail__letter.tv-focused,
+body.tv-nav-active .alphabet-rail__letter:focus {
+  outline: 2px solid #38bdf8 !important;
+  outline-offset: 2px !important;
+  background: rgba(56, 189, 248, 0.3) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.7) !important;
+  transform: scale(1.2) !important;
 }
 
 /* Top bar buttons when TV focused */
@@ -113,14 +126,14 @@ body.tv-nav-active .toggle-switch input:focus + .toggle-slider {
 }
 
 /* Scroll containers smooth scrolling */
-.channels-grid,
-.channel-list,
-.movies-grid,
-.series-grid,
-.vod-grid,
-.category-strip,
-.settings-tab-content,
-.epg-container,
-.channel-panel {
+body.tv-nav-active .channels-grid,
+body.tv-nav-active .channel-list,
+body.tv-nav-active .movies-grid,
+body.tv-nav-active .series-grid,
+body.tv-nav-active .vod-grid,
+body.tv-nav-active .category-strip,
+body.tv-nav-active .settings-tab-content,
+body.tv-nav-active .epg-container,
+body.tv-nav-active .channel-panel {
   scroll-behavior: smooth;
 }

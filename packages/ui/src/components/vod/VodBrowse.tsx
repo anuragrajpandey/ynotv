@@ -106,6 +106,8 @@ const GridScroller = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElem
     <div
       ref={ref}
       {...props}
+      data-virtuoso-scroller="true"
+      className={`vod-grid-scroller ${props.className || ''}`}
       style={{ ...props.style, overflowY: 'scroll' }}
     />
   )
@@ -199,6 +201,20 @@ export function VodBrowse({
       virtuosoRef.current.scrollToIndex({ index: 0, align: 'start' });
     }
   }, [categoryId]);
+
+  // Spatial navigation cannot rely on an adjacent poster being mounted: the
+  // grid only renders a window of DOM nodes. Let Virtuoso bring the requested
+  // data index into that window instead of manually changing scrollTop.
+  useEffect(() => {
+    const handleSpatialIndexRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ surface?: string; index?: number }>).detail;
+      if (detail?.surface !== 'vod-grid' || !Number.isInteger(detail.index) || detail.index! < 0) return;
+      virtuosoRef.current?.scrollToIndex({ index: detail.index!, align: 'center', behavior: 'auto' });
+    };
+
+    window.addEventListener('ynotv:spatial-scroll-to-index', handleSpatialIndexRequest);
+    return () => window.removeEventListener('ynotv:spatial-scroll-to-index', handleSpatialIndexRequest);
+  }, []);
 
   // LAZY LOAD: Trigger stalker sync if needed
   // completed = true when sync finishes (or cache is fresh) - triggers data refresh
@@ -310,7 +326,7 @@ export function VodBrowse({
 
   // Grid item renderer - receives item from data prop, no items dependency
   const ItemContent = useCallback(
-    (_index: number, item: StoredMovie | StoredSeries) => {
+    (index: number, item: StoredMovie | StoredSeries) => {
       if (!item) return null;
 
       const itemId = type === 'movies'
@@ -337,6 +353,7 @@ export function VodBrowse({
         <MediaCard
           item={item}
           type={type === 'movies' ? 'movie' : 'series'}
+          index={index}
           onClick={onItemClick}
           size={sizeLabel}
           style={cardStyle}
@@ -470,7 +487,7 @@ export function VodBrowse({
         itemContent={ItemContent}
         rangeChanged={handleRangeChange}
         endReached={handleEndReached}
-        overscan={150}
+        overscan={1400}
         listClassName="vod-browse__grid-list"
         itemClassName="vod-browse__grid-item"
         components={{

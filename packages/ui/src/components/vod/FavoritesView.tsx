@@ -23,6 +23,8 @@ const GridScroller = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElem
     <div
       ref={ref}
       {...props}
+      data-virtuoso-scroller="true"
+      className={`vod-grid-scroller ${props.className || ''}`}
       style={{ ...props.style, overflowY: 'scroll' }}
     />
   )
@@ -153,6 +155,7 @@ export function FavoritesView({
       <MediaCard
         item={item}
         type={type}
+        index={index}
         onClick={onItemClick}
         isFavorited={true}
         onToggleFavorite={handleRemove}
@@ -249,6 +252,7 @@ export function FavoritesView({
         className="vod-browse__grid"
         data={sortedItems}
         totalCount={sortedItems.length}
+        overscan={1400}
         itemContent={itemContent}
         components={{
           Scroller: GridScroller,

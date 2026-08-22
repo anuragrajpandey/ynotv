@@ -84,18 +84,18 @@
 .vod-page__content {
   flex: 1;
   min-height: 0;
-  /* Important: allows flex child to shrink below content size */
-  overflow-y: auto;
-  overflow-x: hidden;
+  height: 100%;
+  /* Virtualized sub-views (VodBrowse, Home, Favorites, Local) manage their own internal scrolling */
+  overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--glass-surface-bg, var(--bg-primary, #0d0d0d));
   backdrop-filter: var(--glass-surface-filter, none);
   -webkit-backdrop-filter: var(--glass-surface-filter, none);
   border: var(--glass-surface-border, none);
   border-radius: var(--glass-panel-radius, 0);
   box-shadow: var(--glass-surface-shadow, none);
-  scrollbar-width: thin;
-  scrollbar-color: var(--surface-hover, rgba(255, 255, 255, 0.15)) transparent;
 }
 
 .vod-page__content:hover {

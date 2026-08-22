@@ -185,6 +185,7 @@ export const ChannelRow = memo(function ChannelRow({
       <div
         className={`guide-channel-info guide-channel-item channel-item ${isRecording ? 'is-recording' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}
         data-stream-id={channel.stream_id}
+        data-index={index}
         style={{
           width: 'var(--epg-channel-column-width, 264px)',
           minWidth: 'var(--epg-channel-column-width, 264px)',

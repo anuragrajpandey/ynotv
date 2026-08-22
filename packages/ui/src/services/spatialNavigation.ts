@@ -50,6 +50,8 @@ let lastFocusedView: string | null = null;
 // …). Used so a lost-focus resume lands on the same kind of content instead
 // of drifting to unrelated chrome/rails/toolbars.
 let lastFocusedKind: string | null = null;
+let cancelPendingVirtualFocus: (() => void) | null = null;
+let pendingVirtualFocus = false;
 
 if (typeof window !== 'undefined') {
   let lastMouseMoveX = -1;
@@ -141,7 +143,7 @@ function getFocusCandidates(): HTMLElement[] {
     // with the focused item — pressing right from the VOD sidebar (or left
     // from the alphabet rail) would "highlight the whole list" instead of a
     // poster. A scroll container is a scroll target, never a nav target.
-    if (el.hasAttribute('data-virtuoso-scroller')) return false;
+    if (el.hasAttribute('data-virtuoso-scroller') || el.classList.contains('vod-grid-scroller')) return false;
 
     const isScrollContainer =
       el.scrollHeight > el.clientHeight + 4 || el.scrollWidth > el.clientWidth + 4;
@@ -199,9 +201,7 @@ export function applyTvFocus(el: HTMLElement) {
   // the previous mix of native focus scrolling + manual scrollTop + smooth
   // scrollIntoView queued up competing animations that jittered in
   // virtualized lists (rows get recycled mid-animation).
-  const scroller = el.closest(
-    '[data-virtuoso-scroller], [data-testid="virtuoso-scroller"], .channel-panel, .epg-content, .channels-grid, .movies-grid, .series-grid, .sports-hub, .settings-tab-content, .dvr-dashboard'
-  ) as HTMLElement | null;
+  const scroller = findScrollerFor(el);
 
   if (scroller) {
     // Temporarily disable CSS scroll-behavior so the padding-aware jump below
@@ -211,20 +211,30 @@ export function applyTvFocus(el: HTMLElement) {
     try {
       const scrollerRect = scroller.getBoundingClientRect();
       const elemRect = el.getBoundingClientRect();
+      // Keep the focused item clear of the edge, but only by the amount
+      // required.  Scrolling a whole extra row here makes Virtuoso recycle the
+      // newly focused card/channel.  The next Down press then has no current
+      // content item and the general spatial search can land on the sidebar
+      // or search field instead.
+      const isCard = el.classList.contains('media-card') || el.classList.contains('movie-card') || el.classList.contains('series-card');
+      // A small margin is enough here. Larger margins effectively skip rows
+      // in a virtualized list and can cause the browser/virtualizer to correct
+      // the scroll position in the opposite direction.
+      const edgePadding = isCard ? 16 : 12;
 
-      if (elemRect.bottom > scrollerRect.bottom - 48) {
-        scroller.scrollTop += (elemRect.bottom - scrollerRect.bottom + 70);
-      } else if (elemRect.top < scrollerRect.top + 48) {
-        scroller.scrollTop -= (scrollerRect.top - elemRect.top + 70);
+      if (elemRect.bottom > scrollerRect.bottom - edgePadding) {
+        scroller.scrollTop += elemRect.bottom - scrollerRect.bottom + edgePadding;
+      } else if (elemRect.top < scrollerRect.top + edgePadding) {
+        scroller.scrollTop -= scrollerRect.top - elemRect.top + edgePadding;
       }
     } finally {
       scroller.style.scrollBehavior = prevBehavior;
     }
+  } else {
+    // Horizontal alignment (EPG timeline) and non-scroller containers. Explicit
+    // 'auto' overrides CSS scroll-behavior so focus moves stay instant.
+    el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
   }
-
-  // Horizontal alignment (EPG timeline) and non-scroller containers. Explicit
-  // 'auto' overrides CSS scroll-behavior so focus moves stay instant.
-  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
 
   // Remember this item as the view's focus position (per-view focus memory),
   // so returning to the view restores the browsing position.
@@ -243,7 +253,7 @@ export function applyTvFocus(el: HTMLElement) {
 
 const VIEW_CONTAINERS: Array<[string, string]> = [
   ['.channel-panel, .guide-panel, .epg-container', 'guide'],
-  ['.movies-grid, .vod-grid, .vod-page', 'movies'],
+  ['.movies-grid, .vod-grid, .vod-page, .vod-browse', 'movies'],
   ['.series-grid', 'series'],
   ['.sports-hub', 'sports'],
   ['.dvr-dashboard', 'dvr'],
@@ -252,7 +262,7 @@ const VIEW_CONTAINERS: Array<[string, string]> = [
 ];
 
 const SCROLLER_SELECTOR =
-  '[data-virtuoso-scroller], [data-testid="virtuoso-scroller"], .channel-panel, .epg-content, .channels-grid, .movies-grid, .series-grid, .sports-hub, .settings-tab-content, .dvr-dashboard';
+  '[data-virtuoso-scroller], .vod-grid-scroller, [data-testid="virtuoso-scroller"], .channel-panel, .epg-content, .channels-grid, .movies-grid, .series-grid, .vod-browse__grid, .local-grid, .sports-hub, .settings-tab-content, .dvr-dashboard';
 
 const focusMemory = new Map<string, { key: string; scrollTop: number }>();
 
@@ -278,7 +288,72 @@ function itemKeyFor(el: HTMLElement): string | null {
 }
 
 function findScrollerFor(el: HTMLElement): HTMLElement | null {
+  let node: HTMLElement | null = el.parentElement;
+  while (node && node !== document.body && node !== document.documentElement) {
+    if (
+      node.hasAttribute('data-virtuoso-scroller') ||
+      node.classList.contains('vod-grid-scroller') ||
+      node.classList.contains('vod-browse__grid') ||
+      node.classList.contains('local-grid') ||
+      node.classList.contains('channel-panel') ||
+      node.classList.contains('epg-content') ||
+      node.classList.contains('channels-grid') ||
+      node.classList.contains('movies-grid') ||
+      node.classList.contains('series-grid') ||
+      node.classList.contains('sports-hub') ||
+      node.classList.contains('settings-tab-content') ||
+      node.classList.contains('dvr-dashboard')
+    ) {
+      return node;
+    }
+    const style = window.getComputedStyle(node);
+    if (
+      (style.overflowY === 'scroll' || style.overflowY === 'auto' || style.overflow === 'scroll' || style.overflow === 'auto') &&
+      node.scrollHeight > node.clientHeight + 4
+    ) {
+      return node;
+    }
+    node = node.parentElement;
+  }
   return el.closest<HTMLElement>(SCROLLER_SELECTOR);
+}
+
+/**
+ * Virtuoso mounts a requested item asynchronously. Observe its scroller rather
+ * than relying on a few animation frames: large categories can take longer
+ * than a frame budget to render the requested row.
+ */
+function focusWhenVirtualTargetMounts(scroller: HTMLElement, selector: string): void {
+  cancelPendingVirtualFocus?.();
+
+  pendingVirtualFocus = true;
+
+  let settled = false;
+  let observer: MutationObserver | null = null;
+  let timeout: number | undefined;
+
+  const cleanup = () => {
+    if (settled) return;
+    settled = true;
+    observer?.disconnect();
+    if (timeout !== undefined) window.clearTimeout(timeout);
+    if (cancelPendingVirtualFocus === cleanup) cancelPendingVirtualFocus = null;
+    pendingVirtualFocus = false;
+  };
+
+  const tryFocus = () => {
+    if (settled) return;
+    const target = scroller.querySelector<HTMLElement>(selector);
+    if (!target || !isElementVisible(target)) return;
+    cleanup();
+    applyTvFocus(target);
+  };
+
+  observer = new MutationObserver(tryFocus);
+  observer.observe(scroller, { childList: true, subtree: true });
+  timeout = window.setTimeout(cleanup, 2000);
+  cancelPendingVirtualFocus = cleanup;
+  tryFocus();
 }
 
 function findFocusableByKey(key: string): HTMLElement | null {
@@ -331,7 +406,6 @@ export function tryRestoreFocus(): boolean {
 
 /** Whether the active view has a remembered focus position. */
 export function hasFocusMemory(): boolean {
-  if (getActiveModal()) return false;
   const view = detectActiveView();
   return view ? focusMemory.has(view) : false;
 }
@@ -381,19 +455,17 @@ export function focusFirstInteractive(): boolean {
       return true;
     }
 
-    // 2. Prioritize EPG channels over category sidebar; VOD pages land on the
-    // sidebar's Home item (first .vertical-sidebar__item in DOM order) so a
-    // fresh open starts from the top-left corner instead of an arbitrary card.
+    // 2. Prioritize EPG channels / poster cards over category sidebar & toolbar
     const preferred =
       candidates.find(c => c.classList.contains('guide-channel-info')) ||
-      candidates.find(c => c.classList.contains('vertical-sidebar__item')) ||
       candidates.find(
         c => c.classList.contains('media-card') || c.classList.contains('movie-card') || c.classList.contains('series-card')
       ) ||
+      candidates.find(c => c.classList.contains('vertical-sidebar__item')) ||
       candidates.find(c => c.classList.contains('sports-card') || c.classList.contains('calendar-card')) ||
       candidates.find(c => c.classList.contains('settings-tab-btn')) ||
       candidates.find(c => c.classList.contains('category-item')) ||
-      candidates.find((c) => !isChromeEl(c)) ||
+      candidates.find((c) => !isChromeEl(c) && !c.closest('.vod-browse__toolbar')) ||
       candidates[0];
 
     applyTvFocus(preferred);
@@ -402,70 +474,131 @@ export function focusFirstInteractive(): boolean {
   return false;
 }
 
+/** Rails, toolbars, and app chrome that a deep-scroll resume must never land on. */
+function isRailOrChrome(el: HTMLElement): boolean {
+  return Boolean(
+    el.closest(
+      '.vertical-sidebar, .category-strip, .alphabet-rail, .title-bar, .now-playing-bar, .vod-browse__toolbar'
+    )
+  );
+}
+
 /**
- * Refocus the candidate nearest to where the user last had focus in this
- * view. Used when the focused item was virtualized out of the DOM, so a deep
- * scroll keeps its place instead of snapping to the view start (e.g. Home).
- * Sidebar/category-strip items are avoided unless nothing else is available.
+ * Scroll the currently active view's scroller one row in the given direction.
+ * Used when the focused item was virtualized out of the DOM: instead of
+ * jumping to the nearest mounted chrome element, keep the list moving so a
+ * later retry can land on real content.
  */
-function resumeNearLastRect(candidates: HTMLElement[]): boolean {
-  // Content excludes sidebars and app chrome (title bar, now-playing bar) — a
-  // deep-scroll resume must land on view content, never on those.
-  const content = candidates.filter((c) => {
-    if (c.closest('.vertical-sidebar, .category-strip')) return false;
-    if (c.closest('.title-bar, .now-playing-bar')) return false;
-    return true;
-  });
+function scrollActiveViewInDirection(dir: SpatialDir): boolean {
+  if (dir !== 'up' && dir !== 'down') return false;
+  const scroller = findActiveViewScroller();
+  if (!scroller) return false;
+
+  const canScroll =
+    dir === 'down'
+      ? scroller.scrollTop < scroller.scrollHeight - scroller.clientHeight - 10
+      : scroller.scrollTop > 10;
+  if (!canScroll) return false;
+
+  scroller.style.scrollBehavior = 'auto';
+  scroller.scrollTop += dir === 'down' ? 180 : -180;
+  return true;
+}
+
+/**
+ * Re-focus near where the user last was, preferring candidates in the
+ * direction the user just pressed. This is the lost-focus recovery path: the
+ * focused item was virtualized out of the DOM (react-virtuoso recycled its
+ * row), so we must land on the same kind of content — never the category
+ * sidebar, search bar, or other chrome — and keep scrolling when that content
+ * is not mounted yet.
+ */
+function resumeInDirection(dir: SpatialDir): boolean {
+  const candidates = getFocusCandidates();
+  if (candidates.length === 0) return scrollActiveViewInDirection(dir);
+
+  const content = candidates.filter((c) => !isRailOrChrome(c));
+  const sameView = lastFocusedView === detectActiveView();
 
   // Resume to the same kind of content the user was browsing (poster grid →
   // poster, channel list → channel, EPG → program), so an unmount mid-scroll
-  // can never drift onto the alphabet rail, toolbar, or search. Falls back to
-  // the general content pool only when none of that kind is mounted.
+  // can never drift onto the alphabet rail, toolbar, or search. Only apply
+  // the kind restriction when the memory is from the currently active view.
   let pool = content;
-  if (lastFocusedKind === 'media-card') {
-    const cards = content.filter((c) => c.classList.contains('media-card'));
-    if (cards.length > 0) pool = cards;
-  } else if (lastFocusedKind === 'channel') {
-    const channels = content.filter((c) => c.classList.contains('guide-channel-info'));
-    if (channels.length > 0) pool = channels;
-  } else if (lastFocusedKind === 'program') {
-    const programs = content.filter(
-      (c) => c.classList.contains('program-block') || c.classList.contains('epg-program-block')
-    );
-    if (programs.length > 0) pool = programs;
+  if (sameView) {
+    if (lastFocusedKind === 'media-card') {
+      const cards = content.filter((c) => c.classList.contains('media-card'));
+      if (cards.length > 0) pool = cards;
+    } else if (lastFocusedKind === 'channel') {
+      const channels = content.filter((c) => c.classList.contains('guide-channel-info'));
+      if (channels.length > 0) pool = channels;
+    } else if (lastFocusedKind === 'program') {
+      const programs = content.filter(
+        (c) => c.classList.contains('program-block') || c.classList.contains('epg-program-block')
+      );
+      if (programs.length > 0) pool = programs;
+    }
   }
-  if (pool.length === 0) pool = candidates;
+
+  if (pool.length === 0) {
+    // The user was browsing a specific list, but none of it is mounted right
+    // now. Keep scrolling instead of stealing focus to chrome.
+    return scrollActiveViewInDirection(dir);
+  }
 
   // Prefer the last known focus spot; fall back to the viewport center when
-  // the memory is stale or from another view, so a mid-scroll resume still
-  // lands in content instead of snapping to chrome or the view start.
+  // the memory is stale or from another view.
   const origin =
-    lastFocusedRect &&
-    lastFocusedRect.width > 0 &&
-    lastFocusedView === detectActiveView()
+    lastFocusedRect && lastFocusedRect.width > 0 && sameView
       ? {
           x: lastFocusedRect.left + lastFocusedRect.width / 2,
           y: lastFocusedRect.top + lastFocusedRect.height / 2,
         }
       : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-  const dist = (cand: HTMLElement) => {
+
+  const inDir = pool.filter((c) => {
+    const r = c.getBoundingClientRect();
+    const dx = r.left + r.width / 2 - origin.x;
+    const dy = r.top + r.height / 2 - origin.y;
+    switch (dir) {
+      case 'down':
+        return dy > 4;
+      case 'up':
+        return dy < -4;
+      case 'right':
+        return dx > 4;
+      case 'left':
+        return dx < -4;
+      default:
+        return false;
+    }
+  });
+
+  // Prefer candidates in the pressed direction; if none, fall back to the
+  // nearest content so focus stays in the view rather than on chrome.
+  const selection = inDir.length > 0 ? inDir : pool;
+
+  const vertical = dir === 'down' || dir === 'up';
+  let best: HTMLElement | null = null;
+  let bestScore = Infinity;
+  for (const cand of selection) {
     const r = cand.getBoundingClientRect();
-    return Math.abs(r.left + r.width / 2 - origin.x) + Math.abs(r.top + r.height / 2 - origin.y);
-  };
-  let nearest: HTMLElement | null = null;
-  let best = Infinity;
-  for (const cand of pool) {
-    const d = dist(cand);
-    if (d < best) {
-      best = d;
-      nearest = cand;
+    const dx = r.left + r.width / 2 - origin.x;
+    const dy = r.top + r.height / 2 - origin.y;
+    const primary = vertical ? Math.abs(dy) : Math.abs(dx);
+    const secondary = vertical ? Math.abs(dx) : Math.abs(dy);
+    const score = primary + secondary * 2.5;
+    if (score < bestScore) {
+      bestScore = score;
+      best = cand;
     }
   }
-  if (nearest) {
-    applyTvFocus(nearest);
+
+  if (best) {
+    applyTvFocus(best);
     return true;
   }
-  return false;
+  return scrollActiveViewInDirection(dir);
 }
 
 /** App chrome (title bar, now-playing bar) is never a spatial-nav target. */
@@ -474,6 +607,11 @@ function isChromeEl(el: HTMLElement): boolean {
 }
 
 export function moveSpatialFocus(dir: SpatialDir): boolean {
+  // While Virtuoso is mounting the requested row, the old focused DOM node
+  // can be recycled. Do not run lost-focus restoration against that stale
+  // node: it rewinds the scroller back to the old row, causing the down/up
+  // bounce seen at the virtualized boundary.
+  if (pendingVirtualFocus) return true;
   const current = (document.activeElement as HTMLElement | null) || lastFocusedElement;
   const candidates = getFocusCandidates();
 
@@ -487,26 +625,26 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
     if (tryRestoreFocus()) return true;
 
     // 2. The remembered item may need a beat to re-mount after the scroller
-    // jump (virtualized lists); retry briefly. Only fall back to a positional
-    // resume — never to the view start — so focus stays near the user's spot.
+    // jump (virtualized lists); retry briefly. Only fall back to a
+    // direction-aware content resume — never to the view start or chrome.
     if (hasFocusMemory()) {
       let attempts = 6;
       const retry = () => {
         if (tryRestoreFocus()) return;
         if (--attempts > 0) {
           setTimeout(retry, 60);
-        } else {
-          resumeNearLastRect(candidates);
+        } else if (!resumeInDirection(dir)) {
+          focusFirstInteractive();
         }
       };
       retry();
       return true;
     }
 
-    // 3. No saved memory: resume at the candidate nearest the last focused
-    // spot in this view, so deep-scroll navigation keeps its place instead of
-    // resetting to the top-left corner.
-    if (resumeNearLastRect(candidates)) return true;
+    // 3. No saved memory: resume near the last focused spot, preferring the
+    // direction the user just pressed, so deep-scroll navigation keeps its
+    // place instead of resetting to the top-left corner.
+    if (resumeInDirection(dir)) return true;
 
     focusFirstInteractive();
     return true;
@@ -523,8 +661,63 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
   const isProgramBlock = current.classList.contains('program-block');
   const isDetailContext = Boolean(current.closest('.movie-detail, .series-detail, .stremio-detail'));
   const isVodSidebarItem = Boolean(current.closest('.vertical-sidebar'));
-  const isAlphabetLetter = current.classList.contains('alphabet-rail__letter');
-  const isMediaCard = current.classList.contains('media-card');
+  const isAlphabetLetter = Boolean(current.closest('.alphabet-rail'));
+  const isMediaCard = current.classList.contains('media-card') || Boolean(current.closest('.media-card'));
+
+  // A VOD grid has a stable Virtuoso index for each poster. Prefer that exact
+  // next-row target over geometric scoring: at the bottom of the rendered
+  // range, the score can only see chrome while the next grid row is mounting.
+  if (isMediaCard && (dir === 'down' || dir === 'up')) {
+    const scroller = findScrollerFor(current);
+    const currentIndex = parseInt(current.getAttribute('data-index') || '-1', 10);
+    if (scroller && currentIndex >= 0) {
+      const cards = Array.from(document.querySelectorAll<HTMLElement>('.media-card')).filter(
+        (card) => findScrollerFor(card) === scroller
+      );
+      const currentRow = cards.filter(
+        (card) => Math.abs(card.getBoundingClientRect().top - curRect.top) < 10
+      );
+      const columns = Math.max(currentRow.length, 1);
+      const targetIndex = currentIndex + (dir === 'down' ? columns : -columns);
+      const target = cards.find((card) => card.getAttribute('data-index') === String(targetIndex));
+      if (target) {
+        applyTvFocus(target);
+        return true;
+      }
+      if (targetIndex >= 0) {
+        window.dispatchEvent(
+          new CustomEvent('ynotv:spatial-scroll-to-index', { detail: { surface: 'vod-grid', index: targetIndex } })
+        );
+        focusWhenVirtualTargetMounts(scroller, `.media-card[data-index="${targetIndex}"]`);
+        return true;
+      }
+    }
+  }
+
+  // Channel rows are likewise indexed by their Virtuoso list position. This
+  // makes each Up/Down move deterministic and keeps focus in the channel
+  // column even while the list recycles rows.
+  if (isChannelInfo && (dir === 'down' || dir === 'up')) {
+    const scroller = findScrollerFor(current);
+    const currentIndex = parseInt(current.getAttribute('data-index') || '-1', 10);
+    if (scroller && currentIndex >= 0) {
+      const targetIndex = currentIndex + (dir === 'down' ? 1 : -1);
+      const target = Array.from(document.querySelectorAll<HTMLElement>('.guide-channel-info')).find(
+        (row) => row.getAttribute('data-index') === String(targetIndex) && findScrollerFor(row) === scroller
+      );
+      if (target) {
+        applyTvFocus(target);
+        return true;
+      }
+      if (targetIndex >= 0) {
+        window.dispatchEvent(
+          new CustomEvent('ynotv:spatial-scroll-to-index', { detail: { surface: 'channel-list', index: targetIndex } })
+        );
+        focusWhenVirtualTargetMounts(scroller, `.guide-channel-info[data-index="${targetIndex}"]`);
+        return true;
+      }
+    }
+  }
 
   let bestElement: HTMLElement | null = null;
   let minScore = Infinity;
@@ -577,6 +770,15 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
     }
 
     if (!valid) continue;
+
+    // Vertical navigation from the Live TV channel column must stay in that
+    // column.  At a Virtuoso render boundary there is temporarily no next
+    // channel in the DOM; allowing the generic scorer to run in that state is
+    // what lets a category item or the Search input take focus instead.
+    // The channel-list edge handler below scrolls and focuses the next row.
+    if ((dir === 'down' || dir === 'up') && isChannelInfo && !cand.classList.contains('guide-channel-info')) {
+      continue;
+    }
 
     // Weight primary direction over orthogonal deviation
     let score = primary + secondary * 2.5;
@@ -639,12 +841,22 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
     // is scrolled deep.
     if (dir === 'left' && isAlphabetLetter) {
       if (!cand.classList.contains('media-card')) continue;
-      if (Math.abs(dy) < 160) {
+      // Score based on vertical proximity to the letter level, preferring the rightmost card in that row
+      score = Math.abs(dy) * 3 + (-dx);
+      if (Math.abs(dy) < 180) {
+        score -= 500;
+      }
+    }
+
+    // 8. Moving right from a media-card: strongly prioritize other media-cards in the same row
+    // so user only crosses into the Alphabet Rail at the rightmost edge of the row
+    if (dir === 'right' && isMediaCard) {
+      if (cand.classList.contains('media-card') && Math.abs(dy) < 60) {
         score -= 400;
       }
     }
 
-    // 8. Moving up/down inside a poster grid (VOD/local/carousel media cards)
+    // 9. Moving up/down inside a poster grid (VOD/local/carousel media cards)
     // stays in the same column so rows walk vertically instead of drifting to
     // the sidebar or a neighboring column.
     if ((dir === 'up' || dir === 'down') && isMediaCard && cand.classList.contains('media-card')) {
@@ -653,26 +865,41 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
       }
     }
 
-    // 9. Up/down never enters the sidebar/category strip — those lists are
-    // taller than the viewport, so their below-the-fold items are valid
-    // up/down targets that steal focus at grid edges, stranding the user deep
-    // in the sidebar with no posters at that depth. Sidebars are left/right
-    // destinations only (unless the user is already navigating inside one).
+    // 10. Moving Down from VOD toolbar (sort select, sort dir, slider) enters the topmost visible posters
+    if (dir === 'down' && Boolean(current.closest('.vod-browse__toolbar'))) {
+      if (cand.classList.contains('media-card')) {
+        score -= 600;
+      }
+    }
+
+    // 11. Moving Up from posters enters the toolbar ONLY when at the top of the scroller (row 1)
+    if (dir === 'up' && isMediaCard && Boolean(cand.closest('.vod-browse__toolbar'))) {
+      const scroller = findScrollerFor(current);
+      if (scroller && scroller.scrollTop > 100) {
+        // Grid is scrolled deep — NEVER jump to the toolbar!
+        continue;
+      }
+    }
+
+    // 12. Moving Down from posters: NEVER jump to the toolbar
+    if (dir === 'down' && isMediaCard && Boolean(cand.closest('.vod-browse__toolbar'))) {
+      continue;
+    }
+
+    // 13. Up/down never enters the sidebar/category strip/alphabet rail from posters
     if (
       (dir === 'up' || dir === 'down') &&
       !current.closest('.vertical-sidebar, .category-strip') &&
-      cand.closest('.vertical-sidebar, .category-strip')
+      cand.closest('.vertical-sidebar, .category-strip, .alphabet-rail')
     ) {
       continue;
     }
 
-    // 10. From inside a poster grid, up/down only moves to other posters (or
-    // the toolbar at the top of the page) — never to unrelated app chrome
-    // like the now-playing bar or overlay buttons that sit behind the view
-    // and steal focus at the grid's edges.
+    // 14. From inside a poster grid, up/down only moves to other posters (or
+    // the toolbar at the very top of the page when on row 1) — never to unrelated app chrome
     if ((dir === 'up' || dir === 'down') && isMediaCard) {
       const isGridTarget =
-        cand.classList.contains('media-card') || Boolean(cand.closest('.vod-browse__toolbar'));
+        cand.classList.contains('media-card') || (dir === 'up' && Boolean(cand.closest('.vod-browse__toolbar')));
       if (!isGridTarget) continue;
     }
 
@@ -685,6 +912,131 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
   if (bestElement) {
     applyTvFocus(bestElement);
     return true;
+  }
+
+  // Virtualization Edge Handler (poster grids):
+  // When at the rendered DOM boundary of a virtualized grid, advance the scroller
+  // and focus the target row on the next animation frame when Virtuoso mounts it.
+  if (isMediaCard && (dir === 'down' || dir === 'up')) {
+    const scroller = findScrollerFor(current);
+    if (scroller) {
+      const canScrollDown = dir === 'down' && scroller.scrollTop < scroller.scrollHeight - scroller.clientHeight - 10;
+      const canScrollUp = dir === 'up' && scroller.scrollTop > 10;
+
+      if (canScrollDown || canScrollUp) {
+        const curIdx = parseInt(current.getAttribute('data-index') || '-1', 10);
+        const allCards = Array.from(document.querySelectorAll<HTMLElement>('.vod-browse__grid .media-card, .local-grid .media-card, .vod-grid-scroller .media-card'));
+        const firstRowCards = allCards.filter(c => Math.abs(c.getBoundingClientRect().top - allCards[0].getBoundingClientRect().top) < 10);
+        const cols = Math.max(firstRowCards.length, 1);
+        const targetIdx = curIdx !== -1 ? (dir === 'down' ? curIdx + cols : curIdx - cols) : -1;
+        const delta = dir === 'down' ? Math.max(curRect.height, 280) : -Math.max(curRect.height, 280);
+        const originLeft = curRect.left;
+        const beforeCenterY = curRect.top + curRect.height / 2;
+
+        scroller.scrollTop += delta;
+
+        let frames = 0;
+        const checkTarget = () => {
+          frames++;
+          let targetEl: HTMLElement | null = null;
+
+          if (targetIdx !== -1) {
+            // data-index is the Virtuoso data index, so it is the reliable
+            // target even after scrolling changes the item's screen position.
+            targetEl = Array.from(document.querySelectorAll<HTMLElement>(`.media-card[data-index="${targetIdx}"]`))
+              .find((card) => findScrollerFor(card) === scroller) || null;
+          }
+
+          if (!targetEl) {
+            const newCards = Array.from(document.querySelectorAll<HTMLElement>('.vod-browse__grid .media-card, .local-grid .media-card, .vod-grid-scroller .media-card'));
+            const expectedCenterY = beforeCenterY - delta;
+            let bestDistance = Infinity;
+            for (const c of newCards) {
+              const r = c.getBoundingClientRect();
+              if (Math.abs(r.left - originLeft) > 60) continue;
+              const centerY = r.top + r.height / 2;
+              const correctDir = dir === 'down' ? centerY > expectedCenterY + 10 : centerY < expectedCenterY - 10;
+              if (!correctDir) continue;
+              const distance = Math.abs(centerY - expectedCenterY);
+              if (distance < bestDistance) {
+                bestDistance = distance;
+                targetEl = c;
+              }
+            }
+          }
+
+          if (targetEl && isElementVisible(targetEl)) {
+            applyTvFocus(targetEl);
+          } else if (frames < 8) {
+            requestAnimationFrame(checkTarget);
+          }
+        };
+        requestAnimationFrame(checkTarget);
+        return true;
+      }
+    }
+  }
+
+  // Virtualization Edge Handler (LiveTV channel list): the channel list is a
+  // plain Virtuoso list. Scroll one row and focus the next channel in the
+  // same column once Virtuoso mounts it.
+  if (isChannelInfo && (dir === 'down' || dir === 'up')) {
+    const scroller = findScrollerFor(current);
+    if (scroller) {
+      const canScrollDown = dir === 'down' && scroller.scrollTop < scroller.scrollHeight - scroller.clientHeight - 10;
+      const canScrollUp = dir === 'up' && scroller.scrollTop > 10;
+
+      if (canScrollDown || canScrollUp) {
+        const originLeft = curRect.left;
+        const beforeCenterY = curRect.top + curRect.height / 2;
+        const delta = dir === 'down' ? Math.max(curRect.height, 56) : -Math.max(curRect.height, 56);
+        const currentIndex = parseInt(current.getAttribute('data-index') || '-1', 10);
+        const targetIndex = currentIndex === -1 ? -1 : currentIndex + (dir === 'down' ? 1 : -1);
+
+        scroller.scrollTop += delta;
+
+        let frames = 0;
+        const checkTarget = () => {
+          frames++;
+          const expectedCenterY = beforeCenterY - delta;
+          const rows = Array.from(document.querySelectorAll<HTMLElement>('.guide-channel-info'));
+          let target: HTMLElement | null = null;
+          let bestDistance = Infinity;
+
+          if (targetIndex >= 0) {
+            target = rows.find(
+              (row) => row.getAttribute('data-index') === String(targetIndex) && findScrollerFor(row) === scroller
+            ) || null;
+          }
+
+          if (target) {
+            applyTvFocus(target);
+            return;
+          }
+
+          for (const r of rows) {
+            const rect = r.getBoundingClientRect();
+            if (Math.abs(rect.left - originLeft) > 60) continue;
+            const centerY = rect.top + rect.height / 2;
+            const correctDir = dir === 'down' ? centerY > expectedCenterY + 10 : centerY < expectedCenterY - 10;
+            if (!correctDir) continue;
+            const distance = Math.abs(centerY - expectedCenterY);
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              target = r;
+            }
+          }
+
+          if (target && isElementVisible(target)) {
+            applyTvFocus(target);
+          } else if (frames < 8) {
+            requestAnimationFrame(checkTarget);
+          }
+        };
+        requestAnimationFrame(checkTarget);
+        return true;
+      }
+    }
   }
 
   // No valid target in that direction — shake the focused element so remote
@@ -761,6 +1113,17 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
             applyTvFocus(firstChan);
           }
         }, 150);
+      }
+
+      // If user selected an alphabet letter on the rail, transfer spatial focus to the first poster card
+      const isAlphabetSelection = Boolean(active.closest('.alphabet-rail'));
+      if (isAlphabetSelection) {
+        setTimeout(() => {
+          const firstCard = document.querySelector<HTMLElement>('.vod-browse__grid .media-card, .local-grid .media-card, .media-card');
+          if (firstCard && isElementVisible(firstCard)) {
+            applyTvFocus(firstCard);
+          }
+        }, 120);
       }
 
       // If this selection opened a modal/detail overlay (movie/series/Stremio

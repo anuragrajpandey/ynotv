@@ -32,9 +32,10 @@ export interface MediaCardProps {
   style?: React.CSSProperties;
   sourceName?: string;
   onPlayDirect?: (item: StoredMovie | StoredSeries) => void;
+  index?: number;
 }
 
-export const MediaCard = memo(function MediaCard({ item, type, onClick, onRemove, size = 'medium', progressPercent, isRecentlyWatched, seasonNum, episodeNum, episodeTitle, isFavorited, onToggleFavorite, style, sourceName, onPlayDirect }: MediaCardProps) {
+export const MediaCard = memo(function MediaCard({ item, type, onClick, onRemove, size = 'medium', progressPercent, isRecentlyWatched, seasonNum, episodeNum, episodeTitle, isFavorited, onToggleFavorite, style, sourceName, onPlayDirect, index }: MediaCardProps) {
   useTranslation();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -129,6 +130,7 @@ export const MediaCard = memo(function MediaCard({ item, type, onClick, onRemove
     <div
       className={`media-card media-card--${size}`}
       data-id={mediaId}
+      data-index={index !== undefined ? index : undefined}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}

@@ -288,24 +288,33 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
   const { series: recentlyWatchedSeriesData, loading: recentlyWatchedSeriesLoading } = useRecentlyWatchedSeries(20);
   
   // Extract items from RecentlyWatchedItem wrappers
-  const recentlyWatchedItems = type === 'movie' 
-    ? recentlyWatchedMoviesData.map(m => m.item)
-    : recentlyWatchedSeriesData.map(s => s.item);
+  const recentlyWatchedItems = useMemo(
+    () => (type === 'movie' 
+      ? recentlyWatchedMoviesData.map(m => m.item)
+      : recentlyWatchedSeriesData.map(s => s.item)),
+    [type, recentlyWatchedMoviesData, recentlyWatchedSeriesData]
+  );
   const recentlyWatchedLoading = type === 'movie' ? recentlyWatchedMoviesLoading : recentlyWatchedSeriesLoading;
   
   // Create progress map for Recently Watched items
-  const recentlyWatchedProgressMap = type === 'movie'
-    ? new Map(recentlyWatchedMoviesData.map(m => [m.item.stream_id, m.progress_percent]))
-    : new Map(recentlyWatchedSeriesData.map(s => [s.item.series_id, s.progress_percent]));
+  const recentlyWatchedProgressMap = useMemo(
+    () => (type === 'movie'
+      ? new Map(recentlyWatchedMoviesData.map(m => [m.item.stream_id, m.progress_percent]))
+      : new Map(recentlyWatchedSeriesData.map(s => [s.item.series_id, s.progress_percent]))),
+    [type, recentlyWatchedMoviesData, recentlyWatchedSeriesData]
+  );
 
   // Create episode data map for Recently Watched series
-  const recentlyWatchedEpisodeData = type === 'series'
-    ? new Map(recentlyWatchedSeriesData.map(s => [s.item.series_id, { 
-        seasonNum: s.season_num, 
-        episodeNum: s.episode_num, 
-        episodeTitle: s.episode_title 
-      }]))
-    : undefined;
+  const recentlyWatchedEpisodeData = useMemo(
+    () => (type === 'series'
+      ? new Map(recentlyWatchedSeriesData.map(s => [s.item.series_id, { 
+          seasonNum: s.season_num, 
+          episodeNum: s.episode_num, 
+          episodeTitle: s.episode_title 
+        }]))
+      : undefined),
+    [type, recentlyWatchedSeriesData]
+  );
 
   // Favorites - from Zustand persist store
   const enabledSourceIds = useEnabledSources();
@@ -986,11 +995,16 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
   const typeLabel = type === 'movie' ? i18n.t('vod:movies') : i18n.t('vod:series');
   const browseType = type === 'movie' ? 'movies' : 'series';
 
+  const sidebarCategories = useMemo(
+    () => categories.map(c => ({ id: c.category_id, name: c.name, source_id: c.source_id })),
+    [categories]
+  );
+
   return (
     <div className="vod-page">
       {/* Sidebar: Categories + Search + Back */}
       <VerticalSidebar
-        categories={categories.map(c => ({ id: c.category_id, name: c.name, source_id: c.source_id }))}
+        categories={sidebarCategories}
         selectedId={selectedCategoryId}
         onSelect={handleCategorySelect}
         type={type}
