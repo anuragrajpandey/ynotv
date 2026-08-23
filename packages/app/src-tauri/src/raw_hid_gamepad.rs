@@ -410,7 +410,7 @@ pub fn start(app_handle: &AppHandle) {
     thread::Builder::new()
         .name("ynotv-hid-gamepad".to_string())
         .spawn(move || {
-            let api = match HidApi::new() {
+            let mut api = match HidApi::new() {
                 Ok(a) => a,
                 Err(e) => {
                     warn!("[raw-hid] Failed to init HID API: {}", e);
@@ -445,6 +445,16 @@ pub fn start(app_handle: &AppHandle) {
 
             let mut next_id: usize = 100;
             while RUNNING.load(Ordering::Relaxed) {
+                // hidapi caches the device snapshot taken at HidApi::new() —
+                // device_list() never re-enumerates on its own, so a pad that
+                // was off at app launch (or a pad reconnected after a drop)
+                // would never appear. Refresh before every scan pass so
+                // hot-plug works in both directions.
+                if let Err(e) = api.refresh_devices() {
+                    warn!("[raw-hid] Failed to refresh device list: {}", e);
+                    thread::sleep(Duration::from_secs(5));
+                    continue;
+                }
                 for dev in api.device_list() {
                     let Some(profile) = profile_for(dev.vendor_id(), dev.product_id()) else {
                         continue;
