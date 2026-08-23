@@ -2199,6 +2199,24 @@
       "noChannels": "Aucune chaîne dans cette catégorie",
       "errSave": "Échec de l’enregistrement des modifications. Veuillez réessayer."
     },
+    "controllers": {
+      "title": "Prise en charge des manettes",
+      "description": "Naviguez dans YNOTV avec une manette PS5 DualSense (Bluetooth ou USB), PS4, Xbox, Switch Pro ou une télécommande TV.",
+      "enableNavigation": "Activer la navigation à la manette",
+      "enableNavigationHint": "Contrôlez les chaînes, menus, films, sports et la lecture vidéo avec les manettes connectées. Désactivé par défaut — activez-le pour commencer à écouter les entrées de la manette.",
+      "backgroundListening": "Écouter quand l'app n'est pas au premier plan",
+      "backgroundListeningHint": "Traiter les entrées de la manette pendant que YNOTV s'exécute en arrière-plan. Désactivé par défaut — les entrées sont ignorées tant que la fenêtre de l'app n'est pas au premier plan.",
+      "connectedCount_one": "{{count}} manette connectée",
+      "connectedCount_other": "{{count}} manettes connectées",
+      "noGamepads": "Aucune manette détectée",
+      "connectHint": "Connectez une manette Bluetooth ou USB (DualSense 5, Xbox, Switch Pro) pour commencer",
+      "ready": "Prêt",
+      "scanning": "Analyse…",
+      "liveMonitor": "Moniteur de boutons en direct (appuyez sur un bouton de la manette) :",
+      "lastDetected": "Dernier détecté :",
+      "deadzoneLabel": "Zone morte du stick analogique ({{percent}}%)",
+      "deadzoneHint": "Évite la dérive du stick en définissant l'inclinaison minimale requise avant de déplacer le focus"
+    },
     "favoriteManager": {
       "manageTitle": "Gérer les favoris",
       "countLabel_one": "{{count}} favori",

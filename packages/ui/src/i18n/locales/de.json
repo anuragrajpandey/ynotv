@@ -2199,6 +2199,24 @@
       "noChannels": "Keine Sender in dieser Kategorie",
       "errSave": "Änderungen konnten nicht gespeichert werden. Bitte erneut versuchen."
     },
+    "controllers": {
+      "title": "Gamepad- & Controller-Unterstützung",
+      "description": "Steuern Sie YNOTV mit einem PS5-DualSense (Bluetooth oder USB), PS4, Xbox, Switch Pro oder TV-Fernbedienung.",
+      "enableNavigation": "Controller-Navigation aktivieren",
+      "enableNavigationHint": "Steuern Sie Kanäle, Menüs, Filme, Sport und Videowiedergabe mit angeschlossenen Gamepads. Standardmäßig deaktiviert – aktivieren Sie es, um Controller-Eingaben zu empfangen.",
+      "backgroundListening": "Hören, wenn die App nicht fokussiert ist",
+      "backgroundListeningHint": "Controller-Eingaben verarbeiten, während YNOTV im Hintergrund läuft. Standardmäßig deaktiviert – Eingaben werden ignoriert, solange das App-Fenster nicht fokussiert ist.",
+      "connectedCount_one": "{{count}} Controller verbunden",
+      "connectedCount_other": "{{count}} Controller verbunden",
+      "noGamepads": "Keine Gamepads erkannt",
+      "connectHint": "Verbinden Sie einen Bluetooth- oder USB-Controller (DualSense 5, Xbox, Switch Pro), um zu beginnen",
+      "ready": "Bereit",
+      "scanning": "Suche…",
+      "liveMonitor": "Live-Button-Monitor (drücken Sie eine beliebige Taste am Controller):",
+      "lastDetected": "Zuletzt erkannt:",
+      "deadzoneLabel": "Analogstick-Totzone ({{percent}}%)",
+      "deadzoneHint": "Verhindert Stick-Drift, indem die Mindestneigung festgelegt wird, die zum Bewegen des Fokus erforderlich ist"
+    },
     "favoriteManager": {
       "manageTitle": "Favoriten verwalten",
       "countLabel_one": "{{count}} Favorit",

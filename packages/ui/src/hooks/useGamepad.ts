@@ -2,6 +2,57 @@ import { useEffect, useState, useRef } from 'react';
 import { useSettingsStore } from '../stores/settingsStore';
 import { dispatchSpatialNav, getActiveModal, onUserManualScroll } from '../services/spatialNavigation';
 
+// ── Native-claim tracking ──────────────────────────────────────────────────
+// The native backends (gilrs XInput + the raw HID backend) fully cover the
+// pads they enumerate and their data is trustworthy. The browser Gamepad API
+// is a redundant fallback that is only needed for pads neither native backend
+// sees — and for those it sometimes IS the only working source (WebView2's
+// DualSense-over-BT handling can list the pad while delivering garbage axes /
+// buttons, which the 60ms dedupe can't catch because the garbage produces
+// different actions than the native side). Once a native event has named a
+// pad, the browser poller stops dispatching for it, so Chromium's broken data
+// can never inject phantom input on top of working native input.
+const nativeClaimedPadNames = new Set<string>();
+const nativeClaimedVids = new Set<string>();
+
+/** 'DualSense Wireless Controller (HID 054c:0ce6)' → 'dualsense wireless controller' */
+function normalizePadName(name: string): string {
+  return name.toLowerCase().split('(')[0].trim();
+}
+
+function claimNativePad(name: string) {
+  nativeClaimedPadNames.add(normalizePadName(name));
+  const vidMatch = name.match(/\(hid\s+([0-9a-f]{4}):/i);
+  if (vidMatch) nativeClaimedVids.add(vidMatch[1].toLowerCase());
+}
+
+/** True when the native backends have claimed the pad the browser is looking at. */
+function isClaimedByNative(browserPadName: string): boolean {
+  if (nativeClaimedPadNames.has(normalizePadName(browserPadName))) return true;
+  // Chromium's device string can differ from the native name ("Wireless
+  // Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)" vs the HID
+  // backend's "DualSense Wireless Controller (HID 054c:0ce6)"), so also match
+  // on the vendor id.
+  const vidMatch = browserPadName.match(/vendor:\s*([0-9a-f]{4})/i);
+  return !!vidMatch && nativeClaimedVids.has(vidMatch[1].toLowerCase());
+}
+
+// ── Per-frame diagnostics ──────────────────────────────────────────────────
+// Enable by setting window.__ynotvGamepadDebug = true in the webview console,
+// or by launching with YNOTV_HID_DEBUG=1 / YNOTV_GAMEPAD_DEBUG=1 (the native
+// side auto-enables it via the gamepad_debug_enabled command). Logs go through
+// the tauri-plugin-log bridge, so they reach the same log file / terminal as
+// the Rust logs.
+async function debugGamepad(message: string) {
+  if ((window as any).__ynotvGamepadDebug !== true) return;
+  try {
+    const { info } = await import('@tauri-apps/plugin-log');
+    await info('[gamepad-debug] ' + message);
+  } catch {
+    console.info('[gamepad-debug]', message);
+  }
+}
+
 export interface GamepadDeviceInfo {
   id: number;
   name: string;
@@ -223,6 +274,13 @@ export function useGamepad() {
           })
           .catch(() => {});
 
+        // Auto-enable per-frame diagnostics when the native debug env vars are set.
+        invoke<boolean>('gamepad_debug_enabled')
+          .then((enabled) => {
+            if (enabled) (window as any).__ynotvGamepadDebug = true;
+          })
+          .catch(() => {});
+
         // Listen for connection / disconnection
         unlistenStatus = await listen<{ gamepads: GamepadDeviceInfo[] }>(
           'ynotv://gamepad-status',
@@ -248,6 +306,13 @@ export function useGamepad() {
           const pressed = event.payload?.pressed;
           const gpName = event.payload?.gamepad_name || 'Controller';
           if (!rawAction) return;
+
+          // First native event from a pad claims it, disabling the browser
+          // poller for that pad (see the claim helpers above).
+          claimNativePad(gpName);
+          debugGamepad(
+            `native event: action=${rawAction} pressed=${pressed} id=${event.payload?.gamepad_id} name=${gpName}`
+          );
 
           if (pressed) {
             notifyButtonPressed(rawAction, event.payload.button || rawAction, gpName);
@@ -299,11 +364,16 @@ export function useGamepad() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    console.info(
+      '[useGamepad] Diagnostics: set window.__ynotvGamepadDebug = true in the webview console (or launch with YNOTV_HID_DEBUG=1 / YNOTV_GAMEPAD_DEBUG=1) to log per-frame gamepad state.'
+    );
+
     let rafId: number;
     const prevButtonStates = new Map<string, boolean>();
     let activeDir: string | null = null;
     let dirHeldSince = 0;
     let lastDirTime = 0;
+    let lastStatusLog = 0;
 
     const REPEAT_DELAY_MS = 280;
     const REPEAT_INTERVAL_MS = 120;
@@ -319,6 +389,7 @@ export function useGamepad() {
       const gamepads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
       let anyConnected = false;
       const connectedList: GamepadDeviceInfo[] = [];
+      const statusLines: string[] = [];
 
       for (let i = 0; i < gamepads.length; i++) {
         const gp = gamepads[i];
@@ -342,34 +413,46 @@ export function useGamepad() {
 
         const buttonMap = isDualSenseBt ? DUALSENSE_BT_MAP : STANDARD_BUTTON_MAP;
 
+        // A pad that produced a native event (gilrs XInput or the raw HID
+        // backend) is fully driven by the native side. Chromium's Gamepad API
+        // data for the same pad is at best redundant and at worst garbage
+        // (DualSense over Bluetooth is the classic case — listed but with
+        // broken axes), so we stop dispatching its buttons / sticks / hat and
+        // only keep it for the device list and the diagnostic lines below.
+        const claimed = isClaimedByNative(gpName);
+
         // Scan all buttons on this controller
-        for (let btnIdx = 0; btnIdx < gp.buttons.length; btnIdx++) {
-          const btn = gp.buttons[btnIdx];
-          const isPressed =
-            typeof btn === 'object'
-              ? btn.pressed || btn.value > 0.35
-              : typeof btn === 'number'
-              ? btn > 0.35
-              : false;
+        if (!claimed) {
+          for (let btnIdx = 0; btnIdx < gp.buttons.length; btnIdx++) {
+            const btn = gp.buttons[btnIdx];
+            const isPressed =
+              typeof btn === 'object'
+                ? btn.pressed || btn.value > 0.35
+                : typeof btn === 'number'
+                ? btn > 0.35
+                : false;
 
-          const stateKey = `${gp.index}_btn_${btnIdx}`;
-          const wasPressed = prevButtonStates.get(stateKey) || false;
+            const stateKey = `${gp.index}_btn_${btnIdx}`;
+            const wasPressed = prevButtonStates.get(stateKey) || false;
 
-          if (isPressed && !wasPressed) {
-            prevButtonStates.set(stateKey, true);
-            const rawAction = buttonMap[btnIdx] || `button_${btnIdx}`;
-            notifyButtonPressed(rawAction, `Button ${btnIdx} (${rawAction})`, gpName);
+            if (isPressed && !wasPressed) {
+              prevButtonStates.set(stateKey, true);
+              const rawAction = buttonMap[btnIdx] || `button_${btnIdx}`;
+              notifyButtonPressed(rawAction, `Button ${btnIdx} (${rawAction})`, gpName);
 
-            if (enabledRef.current && isInputActive()) {
-              const action = mappingsRef.current[rawAction] || rawAction;
-              tryDispatchAction(action);
+              if (enabledRef.current && isInputActive()) {
+                const action = mappingsRef.current[rawAction] || rawAction;
+                tryDispatchAction(action);
+              }
+            } else if (!isPressed && wasPressed) {
+              prevButtonStates.set(stateKey, false);
             }
-          } else if (!isPressed && wasPressed) {
-            prevButtonStates.set(stateKey, false);
           }
         }
 
-        // Scan Left Analog Stick (Axes 0 & 1)
+        // Left Analog Stick (Axes 0 & 1) → D-pad direction. Computed for every
+        // pad so the diagnostic line can show what Chromium reports; only
+        // dispatched for pads the native backends haven't claimed.
         const deadzone = deadzoneRef.current;
         const stickX = gp.axes[0] || 0;
         const stickY = gp.axes[1] || 0;
@@ -387,8 +470,10 @@ export function useGamepad() {
 
         // Scan D-Pad Hat Switch ONLY on raw DirectInput / Bluetooth controllers (mapping !== 'standard')
         // Standard gamepads and DS4Windows already have D-Pad mapped to buttons 12-15 above.
+        let hatVal: number | undefined;
         if (!currentDir && gp.mapping !== 'standard' && gp.axes.length > 9) {
           const hat = gp.axes[9];
+          hatVal = typeof hat === 'number' ? hat : undefined;
           if (typeof hat === 'number' && hat >= -1.05 && hat <= 1.05) {
             // DirectInput 8-way Hat angles (0.0 is resting stick/idle, strictly excluded):
             // Up: -1.0, Right: -0.43, Down: 0.14, Left: 0.71
@@ -404,37 +489,52 @@ export function useGamepad() {
           }
         }
 
-        const now = Date.now();
-        if (currentDir) {
-          if (activeDir !== currentDir) {
-            activeDir = currentDir;
-            dirHeldSince = now;
-            lastDirTime = now;
-            notifyButtonPressed(currentDir, currentDir.toUpperCase(), gpName);
-
-            if (enabledRef.current && isInputActive()) {
-              const action = mappingsRef.current[currentDir] || currentDir;
-              tryDispatchAction(action);
-            }
-          } else {
-            const heldDuration = now - dirHeldSince;
-            const sinceLast = now - lastDirTime;
-            if (heldDuration >= REPEAT_DELAY_MS && sinceLast >= REPEAT_INTERVAL_MS) {
+        if (!claimed) {
+          const now = Date.now();
+          if (currentDir) {
+            if (activeDir !== currentDir) {
+              activeDir = currentDir;
+              dirHeldSince = now;
               lastDirTime = now;
               notifyButtonPressed(currentDir, currentDir.toUpperCase(), gpName);
+              debugGamepad(
+                `poller dir start: idx=${gp.index} dir=${currentDir} ax0=${stickX.toFixed(2)} ax1=${stickY.toFixed(2)} hat=${hatVal === undefined ? '-' : hatVal.toFixed(2)}`
+              );
 
               if (enabledRef.current && isInputActive()) {
                 const action = mappingsRef.current[currentDir] || currentDir;
-                executeAction(action);
+                tryDispatchAction(action);
+              }
+            } else {
+              const heldDuration = now - dirHeldSince;
+              const sinceLast = now - lastDirTime;
+              if (heldDuration >= REPEAT_DELAY_MS && sinceLast >= REPEAT_INTERVAL_MS) {
+                lastDirTime = now;
+                notifyButtonPressed(currentDir, currentDir.toUpperCase(), gpName);
+                debugGamepad(
+                  `poller dir repeat: idx=${gp.index} dir=${currentDir} ax0=${stickX.toFixed(2)} ax1=${stickY.toFixed(2)} hat=${hatVal === undefined ? '-' : hatVal.toFixed(2)}`
+                );
+
+                if (enabledRef.current && isInputActive()) {
+                  const action = mappingsRef.current[currentDir] || currentDir;
+                  executeAction(action);
+                }
               }
             }
+          } else if (activeDir) {
+            activeDir = null;
           }
-        } else if (activeDir) {
-          activeDir = null;
         }
 
+        // Diagnostic heartbeat line — what Chromium reports for this pad.
+        statusLines.push(
+          `idx=${gp.index} map="${gp.mapping}" btns=${gp.buttons.length} axes=${gp.axes.length} [${gp.axes
+            .map((a) => (a ?? 0).toFixed(2))
+            .join(',')}] ax0=${stickX.toFixed(2)} ax1=${stickY.toFixed(2)} hat=${hatVal === undefined ? '-' : hatVal.toFixed(2)} dir=${currentDir ?? '-'} claimed=${claimed}`
+        );
+
         // Scan Right Analog Stick (Axes 2 & 3/5) for smooth variable-speed page scrolling
-        if (enabledRef.current && isInputActive()) {
+        if (!claimed && enabledRef.current && isInputActive()) {
           let rightStickX = 0;
           let rightStickY = 0;
 
@@ -454,6 +554,16 @@ export function useGamepad() {
           if (Math.abs(rightStickY) > deadzone || Math.abs(rightStickX) > deadzone) {
             scrollActiveContainerByStick(rightStickX, rightStickY, deadzone);
           }
+        }
+      }
+
+      // Heartbeat: dump per-pad browser state every 2s so a quiet phantom
+      // source still shows up without flooding the log at 60fps.
+      if (statusLines.length > 0) {
+        const nowMs = Date.now();
+        if (nowMs - lastStatusLog >= 2000) {
+          lastStatusLog = nowMs;
+          debugGamepad('poller: ' + statusLines.join(' | '));
         }
       }
 

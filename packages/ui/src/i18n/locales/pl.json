@@ -2199,6 +2199,24 @@
       "noChannels": "Brak kanałów w tej kategorii",
       "errSave": "Nie udało się zapisać zmian. Spróbuj ponownie."
     },
+    "controllers": {
+      "title": "Obsługa gamepadów i kontrolerów",
+      "description": "Steruj YNOTV dowolnym DualSense PS5 (Bluetooth lub USB), PS4, Xbox, Switch Pro lub pilotem TV.",
+      "enableNavigation": "Włącz nawigację kontrolerem",
+      "enableNavigationHint": "Steruj kanałami, menu, filmami, sportem i odtwarzaniem wideo za pomocą podłączonych gamepadów. Domyślnie wyłączone — włącz, aby zacząć nasłuchiwać wejść z kontrolera.",
+      "backgroundListening": "Słuchaj, gdy aplikacja nie jest w fokusie",
+      "backgroundListeningHint": "Przetwarzaj wejścia z kontrolera, gdy YNOTV działa w tle. Domyślnie wyłączone — wejścia są ignorowane, dopóki okno aplikacji nie jest w fokusie.",
+      "connectedCount_one": "Podłączono {{count}} kontroler",
+      "connectedCount_other": "Podłączono {{count}} kontrolery",
+      "noGamepads": "Nie wykryto gamepadów",
+      "connectHint": "Podłącz kontroler Bluetooth lub USB (DualSense 5, Xbox, Switch Pro), aby rozpocząć",
+      "ready": "Gotowy",
+      "scanning": "Skanowanie…",
+      "liveMonitor": "Monitor przycisków na żywo (naciśnij dowolny przycisk na kontrolerze):",
+      "lastDetected": "Ostatnio wykryto:",
+      "deadzoneLabel": "Martwa strefa analogowego drążka ({{percent}}%)",
+      "deadzoneHint": "Zapobiega dryfowi drążka, ustawiając minimalne wychylenie wymagane przed przesunięciem fokusu"
+    },
     "favoriteManager": {
       "manageTitle": "Zarządzaj ulubionymi",
       "countLabel_one": "{{count}} ulubiony",

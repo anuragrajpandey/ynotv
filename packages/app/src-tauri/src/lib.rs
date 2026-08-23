@@ -321,11 +321,17 @@ use cast::{
 mod discord_rp;
 mod local_lib;
 mod gamepad;
+mod raw_hid_gamepad;
 mod web_server;
 
 #[tauri::command]
 fn get_connected_gamepads() -> Vec<gamepad::GamepadInfo> {
     gamepad::get_connected_gamepads()
+}
+
+#[tauri::command]
+fn gamepad_debug_enabled() -> bool {
+    gamepad::debug_enabled() || raw_hid_gamepad::debug_enabled()
 }
 
 // Bulk insert structures
@@ -4881,8 +4887,11 @@ pub fn run() {
             let discord_handle = app.handle().clone();
             std::thread::spawn(move || discord_rp::run_loop(discord_handle));
 
-            // Start native gamepad / controller background engine
+            // Start native gamepad / controller background engines
             gamepad::start(&app.handle());
+            // Raw HID reader for DirectInput-only Sony pads (raw DualSense /
+            // DualShock over BT or USB) that XInput and the browser API miss.
+            raw_hid_gamepad::start(&app.handle());
 
             // Start Phone Remote web server — only when the user has the
             // feature enabled. The frontend writes remoteControlEnabled to the
@@ -4928,6 +4937,7 @@ pub fn run() {
                         return;
                     }
                     gamepad::shutdown();
+                    raw_hid_gamepad::shutdown();
                     discord_rp::shutdown(&window.app_handle());
                     save_window_state(&window.app_handle());
                     // Flush the WAL so the next launch doesn't have to recover a
@@ -5122,6 +5132,7 @@ pub fn run() {
             local_lib::scan_local_folder,
             // Gamepad commands
             get_connected_gamepads,
+            gamepad_debug_enabled,
             // Phone Remote Server commands
             web_server::web_serve_status,
             web_server::web_serve_start,

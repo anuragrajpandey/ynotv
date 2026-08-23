@@ -2199,6 +2199,24 @@
       "noChannels": "此分類中沒有頻道",
       "errSave": "保存更改失敗。請重試。"
     },
+    "controllers": {
+      "title": "遊戲手把與控制器支援",
+      "description": "使用任何 PS5 DualSense（藍牙或 USB）、PS4、Xbox、Switch Pro 或電視遙控器操控 YNOTV。",
+      "enableNavigation": "啟用控制器導覽",
+      "enableNavigationHint": "使用已連接的遊戲手把控制頻道、選單、電影、體育和影片播放。預設關閉 — 啟用後開始監聽控制器輸入。",
+      "backgroundListening": "應用程式未聚焦時也進行監聽",
+      "backgroundListeningHint": "當 YNOTV 在背景執行時處理控制器輸入。預設關閉 — 除非應用程式視窗處於聚焦狀態，否則輸入將被忽略。",
+      "connectedCount_one": "已連接 {{count}} 個控制器",
+      "connectedCount_other": "已連接 {{count}} 個控制器",
+      "noGamepads": "未偵測到遊戲手把",
+      "connectHint": "連接藍牙或 USB 控制器（DualSense 5、Xbox、Switch Pro）即可開始",
+      "ready": "就緒",
+      "scanning": "正在掃描",
+      "liveMonitor": "即時按鍵監視器（按下控制器上的任一按鍵）：",
+      "lastDetected": "最近偵測到：",
+      "deadzoneLabel": "類比搖桿死區（{{percent}}%）",
+      "deadzoneHint": "透過設定移動焦點前所需的最小傾斜量來防止搖桿漂移"
+    },
     "favoriteManager": {
       "manageTitle": "管理收藏",
       "countLabel_one": "{{count}} 個收藏",

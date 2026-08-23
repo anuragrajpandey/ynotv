@@ -2199,6 +2199,24 @@
       "noChannels": "اس کیٹیگری میں کوئی چینل نہیں",
       "errSave": "تبدیلیاں محفوظ نہیں ہو سکیں۔ براہ کرم دوبارہ کوشش کریں۔"
     },
+    "controllers": {
+      "title": "گیم پیڈ اور کنٹرولر سپورٹ",
+      "description": "کسی بھی PS5 DualSense (بلوٹوتھ یا USB)، PS4، Xbox، Switch Pro یا TV ریموٹ سے YNOTV میں تشریف لے جائیں۔",
+      "enableNavigation": "کنٹرولر نیویگیشن فعال کریں",
+      "enableNavigationHint": "منسلک گیم پیڈز سے چینلز، مینیو، فلمیں، کھیل اور ویڈیو پلے بیک کنٹرول کریں۔ ڈیفالٹ طور پر بند — کنٹرولر ان پٹ سننا شروع کرنے کے لیے اسے فعال کریں۔",
+      "backgroundListening": "جب ایپ فوکس میں نہ ہو تو سنیں",
+      "backgroundListeningHint": "YNOTV کے پس منظر میں چلتے ہوئے کنٹرولر ان پٹ پر کارروائی کریں۔ ڈیفالٹ طور پر بند — جب تک ایپ ونڈو فوکس میں نہ ہو ان پٹ کو نظر انداز کیا جاتا ہے۔",
+      "connectedCount_one": "{{count}} کنٹرولر منسلک",
+      "connectedCount_other": "{{count}} کنٹرولر منسلک",
+      "noGamepads": "کوئی گیم پیڈ نہیں ملا",
+      "connectHint": "شروع کرنے کے لیے بلوٹوتھ یا USB کنٹرولر (DualSense 5، Xbox، Switch Pro) منسلک کریں",
+      "ready": "تیار",
+      "scanning": "اسکین ہو رہا ہے",
+      "liveMonitor": "لائیو بٹن مانیٹر (کنٹرولر پر کوئی بھی بٹن دبائیں):",
+      "lastDetected": "آخری شناخت:",
+      "deadzoneLabel": "اینالاگ اسٹک ڈیڈ زون ({{percent}}%)",
+      "deadzoneHint": "فوکس منتقل کرنے سے پہلے درکار کم از کم جھکاؤ مقرر کر کے اسٹک ڈرفٹ کو روکتا ہے"
+    },
     "favoriteManager": {
       "manageTitle": "پسندیدہ منظم کریں",
       "countLabel_one": "{{count}} پسندیدہ",

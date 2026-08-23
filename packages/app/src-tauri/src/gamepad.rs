@@ -10,6 +10,29 @@ use tauri::{AppHandle, Emitter};
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
+static DEBUG: OnceLock<bool> = OnceLock::new();
+
+/// Opt-in diagnostics via `YNOTV_GAMEPAD_DEBUG=1`. When enabled, every
+/// gilrs event and emitted payload is logged at info level so phantom input
+/// from the native XInput backend can be traced (e.g. a virtual Xbox pad
+/// left behind by a controller-emulation tool).
+pub fn debug_enabled() -> bool {
+    *DEBUG.get_or_init(|| {
+        std::env::var("YNOTV_GAMEPAD_DEBUG")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
+    })
+}
+
+fn emit_debug(name: &str, action: &str, button: &str, pressed: bool, id: usize) {
+    if debug_enabled() {
+        info!(
+            "[gamepad-debug] {} emit {} ({}) pressed={} id={}",
+            name, action, button, pressed, id
+        );
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GamepadInfo {
     pub id: usize,
@@ -43,6 +66,31 @@ pub fn get_connected_gamepads() -> Vec<GamepadInfo> {
     } else {
         Vec::new()
     }
+}
+
+/// Register a pad in the shared connected list (used by the raw HID backend,
+/// whose devices gilrs never sees) and notify the frontend.
+pub fn register_connected(info: GamepadInfo) {
+    if let Ok(mut map) = connected_gamepads_slot().lock() {
+        map.insert(info.id, info);
+    }
+}
+
+/// Remove a pad from the shared connected list and notify the frontend.
+pub fn unregister_connected(id: usize) {
+    if let Ok(mut map) = connected_gamepads_slot().lock() {
+        map.remove(&id);
+    }
+}
+
+/// Emit the current connected-pad list to the frontend (`ynotv://gamepad-status`).
+pub fn broadcast_status(handle: &AppHandle) {
+    let _ = handle.emit(
+        "ynotv://gamepad-status",
+        GamepadStatusPayload {
+            gamepads: get_connected_gamepads(),
+        },
+    );
 }
 
 pub fn start(app_handle: &AppHandle) {
@@ -131,6 +179,7 @@ pub fn start(app_handle: &AppHandle) {
                         EventType::ButtonPressed(btn, code) => {
                             let action = map_button_or_code(btn, code);
                             if !action.is_empty() {
+                                emit_debug(&gamepad_name, &action, &format!("{:?}", btn), true, gamepad_id);
                                 let payload = GamepadPayload {
                                     action,
                                     button: format!("{:?}", btn),
@@ -144,6 +193,7 @@ pub fn start(app_handle: &AppHandle) {
                         EventType::ButtonReleased(btn, code) => {
                             let action = map_button_or_code(btn, code);
                             if !action.is_empty() {
+                                emit_debug(&gamepad_name, &action, &format!("{:?}", btn), false, gamepad_id);
                                 let payload = GamepadPayload {
                                     action,
                                     button: format!("{:?}", btn),
@@ -158,6 +208,7 @@ pub fn start(app_handle: &AppHandle) {
                             let action = map_button_or_code(btn, code);
                             if !action.is_empty() {
                                 let is_pressed = val > 0.4;
+                                emit_debug(&gamepad_name, &action, &format!("{:?}", btn), is_pressed, gamepad_id);
                                 let payload = GamepadPayload {
                                     action,
                                     button: format!("{:?}", btn),
@@ -169,12 +220,19 @@ pub fn start(app_handle: &AppHandle) {
                             }
                         }
                         EventType::AxisChanged(axis, val, _) => {
+                            if debug_enabled() {
+                                info!(
+                                    "[gamepad-debug] {} axis {:?} = {:.3}",
+                                    gamepad_name, axis, val
+                                );
+                            }
                             if axis == Axis::LeftStickX {
                                 stick_x = val;
                             } else if axis == Axis::LeftStickY {
                                 stick_y = val;
                             } else if axis == Axis::DPadX {
                                 if val > 0.4 {
+                                    emit_debug(&gamepad_name, "dpad_right", "DPadRight", true, gamepad_id);
                                     let _ = handle.emit("ynotv://gamepad", GamepadPayload {
                                         action: "dpad_right".to_string(),
                                         button: "DPadRight".to_string(),
@@ -183,6 +241,7 @@ pub fn start(app_handle: &AppHandle) {
                                         gamepad_name: gamepad_name.clone(),
                                     });
                                 } else if val < -0.4 {
+                                    emit_debug(&gamepad_name, "dpad_left", "DPadLeft", true, gamepad_id);
                                     let _ = handle.emit("ynotv://gamepad", GamepadPayload {
                                         action: "dpad_left".to_string(),
                                         button: "DPadLeft".to_string(),
@@ -193,6 +252,7 @@ pub fn start(app_handle: &AppHandle) {
                                 }
                             } else if axis == Axis::DPadY {
                                 if val > 0.4 {
+                                    emit_debug(&gamepad_name, "dpad_up", "DPadUp", true, gamepad_id);
                                     let _ = handle.emit("ynotv://gamepad", GamepadPayload {
                                         action: "dpad_up".to_string(),
                                         button: "DPadUp".to_string(),
@@ -201,6 +261,7 @@ pub fn start(app_handle: &AppHandle) {
                                         gamepad_name: gamepad_name.clone(),
                                     });
                                 } else if val < -0.4 {
+                                    emit_debug(&gamepad_name, "dpad_down", "DPadDown", true, gamepad_id);
                                     let _ = handle.emit("ynotv://gamepad", GamepadPayload {
                                         action: "dpad_down".to_string(),
                                         button: "DPadDown".to_string(),
@@ -234,6 +295,7 @@ pub fn start(app_handle: &AppHandle) {
                         active_dir = Some(dir);
                         dir_held_since = now;
                         last_dir_time = now;
+                        emit_debug("Analog", dir, "LeftStick", true, 0);
                         let payload = GamepadPayload {
                             action: dir.to_string(),
                             button: "LeftStick".to_string(),
@@ -247,6 +309,7 @@ pub fn start(app_handle: &AppHandle) {
                         let since_last = now.duration_since(last_dir_time).as_millis();
                         if held_duration >= REPEAT_DELAY_MS && since_last >= REPEAT_INTERVAL_MS {
                             last_dir_time = now;
+                            emit_debug("Analog", dir, "LeftStick", true, 0);
                             let payload = GamepadPayload {
                                 action: dir.to_string(),
                                 button: "LeftStick".to_string(),

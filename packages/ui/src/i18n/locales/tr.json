@@ -2199,6 +2199,24 @@
       "noChannels": "Bu kategoride kanal yok",
       "errSave": "Değişiklikler kaydedilemedi. Lütfen tekrar deneyin."
     },
+    "controllers": {
+      "title": "Gamepad ve Kumanda Desteği",
+      "description": "YNOTV'da herhangi bir PS5 DualSense (Bluetooth veya USB), PS4, Xbox, Switch Pro veya TV kumandasıyla gezinin.",
+      "enableNavigation": "Kumanda ile Gezinmeyi Etkinleştir",
+      "enableNavigationHint": "Bağlı gamepad'lerle kanalları, menüleri, filmleri, sporları ve video oynatmayı kontrol edin. Varsayılan olarak kapalı — kumanda girişlerini dinlemeye başlamak için etkinleştirin.",
+      "backgroundListening": "Uygulama odakta değilken dinle",
+      "backgroundListeningHint": "YNOTV arka planda çalışırken kumanda girişlerini işleyin. Varsayılan olarak kapalı — uygulama penceresi odakta olmadığı sürece girişler yok sayılır.",
+      "connectedCount_one": "{{count}} kumanda bağlı",
+      "connectedCount_other": "{{count}} kumanda bağlı",
+      "noGamepads": "Gamepad algılanmadı",
+      "connectHint": "Başlamak için bir Bluetooth veya USB kumanda bağlayın (DualSense 5, Xbox, Switch Pro)",
+      "ready": "Hazır",
+      "scanning": "Taranıyor",
+      "liveMonitor": "Canlı Tuş Monitörü (kumandada herhangi bir tuşa basın):",
+      "lastDetected": "Son algılanan:",
+      "deadzoneLabel": "Analog Çubuğu Ölü Bölge ({{percent}}%)",
+      "deadzoneHint": "Odağı hareket ettirmeden önce gereken minimum eğimi ayarlayarak çubuk kaymasını önler"
+    },
     "favoriteManager": {
       "manageTitle": "Sık Kullanılanları Yönet",
       "countLabel_one": "{{count}} sık kullanılan",

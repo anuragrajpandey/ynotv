@@ -2199,6 +2199,24 @@
       "noChannels": "Nincs csatorna ebben a kategóriában",
       "errSave": "Nem sikerült menteni a módosításokat. Kérjük, próbálja újra."
     },
+    "controllers": {
+      "title": "Gamepad és vezérlő támogatás",
+      "description": "Navigáljon a YNOTV-ban bármilyen PS5 DualSense (Bluetooth vagy USB), PS4, Xbox, Switch Pro vagy TV távirányítóval.",
+      "enableNavigation": "Vezérlővel történő navigáció engedélyezése",
+      "enableNavigationHint": "Irányítsa a csatornákat, menüket, filmeket, sportot és a videolejátszást csatlakoztatott gamepadekkel. Alapértelmezetten ki van kapcsolva – engedélyezze a vezérlőbemenetek hallgatásához.",
+      "backgroundListening": "Hallgatás, ha az alkalmazás nincs fókuszban",
+      "backgroundListeningHint": "Vezérlőbemenetek feldolgozása, amíg a YNOTV a háttérben fut. Alapértelmezetten ki van kapcsolva – a bemenetek figyelmen kívül maradnak, hacsak az alkalmazásablak nincs fókuszban.",
+      "connectedCount_one": "{{count}} vezérlő csatlakoztatva",
+      "connectedCount_other": "{{count}} vezérlő csatlakoztatva",
+      "noGamepads": "Nem észlelhető gamepad",
+      "connectHint": "A kezdéshez csatlakoztasson egy Bluetooth- vagy USB-vezérlőt (DualSense 5, Xbox, Switch Pro)",
+      "ready": "Kész",
+      "scanning": "Keresés…",
+      "liveMonitor": "Élő gombfigyelő (nyomjon meg egy gombot a vezérlőn):",
+      "lastDetected": "Utolsó észlelt:",
+      "deadzoneLabel": "Analóg kar holtzóna ({{percent}}%)",
+      "deadzoneHint": "Megakadályozza a kar eltolódását azzal, hogy beállítja a fókusz mozgatásához szükséges minimális dőlést"
+    },
     "favoriteManager": {
       "manageTitle": "Kedvencek kezelése",
       "countLabel_one": "{{count}} kedvenc",

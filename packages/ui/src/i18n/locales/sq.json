@@ -2199,6 +2199,24 @@
       "noChannels": "Asnjë kanal në këtë kategori",
       "errSave": "Dështoi ruajtja e ndryshimeve. Provo përsëri."
     },
+    "controllers": {
+      "title": "Mbështetje për gamepad dhe kontrollorë",
+      "description": "Navigoni në YNOTV me çdo DualSense PS5 (Bluetooth ose USB), PS4, Xbox, Switch Pro ose telekomandë TV.",
+      "enableNavigation": "Aktivizo navigimin me kontrollor",
+      "enableNavigationHint": "Kontrolloni kanalet, menytë, filmat, sportin dhe riprodhimin e videos me gamepad të lidhur. I çaktivizuar si parazgjedhje — aktivizojeni për të filluar dëgjimin e të dhënave nga kontrollori.",
+      "backgroundListening": "Dëgjo kur aplikacioni nuk është në fokus",
+      "backgroundListeningHint": "Përpunoni të dhënat e kontrollorit ndërsa YNOTV punon në sfond. I çaktivizuar si parazgjedhje — të dhënat injorohen nëse dritarja e aplikacionit nuk është në fokus.",
+      "connectedCount_one": "{{count}} kontrollor i lidhur",
+      "connectedCount_other": "{{count}} kontrollorë të lidhur",
+      "noGamepads": "Asnjë gamepad i zbuluar",
+      "connectHint": "Lidhni një kontrollor Bluetooth ose USB (DualSense 5, Xbox, Switch Pro) për të filluar",
+      "ready": "Gati",
+      "scanning": "Duke skanuar…",
+      "liveMonitor": "Monitorim i gjallë i butonave (shtypni çdo buton në kontrollor):",
+      "lastDetected": "E fundit e zbuluar:",
+      "deadzoneLabel": "Zona e vdekur e levës analoge ({{percent}}%)",
+      "deadzoneHint": "Parandalon zhvendosjen e levës duke vendosur prirjen minimale të nevojshme përpara se të lëvizë fokusi"
+    },
     "favoriteManager": {
       "manageTitle": "Menaxho të preferuarat",
       "countLabel_one": "{{count}} i preferuar",

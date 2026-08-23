@@ -1798,6 +1798,24 @@
       "noChannels": "Không có kênh nào trong danh mục này",
       "errSave": "Không lưu được các thay đổi. Vui lòng thử lại."
     },
+    "controllers": {
+      "title": "Hỗ trợ Gamepad và Tay cầm",
+      "description": "Điều hướng YNOTV bằng mọi DualSense PS5 (Bluetooth hoặc USB), PS4, Xbox, Switch Pro hoặc điều khiển TV.",
+      "enableNavigation": "Bật điều hướng bằng tay cầm",
+      "enableNavigationHint": "Điều khiển kênh, menu, phim, thể thao và phát video bằng gamepad đã kết nối. Tắt theo mặc định — bật để bắt đầu lắng nghe đầu vào từ tay cầm.",
+      "backgroundListening": "Lắng nghe khi ứng dụng không được lấy nét",
+      "backgroundListeningHint": "Xử lý đầu vào từ tay cầm trong khi YNOTV chạy nền. Tắt theo mặc định — đầu vào bị bỏ qua trừ khi cửa sổ ứng dụng được lấy nét.",
+      "connectedCount_one": "{{count}} tay cầm đã kết nối",
+      "connectedCount_other": "{{count}} tay cầm đã kết nối",
+      "noGamepads": "Không phát hiện gamepad",
+      "connectHint": "Kết nối tay cầm Bluetooth hoặc USB (DualSense 5, Xbox, Switch Pro) để bắt đầu",
+      "ready": "Sẵn sàng",
+      "scanning": "Đang quét…",
+      "liveMonitor": "Màn hình nút bấm trực tiếp (nhấn bất kỳ nút nào trên tay cầm):",
+      "lastDetected": "Phát hiện gần nhất:",
+      "deadzoneLabel": "Vùng chết của cần analog ({{percent}}%)",
+      "deadzoneHint": "Ngăn trôi cần bằng cách đặt độ nghiêng tối thiểu cần thiết trước khi di chuyển tiêu điểm"
+    },
     "favoriteManager": {
       "manageTitle": "Quản Lý Yêu Thích",
       "countLabel_one": "{{count}} yêu thích",

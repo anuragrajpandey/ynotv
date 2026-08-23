@@ -2199,6 +2199,24 @@
       "noChannels": "Nessun canale in questa categoria",
       "errSave": "Impossibile salvare le modifiche. Riprova."
     },
+    "controllers": {
+      "title": "Supporto per Gamepad e Controller",
+      "description": "Naviga in YNOTV con qualsiasi DualSense PS5 (Bluetooth o USB), PS4, Xbox, Switch Pro o telecomando TV.",
+      "enableNavigation": "Abilita navigazione con controller",
+      "enableNavigationHint": "Controlla canali, menu, film, sport e riproduzione video con i gamepad collegati. Disattivato per impostazione predefinita: attivalo per iniziare ad ascoltare l'input del controller.",
+      "backgroundListening": "Ascolta quando l'app non è in primo piano",
+      "backgroundListeningHint": "Elabora l'input del controller mentre YNOTV è in esecuzione in background. Disattivato per impostazione predefinita: gli input vengono ignorati a meno che la finestra dell'app non sia in primo piano.",
+      "connectedCount_one": "{{count}} controller collegato",
+      "connectedCount_other": "{{count}} controller collegati",
+      "noGamepads": "Nessun gamepad rilevato",
+      "connectHint": "Collega un controller Bluetooth o USB (DualSense 5, Xbox, Switch Pro) per iniziare",
+      "ready": "Pronto",
+      "scanning": "Ricerca…",
+      "liveMonitor": "Monitor pulsanti live (premi un pulsante qualsiasi sul controller):",
+      "lastDetected": "Ultimo rilevato:",
+      "deadzoneLabel": "Zona morta dello stick analogico ({{percent}}%)",
+      "deadzoneHint": "Previene la deriva dello stick impostando l'inclinazione minima richiesta prima di spostare il focus"
+    },
     "favoriteManager": {
       "manageTitle": "Gestisci preferiti",
       "countLabel_one": "{{count}} preferito",

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSettingsStore, DEFAULT_CONTROLLER_MAPPINGS } from '../../stores/settingsStore';
 import { subscribeGamepadButtonPress, type GamepadDeviceInfo, type LiveButtonEvent } from '../../hooks/useGamepad';
 import { generateQrDataUrl } from '../../utils/qrCode';
@@ -53,6 +54,7 @@ const BUTTON_CONFIG: Array<{ id: string; label: string; group: string }> = [
 ];
 
 export function ControllersTab() {
+  const { i18n } = useTranslation();
   const controllerEnabled = useSettingsStore((s) => s.controllerEnabled);
   const setControllerEnabled = useSettingsStore((s) => s.setControllerEnabled);
   const controllerBackgroundListening = useSettingsStore((s) => s.controllerBackgroundListening);
@@ -205,7 +207,16 @@ export function ControllersTab() {
         const list = await invoke<GamepadDeviceInfo[]>('get_connected_gamepads');
         if (Array.isArray(list)) {
           list.forEach((item) => {
-            if (!detected.some((d) => d.name === item.name || d.id === item.id)) {
+            // Dedupe by exact name/id, and by normalized base name — the same
+            // pad can be reported twice with different suffixes (Chromium's
+            // "…(STANDARD GAMEPAD Vendor: 054c …)" vs the raw HID backend's
+            // "…(HID 054c:0ce6)"), which would otherwise double-list it.
+            const base = (n: string) => n.toLowerCase().split('(')[0].trim();
+            if (
+              !detected.some(
+                (d) => d.name === item.name || d.id === item.id || base(d.name) === base(item.name)
+              )
+            ) {
               detected.push(item);
             }
           });
@@ -268,18 +279,13 @@ export function ControllersTab() {
     <div className="settings-tab-content controllers-tab">
       {/* Gamepad & Controller Section */}
       <div className="settings-section">
-        <h3 className="section-title">Gamepad & Controller Support</h3>
-        <p className="section-desc">
-          Navigate YNOTV with any PS5 DualSense (Bluetooth or USB), PS4, Xbox, Switch Pro, or TV remote.
-        </p>
+        <h3 className="section-title">{i18n.t('settings:controllers.title')}</h3>
+        <p className="section-desc">{i18n.t('settings:controllers.description')}</p>
 
         <div className="setting-row">
           <div className="setting-info">
-            <span className="setting-label">Enable Controller Navigation</span>
-            <span className="setting-sublabel">
-              Control channels, menus, movies, sports, and video playback with connected gamepads.
-              Off by default — enable it to start listening for controller input.
-            </span>
+            <span className="setting-label">{i18n.t('settings:controllers.enableNavigation')}</span>
+            <span className="setting-sublabel">{i18n.t('settings:controllers.enableNavigationHint')}</span>
           </div>
           <label className="toggle-switch">
             <input
@@ -293,11 +299,8 @@ export function ControllersTab() {
 
         <div className="setting-row">
           <div className="setting-info">
-            <span className="setting-label">Listen When App Is Not Focused</span>
-            <span className="setting-sublabel">
-              Process controller input while YNOTV is running in the background. Off by default —
-              inputs are ignored unless the app window is focused.
-            </span>
+            <span className="setting-label">{i18n.t('settings:controllers.backgroundListening')}</span>
+            <span className="setting-sublabel">{i18n.t('settings:controllers.backgroundListeningHint')}</span>
           </div>
           <label className="toggle-switch">
             <input
@@ -316,13 +319,13 @@ export function ControllersTab() {
             <div className="device-info-main">
               <span className="device-status-title">
                 {connectedDevices.length > 0
-                  ? `${connectedDevices.length} Controller${connectedDevices.length > 1 ? 's' : ''} Connected`
-                  : 'No Gamepads Detected'}
+                  ? i18n.t('settings:controllers.connectedCount', { count: connectedDevices.length })
+                  : i18n.t('settings:controllers.noGamepads')}
               </span>
               <span className="device-status-sub">
                 {connectedDevices.length > 0
                   ? connectedDevices.map((d) => d.name).join(', ')
-                  : 'Connect a Bluetooth or USB controller (DualSense 5, Xbox, Switch Pro) to begin'}
+                  : i18n.t('settings:controllers.connectHint')}
               </span>
             </div>
             <span
@@ -330,17 +333,19 @@ export function ControllersTab() {
                 connectedDevices.length > 0 ? 'pill-connected' : 'pill-disconnected'
               }`}
             >
-              {connectedDevices.length > 0 ? 'Ready' : 'Scanning'}
+              {connectedDevices.length > 0
+                ? i18n.t('settings:controllers.ready')
+                : i18n.t('settings:controllers.scanning')}
             </span>
           </div>
 
           {/* Live Button Visualizer */}
           <div className="live-tester">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="tester-label">Live Button Monitor (Press any button on controller):</span>
+              <span className="tester-label">{i18n.t('settings:controllers.liveMonitor')}</span>
               {lastActiveInfo && (
                 <span className="live-telemetry">
-                  Last Detected: <strong>{lastActiveInfo.rawLabel}</strong>
+                  {i18n.t('settings:controllers.lastDetected')} <strong>{lastActiveInfo.rawLabel}</strong>
                 </span>
               )}
             </div>
@@ -378,11 +383,11 @@ export function ControllersTab() {
         <div className="setting-row" style={{ marginTop: '16px' }}>
           <div className="setting-info" style={{ flex: 1, minWidth: 0, paddingRight: '16px' }}>
             <span className="setting-label">
-              Analog Stick Deadzone ({Math.round(controllerDeadzone * 100)}%)
+              {i18n.t('settings:controllers.deadzoneLabel', {
+                percent: Math.round(controllerDeadzone * 100),
+              })}
             </span>
-            <span className="setting-sublabel">
-              Prevents stick drift by setting the minimum tilt required before moving focus
-            </span>
+            <span className="setting-sublabel">{i18n.t('settings:controllers.deadzoneHint')}</span>
           </div>
           <div className="deadzone-slider-control">
             <input

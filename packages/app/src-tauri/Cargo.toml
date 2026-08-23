@@ -94,6 +94,13 @@ libc = "0.2"
 # (real Xbox controllers, and DualSense pads emulated as Xbox 360).
 gilrs = { version = "0.10", default-features = false, features = ["xinput"] }
 
+# DirectInput/HID gamepads (raw DualSense / DualShock over Bluetooth or USB)
+# are invisible to XInput, and Chromium's Gamepad API won't deliver their
+# input while the window is unfocused — so read them directly via HID.
+# default-features = false avoids the libusb feature (needs pkg-config); the
+# platform HID backend (Win32 HID API here) is always compiled in.
+hidapi = { version = "2", default-features = false }
+
 # Embedded Web & Remote WebSocket server
 axum = { version = "0.7", features = ["ws"] }
 

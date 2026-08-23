@@ -2199,6 +2199,24 @@
       "noChannels": "Nema kanala u ovoj kategoriji",
       "errSave": "Čuvanje izmjena nije uspjelo. Pokušajte ponovo."
     },
+    "controllers": {
+      "title": "Podrška za gejmepad i kontroler",
+      "description": "Kontrolišite YNOTV bilo kojim PS5 DualSense (Bluetooth ili USB), PS4, Xbox, Switch Pro ili TV daljinskim upravljačem.",
+      "enableNavigation": "Omogući navigaciju kontrolerom",
+      "enableNavigationHint": "Kontrolišite kanale, menije, filmove, sport i reprodukciju videa pomoću povezanih kontrolera. Ugašeno po zadanim postavkama — omogućite to da počnete slušati unos kontrolera.",
+      "backgroundListening": "Slušaj kada aplikacija nije u fokusu",
+      "backgroundListeningHint": "Obradi unos kontrolera dok YNOTV radi u pozadini. Ugašeno po zadanim postavkama — unosi se zanemaruju osim ako prozor aplikacije nije u fokusu.",
+      "connectedCount_one": "{{count}} kontroler povezan",
+      "connectedCount_other": "{{count}} kontrolera povezano",
+      "noGamepads": "Nisu detektovani gejmepadi",
+      "connectHint": "Povežite Bluetooth ili USB kontroler (DualSense 5, Xbox, Switch Pro) za početak",
+      "ready": "Spremno",
+      "scanning": "Skeniranje...",
+      "liveMonitor": "Monitor dugmadi uživo (pritisnite bilo koje dugme na kontroleru):",
+      "lastDetected": "Posljednje detektovano:",
+      "deadzoneLabel": "Mrtva zona analogne palice ({{percent}}%)",
+      "deadzoneHint": "Sprečava pomicanje palice postavljanjem minimalnog nagiba potrebnog prije pomicanja fokusa"
+    },
     "favoriteManager": {
       "manageTitle": "Upravljanje omiljenim",
       "countLabel_one": "{{count}} omiljeni",

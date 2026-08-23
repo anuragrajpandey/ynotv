@@ -2199,6 +2199,24 @@
       "noChannels": "Κανένα κανάλι σε αυτή την κατηγορία",
       "errSave": "Αποτυχία αποθήκευσης αλλαγών. Προσπαθήστε ξανά."
     },
+    "controllers": {
+      "title": "Υποστήριξη Gamepad και Controller",
+      "description": "Πλοηγηθείτε στο YNOTV με οποιοδήποτε PS5 DualSense (Bluetooth ή USB), PS4, Xbox, Switch Pro ή τηλεχειριστήριο TV.",
+      "enableNavigation": "Ενεργοποίηση πλοήγησης με controller",
+      "enableNavigationHint": "Ελέγξτε κανάλια, μενού, ταινίες, αθλητικά και αναπαραγωγή βίντεο με συνδεδεμένα gamepad. Απενεργοποιημένο από προεπιλογή — ενεργοποιήστε το για να λαμβάνετε είσοδο από το controller.",
+      "backgroundListening": "Ακρόαση όταν η εφαρμογή δεν είναι σε εστίαση",
+      "backgroundListeningHint": "Επεξεργασία εισόδου controller ενώ το YNOTV εκτελείται στο παρασκήνιο. Απενεργοποιημένο από προεπιλογή — οι είσοδοι αγνοούνται εκτός αν το παράθυρο είναι σε εστίαση.",
+      "connectedCount_one": "{{count}} Controller συνδεδεμένος",
+      "connectedCount_other": "{{count}} Controllers συνδεδεμένοι",
+      "noGamepads": "Δεν εντοπίστηκαν gamepad",
+      "connectHint": "Συνδέστε έναν controller μέσω Bluetooth ή USB (DualSense 5, Xbox, Switch Pro) για να ξεκινήσετε",
+      "ready": "Έτοιμο",
+      "scanning": "Σάρωση…",
+      "liveMonitor": "Ζωντανή παρακολούθηση πλήκτρων (πατήστε οποιοδήποτε πλήκτρο στο controller):",
+      "lastDetected": "Τελευταίο που εντοπίστηκε:",
+      "deadzoneLabel": "Νεκρή ζώνη αναλογικού μοχλού ({{percent}}%)",
+      "deadzoneHint": "Αποτρέπει την ολίσθηση του μοχλού ορίζοντας την ελάχιστη κλίση που απαιτείται πριν μετακινηθεί η εστίαση"
+    },
     "favoriteManager": {
       "manageTitle": "Διαχείριση Αγαπημένων",
       "countLabel_one": "{{count}} αγαπημένο",

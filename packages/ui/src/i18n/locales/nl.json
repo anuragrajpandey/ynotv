@@ -2199,6 +2199,24 @@
       "noChannels": "Geen kanalen in deze categorie",
       "errSave": "Kan wijzigingen niet opslaan. Probeer het opnieuw."
     },
+    "controllers": {
+      "title": "Gamepad- en controllerondersteuning",
+      "description": "Navigeer door YNOTV met elke PS5 DualSense (Bluetooth of USB), PS4, Xbox, Switch Pro of tv-afstandsbediening.",
+      "enableNavigation": "Controller-navigatie inschakelen",
+      "enableNavigationHint": "Bestuur kanalen, menu's, films, sport en videoweergave met verbonden gamepads. Standaard uitgeschakeld — schakel het in om naar controller-invoer te luisteren.",
+      "backgroundListening": "Luisteren wanneer de app niet op de voorgrond is",
+      "backgroundListeningHint": "Verwerk controller-invoer terwijl YNOTV op de achtergrond draait. Standaard uitgeschakeld — invoer wordt genegeerd tenzij het app-venster op de voorgrond is.",
+      "connectedCount_one": "{{count}} controller verbonden",
+      "connectedCount_other": "{{count}} controllers verbonden",
+      "noGamepads": "Geen gamepads gedetecteerd",
+      "connectHint": "Verbind een Bluetooth- of USB-controller (DualSense 5, Xbox, Switch Pro) om te beginnen",
+      "ready": "Gereed",
+      "scanning": "Scannen…",
+      "liveMonitor": "Live-knopmonitor (druk op een knop op de controller):",
+      "lastDetected": "Laatst gedetecteerd:",
+      "deadzoneLabel": "Dode zone van analoge stick ({{percent}}%)",
+      "deadzoneHint": "Voorkomt stickdrift door de minimale kanteling in te stellen die nodig is voordat de focus beweegt"
+    },
     "favoriteManager": {
       "manageTitle": "Favorieten beheren",
       "countLabel_one": "{{count}} favoriet",
