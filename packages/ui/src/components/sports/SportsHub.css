@@ -303,15 +303,21 @@
    transparent over the pane) and its mini bar / resize handle stay above. */
 .sports-mv-layout {
   position: fixed;
-  z-index: 5;
+  z-index: 995;
   overflow: hidden;
   pointer-events: none;
 }
 
 .sports-mv-main {
   position: relative;
-  pointer-events: none;
+  pointer-events: auto;
   box-shadow: 0 0 0 4000px #000;
+  overflow: hidden;
+}
+
+.sports-mv-main:hover .multiview-cell-controls {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Side by side: two 16:9 cells centered vertically */
@@ -422,7 +428,7 @@
   width: 60px;
   height: 16px;
   cursor: ns-resize;
-  z-index: 50;
+  z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;

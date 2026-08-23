@@ -37,16 +37,7 @@
     cursor: default;
 }
 
-/* Controls bar overlay at the bottom */
-.canvas-cell-container .multiview-cell-controls {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 36px;
-    z-index: 4;
-    pointer-events: all;
-}
+
 
 /* Badge: show on hover of the overlay */
 .canvas-cell-overlay.multiview-cell-active:hover .multiview-cell-badge {

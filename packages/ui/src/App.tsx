@@ -5613,7 +5613,21 @@ function useTmdbPresencePoster(
       {/* Multiview slot layout over the Sports preview pane (root-level so the
           cells render above its cutout shadow, below the hub's controls) */}
       {activeView === 'sports' && multiviewLayout !== 'main' && previewVideoRect && (
-        <SportsMultiviewOverlay rect={previewVideoRect} layout={multiviewLayout} />
+        <SportsMultiviewOverlay
+          rect={previewVideoRect}
+          layout={multiviewLayout}
+          mainChannelName={currentChannel?.name || null}
+          mainPlaying={playing}
+          mainMuted={muted}
+          mainVolume={volume}
+          mainAspectRatio={heroAspectRatio}
+          onMainSetAspectRatio={handleSetAspectRatio}
+          onMainTogglePlayPause={handleTogglePlay}
+          onMainToggleMute={handleToggleMute}
+          onMainSetVolume={(vol) => handleVolumeChange({ target: { value: vol.toString() } } as any)}
+          onMainReload={currentChannel ? () => handlePlayChannelWrapper(currentChannel) : () => {}}
+          onMainStop={handleStop}
+        />
       )}
 
       {/* Multiview Layout */}
@@ -5631,6 +5645,8 @@ function useTmdbPresencePoster(
           mainPlaying={playing}
           mainMuted={muted}
           mainVolume={volume}
+          mainAspectRatio={heroAspectRatio}
+          onMainSetAspectRatio={handleSetAspectRatio}
           onMainTogglePlayPause={handleTogglePlay}
           onMainToggleMute={handleToggleMute}
           onMainSetVolume={(vol) => handleVolumeChange({ target: { value: vol.toString() } } as any)}
@@ -6158,6 +6174,10 @@ function useTmdbPresencePoster(
           onStop={handleStop}
           onChannelUp={handleChannelUp}
           onChannelDown={handleChannelDown}
+          aspectRatio={heroAspectRatio}
+          onSetAspectRatio={handleSetAspectRatio}
+          pipMode={pipMode}
+          onTogglePip={handleTogglePip}
           onPreviewVideoRectChange={setPreviewVideoRect}
           multiviewLayout={multiviewLayout}
           sportsOverlayWidget={sportsOverlayWidget}

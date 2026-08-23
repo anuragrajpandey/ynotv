@@ -16,6 +16,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Hls from 'hls.js';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { PlayIcon, PauseIcon, ReloadIcon, StopIcon, VolumeIcon, AspectRatioIcon } from './MultiviewIcons';
+import { type AspectRatioMode, getAspectRatioLabel } from '../../services/tauri-bridge';
 import './multiviewCellShared.css';
 import './HlsMultiviewCell.css';
 
@@ -202,19 +204,35 @@ export function HlsMultiviewCell({
         }
     };
 
-    const handlePlay = (e: React.MouseEvent) => {
-        e.stopPropagation();
+    const [playing, setPlaying] = useState(true);
+    const [aspectRatio, setAspectRatio] = useState<AspectRatioMode>('fill');
+    const [showAspectMenu, setShowAspectMenu] = useState(false);
+
+    const handlePlay = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
         videoRef.current?.play().catch(() => { });
     };
 
-    const handlePause = (e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handlePause = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
         videoRef.current?.pause();
+    };
+
+    const handleTogglePlayPause = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (playing) handlePause();
+        else handlePlay();
+    };
+
+    const handleRightClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (active) setContextMenu({ x: e.clientX, y: e.clientY });
     };
 
     const displayName = useMemo(() => {
         if (showSourceName && sourceName) return `[${sourceName}] ${channelName}`;
-        return channelName;
+        return channelName || '';
     }, [showSourceName, sourceName, channelName]);
 
     return (
@@ -223,8 +241,11 @@ export function HlsMultiviewCell({
             <video
                 ref={videoRef}
                 className="hls-cell-video"
+                style={{ objectFit: aspectRatio === 'fill' ? 'cover' : aspectRatio === 'stretch' ? 'fill' : 'contain' }}
                 muted
                 playsInline
+                onPlay={() => setPlaying(true)}
+                onPause={() => setPlaying(false)}
             />
 
             {/* Transparent interaction overlay — same id used by geometry helpers */}
@@ -273,18 +294,21 @@ export function HlsMultiviewCell({
                 </div>
             )}
 
-            {/* Controls bar (below video) */}
+            {/* Dedicated clean borderless controls overlay at bottom of cell */}
             {active && (
-                <div className="multiview-cell-controls">
-                    <span className="multiview-cell-controls-name">{displayName}</span>
+                <div className="multiview-cell-controls" onClick={(e) => e.stopPropagation()} onContextMenu={handleRightClick}>
+                    <div className="multiview-cell-controls-left">
+                        <span className="multiview-cell-controls-slot">{slotId}</span>
+                        <span className="multiview-cell-controls-name" title={displayName}>{displayName}</span>
+                    </div>
                     <div className="multiview-cell-controls-buttons">
-                        <div className="multiview-cell-controls-volume" onClick={e => e.stopPropagation()}>
-                            <button className="multiview-cell-controls-btn" onClick={handleMuteToggle} title={muted ? t('unmute') : t('mute')}>
-                                {muted || volume === 0 ? (
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" /></svg>
-                                ) : (
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" /></svg>
-                                )}
+                        <div className="multiview-cell-controls-volume" onClick={(e) => e.stopPropagation()}>
+                            <button
+                                className="multiview-cell-controls-btn"
+                                onClick={handleMuteToggle}
+                                title={muted || volume === 0 ? t('unmute') : t('mute')}
+                            >
+                                <VolumeIcon muted={muted} volume={volume} />
                             </button>
                             <input
                                 type="range"
@@ -293,20 +317,64 @@ export function HlsMultiviewCell({
                                 value={muted ? 0 : volume}
                                 onChange={handleVolumeChange}
                                 className="multiview-cell-volume-slider"
-                                title={t('volume')}
+                                title={`${volume}%`}
                             />
                         </div>
-                        <button className="multiview-cell-controls-btn" onClick={handlePlay} title={t('play')}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+
+                        <button
+                            className="multiview-cell-controls-btn"
+                            onClick={handleTogglePlayPause}
+                            title={playing ? t('pause') : t('play')}
+                        >
+                            {playing ? <PauseIcon /> : <PlayIcon />}
                         </button>
-                        <button className="multiview-cell-controls-btn" onClick={handlePause} title={t('pause')}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+
+                        <div className="multiview-cell-aspect-wrapper">
+                            <button
+                                className="multiview-cell-controls-btn"
+                                onClick={() => setShowAspectMenu(v => !v)}
+                                title={`${t('aspectRatio')}: ${getAspectRatioLabel(aspectRatio)}`}
+                            >
+                                <AspectRatioIcon />
+                            </button>
+                            {showAspectMenu && (
+                                <div className="multiview-cell-aspect-menu">
+                                    {(['fit', 'fill', 'stretch', '16:9', '4:3'] as AspectRatioMode[]).map((mode) => (
+                                        <button
+                                            key={mode}
+                                            className={`multiview-cell-aspect-item ${aspectRatio === mode ? 'active' : ''}`}
+                                            onClick={() => {
+                                                setAspectRatio(mode);
+                                                setShowAspectMenu(false);
+                                            }}
+                                        >
+                                            {getAspectRatioLabel(mode)}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <button
+                            className="multiview-cell-controls-btn"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onReload();
+                            }}
+                            title={t('reloadStream')}
+                        >
+                            <ReloadIcon />
                         </button>
-                        <button className="multiview-cell-controls-btn" onClick={(e) => { e.stopPropagation(); onReload(); }} title={t('reloadStream')}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A8 8 0 1 0 19 12h-2a6 6 0 1 1-2.23-4.69l2.64-2.64 1.42 1.42-3.54 3.54-3.54-3.54 1.41-1.41L13.76 5.1a8 8 0 0 1 3.89 1.25z" /></svg>
-                        </button>
-                        <button className="multiview-cell-controls-btn danger" onClick={(e) => { e.stopPropagation(); onStop(); }} title={t('stopClearBox')}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z" /></svg>
+
+                        <button
+                            className="multiview-cell-controls-btn danger"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onStop();
+                            }}
+                            title={t('stop')}
+                        >
+                            <StopIcon />
                         </button>
                     </div>
                 </div>

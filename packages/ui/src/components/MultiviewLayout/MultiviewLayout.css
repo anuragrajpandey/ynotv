@@ -128,32 +128,19 @@
    embedded HWND beneath the WebView, so the DOM must stay transparent over the
    video. A shadow paints around the element (never over its own rect), and
    overflow:hidden on the grid clips it so it can never leak over other views. */
+.layout-mpv-placeholder,
 .layout-2x2-mpv {
     position: relative;
     grid-column: 1;
     grid-row: 1;
-    pointer-events: none;
+    pointer-events: all;
     box-shadow: 0 0 0 4000px #000;
 }
 
-/* Allow pointer events for the primary MPV controls */
-.layout-2x2-mpv .primary-mpv-controls,
-.layout-bigbottom-mpv .primary-mpv-controls,
-.layout-sbs-mpv .primary-mpv-controls {
-    pointer-events: all;
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-/* Show main player controls when mouse is active */
-.app:not(.controls-hidden) .layout-2x2-mpv .primary-mpv-controls,
-.app:not(.controls-hidden) .layout-bigbottom-mpv .primary-mpv-controls,
-.app:not(.controls-hidden) .layout-sbs-mpv .primary-mpv-controls {
+.layout-mpv-placeholder:hover .multiview-cell-controls,
+.layout-pip-container:hover .multiview-cell-controls {
     opacity: 1;
+    pointer-events: auto;
 }
 
 .layout-2x2-cells .multiview-cell-container,
@@ -193,7 +180,7 @@
 
 .layout-sbs-mpv {
     position: relative;
-    pointer-events: none;
+    pointer-events: all;
     /* Letterbox backdrop: the two 16:9 cells are vertically centered, so the
        transparent window would otherwise show the desktop above/below them.
        The shadow fills everything except the element's own rect (where the
@@ -222,7 +209,7 @@
 .layout-bigbottom-mpv {
     position: relative;
     grid-row: 1;
-    pointer-events: none;
+    pointer-events: all;
     /* Black backdrop for the main-cell area and grid gaps — see .layout-2x2-mpv */
     box-shadow: 0 0 0 4000px #000;
 }

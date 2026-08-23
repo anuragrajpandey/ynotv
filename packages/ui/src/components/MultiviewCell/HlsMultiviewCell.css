@@ -45,20 +45,7 @@
     cursor: default;
 }
 
-/*
- * Controls bar — absolute overlay at the bottom of the cell.
- * Inherits the opacity:0 / hover:opacity:1 from MultiviewCell.css
- * but we add pointer-events so clicks work even without the container hover trick.
- */
-.hls-cell-container .multiview-cell-controls {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 36px;
-    z-index: 4;
-    pointer-events: all;
-}
+
 
 /* Badge: override opacity so it shows on hover of the overlay */
 .hls-cell-overlay.multiview-cell-active:hover .multiview-cell-badge {
