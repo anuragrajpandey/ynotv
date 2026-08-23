@@ -147,6 +147,7 @@ const UNTRANSLATED_ALLOWLIST = new Set([
   'probe.tabDrm', 'probe.tab4k', 'probe.tab1080p', 'probe.tab720p', 'probe.tabSd', 'probe.colFps',
   'settings.livetv.logos.gb1', 'settings.livetv.logos.mb100', 'settings.livetv.logos.mb250',
   'settings.livetv.logos.mb500', 'settings.livetv.logos.xl56', 'settings.livetv.fps',
+  'settings.livetv.avgBitrateLocationFailover', 'settings.subtitles.maxVolume100',
   'settings.navigation.tabs.epg', 'settings.navigation.tabs.vod', 'vod.sortName', 'common.ok', 'common.rec', 'common.live',
   'tvShows.nA', 'tvShows.tba', 'tvShows.tbd', 'sports.pct', 'sports.pts', 'sports.pos', 'sports.vs',
   'sports.tbd', 'sports.statusLive', 'sports.live', 'sports.statusFinal', 'sports.wins',
@@ -190,12 +191,19 @@ const UNTRANSLATED_ALLOWLIST = new Set([
   'settings.failover.streamCount_one', 'settings.sources.seriesCount', 'sports.backupsCount',
   'common.programsCount_one', 'settings.failover.smartAutoGroup', 'settings.failover.matchingOptions',
   'settings.failover.sportsOnly', 'settings.failover.created',
+  // bitrate/unit column headers + value tokens
+  'probe.kbpsValue', 'probe.sortByBitrate', 'probe.colVideoBitrate', 'probe.colAudioBitrate',
+  'vod.folderTypeSeries', 'settings.navigation.showVodPlaylists',
   // loanwords Google (rightly) keeps identical in specific languages
   'settings.ui.player', 'stremio.account', 'settings.about.documentation', 'sports.filterSuggestions',
   'epg.description', 'common.syncingBatchWithPrefix', 'nav.items.liveTv', 'updates.later',
   // per-locale exceptions: "Local" is the correct word in Spanish/Portuguese
   'es:vod.local', 'pt-BR:vod.local', 'es:stremio.local', 'pt-BR:stremio.local',
   'es:settings.navigation.showVodLocal', 'pt-BR:settings.navigation.showVodLocal',
+  // per-locale exceptions: the English word is already the correct translation
+  // (Dutch "Recent", German "Episode", French "Pause"/"Auto")
+  'nl:settings.navigation.showVodRecent', 'de:vod.episode',
+  'fr:vod.pauseScan', 'fr:vod.editEpisodeSeasonPlaceholder',
 ]);
 
 // Values with no lowercase ASCII letters ("DRM", "OK", "4K / UHD", "1 GB") or no

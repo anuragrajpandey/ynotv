@@ -1922,6 +1922,40 @@ async fn cancel_recording(
     Ok(())
 }
 
+/// Delete a recording's DB entry and optionally its file(s) from disk.
+///
+/// - delete_file = true  → also removes the recording file + thumbnail from
+///   the drive (this cannot be undone).
+/// - delete_file = false → removes the entry from the app's list only, keeping
+///   the file on the hard drive.
+#[tauri::command]
+async fn delete_recording(
+    state: tauri::State<'_, DvrState>,
+    id: i64,
+    delete_file: bool,
+) -> Result<(), String> {
+    // Always deletes the DB row; returns the file paths if they exist.
+    let paths = state.db.delete_recording(id)
+        .map_err(|e| format!("Failed to delete recording from database: {}", e))?;
+
+    if delete_file {
+        if let Some((file_path, thumbnail_path)) = paths {
+            for path in [Some(file_path), thumbnail_path].into_iter().flatten() {
+                match tokio::fs::remove_file(&path).await {
+                    Ok(()) => info!("Deleted recording file {}", path),
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                        warn!("Recording file already missing (skipping): {}", path);
+                    }
+                    Err(e) => warn!("Failed to delete recording file {}: {}", path, e),
+                }
+            }
+        }
+    }
+
+    debug!("[DVR Command] Recording {} deleted (delete_file={})", id, delete_file);
+    Ok(())
+}
+
 /// Get active recordings with live progress
 #[tauri::command]
 async fn get_active_recordings(
@@ -5024,6 +5058,7 @@ pub fn run() {
             get_recording_thumbnail,
             update_schedule_settings,
             check_schedule_conflicts,
+            delete_recording,
             update_playing_stream,
             update_dvr_stream_url,
             update_recording_title,

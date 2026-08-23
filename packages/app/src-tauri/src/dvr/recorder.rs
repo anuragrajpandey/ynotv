@@ -204,6 +204,12 @@ impl RecordingManager {
         // Generate unique filename to avoid database file_path collision
         let (filename, output_path) = generate_unique_filename(&self.db, &storage_path, &schedule, &channel_name);
 
+        // "Record until Stop" schedules are stored with scheduled_end == 0:
+        // there is no fixed end time — only a user cancel (stop_recording)
+        // ends them. FFmpeg gets no -t limit and the end-time waiter below
+        // never fires.
+        let is_manual_stop = schedule.scheduled_end == 0;
+
         // Calculate recording duration
         let duration_secs = schedule.actual_end() - schedule.actual_start();
 
@@ -287,13 +293,19 @@ impl RecordingManager {
         cmd.arg("-timeout").arg("30000000")  // 30 second read timeout (microseconds)
             .arg("-i").arg(&stream_url)
             .arg("-c").arg("copy")              // Zero transcoding
-            .arg("-t").arg(duration_secs.to_string())
             .arg("-fflags").arg("+flush_packets")  // Flush packets immediately
             .arg("-y")                           // Overwrite if exists
             .arg(&output_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+
+        // Record-until-stop schedules have no fixed duration, so FFmpeg must
+        // not receive a -t limit — it keeps recording until the user stops it
+        // (cancel sends 'q' and/or kills the process).
+        if !is_manual_stop {
+            cmd.arg("-t").arg(duration_secs.to_string());
+        }
 
         // Hide console window on Windows (CREATE_NO_WINDOW = 0x08000000)
         #[cfg(windows)]
@@ -330,6 +342,7 @@ impl RecordingManager {
             schedule.id,
             recording_id,
             duration_secs,
+            is_manual_stop,
             cancel_rx,
             progress_seconds,
             progress_bytes,
@@ -475,6 +488,7 @@ impl RecordingManager {
         schedule_id: i64,
         recording_id: i64,
         expected_duration: i64,
+        manual_stop: bool,
         mut cancel_rx: watch::Receiver<bool>,
         progress_seconds: Arc<parking_lot::Mutex<f64>>,
         progress_bytes: Arc<parking_lot::Mutex<u64>>,
@@ -558,8 +572,12 @@ impl RecordingManager {
         // Take stdin to send 'q' signal for graceful stopping
         let stdin = child.stdin.take();
 
-        // Calculate absolute end time, using DB schedule if possible
-        let mut actual_end_time = if let Ok(Some(s)) = self.db.get_schedule(schedule_id) {
+        // Calculate absolute end time, using DB schedule if possible.
+        // Record-until-stop schedules (scheduled_end == 0) have no end: the
+        // waiter is pointed ~100 years out so only a user cancel can stop it.
+        let mut actual_end_time = if manual_stop {
+            chrono::Utc::now().timestamp() + 100 * 365 * 24 * 3600
+        } else if let Ok(Some(s)) = self.db.get_schedule(schedule_id) {
             s.actual_end()
         } else {
             chrono::Utc::now().timestamp() + expected_duration
@@ -644,7 +662,14 @@ impl RecordingManager {
                     // Poll database to check if schedule end time / padding changed
                     match self.db.get_schedule(schedule_id) {
                         Ok(Some(updated_schedule)) => {
-                            let new_end = updated_schedule.actual_end();
+                            // Manual (record-until-stop) schedules keep their
+                            // far-future end — padding edits must not let the
+                            // end-time waiter fire and cut the recording.
+                            let new_end = if updated_schedule.scheduled_end == 0 {
+                                actual_end_time
+                            } else {
+                                updated_schedule.actual_end()
+                            };
                             if new_end != actual_end_time {
                                 info!("Recording #{} scheduled end time updated dynamically: {} -> {}", 
                                       recording_id, actual_end_time, new_end);

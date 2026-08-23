@@ -38,6 +38,7 @@ import { SportsHub } from './components/sports/SportsHub';
 import { TVCalendarPage } from './components/TVCalendarPage';
 import { LiveSportsOverlay } from './components/LiveSportsOverlay';
 import { SportsLiveGameSidebar } from './components/sports/SportsLiveGameSidebar';
+import { LiveGamesModal } from './components/sports/LiveGamesModal';
 import { RecentChannelsWidget } from './components/RecentChannelsWidget';
 import { FavoritesWidget } from './components/FavoritesWidget';
 import { WidgetBar } from './components/WidgetBar';
@@ -2267,32 +2268,31 @@ function useTmdbPresencePoster(
     setLiveGameSidebarOpen(false);
   }, []);
 
-  // Open state of the Live Game Sidebar drawer (lifted so controller/remote
-  // actions and spatial-navigation back can open/close it).
+  // Open state of the Live Game Sidebar drawer (lifted so hover/trigger
+  // interactions can open/close it).
   const [liveGameSidebarOpen, setLiveGameSidebarOpen] = useState(false);
 
-  // 'Toggle Live Game Sidebar' controller/remote action: if the widget is
-  // disabled, enable it and open the drawer; otherwise flip the drawer.
+  // Open state of the Live Games modal — the controller/remote entry point
+  // for live sports (mouse users keep the hover drawer).
+  const [liveGamesModalOpen, setLiveGamesModalOpen] = useState(false);
+
+  // 'Toggle Live Game Sidebar' controller/remote action: opens the
+  // controller-friendly Live Games modal instead of the mouse hover drawer.
   useEffect(() => {
     const handleToggleLiveGameSidebar = () => {
-      if (!sportsLiveSidebarWidget) {
-        setSportsLiveSidebarWidget(true);
-        localStorage.setItem('sportsLiveSidebarWidget', 'true');
-        setLiveGameSidebarOpen(true);
-      } else {
-        setLiveGameSidebarOpen((prev) => !prev);
-      }
+      setLiveGamesModalOpen((prev) => !prev);
     };
     window.addEventListener('ynotv:gamepad-toggle-live-game-sidebar', handleToggleLiveGameSidebar);
     return () => window.removeEventListener('ynotv:gamepad-toggle-live-game-sidebar', handleToggleLiveGameSidebar);
-  }, [sportsLiveSidebarWidget]);
+  }, []);
 
-  // Close the Live Game Sidebar drawer when the user navigates away from the
-  // main screen (Live TV, Movies, Series, Sports hub, …) so it never lingers
-  // open behind a different view.
+  // Close the Live Game Sidebar drawer and the Live Games modal when the user
+  // navigates away from the main screen (Live TV, Movies, Series, Sports hub,
+  // …) so neither lingers open behind a different view.
   useEffect(() => {
     if (activeView !== 'none') {
       setLiveGameSidebarOpen(false);
+      setLiveGamesModalOpen(false);
     }
   }, [activeView]);
 
@@ -5271,7 +5271,7 @@ function useTmdbPresencePoster(
         />
       )}
 
-      {/* Sports Live Game Sidebar Widget */}
+      {/* Sports Live Game Sidebar Widget (mouse hover drawer) */}
       {sportsLiveSidebarWidget && !pipMode && !(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_')) && multiviewLayout !== 'sbs' && multiviewLayout !== 'bigbottom' && multiviewLayout !== '2x2' && (
         <SportsLiveGameSidebar
           showControls={showControls}
@@ -5282,6 +5282,14 @@ function useTmdbPresencePoster(
           onOpenChange={setLiveGameSidebarOpen}
         />
       )}
+
+      {/* Live Games Modal (controller/remote entry point) */}
+      <LiveGamesModal
+        open={liveGamesModalOpen}
+        onClose={() => setLiveGamesModalOpen(false)}
+        onChannelClick={handlePlayChannelWrapper}
+        currentChannel={currentChannel}
+      />
 
       {/* Overlay Widgets — all sit inside a shared WidgetBar flex container.
            The bar owns positioning and scale; widgets are just flex children.

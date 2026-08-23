@@ -187,6 +187,7 @@ export function NowPlayingBar({
   const [recording, setRecording] = useState(false);
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [recordDuration, setRecordDuration] = useState(5);
+  const [recordUntilStop, setRecordUntilStop] = useState(false);
   const [recordTitle, setRecordTitle] = useState('');
   const [isStopAndRecord, setIsStopAndRecord] = useState(false);
   const canControl = mpvReady && channel !== null;
@@ -368,6 +369,7 @@ export function NowPlayingBar({
     const defaultTitle = currentProgram?.title || t('quickRecordTitle', { name: channel.name });
     setRecordTitle(defaultTitle);
     setIsStopAndRecord(false);
+    setRecordUntilStop(false);
 
     const now = Math.floor(Date.now() / 1000);
     const tempSchedule: Omit<DvrSchedule, 'id' | 'created_at' | 'status'> = {
@@ -424,13 +426,17 @@ export function NowPlayingBar({
       const defaultTitle = currentProgram?.title || t('quickRecordTitle', { name: channel.name });
       const finalTitle = recordTitle.trim() || defaultTitle;
 
+      // "Record until Stop": scheduled_end = 0 tells the DVR backend there
+      // is no fixed end time — it records until the user stops it manually.
+      const scheduledEnd = recordUntilStop ? 0 : now + (recordDuration * 60);
+
       const schedule: Omit<DvrSchedule, 'id' | 'created_at' | 'status'> = {
         source_id: channel.source_id,
         channel_id: channel.stream_id,
         channel_name: channel.name,
         program_title: finalTitle,
         scheduled_start: now,
-        scheduled_end: now + (recordDuration * 60),
+        scheduled_end: scheduledEnd,
         start_padding_sec: 0,
         end_padding_sec: 0, // Quick recording has 0 padding
         series_match_title: undefined,
@@ -445,7 +451,9 @@ export function NowPlayingBar({
       }
       showSuccess(
         t('recordingScheduled'),
-        t('recordingScheduledMsg', { minutes: recordDuration })
+        recordUntilStop
+          ? t('recordUntilStopScheduled')
+          : t('recordingScheduledMsg', { minutes: recordDuration })
       );
     } catch (error: any) {
       console.error('Failed to start quick record:', error);
@@ -1693,12 +1701,23 @@ export function NowPlayingBar({
                   />
                 </div>
                 <div className="npb-form-group">
+                  <label className="npb-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={recordUntilStop}
+                      onChange={(e) => setRecordUntilStop(e.target.checked)}
+                    />
+                    {t('recordUntilStop')}
+                  </label>
+                </div>
+                <div className="npb-form-group">
                   <label>{t('durationMinutes')}</label>
                   <input
                     type="number"
                     min="1"
                     max="180"
                     value={recordDuration}
+                    disabled={recordUntilStop}
                     onChange={(e) => setRecordDuration(Math.max(1, Math.min(180, parseInt(e.target.value) || 1)))}
                   />
                 </div>

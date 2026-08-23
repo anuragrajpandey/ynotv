@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import type { Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { SportsEvent } from '@ynotv/core';
@@ -16,6 +17,7 @@ import {
   setCachedGameStreams,
   queuePrefetchGameStreams,
 } from '../../services/sports/gameStreamSearcher';
+import { applyTvFocus } from '../../services/spatialNavigation';
 import { useUIStore } from '../../stores/uiStore';
 import { GameDetail } from './GameDetail';
 import './SportsLiveGameSidebar.css';
@@ -285,18 +287,24 @@ function SidebarTeamPlayButton({
   );
 }
 
-interface MiniGameCardProps {
+export interface MiniGameCardProps {
   event: SportsEvent;
   onPlayChannel: (channel: StoredChannel) => void;
   onOpenDetails: (event: SportsEvent) => void;
   currentStreamId?: string;
+  /** Extra classes added to the card root (e.g. a modal-context marker). */
+  className?: string;
+  /** Ref to the card root DOM node (e.g. to restore D-pad focus after a modal closes). */
+  rootRef?: Ref<HTMLDivElement>;
 }
 
-function MiniGameCard({
+export function MiniGameCard({
   event,
   onPlayChannel,
   onOpenDetails,
   currentStreamId,
+  className,
+  rootRef,
 }: MiniGameCardProps) {
   const { t } = useTranslation('sports');
   const homeLinks = useTeamLinks(event.league.id, event.homeTeam.id);
@@ -304,6 +312,35 @@ function MiniGameCard({
 
   const [isSearching, setIsSearching] = useState(false);
   const [localSearchChannels, setLocalSearchChannels] = useState<StoredChannel[] | null>(null);
+
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const setCardRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      cardRef.current = node;
+      if (!rootRef) return;
+      if (typeof rootRef === 'function') {
+        rootRef(node);
+      } else {
+        (rootRef as { current: HTMLDivElement | null }).current = node;
+      }
+    },
+    [rootRef]
+  );
+
+  // When inline search results finish loading, drop the D-pad highlight on the
+  // first result (controller flows only), so selecting Find Streams lands at
+  // the top of the results instead of leaving the highlight on the toggle or
+  // the results ✕ button.
+  useEffect(() => {
+    if (!localSearchChannels || localSearchChannels.length === 0) return;
+    if (!document.body.classList.contains('tv-nav-active')) return;
+    const cardEl = cardRef.current;
+    if (!cardEl) return;
+    const firstPill = cardEl.querySelector<HTMLElement>('.slg-stream-pill');
+    if (firstPill) {
+      applyTvFocus(firstPill);
+    }
+  }, [localSearchChannels]);
 
   const awayWinning = (event.awayScore ?? 0) > (event.homeScore ?? 0);
   const homeWinning = (event.homeScore ?? 0) > (event.awayScore ?? 0);
@@ -362,7 +399,11 @@ function MiniGameCard({
   }, [onPlayChannel]);
 
   return (
-    <div className="slg-card" onClick={() => onOpenDetails(event)}>
+    <div
+      ref={setCardRef}
+      className={`slg-card${className ? ` ${className}` : ''}`}
+      onClick={() => onOpenDetails(event)}
+    >
       {/* Card Header: League & Live Clock with Hover Search */}
       <div className="slg-card-header">
         <span className="slg-card-league">{event.league.name}</span>

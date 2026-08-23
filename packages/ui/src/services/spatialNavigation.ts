@@ -32,10 +32,8 @@ const INTERACTIVE_SELECTOR = [
   '.local-card__poster-wrap',
   '.stremio-detail-stream-card',
   '.series-detail__episode-card',
-  '.slg-card',
-  '.slg-league-pill',
-  '.slg-close-btn',
-  '.slg-tab-trigger',
+  '.lgm-card',
+  '.lgm-league-pill',
   '.stremio-card',
   '.stremio-row-card',
   '.stremio-meta-card',
@@ -159,13 +157,36 @@ function isElementVisible(el: HTMLElement): boolean {
   return rect.width > 0 && rect.height > 0;
 }
 
+const MODAL_SELECTOR =
+  '.modal-content, [role="dialog"], .settings-modal, .advanced-search-modal, .subtitle-modal, .details-modal, .context-menu, .settings-panel, .movie-detail, .series-detail, .stremio-detail, .slg-team-play-menu, [class$="-modal"]';
+
+// Highest numeric z-index along an element's ancestor chain. Two modals can be
+// stacked (e.g. Game Detail over the Live Games picker); DOM order alone is
+// unreliable across React portals, so the topmost modal wins.
+function modalZIndex(el: HTMLElement): number {
+  let z = 0;
+  let node: HTMLElement | null = el;
+  while (node && node !== document.documentElement) {
+    const parsed = parseInt(window.getComputedStyle(node).zIndex, 10);
+    if (!Number.isNaN(parsed) && parsed > z) z = parsed;
+    node = node.parentElement;
+  }
+  return z;
+}
+
+function getOpenModals(): HTMLElement[] {
+  // Newest-first DOM order (portals append in mount order).
+  return Array.from(document.querySelectorAll<HTMLElement>(MODAL_SELECTOR)).reverse().filter(isElementVisible);
+}
+
 export function getActiveModal(): HTMLElement | null {
-  const modals = Array.from(
-    document.querySelectorAll<HTMLElement>(
-      '.modal-content, [role="dialog"], .settings-modal, .advanced-search-modal, .subtitle-modal, .details-modal, .context-menu, .settings-panel, .movie-detail, .series-detail, .stremio-detail, [class$="-modal"]'
-    )
-  );
-  return modals.reverse().find(isElementVisible) || null;
+  const modals = getOpenModals();
+  if (modals.length === 0) return null;
+  if (modals.length === 1) return modals[0];
+  // Stable sort by z-index desc: the topmost (most recently layered) modal
+  // wins; equal z-indexes keep newest-first order.
+  modals.sort((a, b) => modalZIndex(b) - modalZIndex(a));
+  return modals[0];
 }
 
 function getFocusCandidates(): HTMLElement[] {
@@ -222,12 +243,15 @@ function getFocusCandidates(): HTMLElement[] {
     // navigation as single targets; their inner action/play/resume/remove/
     // download buttons (including divs with role="button", like the local
     // hover play button) are mouse-only helpers and must not be reachable
-    // with directional keys. (Live Game Sidebar .slg-card controls are NOT
+    // with directional keys. (Live Games Modal .lgm-card controls are NOT
     // excluded — Find Streams / play / backup-channel buttons there are meant
-    // to be D-pad highlightable.)
+    // to be D-pad highlightable.) The inline-results ✕ (hide) button is also
+    // mouse-only — it sits above the stream pills, so it would otherwise steal
+    // the first Down/Up press from the results list.
     if (
       (el.tagName === 'BUTTON' || (el.tagName === 'DIV' && el.getAttribute('role') === 'button')) &&
-      (el.closest('.playlist-card') ||
+      (el.classList.contains('slg-inline-close-btn') ||
+        el.closest('.playlist-card') ||
         el.closest('.local-card') ||
         el.closest('.stremio-detail-stream-card') ||
         el.closest('.series-detail__episode-card'))
@@ -251,7 +275,7 @@ function scrollIntoViewTv(el: HTMLElement) {
     el.classList.contains('local-card__poster-wrap') ||
     el.classList.contains('stremio-detail-stream-card') ||
     el.classList.contains('series-detail__episode-card') ||
-    el.classList.contains('slg-card');
+    el.classList.contains('lgm-card');
   const edgePaddingY = isCard ? 24 : 12;
   const edgePaddingX = isCard ? 32 : 16;
 
@@ -382,6 +406,28 @@ function itemKeyFor(el: HTMLElement): string | null {
   const keyed = el.closest<HTMLElement>('[data-stream-id], [data-id], [data-key]');
   if (!keyed) return null;
   return keyed.getAttribute('data-stream-id') || keyed.getAttribute('data-id') || keyed.getAttribute('data-key');
+}
+
+function findNestedListFor(el: HTMLElement): HTMLElement | null {
+  // The innermost scrollable ancestor of the focused element. When it IS the
+  // active view's own scroller (poster grid, channel list, EPG), no extra
+  // constraint applies — the dedicated view rules handle those. Otherwise it
+  // is a nested scrollable list (e.g. the Live Games modal's inline stream
+  // results) whose up/down navigation must stay inside it and scroll to
+  // reveal items clipped out of the visible area.
+  const activeScroller = findActiveViewScroller();
+  let node: HTMLElement | null = el.parentElement;
+  while (node && node !== document.body && node !== document.documentElement) {
+    const style = window.getComputedStyle(node);
+    if (
+      (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflowY === 'overlay') &&
+      node.scrollHeight > node.clientHeight + 4
+    ) {
+      return node === activeScroller ? null : node;
+    }
+    node = node.parentElement;
+  }
+  return null;
 }
 
 function findScrollerFor(el: HTMLElement): HTMLElement | null {
@@ -606,6 +652,34 @@ function isRailOrChrome(el: HTMLElement): boolean {
  */
 function scrollActiveViewInDirection(dir: SpatialDir): boolean {
   if (dir !== 'up' && dir !== 'down') return false;
+
+  // Nested scroll containers first (innermost → outermost): inside a modal's
+  // scrollable lists (e.g. the Live Games modal's inline stream results), the
+  // focused element's own scroller must scroll to reveal clipped items —
+  // otherwise up/down at a list edge does nothing (there is no active view
+  // behind a modal), and the recovery logic jumps focus to the top of the
+  // screen instead of revealing the hidden choices.
+  const focused = (document.activeElement as HTMLElement | null) || lastFocusedElement;
+  let node: HTMLElement | null = focused ? focused.parentElement : null;
+  while (node && node !== document.body && node !== document.documentElement) {
+    const style = window.getComputedStyle(node);
+    const scrollableY =
+      (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflowY === 'overlay') &&
+      node.scrollHeight > node.clientHeight + 4;
+    if (scrollableY) {
+      const canScroll =
+        dir === 'down'
+          ? node.scrollTop < node.scrollHeight - node.clientHeight - 10
+          : node.scrollTop > 10;
+      if (canScroll) {
+        node.style.scrollBehavior = 'auto';
+        node.scrollTop += dir === 'down' ? 180 : -180;
+        return true;
+      }
+    }
+    node = node.parentElement;
+  }
+
   const scroller = findActiveViewScroller();
   if (!scroller) return false;
 
@@ -821,17 +895,6 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
     y: curRect.top + curRect.height / 2,
   };
 
-  // Live Game Sidebar drawer (open): its fixed right-edge panel is a
-  // directional target — Down from the titlebar/sports scores, Right from the
-  // main content, and Up from the now-playing bar can all enter it.
-  const slgDrawerEl = document.querySelector<HTMLElement>('.slg-drawer.open');
-  const slgDrawerOpen = !!slgDrawerEl && isElementVisible(slgDrawerEl);
-  // Closed drawer: the right-edge tab trigger is the D-pad entry point that
-  // opens it (OK on the trigger), so it is favored by directional moves that
-  // point toward it while the drawer is closed.
-  const slgTriggerEl = document.querySelector<HTMLElement>('.slg-tab-trigger');
-  const slgTriggerVisible = !!slgTriggerEl && !slgDrawerOpen && isElementVisible(slgTriggerEl);
-
   const isChannelInfo = current.classList.contains('guide-channel-info');
   const isFavoriteBtn = current.classList.contains('favorite-btn');
   const isProgramBlock = current.classList.contains('program-block');
@@ -845,6 +908,10 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
   const isHomeRailCard = Boolean(
     current.closest('.stremio-row, .nuvio-row, .stremio-scroll-rail, .nuvio-scroll-rail')
   );
+  // Focused element inside a nested scrollable list (e.g. the Live Games
+  // modal's inline stream results). While that list can still scroll in the
+  // pressed direction, up/down must stay inside it — see rule 16.
+  const currentList = current ? findNestedListFor(current) : null;
 
   // A VOD grid has a stable Virtuoso index for each poster. Prefer that exact
   // next-row target over geometric scoring: at the bottom of the rendered
@@ -1134,38 +1201,23 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
       if (!isRailTarget && !isHeroTarget) continue;
     }
 
-    // 16. Live Game Sidebar drawer (open): directional entry is always
-    // possible. Pressing Down from the titlebar / sports-scores area (top of
-    // the screen) or Up from the now-playing bar (bottom of the screen)
-    // decisively enters the open drawer, and Right from the main content is
-    // strongly favored toward it. While already inside the drawer, vertical
-    // moves stay in it; Left is left alone so the user can exit back out.
-    if (slgDrawerOpen && cand.closest('.slg-drawer')) {
-      const inDrawer = Boolean(current.closest('.slg-drawer'));
-      const fromTop = curCenter.y < window.innerHeight * 0.45;
-      const fromBottom = curCenter.y > window.innerHeight * 0.55;
-      const entryMove =
-        !inDrawer && ((dir === 'down' && fromTop) || (dir === 'up' && fromBottom));
-      const stayMove = inDrawer && (dir === 'down' || dir === 'up');
-      if (entryMove) {
-        score -= 5000;
-      } else if (stayMove) {
-        score -= 400;
-      } else if (dir === 'right') {
-        score -= 800;
+    // 16. Nested scroll lists (e.g. the Live Games modal's inline stream
+    // results): while the list can still scroll in the pressed direction,
+    // up/down stays inside the same list, and items scrolled out of the
+    // list's visible clip are treated as unmounted — so the continuation
+    // scroll below moves the list to reveal them instead of jumping focus to
+    // the top or to elements outside the list. Once the list reaches its
+    // edge, free navigation resumes (the user can move on to the next row).
+    if ((dir === 'up' || dir === 'down') && currentList) {
+      const listCanScroll =
+        dir === 'down'
+          ? currentList.scrollTop < currentList.scrollHeight - currentList.clientHeight - 10
+          : currentList.scrollTop > 10;
+      if (listCanScroll) {
+        if (!currentList.contains(cand)) continue;
+        const listRect = currentList.getBoundingClientRect();
+        if (rect.bottom <= listRect.top + 4 || rect.top >= listRect.bottom - 4) continue;
       }
-    }
-
-    // 17. Live Game Sidebar trigger (drawer closed): the D-pad entry point
-    // for opening the drawer. Right from the main content, Down from the
-    // titlebar / sports-scores area, or Up from the now-playing bar favors
-    // the trigger; pressing OK on it then opens the drawer.
-    if (slgTriggerVisible && cand.classList.contains('slg-tab-trigger')) {
-      const fromTop = curCenter.y < window.innerHeight * 0.45;
-      const fromBottom = curCenter.y > window.innerHeight * 0.55;
-      const towardTrigger =
-        dir === 'right' || (dir === 'down' && fromTop) || (dir === 'up' && fromBottom);
-      if (towardTrigger) score -= 800;
     }
 
     if (score < minScore) {
@@ -1217,7 +1269,7 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
           !active.classList.contains('local-card__poster-wrap') &&
           !active.classList.contains('stremio-detail-stream-card') &&
           !active.classList.contains('series-detail__episode-card') &&
-          !active.classList.contains('slg-card') &&
+          !active.classList.contains('lgm-card') &&
           active.querySelector('button.category-item, button.category-folder-header, button'))
       ) {
         const innerBtn = active.querySelector<HTMLElement>(
@@ -1243,7 +1295,7 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
         active.classList.contains('local-card__poster-wrap') ||
         active.classList.contains('stremio-detail-stream-card') ||
         active.classList.contains('series-detail__episode-card') ||
-        active.classList.contains('slg-card')
+        active.classList.contains('lgm-card')
       ) {
         actionable = active;
       } else {
@@ -1256,6 +1308,12 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
         }
       }
 
+      // Count open modals BEFORE the click so the modal-focus transfer below
+      // only runs when this selection actually OPENED a new modal (Game Detail
+      // from a card, a detail page, …). Selecting an in-modal control (Find
+      // Streams, a tab, a league pill) must not yank the highlight to the
+      // modal's first element — its ✕ close button.
+      const openModalsBeforeClick = getOpenModals().length;
       actionable.click();
 
       // If user selected a category item in the sidebar, transfer spatial focus into the channels list
@@ -1292,16 +1350,19 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
       }
 
       // If this selection opened a modal/detail overlay (movie/series/Stremio
-      // detail page), move spatial focus inside it right away. This also clears
-      // the .tv-focused highlight left on the card behind the overlay, and
-      // keeps d-pad movement from mixing overlay buttons with background cards.
+      // detail page, Game Detail from a card), move spatial focus inside it
+      // right away. This clears the .tv-focused highlight left on the card
+      // behind the overlay and keeps d-pad movement from mixing overlay
+      // buttons with background cards.
       const retryModalFocus = (attempts = 4) => {
-        const modal = getActiveModal();
-        if (modal) {
-          const first = Array.from(modal.querySelectorAll<HTMLElement>(INTERACTIVE_SELECTOR)).find(isElementVisible);
-          if (first) {
-            applyTvFocus(first);
-            return;
+        if (getOpenModals().length > openModalsBeforeClick) {
+          const modal = getActiveModal();
+          if (modal) {
+            const first = Array.from(modal.querySelectorAll<HTMLElement>(INTERACTIVE_SELECTOR)).find(isElementVisible);
+            if (first) {
+              applyTvFocus(first);
+              return;
+            }
           }
         }
         if (attempts > 0) {
@@ -1334,15 +1395,13 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
       }
     }
 
-    // 1.5. If the Live Game Sidebar drawer is open, close it before any view
-    // navigation — back on a controller/remote should retract the drawer.
-    const openSlgDrawer = document.querySelector<HTMLElement>('.slg-drawer.open');
-    if (openSlgDrawer && isElementVisible(openSlgDrawer)) {
-      const slgClose = openSlgDrawer.querySelector<HTMLElement>('.slg-close-btn');
-      if (slgClose && isElementVisible(slgClose)) {
-        slgClose.click();
-        return true;
-      }
+    // 1.2. An open popup menu (e.g. the backup-streams dropdown) has no close
+    // button of its own — back closes it by simulating the outside-click the
+    // menu listens for.
+    const openMenu = document.querySelector<HTMLElement>('.slg-team-play-menu');
+    if (openMenu && isElementVisible(openMenu)) {
+      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      return true;
     }
 
     // 2. Dispatch custom back navigation event for App.tsx router (Safe: Never closes window)

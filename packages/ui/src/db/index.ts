@@ -2368,9 +2368,19 @@ export async function cancelRecording(scheduleId: number): Promise<void> {
   console.log('[DVR] Recording canceled:', scheduleId);
 }
 
-/** Delete a recording file and DB entry */
-export async function deleteRecording(recordingId: number): Promise<void> {
-  await db.dvrRecordings.delete(recordingId);
+/**
+ * Delete a recording from the DVR list.
+ *
+ * @param deleteFile - true to also delete the file from the hard drive;
+ * false to only remove the entry from the list (keep the file on disk).
+ */
+export async function deleteRecording(recordingId: number, deleteFile = false): Promise<void> {
+  try {
+    await invoke('delete_recording', { id: recordingId, deleteFile });
+  } catch (err) {
+    console.warn('[DVR] Backend delete_recording failed, falling back to local DB delete:', err);
+    await db.dvrRecordings.delete(recordingId);
+  }
   dbEvents.notify('dvr_recordings', 'delete');
 }
 

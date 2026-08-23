@@ -81,7 +81,7 @@ export function DvrDashboard({ onPlay, onClose }: DvrDashboardProps) {
     const [savingEdit, setSavingEdit] = useState(false);
 
     // Modal hook
-    const { showConfirm, showError, showSuccess, showPrompt, ModalComponent } = useModal();
+    const { showConfirm, showConfirmThree, showError, showSuccess, showPrompt, ModalComponent } = useModal();
 
     async function loadData(showLoading = true) {
         if (showLoading) setLoading(true);
@@ -242,25 +242,53 @@ export function DvrDashboard({ onPlay, onClose }: DvrDashboardProps) {
     }
 
     async function handleDelete(id: number, filePath?: string) {
-        const title = filePath ? i18n.t('dvr:deleteRecordingFile') : i18n.t('dvr:removeRecording');
-        const message = filePath
-            ? i18n.t('dvr:deleteRecordingFileConfirm')
-            : i18n.t('dvr:removeRecordingConfirm');
+        if (filePath) {
+            // Recording has a file on disk: offer both deleting it from the
+            // drive AND removing it from the list while keeping the file.
+            showConfirmThree(
+                i18n.t('dvr:deleteRecordingFile'),
+                i18n.t('dvr:deleteRecordingChoiceMsg'),
+                async () => {
+                    try {
+                        await deleteRecording(id, true);
+                        await loadData();
+                    } catch (error) {
+                        console.error('Failed to delete recording:', error);
+                        showError(i18n.t('contextMenu.error'), i18n.t('dvr:failedToDeleteRecording'));
+                    }
+                },
+                async () => {
+                    try {
+                        await deleteRecording(id, false);
+                        await loadData();
+                    } catch (error) {
+                        console.error('Failed to remove recording from list:', error);
+                        showError(i18n.t('contextMenu.error'), i18n.t('dvr:failedToDeleteRecording'));
+                    }
+                },
+                undefined,
+                i18n.t('dvr:deleteFromDrive'),
+                i18n.t('dvr:removeFromList'),
+                i18n.t('common:cancel')
+            );
+            return;
+        }
 
+        // No file on disk — just remove the entry.
         showConfirm(
-            title,
-            message,
+            i18n.t('dvr:removeRecording'),
+            i18n.t('dvr:removeRecordingConfirm'),
             async () => {
                 try {
-                    await deleteRecording(id);
+                    await deleteRecording(id, false);
                     await loadData();
                 } catch (error) {
-                    console.error('Failed to delete recording:', error);
+                    console.error('Failed to remove recording:', error);
                     showError(i18n.t('contextMenu.error'), i18n.t('dvr:failedToDeleteRecording'));
                 }
             },
             undefined,
-            filePath ? i18n.t('dvr:deleteFile') : i18n.t('dvr:remove'),
+            i18n.t('dvr:remove'),
             i18n.t('common:cancel')
         );
     }
@@ -943,7 +971,10 @@ interface RecordingCardProps {
 function RecordingCard({ item, progress, onEdit, onCancel, onPlay, formatDateTime, formatDuration, formatElapsed }: RecordingCardProps) {
     useTranslation();
     const nowSec = Math.floor(Date.now() / 1000);
-    const isCatchup = item.scheduled_end <= nowSec || !!(item.stream_url && (
+    // scheduled_end === 0 marks a "Record until Stop" recording — it has no
+    // fixed end, so it is never treated as a catch-up download.
+    const isManualUntilStop = item.scheduled_end === 0;
+    const isCatchup = (!isManualUntilStop && item.scheduled_end <= nowSec) || !!(item.stream_url && (
         item.stream_url.includes('timeshift') ||
         item.stream_url.includes('catchup') ||
         item.stream_url.includes('replay') ||
@@ -1007,7 +1038,9 @@ function RecordingCard({ item, progress, onEdit, onCancel, onPlay, formatDateTim
                             <circle cx="12" cy="12" r="10" />
                             <polyline points="12 6 12 12 16 16" />
                         </svg>
-                        {formatDuration(item.scheduled_start, item.scheduled_end)}
+                        {isManualUntilStop
+                            ? i18n.t('dvr:untilStopped')
+                            : formatDuration(item.scheduled_start, item.scheduled_end)}
                     </span>
                 </div>
                 {progress && (
