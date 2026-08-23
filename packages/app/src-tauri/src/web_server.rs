@@ -1557,10 +1557,10 @@ async fn serve_remote_html() -> impl IntoResponse {
       <div id="tab-remote" class="tab-pane active" style="overflow-y:auto;">
         <div class="pad-container">
           <div class="dpad">
-            <button class="dpad-btn dpad-up" onpointerdown="sendNav('up', event)">▲</button>
-            <button class="dpad-btn dpad-down" onpointerdown="sendNav('down', event)">▼</button>
-            <button class="dpad-btn dpad-left" onpointerdown="sendNav('left', event)">◀</button>
-            <button class="dpad-btn dpad-right" onpointerdown="sendNav('right', event)">▶</button>
+            <button class="dpad-btn dpad-up" onpointerdown="startNavRepeat('up', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">▲</button>
+            <button class="dpad-btn dpad-down" onpointerdown="startNavRepeat('down', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">▼</button>
+            <button class="dpad-btn dpad-left" onpointerdown="startNavRepeat('left', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">◀</button>
+            <button class="dpad-btn dpad-right" onpointerdown="startNavRepeat('right', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">▶</button>
             <button class="dpad-center" onpointerdown="sendNav('select', event)">OK</button>
           </div>
 
@@ -1863,6 +1863,37 @@ async fn serve_remote_html() -> impl IntoResponse {
     function sendNav(key, e) {
       if (e && e.cancelable) e.preventDefault();
       send({ action: 'nav', key });
+    }
+
+    // ── D-pad hold-to-repeat ────────────────────────────────────────────────
+    // Holding a directional button behaves like a real controller: one press
+    // immediately, then after a short delay the nav repeats, speeding up the
+    // longer it's held, capped at a maximum rate (min interval).
+    const NAV_REPEAT_HOLD_MS = 350;   // delay before repeating starts
+    const NAV_REPEAT_START_MS = 220;  // initial repeat interval (slow)
+    const NAV_REPEAT_STEP_MS = 15;    // interval shrinks by this each repeat
+    const NAV_REPEAT_MIN_MS = 60;     // fastest allowed repeat rate
+    let navRepeatTimer = null;
+    let navRepeatInterval = null;
+
+    function startNavRepeat(key, e) {
+      if (e && e.cancelable) e.preventDefault();
+      stopNavRepeat();
+      send({ action: 'nav', key }); // initial press
+      navRepeatTimer = setTimeout(() => {
+        let intervalMs = NAV_REPEAT_START_MS;
+        const tick = () => {
+          send({ action: 'nav', key });
+          intervalMs = Math.max(NAV_REPEAT_MIN_MS, intervalMs - NAV_REPEAT_STEP_MS);
+          navRepeatInterval = setTimeout(tick, intervalMs);
+        };
+        tick();
+      }, NAV_REPEAT_HOLD_MS);
+    }
+
+    function stopNavRepeat() {
+      if (navRepeatTimer) { clearTimeout(navRepeatTimer); navRepeatTimer = null; }
+      if (navRepeatInterval) { clearTimeout(navRepeatInterval); navRepeatInterval = null; }
     }
     function sendAction(action, e) {
       if (e && e.cancelable) e.preventDefault();
