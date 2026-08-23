@@ -2305,6 +2305,17 @@
         "clickToCopy": "Kliko për të kopjuar",
         "instructions": "Sigurohuni që telefoni të jetë i lidhur në të njëjtin rrjet Wi-Fi si ky PC. Do të keni një touchpad të plotë me valë, D-Pad, kontroll të volumit dhe shkurtesa seksionesh!",
         "restartServer": "🔄 Rinis serverin në portën {{port}}"
+      },
+      "chords": {
+        "title": "Kombinimet e butonave",
+        "description": "Mbajeni një buton modifikues (L1/L2/R1/R2) dhe shtypni një buton për një shkurtore shtesë",
+        "reset": "Rivendos parazgjedhjet",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

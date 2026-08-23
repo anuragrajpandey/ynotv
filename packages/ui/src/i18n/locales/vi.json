@@ -1904,6 +1904,17 @@
         "clickToCopy": "Nhấp để sao chép",
         "instructions": "Đảm bảo điện thoại của bạn kết nối cùng mạng Wi-Fi với PC này. Bạn sẽ có bàn di chuột không dây đầy đủ, D-Pad, điều khiển âm lượng và phím tắt các mục!",
         "restartServer": "🔄 Khởi động lại máy chủ trên cổng {{port}}"
+      },
+      "chords": {
+        "title": "Kết hợp nút",
+        "description": "Giữ một nút điều chỉnh (L1/L2/R1/R2) và nhấn một nút để kích hoạt phím tắt bổ sung",
+        "reset": "Khôi phục mặc định",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

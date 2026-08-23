@@ -2305,6 +2305,17 @@
         "clickToCopy": "Click to copy",
         "instructions": "Make sure your phone is connected to the same Wi-Fi network as this PC. You will have a full wireless touchpad, D-Pad, volume controls, and section shortcuts!",
         "restartServer": "🔄 Restart Server on Port {{port}}"
+      },
+      "chords": {
+        "title": "Button Combinations",
+        "description": "Hold a modifier (L1/L2/R1/R2) and press a button to trigger an extra shortcut",
+        "reset": "Reset to Defaults",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

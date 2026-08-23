@@ -537,6 +537,27 @@
   gap: 2px;
 }
 
+/* Chord cards read as "L1 + A / Cross" on one line */
+.chord-card .mapping-label-box {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chord-card .mapping-group {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.chord-card .mapping-btn-name {
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mapping-group {
   font-size: 10px;
   font-weight: 700;

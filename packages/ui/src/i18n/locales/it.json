@@ -2305,6 +2305,17 @@
         "clickToCopy": "Clicca per copiare",
         "instructions": "Assicurati che il telefono sia connesso alla stessa rete Wi-Fi di questo PC. Avrai un touchpad wireless completo, D-Pad, controlli del volume e scorciatoie alle sezioni!",
         "restartServer": "🔄 Riavvia server sulla porta {{port}}"
+      },
+      "chords": {
+        "title": "Combinazioni di pulsanti",
+        "description": "Tieni premuto un pulsante modificatore (L1/L2/R1/R2) e premi un pulsante per attivare una scorciatoia extra",
+        "reset": "Ripristina impostazioni predefinite",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

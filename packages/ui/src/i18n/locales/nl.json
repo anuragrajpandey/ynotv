@@ -2305,6 +2305,17 @@
         "clickToCopy": "Klik om te kopiëren",
         "instructions": "Zorg ervoor dat je telefoon is verbonden met hetzelfde Wi-Fi-netwerk als deze pc. Je krijgt een volledige draadloze touchpad, D-pad, volumeregeling en sectiesnelkoppelingen!",
         "restartServer": "🔄 Server op poort {{port}} opnieuw starten"
+      },
+      "chords": {
+        "title": "Knopcombinaties",
+        "description": "Houd een modifierknop (L1/L2/R1/R2) ingedrukt en druk op een knop voor een extra snelkoppeling",
+        "reset": "Herstel standaardwaarden",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

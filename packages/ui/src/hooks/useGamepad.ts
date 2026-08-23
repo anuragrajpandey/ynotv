@@ -117,6 +117,37 @@ function tryDispatchAction(action: string): boolean {
   return true;
 }
 
+// ── Button-combination chords ─────────────────────────────────────────────
+// Holding a modifier button (shoulders/triggers) turns a base button press
+// into a different action (e.g. L2 + D-Pad Up = next channel). Detection is
+// entirely frontend-side: every input source (gilrs native, raw HID native,
+// browser poller) funnels through these shared helpers, so held-modifier
+// state stays consistent no matter which backend fired.
+const MODIFIER_BUTTONS = new Set(['left_bumper', 'right_bumper', 'left_trigger', 'right_trigger']);
+// Most-recently-pressed first; when two modifiers are held, the newest wins.
+const heldModifiers: string[] = [];
+
+function setHeldModifier(action: string, pressed: boolean) {
+  if (!MODIFIER_BUTTONS.has(action)) return;
+  const idx = heldModifiers.indexOf(action);
+  if (pressed && idx === -1) {
+    heldModifiers.push(action);
+  } else if (!pressed && idx !== -1) {
+    heldModifiers.splice(idx, 1);
+  }
+}
+
+function clearHeldModifiers() {
+  heldModifiers.length = 0;
+}
+
+/** The chord action (app action) for a base-button press, or null if none. */
+function chordActionFor(rawButton: string, chords: Record<string, string>): string | null {
+  if (heldModifiers.length === 0) return null;
+  const modifier = heldModifiers[heldModifiers.length - 1];
+  return chords[`${modifier}+${rawButton}`] || null;
+}
+
 function scrollActiveContainerByStick(rawX: number, rawY: number, deadzone: number) {
   if (typeof document === 'undefined') return;
 
@@ -254,11 +285,15 @@ export function useGamepad() {
   const controllerEnabled = useSettingsStore((s) => s.controllerEnabled);
   const controllerBackgroundListening = useSettingsStore((s) => s.controllerBackgroundListening);
   const controllerMappings = useSettingsStore((s) => s.controllerMappings);
+  const controllerChords = useSettingsStore((s) => s.controllerChords);
   const controllerDeadzone = useSettingsStore((s) => s.controllerDeadzone);
   const [connectedGamepads, setConnectedGamepads] = useState<GamepadDeviceInfo[]>([]);
 
   const mappingsRef = useRef(controllerMappings);
   mappingsRef.current = controllerMappings;
+
+  const chordsRef = useRef(controllerChords);
+  chordsRef.current = controllerChords;
 
   const enabledRef = useRef(controllerEnabled);
   enabledRef.current = controllerEnabled;
@@ -352,7 +387,20 @@ export function useGamepad() {
             notifyButtonPressed(rawAction, event.payload.button || rawAction, gpName);
           }
 
+          // Chords: keep held-modifier state in sync on both edges BEFORE the
+          // enabled/focus gates, so a release that arrives after a blur (or
+          // while disabled) can't leave a modifier stuck on.
+          setHeldModifier(rawAction, pressed);
+
           if (!enabledRef.current || !pressed || !isInputActive()) return;
+
+          // A held modifier swaps in the chord action and suppresses the
+          // base button's normal action (Steam-style).
+          const chord = chordActionFor(rawAction, chordsRef.current);
+          if (chord) {
+            tryDispatchAction(chord);
+            return;
+          }
 
           const action = mappingsRef.current[rawAction] || rawAction;
           tryDispatchAction(action);
@@ -402,8 +450,17 @@ export function useGamepad() {
 
     setupTauri();
 
+    // If a pad drops (or Bluetooth glitches) mid-hold, no release event ever
+    // arrives — clear held modifiers when the window loses focus (unless the
+    // user opted into background listening) so a stuck chord can't wedge input.
+    const onWindowBlur = () => {
+      if (!backgroundListenRef.current) clearHeldModifiers();
+    };
+    window.addEventListener('blur', onWindowBlur);
+
     return () => {
       isCancelled = true;
+      window.removeEventListener('blur', onWindowBlur);
       unlistenGamepad?.();
       unlistenStatus?.();
       unlistenStick?.();
@@ -485,18 +542,27 @@ export function useGamepad() {
 
             const stateKey = `${gp.index}_btn_${btnIdx}`;
             const wasPressed = prevButtonStates.get(stateKey) || false;
+            const rawAction = buttonMap[btnIdx] || `button_${btnIdx}`;
 
             if (isPressed && !wasPressed) {
               prevButtonStates.set(stateKey, true);
-              const rawAction = buttonMap[btnIdx] || `button_${btnIdx}`;
               notifyButtonPressed(rawAction, `Button ${btnIdx} (${rawAction})`, gpName);
 
+              // Chords: a modifier held while this button presses swaps in the
+              // chord action and suppresses the base button's normal action.
+              setHeldModifier(rawAction, true);
               if (enabledRef.current && isInputActive()) {
-                const action = mappingsRef.current[rawAction] || rawAction;
-                tryDispatchAction(action);
+                const chord = chordActionFor(rawAction, chordsRef.current);
+                if (chord) {
+                  tryDispatchAction(chord);
+                } else {
+                  const action = mappingsRef.current[rawAction] || rawAction;
+                  tryDispatchAction(action);
+                }
               }
             } else if (!isPressed && wasPressed) {
               prevButtonStates.set(stateKey, false);
+              setHeldModifier(rawAction, false);
             }
           }
         }

@@ -2305,6 +2305,17 @@
         "clickToCopy": "點擊複製",
         "instructions": "請確保手機與本電腦連線到相同的 Wi-Fi 網路。您將獲得完整的無線觸控板、D-Pad、音量控制和區塊捷徑！",
         "restartServer": "🔄 在連接埠 {{port}} 上重新啟動伺服器"
+      },
+      "chords": {
+        "title": "按鍵組合",
+        "description": "按住修飾鍵（L1/L2/R1/R2）並按下一顆按鈕以觸發額外的快捷操作",
+        "reset": "恢復預設設定",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

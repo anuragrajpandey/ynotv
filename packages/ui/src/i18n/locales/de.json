@@ -2305,6 +2305,17 @@
         "clickToCopy": "Zum Kopieren klicken",
         "instructions": "Stellen Sie sicher, dass Ihr Telefon mit demselben WLAN-Netzwerk wie dieser PC verbunden ist. Sie erhalten ein vollwertiges drahtloses Touchpad, D-Pad, Lautstärkeregler und Abschnittsverknüpfungen!",
         "restartServer": "🔄 Server auf Port {{port}} neu starten"
+      },
+      "chords": {
+        "title": "Tastenkombinationen",
+        "description": "Halte eine Modifikatortaste (L1/L2/R1/R2) gedrückt und drücke eine Taste für eine zusätzliche Verknüpfung",
+        "reset": "Auf Standard zurücksetzen",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

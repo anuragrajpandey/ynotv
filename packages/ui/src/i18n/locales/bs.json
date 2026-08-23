@@ -2305,6 +2305,17 @@
         "clickToCopy": "Kliknite za kopiranje",
         "instructions": "Provjerite da je telefon povezan na istu Wi-Fi mrežu kao ovaj računar. Dobit ćete potpuni bežični touchpad, D-pad, kontrole jačine zvuka i prečice do sekcija!",
         "restartServer": "🔄 Restartuj server na portu {{port}}"
+      },
+      "chords": {
+        "title": "Kombinacije tipki",
+        "description": "Držite modifikator (L1/L2/R1/R2) i pritisnite tipku za dodatnu prečicu",
+        "reset": "Vrati na zadano",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

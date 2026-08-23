@@ -2305,6 +2305,17 @@
         "clickToCopy": "Kopyalamak için tıklayın",
         "instructions": "Telefonunuzun bu bilgisayarla aynı Wi-Fi ağına bağlı olduğundan emin olun. Tam kablosuz dokunmatik yüzey, D-Pad, ses kontrolleri ve bölüm kısayollarına sahip olacaksınız!",
         "restartServer": "🔄 Sunucuyu {{port}} bağlantı noktasında yeniden başlat"
+      },
+      "chords": {
+        "title": "Düğme Kombinasyonları",
+        "description": "Bir değiştirici düğmeyi (L1/L2/R1/R2) basılı tutun ve ekstra bir kısayol için bir düğmeye basın",
+        "reset": "Varsayılanlara sıfırla",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

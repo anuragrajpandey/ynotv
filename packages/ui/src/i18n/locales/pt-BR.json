@@ -2305,6 +2305,17 @@
         "clickToCopy": "Clique para copiar",
         "instructions": "Certifique-se de que seu celular esteja conectado à mesma rede Wi-Fi deste PC. Você terá um touchpad sem fio completo, D-Pad, controles de volume e atalhos de seções!",
         "restartServer": "🔄 Reiniciar servidor na porta {{port}}"
+      },
+      "chords": {
+        "title": "Combinações de botões",
+        "description": "Segure um botão modificador (L1/L2/R1/R2) e pressione um botão para acionar um atalho extra",
+        "reset": "Restaurar padrões",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

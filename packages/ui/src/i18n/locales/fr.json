@@ -2305,6 +2305,17 @@
         "clickToCopy": "Cliquer pour copier",
         "instructions": "Assurez-vous que votre téléphone est connecté au même réseau Wi-Fi que ce PC. Vous disposerez d'un pavé tactile sans fil complet, d'un D-Pad, des commandes de volume et de raccourcis vers les sections !",
         "restartServer": "🔄 Redémarrer le serveur sur le port {{port}}"
+      },
+      "chords": {
+        "title": "Combinaisons de boutons",
+        "description": "Maintenez un bouton modificateur (L1/L2/R1/R2) et appuyez sur un bouton pour déclencher un raccourci supplémentaire",
+        "reset": "Rétablir les valeurs par défaut",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

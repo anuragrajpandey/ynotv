@@ -2305,6 +2305,17 @@
         "clickToCopy": "Haz clic para copiar",
         "instructions": "Asegúrate de que tu teléfono esté conectado a la misma red Wi-Fi que este PC. ¡Tendrás un panel táctil inalámbrico completo, D-Pad, controles de volumen y accesos directos a secciones!",
         "restartServer": "🔄 Reiniciar servidor en el puerto {{port}}"
+      },
+      "chords": {
+        "title": "Combinaciones de botones",
+        "description": "Mantén pulsado un modificador (L1/L2/R1/R2) y pulsa un botón para activar un acceso directo adicional",
+        "reset": "Restablecer valores predeterminados",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

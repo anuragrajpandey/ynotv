@@ -569,6 +569,9 @@ export interface SettingsState {
   controllerMappings: Record<string, string>;
   setControllerMappings: (mappings: Record<string, string>) => void;
   resetControllerMappings: () => void;
+  controllerChords: Record<string, string>;
+  setControllerChords: (chords: Record<string, string>) => void;
+  resetControllerChords: () => void;
 
   // Phone Remote Server
   remoteControlEnabled: boolean;
@@ -666,6 +669,21 @@ export const DEFAULT_CONTROLLER_MAPPINGS: Record<string, string> = {
   start: 'play_pause',
   select: 'toggle_livetv',
   guide: 'toggle_livetv',
+};
+
+// Button-combination chords: hold a modifier (shoulder/trigger) and press a
+// base button to trigger a different action instead of the button's normal
+// one. Keys are `${modifier}+${base}` and values are app actions (same
+// vocabulary as DEFAULT_CONTROLLER_MAPPINGS / AVAILABLE_ACTIONS).
+export const DEFAULT_CONTROLLER_CHORDS: Record<string, string> = {
+  'left_bumper+west': 'toggle_overlay',
+  'right_bumper+west': 'toggle_transparent_overlay',
+  'left_bumper+east': 'open_movies',
+  'left_bumper+north': 'open_series',
+  'right_bumper+east': 'open_sports',
+  'left_trigger+north': 'open_settings',
+  'left_trigger+east': 'toggle_live_game_sidebar',
+  'right_trigger+south': 'search',
 };
 
 function getInitialTheme(): ThemeId {
@@ -1679,6 +1697,15 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   resetControllerMappings: () => {
     set({ controllerMappings: { ...DEFAULT_CONTROLLER_MAPPINGS } });
     persistSettings({ controllerMappings: { ...DEFAULT_CONTROLLER_MAPPINGS } });
+  },
+  controllerChords: cachedSettings?.controllerChords ?? DEFAULT_CONTROLLER_CHORDS,
+  setControllerChords: (chords) => {
+    set({ controllerChords: chords });
+    persistSettings({ controllerChords: chords });
+  },
+  resetControllerChords: () => {
+    set({ controllerChords: { ...DEFAULT_CONTROLLER_CHORDS } });
+    persistSettings({ controllerChords: { ...DEFAULT_CONTROLLER_CHORDS } });
   },
 
   // Phone Remote Server (opt-in — off unless the user explicitly enables it)

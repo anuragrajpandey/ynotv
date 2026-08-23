@@ -2305,6 +2305,17 @@
         "clickToCopy": "Kliknij, aby skopiować",
         "instructions": "Upewnij się, że telefon jest podłączony do tej samej sieci Wi-Fi co ten komputer. Otrzymasz pełny bezprzewodowy touchpad, D-Pad, regulację głośności i skróty do sekcji!",
         "restartServer": "🔄 Uruchom ponownie serwer na porcie {{port}}"
+      },
+      "chords": {
+        "title": "Kombinacje przycisków",
+        "description": "Przytrzymaj przycisk modyfikujący (L1/L2/R1/R2) i naciśnij przycisk, aby uruchomić dodatkowy skrót",
+        "reset": "Przywróć domyślne",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

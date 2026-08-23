@@ -2305,6 +2305,17 @@
         "clickToCopy": "Kattintson a másoláshoz",
         "instructions": "Győződjön meg róla, hogy telefonja ugyanahhoz a Wi-Fi hálózathoz csatlakozik, mint ez a számítógép. Teljes vezeték nélküli touchpad, D-Pad, hangerőszabályozás és szakaszparancsok állnak rendelkezésére!",
         "restartServer": "🔄 Kiszolgáló újraindítása a(z) {{port}} porton"
+      },
+      "chords": {
+        "title": "Gombkombinációk",
+        "description": "Tarts lenyomva egy módosítógombot (L1/L2/R1/R2), és nyomj meg egy gombot egy extra parancsikonhoz",
+        "reset": "Alapértelmezések visszaállítása",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {

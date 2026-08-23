@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSettingsStore, DEFAULT_CONTROLLER_MAPPINGS } from '../../stores/settingsStore';
+import { useSettingsStore, DEFAULT_CONTROLLER_MAPPINGS, DEFAULT_CONTROLLER_CHORDS } from '../../stores/settingsStore';
 import { subscribeGamepadButtonPress, type GamepadDeviceInfo, type LiveButtonEvent } from '../../hooks/useGamepad';
 import { generateQrDataUrl } from '../../utils/qrCode';
 import './ControllersTab.css';
@@ -54,6 +54,26 @@ const BUTTON_CONFIG: Array<{ id: string; group: string }> = [
   { id: 'select', group: 'menu' },
 ];
 
+// Chord matrix: modifiers (columns) × base buttons (rows). Each combination
+// maps to an app action (same vocabulary as AVAILABLE_ACTIONS).
+const CHORD_MODIFIERS: Array<{ id: string }> = [
+  { id: 'left_bumper' },
+  { id: 'right_bumper' },
+  { id: 'left_trigger' },
+  { id: 'right_trigger' },
+];
+
+const CHORD_BASE_BUTTONS: Array<{ id: string }> = [
+  { id: 'south' },
+  { id: 'east' },
+  { id: 'west' },
+  { id: 'north' },
+  { id: 'dpad_up' },
+  { id: 'dpad_down' },
+  { id: 'dpad_left' },
+  { id: 'dpad_right' },
+];
+
 export function ControllersTab() {
   const { i18n } = useTranslation();
   const controllerEnabled = useSettingsStore((s) => s.controllerEnabled);
@@ -65,6 +85,9 @@ export function ControllersTab() {
   const controllerMappings = useSettingsStore((s) => s.controllerMappings);
   const setControllerMappings = useSettingsStore((s) => s.setControllerMappings);
   const resetControllerMappings = useSettingsStore((s) => s.resetControllerMappings);
+  const controllerChords = useSettingsStore((s) => s.controllerChords);
+  const setControllerChords = useSettingsStore((s) => s.setControllerChords);
+  const resetControllerChords = useSettingsStore((s) => s.resetControllerChords);
 
   const remoteControlEnabled = useSettingsStore((s) => s.remoteControlEnabled);
   const setRemoteControlEnabled = useSettingsStore((s) => s.setRemoteControlEnabled);
@@ -78,6 +101,8 @@ export function ControllersTab() {
 
   const [connectedDevices, setConnectedDevices] = useState<GamepadDeviceInfo[]>([]);
   const [lastActiveBtn, setLastActiveBtn] = useState<string>('');
+  // Which modifier's combination matrix is shown in the chords section.
+  const [chordTab, setChordTab] = useState<string>('left_bumper');
   const [lastActiveInfo, setLastActiveInfo] = useState<LiveButtonEvent | null>(null);
   const [remoteStatus, setRemoteStatus] = useState<{
     running: boolean;
@@ -246,6 +271,13 @@ export function ControllersTab() {
     setControllerMappings({
       ...controllerMappings,
       [buttonId]: actionId,
+    });
+  };
+
+  const handleChordChange = (modifierId: string, baseId: string, actionId: string) => {
+    setControllerChords({
+      ...controllerChords,
+      [`${modifierId}+${baseId}`]: actionId,
     });
   };
 
@@ -631,6 +663,69 @@ export function ControllersTab() {
               </select>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Button Combination Matrix — hold a modifier (L1/L2/R1/R2) + a button */}
+      <div className="settings-section">
+        <div className="matrix-header">
+          <div>
+            <h3 className="section-title">{i18n.t('settings:controllers.chords.title')}</h3>
+            <p className="section-desc">{i18n.t('settings:controllers.chords.description')}</p>
+          </div>
+          <button className="reset-btn" onClick={resetControllerChords}>
+            {i18n.t('settings:controllers.chords.reset')}
+          </button>
+        </div>
+
+        <div className="settings-tabs" style={{ marginBottom: 14, padding: '0 4px' }}>
+          {CHORD_MODIFIERS.map((mod) => (
+            <button
+              key={mod.id}
+              className={`settings-tab ${chordTab === mod.id ? 'active' : ''}`}
+              onClick={() => setChordTab(mod.id)}
+            >
+              {i18n.t(`settings:controllers.chords.modifiers.${mod.id}`, {
+                defaultValue: mod.id,
+              })}
+            </button>
+          ))}
+        </div>
+
+        <div className="mapping-grid">
+          {CHORD_BASE_BUTTONS.map((base) => {
+            const chordKey = `${chordTab}+${base.id}`;
+            return (
+              <div key={chordKey} className="mapping-card chord-card">
+                <div className="mapping-label-box">
+                  <span className="mapping-group">
+                    {i18n.t(`settings:controllers.chords.modifiers.${chordTab}`, {
+                      defaultValue: chordTab,
+                    })}
+                  </span>
+                  <span className="mapping-btn-name">
+                    +{' '}
+                    {i18n.t(`settings:controllers.mapping.buttons.${base.id}`, {
+                      defaultValue: base.id,
+                    })}
+                  </span>
+                </div>
+                <select
+                  className="mapping-select"
+                  value={controllerChords[chordKey] || DEFAULT_CONTROLLER_CHORDS[chordKey] || 'none'}
+                  onChange={(e) => handleChordChange(chordTab, base.id, e.target.value)}
+                >
+                  {AVAILABLE_ACTIONS.map((act) => (
+                    <option key={act.id} value={act.id}>
+                      {i18n.t(`settings:controllers.mapping.actions.${act.id}`, {
+                        defaultValue: act.id,
+                      })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

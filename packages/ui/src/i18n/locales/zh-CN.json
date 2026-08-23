@@ -2305,6 +2305,17 @@
         "clickToCopy": "点击复制",
         "instructions": "确保手机与本电脑连接到同一 Wi-Fi 网络。您将获得完整的无线触控板、方向键、音量控制和栏目快捷方式！",
         "restartServer": "🔄 在端口 {{port}} 上重启服务器"
+      },
+      "chords": {
+        "title": "按键组合",
+        "description": "按住修饰键（L1/L2/R1/R2）并按下一个按钮以触发额外的快捷操作",
+        "reset": "恢复默认设置",
+        "modifiers": {
+          "left_bumper": "L1",
+          "right_bumper": "R1",
+          "left_trigger": "L2",
+          "right_trigger": "R2"
+        }
       }
     },
     "favoriteManager": {
