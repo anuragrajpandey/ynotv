@@ -2668,6 +2668,8 @@
     "close": "Schließen",
     "liveGames": "Live-Spiele",
     "liveGamesSidebar": "Live-Spiele-Seitenleiste",
+    "sendToScreen": "An Bildschirm senden",
+    "screenNum": "Bildschirm {{num}}",
     "noLiveGamesTitle": "Aktuell keine Live-Spiele",
     "noLiveGamesSubtitle": "Schau später wieder vorbei für aktive Spiele und Live-Ergebnisse.",
     "autoSwapDeadStreams": "Tote Streams automatisch ersetzen",

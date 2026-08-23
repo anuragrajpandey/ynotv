@@ -2668,6 +2668,8 @@
     "close": "Close",
     "liveGames": "Live Games",
     "liveGamesSidebar": "Live Games Sidebar",
+    "sendToScreen": "Send to screen",
+    "screenNum": "Screen {{num}}",
     "noLiveGamesTitle": "No Live Games Right Now",
     "noLiveGamesSubtitle": "Check back later for active matchups and live scores.",
     "autoSwapDeadStreams": "Autoswap dead streams",

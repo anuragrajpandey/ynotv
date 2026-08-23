@@ -2668,6 +2668,8 @@
     "close": "إغلاق",
     "liveGames": "المباريات المباشرة",
     "liveGamesSidebar": "الشريط الجانبي للمباريات المباشرة",
+    "sendToScreen": "إرسال إلى الشاشة",
+    "screenNum": "الشاشة {{num}}",
     "noLiveGamesTitle": "لا توجد مباريات مباشرة الآن",
     "noLiveGamesSubtitle": "تحقق لاحقًا من المباريات النشطة والنتائج المباشرة.",
     "autoSwapDeadStreams": "التبديل التلقائي للبث المتعطل",

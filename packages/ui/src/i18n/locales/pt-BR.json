@@ -2668,6 +2668,8 @@
     "close": "Fechar",
     "liveGames": "Jogos ao vivo",
     "liveGamesSidebar": "Barra lateral de jogos ao vivo",
+    "sendToScreen": "Enviar para a tela",
+    "screenNum": "Tela {{num}}",
     "noLiveGamesTitle": "Nenhum jogo ao vivo no momento",
     "noLiveGamesSubtitle": "Volte mais tarde para ver jogos ativos e placares ao vivo.",
     "autoSwapDeadStreams": "Trocar automaticamente transmissões mortas",

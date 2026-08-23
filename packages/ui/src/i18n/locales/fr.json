@@ -2668,6 +2668,8 @@
     "close": "Fermer",
     "liveGames": "Matchs en direct",
     "liveGamesSidebar": "Panneau latéral des matchs en direct",
+    "sendToScreen": "Envoyer à l'écran",
+    "screenNum": "Écran {{num}}",
     "noLiveGamesTitle": "Aucun match en direct pour le moment",
     "noLiveGamesSubtitle": "Revenez plus tard pour les matchs actifs et les scores en direct.",
     "autoSwapDeadStreams": "Basculer automatiquement les flux morts",

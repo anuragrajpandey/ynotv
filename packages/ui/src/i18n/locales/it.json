@@ -2668,6 +2668,8 @@
     "close": "Chiudi",
     "liveGames": "Partite live",
     "liveGamesSidebar": "Barra laterale partite live",
+    "sendToScreen": "Invia allo schermo",
+    "screenNum": "Schermo {{num}}",
     "noLiveGamesTitle": "Nessuna partita live al momento",
     "noLiveGamesSubtitle": "Torna più tardi per partite attive e punteggi live.",
     "autoSwapDeadStreams": "Cambia automaticamente gli stream morti",

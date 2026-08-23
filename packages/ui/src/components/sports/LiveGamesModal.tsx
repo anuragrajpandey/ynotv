@@ -17,6 +17,8 @@ interface LiveGamesModalProps {
   open: boolean;
   onClose: () => void;
   onChannelClick: (channel: StoredChannel) => void;
+  /** Resolves GameDetail's "Watch on" channel-name buttons into a play action. */
+  onChannelClickName?: (channelName: string) => void;
   currentChannel?: StoredChannel | null;
 }
 
@@ -30,6 +32,7 @@ export function LiveGamesModal({
   open,
   onClose,
   onChannelClick,
+  onChannelClickName,
   currentChannel,
 }: LiveGamesModalProps) {
   const { t } = useTranslation('sports');
@@ -247,6 +250,7 @@ export function LiveGamesModal({
           onClose={handleCloseDetail}
           variant="glass"
           onPlayChannel={onChannelClick}
+          onChannelClick={onChannelClickName}
         />
       )}
     </div>,

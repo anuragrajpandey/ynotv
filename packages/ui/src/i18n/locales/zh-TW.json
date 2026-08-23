@@ -2668,6 +2668,8 @@
     "close": "關閉",
     "liveGames": "即時比賽",
     "liveGamesSidebar": "即時比賽側邊欄",
+    "sendToScreen": "發送到螢幕",
+    "screenNum": "螢幕 {{num}}",
     "noLiveGamesTitle": "目前沒有即時比賽",
     "noLiveGamesSubtitle": "稍後再回來查看進行中的比賽和即時比分。",
     "autoSwapDeadStreams": "自動切換失效串流",

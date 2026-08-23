@@ -2668,6 +2668,8 @@
     "close": "بستن",
     "liveGames": "بازیهای زنده",
     "liveGamesSidebar": "نوار کناری بازیهای زنده",
+    "sendToScreen": "ارسال به صفحه",
+    "screenNum": "صفحه {{num}}",
     "noLiveGamesTitle": "در حال حاضر بازی زندهای وجود ندارد",
     "noLiveGamesSubtitle": "بعداً برای مسابقات فعال و نتایج زنده بازگردید.",
     "autoSwapDeadStreams": "جایگزینی خودکار استریمهای مرده",

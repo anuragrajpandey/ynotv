@@ -39,6 +39,7 @@ import { TVCalendarPage } from './components/TVCalendarPage';
 import { LiveSportsOverlay } from './components/LiveSportsOverlay';
 import { SportsLiveGameSidebar } from './components/sports/SportsLiveGameSidebar';
 import { LiveGamesModal } from './components/sports/LiveGamesModal';
+import { MultiviewPlayTargetPicker } from './components/MultiviewPlayTargetPicker';
 import { RecentChannelsWidget } from './components/RecentChannelsWidget';
 import { FavoritesWidget } from './components/FavoritesWidget';
 import { WidgetBar } from './components/WidgetBar';
@@ -2642,6 +2643,36 @@ function useTmdbPresencePoster(
       handlePlayChannel(channel, autoSwitched);
     }
   }, [handlePlayChannel, popoutSwapChannel, handlePlayInExternal]);
+
+  // Channel queued by a live-sports play action while a multiview layout is
+  // active — the user still has to pick which screen it goes to.
+  const [multiviewPlayTarget, setMultiviewPlayTarget] = useState<StoredChannel | null>(null);
+
+  // Sports entry points (sidebar drawer, Live Games modal, ticker) play
+  // through here: in multiview the user picks a target screen; otherwise it
+  // just plays in the main player like any other channel click.
+  const handleSportsChannelPlay = useCallback((channel: StoredChannel) => {
+    if (multiviewLayout !== 'main') {
+      setMultiviewPlayTarget(channel);
+      return;
+    }
+    handlePlayChannelWrapper(channel);
+  }, [multiviewLayout, handlePlayChannelWrapper]);
+
+  // GameDetail's "Watch on" buttons only carry a channel NAME — resolve it to
+  // a StoredChannel, then route through the same picker/play flow.
+  const handleSportsChannelNamePlay = useCallback(async (channelName: string) => {
+    let channel = currentChannels.find((c) => c.name === channelName);
+    if (!channel) {
+      const channels = await db.channels.whereRaw('name = ?', [channelName]).toArray();
+      if (channels.length > 0) {
+        channel = channels[0];
+      }
+    }
+    if (channel) {
+      handleSportsChannelPlay(channel);
+    }
+  }, [currentChannels, handleSportsChannelPlay]);
 
   const handlePlayVodInExternal = useCallback(async (info: import('./types/media').VodPlayInfo) => {
     try {
@@ -5287,21 +5318,24 @@ function useTmdbPresencePoster(
         />
       )}
 
-      {/* Live Sports Overlay Widget */}
-      {sportsOverlayWidget && !pipMode && !(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_')) && multiviewLayout !== 'sbs' && multiviewLayout !== 'bigbottom' && multiviewLayout !== '2x2' && (
+      {/* Live Sports Overlay Widget — stays active in multiview so the score
+          ticker (and its Game Detail) is reachable from any layout */}
+      {sportsOverlayWidget && !pipMode && !(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_')) && (
         <LiveSportsOverlay
           mode={sportsOverlayWidget}
           showControls={showControls}
           activeView={activeView}
+          onChannelClickName={handleSportsChannelNamePlay}
         />
       )}
 
       {/* Sports Live Game Sidebar Widget (mouse hover drawer) */}
-      {sportsLiveSidebarWidget && !pipMode && !(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_')) && multiviewLayout !== 'sbs' && multiviewLayout !== 'bigbottom' && multiviewLayout !== '2x2' && (
+      {sportsLiveSidebarWidget && !pipMode && !(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_')) && (
         <SportsLiveGameSidebar
           showControls={showControls}
           activeView={activeView}
-          onChannelClick={handlePlayChannelWrapper}
+          onChannelClick={handleSportsChannelPlay}
+          onChannelClickName={handleSportsChannelNamePlay}
           currentChannel={currentChannel}
           isOpen={liveGameSidebarOpen}
           onOpenChange={setLiveGameSidebarOpen}
@@ -5312,8 +5346,27 @@ function useTmdbPresencePoster(
       <LiveGamesModal
         open={liveGamesModalOpen}
         onClose={() => setLiveGamesModalOpen(false)}
-        onChannelClick={handlePlayChannelWrapper}
+        onChannelClick={handleSportsChannelPlay}
+        onChannelClickName={handleSportsChannelNamePlay}
         currentChannel={currentChannel}
+      />
+
+      {/* Multiview "send to screen" picker — shown when a sports play action
+          happens while a multiview layout is active */}
+      <MultiviewPlayTargetPicker
+        channel={multiviewPlayTarget}
+        layout={multiviewLayout}
+        slots={multiviewSlots}
+        mainChannelName={currentChannel?.name || null}
+        onPlayMain={(channel) => {
+          handlePlayChannelWrapper(channel);
+          setMultiviewPlayTarget(null);
+        }}
+        onSendToSlot={(slotId, channel) => {
+          sendToSlot(slotId, channel.alias || channel.name, channel.direct_url || '', channel.source_id);
+          setMultiviewPlayTarget(null);
+        }}
+        onClose={() => setMultiviewPlayTarget(null)}
       />
 
       {/* Overlay Widgets — all sit inside a shared WidgetBar flex container.

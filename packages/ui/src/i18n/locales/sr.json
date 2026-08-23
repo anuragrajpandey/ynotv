@@ -2668,6 +2668,8 @@
     "close": "Затвори",
     "liveGames": "Утакмице уживо",
     "liveGamesSidebar": "Бочна трака утакмица уживо",
+    "sendToScreen": "Пошаљи на екран",
+    "screenNum": "Екран {{num}}",
     "noLiveGamesTitle": "Тренутно нема утакмица уживо",
     "noLiveGamesSubtitle": "Врати се касније за активне утакмице и резултате уживо.",
     "autoSwapDeadStreams": "Аутоматска замена мртвих стримова",

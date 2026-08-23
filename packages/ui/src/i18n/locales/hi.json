@@ -2668,6 +2668,8 @@
     "close": "बंद करें",
     "liveGames": "लाइव गेम्स",
     "liveGamesSidebar": "लाइव गेम्स साइडबार",
+    "sendToScreen": "स्क्रीन पर भेजें",
+    "screenNum": "स्क्रीन {{num}}",
     "noLiveGamesTitle": "अभी कोई लाइव गेम नहीं",
     "noLiveGamesSubtitle": "सक्रिय मैचों और लाइव स्कोर के लिए बाद में वापस आएँ।",
     "autoSwapDeadStreams": "मृत स्ट्रीम स्वतः बदलें",

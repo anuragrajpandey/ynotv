@@ -2668,6 +2668,8 @@
     "close": "Kapat",
     "liveGames": "Canlı Maçlar",
     "liveGamesSidebar": "Canlı Maçlar Kenar Çubuğu",
+    "sendToScreen": "Ekrana gönder",
+    "screenNum": "Ekran {{num}}",
     "noLiveGamesTitle": "Şu anda canlı maç yok",
     "noLiveGamesSubtitle": "Aktif maçlar ve canlı skorlar için daha sonra tekrar bakın.",
     "autoSwapDeadStreams": "Ölü akışları otomatik değiştir",

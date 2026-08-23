@@ -2668,6 +2668,8 @@
     "close": "Cerrar",
     "liveGames": "Juegos en vivo",
     "liveGamesSidebar": "Barra lateral de juegos en vivo",
+    "sendToScreen": "Enviar a pantalla",
+    "screenNum": "Pantalla {{num}}",
     "noLiveGamesTitle": "No hay juegos en vivo en este momento",
     "noLiveGamesSubtitle": "Vuelve más tarde para ver juegos activos y marcadores en vivo.",
     "autoSwapDeadStreams": "Cambiar automáticamente flujos muertos",

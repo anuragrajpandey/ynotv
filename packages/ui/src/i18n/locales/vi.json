@@ -3683,6 +3683,8 @@
     "close": "Đóng",
     "liveGames": "Trận đấu trực tiếp",
     "liveGamesSidebar": "Thanh bên trận đấu trực tiếp",
+    "sendToScreen": "Gửi tới màn hình",
+    "screenNum": "Màn hình {{num}}",
     "noLiveGamesTitle": "Hiện không có trận đấu trực tiếp",
     "noLiveGamesSubtitle": "Quay lại sau để xem các trận đấu đang diễn ra và tỷ số trực tiếp.",
     "autoSwapDeadStreams": "Tự động chuyển luồng chết",

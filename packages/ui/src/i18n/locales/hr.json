@@ -2668,6 +2668,8 @@
     "close": "Zatvori",
     "liveGames": "Utakmice uživo",
     "liveGamesSidebar": "Bočna traka utakmica uživo",
+    "sendToScreen": "Pošalji na zaslon",
+    "screenNum": "Zaslon {{num}}",
     "noLiveGamesTitle": "Trenutno nema utakmica uživo",
     "noLiveGamesSubtitle": "Vrati se kasnije za aktivne utakmice i rezultate uživo.",
     "autoSwapDeadStreams": "Automatska zamjena mrtvih strimova",

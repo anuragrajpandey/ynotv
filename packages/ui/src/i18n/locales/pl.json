@@ -2668,6 +2668,8 @@
     "close": "Zamknij",
     "liveGames": "Mecze na żywo",
     "liveGamesSidebar": "Panel boczny meczów na żywo",
+    "sendToScreen": "Wyślij na ekran",
+    "screenNum": "Ekran {{num}}",
     "noLiveGamesTitle": "Obecnie brak meczów na żywo",
     "noLiveGamesSubtitle": "Wróć później, aby zobaczyć aktywne mecze i wyniki na żywo.",
     "autoSwapDeadStreams": "Automatyczna zamiana martwych transmisji",

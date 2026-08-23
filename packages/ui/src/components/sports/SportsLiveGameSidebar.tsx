@@ -26,6 +26,8 @@ interface SportsLiveGameSidebarProps {
   showControls: boolean;
   activeView: string;
   onChannelClick: (channel: StoredChannel) => void;
+  /** Resolves GameDetail's "Watch on" channel-name buttons into a play action. */
+  onChannelClickName?: (channelName: string) => void;
   currentChannel?: StoredChannel | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -528,6 +530,7 @@ export function SportsLiveGameSidebar({
   showControls,
   activeView,
   onChannelClick,
+  onChannelClickName,
   currentChannel,
   isOpen,
   onOpenChange,
@@ -794,6 +797,7 @@ export function SportsLiveGameSidebar({
           onClose={() => setSelectedEventForDetail(null)}
           variant="glass"
           onPlayChannel={onChannelClick}
+          onChannelClick={onChannelClickName}
         />
       )}
     </>

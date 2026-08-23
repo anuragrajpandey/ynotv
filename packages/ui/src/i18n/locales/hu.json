@@ -2668,6 +2668,8 @@
     "close": "Bezárás",
     "liveGames": "Élő meccsek",
     "liveGamesSidebar": "Élő meccsek oldalsáv",
+    "sendToScreen": "Küldés a képernyőre",
+    "screenNum": "Képernyő {{num}}",
     "noLiveGamesTitle": "Jelenleg nincs élő meccs",
     "noLiveGamesSubtitle": "Nézz vissza később az aktív meccsekért és élő eredményekért.",
     "autoSwapDeadStreams": "Holt adásfolyamok automatikus cseréje",

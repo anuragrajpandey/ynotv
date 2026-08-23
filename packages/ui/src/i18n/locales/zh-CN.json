@@ -2668,6 +2668,8 @@
     "close": "关闭",
     "liveGames": "直播比赛",
     "liveGamesSidebar": "直播比赛侧边栏",
+    "sendToScreen": "发送到屏幕",
+    "screenNum": "屏幕 {{num}}",
     "noLiveGamesTitle": "当前没有直播比赛",
     "noLiveGamesSubtitle": "稍后再来看看正在进行的比赛和实时比分。",
     "autoSwapDeadStreams": "自动切换失效流",

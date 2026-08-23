@@ -2668,6 +2668,8 @@
     "close": "Mbyll",
     "liveGames": "Ndeshje live",
     "liveGamesSidebar": "Shiriti anësor i ndeshjeve live",
+    "sendToScreen": "Dërgo në ekran",
+    "screenNum": "Ekrani {{num}}",
     "noLiveGamesTitle": "Asnjë ndeshje live tani",
     "noLiveGamesSubtitle": "Kthehuni më vonë për ndeshje aktive dhe rezultate live.",
     "autoSwapDeadStreams": "Ndërrimi automatik i transmetimeve të vdekura",

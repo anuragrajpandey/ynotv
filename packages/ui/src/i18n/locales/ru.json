@@ -2668,6 +2668,8 @@
     "close": "Закрыть",
     "liveGames": "Игры в эфире",
     "liveGamesSidebar": "Боковая панель игр в эфире",
+    "sendToScreen": "Отправить на экран",
+    "screenNum": "Экран {{num}}",
     "noLiveGamesTitle": "Сейчас нет игр в эфире",
     "noLiveGamesSubtitle": "Загляните позже — появятся активные матчи и живые результаты.",
     "autoSwapDeadStreams": "Автоматическая замена мёртвых потоков",
