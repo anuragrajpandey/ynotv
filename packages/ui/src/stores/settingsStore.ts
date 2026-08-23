@@ -303,6 +303,8 @@ export interface SettingsState {
   // Metadata APIs
   tmdbApiKey: string;
   setTmdbApiKey: (key: string) => void;
+  tmdbLanguage: string;
+  setTmdbLanguage: (language: string) => void;
   posterDbApiKey: string;
   setPosterDbApiKey: (key: string) => void;
   rpdbBackdropsEnabled: boolean;
@@ -1484,6 +1486,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ tmdbApiKey: key });
     persistSettings({ tmdbApiKey: key });
     dispatchAppEvent('ynotv:tmdb-key-changed', {});
+  },
+  tmdbLanguage: cachedSettings?.tmdbLanguage ?? 'en-US',
+  setTmdbLanguage: (language) => {
+    set({ tmdbLanguage: language });
+    persistSettings({ tmdbLanguage: language });
   },
   posterDbApiKey: '',
   setPosterDbApiKey: (key) => {

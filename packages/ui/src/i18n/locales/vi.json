@@ -3224,7 +3224,9 @@
       "rpdbDisclaimerPrefix": "RPDB là dịch vụ của bên thứ ba. Truy cập",
       "rpdbDisclaimerSuffix": "để biết giá và tính năng.",
       "hideKey": "Ẩn khóa",
-      "showKey": "Hiển thị khóa"
+      "showKey": "Hiển thị khóa",
+      "languageLabel": "Ngôn ngữ siêu dữ liệu",
+      "languageHint": "Tiêu đề, mô tả và thể loại từ TMDB sẽ được trả về bằng ngôn ngữ này."
     },
     "tabs": {
       "about": "Giới Thiệu",

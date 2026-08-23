@@ -1776,7 +1776,9 @@
       "rpdbDisclaimerPrefix": "RPDB एक तृतीय-पक्ष सेवा है। मूल्य निर्धारण और सुविधाओं के लिए",
       "rpdbDisclaimerSuffix": "पर जाएँ।",
       "hideKey": "कुंजी छिपाएँ",
-      "showKey": "कुंजी दिखाएँ"
+      "showKey": "कुंजी दिखाएँ",
+      "languageLabel": "मेटाडेटा भाषा",
+      "languageHint": "TMDB से शीर्षक, विवरण और शैलियाँ इसी भाषा में लौटाई जाएँगी।"
     },
     "overlay": {
       "channelInfoOverlay": "चैनल सूचना ओवरले",

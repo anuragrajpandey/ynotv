@@ -1776,7 +1776,9 @@
       "rpdbDisclaimerPrefix": "RPDB è un servizio di terze parti. Visita",
       "rpdbDisclaimerSuffix": "per prezzi e funzionalità.",
       "hideKey": "Nascondi chiave",
-      "showKey": "Mostra chiave"
+      "showKey": "Mostra chiave",
+      "languageLabel": "Lingua dei metadati",
+      "languageHint": "Titoli, descrizioni e generi di TMDB verranno restituiti in questa lingua."
     },
     "overlay": {
       "channelInfoOverlay": "Overlay informazioni canale",

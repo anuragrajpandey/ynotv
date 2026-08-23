@@ -41,6 +41,8 @@ const INTERACTIVE_SELECTOR = [
   '.stremio-cal-ep-card',
   '.stremio-rank-card-container',
   '.stremio-detail-video-card',
+  '.stremio-detail-cast-member',
+  '.stremio-detail-rec-card',
   '.stremio-service-item',
   '.nuvio-card',
   '.nuvio-row-card',

@@ -1776,7 +1776,9 @@
       "rpdbDisclaimerPrefix": "RPDB 是第三方服務。訪問",
       "rpdbDisclaimerSuffix": "瞭解定價和功能。",
       "hideKey": "隱藏密鑰",
-      "showKey": "顯示密鑰"
+      "showKey": "顯示密鑰",
+      "languageLabel": "中繼資料語言",
+      "languageHint": "TMDB 的標題、簡介與類型將以所選語言回傳。"
     },
     "overlay": {
       "channelInfoOverlay": "頻道資訊覆蓋層",

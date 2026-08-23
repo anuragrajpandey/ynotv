@@ -87,20 +87,15 @@
   margin: 0;
 }
 
-/* Category Pills */
+/* Category Pills — wrap onto additional lines instead of scrolling off-screen */
 .stremio-service-categories {
   position: relative;
   z-index: 1;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  overflow-x: auto;
   padding-bottom: 8px;
   margin-bottom: 24px;
-  scrollbar-width: none;
-}
-
-.stremio-service-categories::-webkit-scrollbar {
-  display: none;
 }
 
 .stremio-service-category-pill {

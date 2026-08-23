@@ -1776,7 +1776,9 @@
       "rpdbDisclaimerPrefix": "RPDB je usluga treće strane. Posetite",
       "rpdbDisclaimerSuffix": "za cene i funkcije.",
       "hideKey": "Sakrij ključ",
-      "showKey": "Prikaži ključ"
+      "showKey": "Prikaži ključ",
+      "languageLabel": "Jezik metapodataka",
+      "languageHint": "Naslovi, opisi i žanrovi iz TMDB-a bit će prikazani na ovom jeziku."
     },
     "overlay": {
       "channelInfoOverlay": "Preklop sa informacijama o kanalu",

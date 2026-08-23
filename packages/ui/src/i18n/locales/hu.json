@@ -1776,7 +1776,9 @@
       "rpdbDisclaimerPrefix": "Az RPDB külső szolgáltatás. Látogasson el ide:",
       "rpdbDisclaimerSuffix": "az árakért és a funkciókért.",
       "hideKey": "Kulcs elrejtése",
-      "showKey": "Kulcs megjelenítése"
+      "showKey": "Kulcs megjelenítése",
+      "languageLabel": "Metaadatok nyelve",
+      "languageHint": "A TMDB címei, leírásai és műfajai ezen a nyelven jelennek meg."
     },
     "overlay": {
       "channelInfoOverlay": "Csatornainformációs fedvény",

@@ -1776,7 +1776,9 @@
       "rpdbDisclaimerPrefix": "RPDB یک سرویس شخص ثالث است. برای قیمت و ویژگی‌ها به",
       "rpdbDisclaimerSuffix": "مراجعه کنید.",
       "hideKey": "پنهان‌کردن کلید",
-      "showKey": "نمایش کلید"
+      "showKey": "نمایش کلید",
+      "languageLabel": "زبان فراداده",
+      "languageHint": "عنوان‌ها، توضیحات و ژانرهای TMDB به این زبان بازگردانده می‌شوند."
     },
     "overlay": {
       "channelInfoOverlay": "لایه اطلاعات کانال",

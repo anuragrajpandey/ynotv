@@ -682,6 +682,26 @@
   color: var(--text-muted, rgba(255, 255, 255, 0.25));
 }
 
+/* TMDB metadata language picker */
+.tmdb-language-select {
+  width: 100%;
+  padding: var(--sm-input-padding, 10px 12px);
+  border: var(--sm-input-border, var(--glass-border, 1px solid rgba(255, 255, 255, 0.1)));
+  border-radius: var(--sm-input-radius, 4px);
+  background: var(--sm-input-bg, var(--surface-color, rgba(255, 255, 255, 0.03)));
+  color: var(--sm-input-color, var(--text-primary, white));
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: var(--sm-input-transition, border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease);
+}
+
+.tmdb-language-select:focus {
+  outline: none;
+  border-color: var(--sm-input-focus-border, var(--accent-primary, rgba(0, 212, 255, 0.5)));
+  box-shadow: var(--sm-input-focus-shadow, 0 0 0 1px var(--accent-primary, rgba(0, 212, 255, 0.5)));
+}
+
 /* Type Selector */
 .type-selector {
   display: flex;
