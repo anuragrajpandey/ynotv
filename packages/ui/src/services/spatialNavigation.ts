@@ -30,6 +30,12 @@ const INTERACTIVE_SELECTOR = [
   '.series-card',
   '.playlist-card',
   '.local-card__poster-wrap',
+  '.stremio-detail-stream-card',
+  '.series-detail__episode-card',
+  '.slg-card',
+  '.slg-league-pill',
+  '.slg-close-btn',
+  '.slg-tab-trigger',
   '.stremio-card',
   '.stremio-row-card',
   '.stremio-meta-card',
@@ -212,13 +218,19 @@ function getFocusCandidates(): HTMLElement[] {
       return false;
     }
 
-    // Playlist and Local cards own their D-pad navigation as single targets;
-    // their inner action/play/resume/remove buttons (including divs with
-    // role="button", like the local hover play button) are mouse-only helpers
-    // and must not be reachable with directional keys.
+    // Playlist, Local, and Stremio/Nuvio stream cards own their D-pad
+    // navigation as single targets; their inner action/play/resume/remove/
+    // download buttons (including divs with role="button", like the local
+    // hover play button) are mouse-only helpers and must not be reachable
+    // with directional keys. (Live Game Sidebar .slg-card controls are NOT
+    // excluded — Find Streams / play / backup-channel buttons there are meant
+    // to be D-pad highlightable.)
     if (
       (el.tagName === 'BUTTON' || (el.tagName === 'DIV' && el.getAttribute('role') === 'button')) &&
-      (el.closest('.playlist-card') || el.closest('.local-card'))
+      (el.closest('.playlist-card') ||
+        el.closest('.local-card') ||
+        el.closest('.stremio-detail-stream-card') ||
+        el.closest('.series-detail__episode-card'))
     ) {
       return false;
     }
@@ -236,7 +248,10 @@ function scrollIntoViewTv(el: HTMLElement) {
     el.classList.contains('nuvio-card') ||
     el.classList.contains('stremio-card') ||
     el.classList.contains('playlist-card') ||
-    el.classList.contains('local-card__poster-wrap');
+    el.classList.contains('local-card__poster-wrap') ||
+    el.classList.contains('stremio-detail-stream-card') ||
+    el.classList.contains('series-detail__episode-card') ||
+    el.classList.contains('slg-card');
   const edgePaddingY = isCard ? 24 : 12;
   const edgePaddingX = isCard ? 32 : 16;
 
@@ -806,6 +821,17 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
     y: curRect.top + curRect.height / 2,
   };
 
+  // Live Game Sidebar drawer (open): its fixed right-edge panel is a
+  // directional target — Down from the titlebar/sports scores, Right from the
+  // main content, and Up from the now-playing bar can all enter it.
+  const slgDrawerEl = document.querySelector<HTMLElement>('.slg-drawer.open');
+  const slgDrawerOpen = !!slgDrawerEl && isElementVisible(slgDrawerEl);
+  // Closed drawer: the right-edge tab trigger is the D-pad entry point that
+  // opens it (OK on the trigger), so it is favored by directional moves that
+  // point toward it while the drawer is closed.
+  const slgTriggerEl = document.querySelector<HTMLElement>('.slg-tab-trigger');
+  const slgTriggerVisible = !!slgTriggerEl && !slgDrawerOpen && isElementVisible(slgTriggerEl);
+
   const isChannelInfo = current.classList.contains('guide-channel-info');
   const isFavoriteBtn = current.classList.contains('favorite-btn');
   const isProgramBlock = current.classList.contains('program-block');
@@ -813,6 +839,12 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
   const isVodSidebarItem = Boolean(current.closest('.vertical-sidebar'));
   const isAlphabetLetter = Boolean(current.closest('.alphabet-rail'));
   const isMediaCard = current.classList.contains('media-card') || Boolean(current.closest('.media-card'));
+  // Current element is a card inside a Stremio/Nuvio home rail (catalog row,
+  // continue-watching row, service rail). Vertical moves from a rail must stay
+  // within the rails — never drift up to the topbar/search/title-bar.
+  const isHomeRailCard = Boolean(
+    current.closest('.stremio-row, .nuvio-row, .stremio-scroll-rail, .nuvio-scroll-rail')
+  );
 
   // A VOD grid has a stable Virtuoso index for each poster. Prefer that exact
   // next-row target over geometric scoring: at the bottom of the rendered
@@ -1086,6 +1118,56 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
       if (!isGridTarget) continue;
     }
 
+    // 15. Stremio/Nuvio home rails: up/down stays within the rails of the
+    // same view — never jumps to the topbar/search/title-bar. When the rail
+    // above/below is scrolled out of view, no candidate passes and the caller
+    // scrolls the view a row, so pressing Up repeatedly walks up through the
+    // rails instead of the page chrome. The hero is only a target when it is
+    // actually on screen (i.e. at the top of the scroller), and it then acts
+    // as the gateway up to the topbar.
+    if ((dir === 'up' || dir === 'down') && isHomeRailCard) {
+      const isRailTarget = Boolean(
+        cand.closest('.stremio-row, .nuvio-row, .stremio-scroll-rail, .nuvio-scroll-rail')
+      );
+      const isHeroTarget =
+        dir === 'up' && Boolean(cand.closest('.stremio-hero-banner')) && isElementVisible(cand);
+      if (!isRailTarget && !isHeroTarget) continue;
+    }
+
+    // 16. Live Game Sidebar drawer (open): directional entry is always
+    // possible. Pressing Down from the titlebar / sports-scores area (top of
+    // the screen) or Up from the now-playing bar (bottom of the screen)
+    // decisively enters the open drawer, and Right from the main content is
+    // strongly favored toward it. While already inside the drawer, vertical
+    // moves stay in it; Left is left alone so the user can exit back out.
+    if (slgDrawerOpen && cand.closest('.slg-drawer')) {
+      const inDrawer = Boolean(current.closest('.slg-drawer'));
+      const fromTop = curCenter.y < window.innerHeight * 0.45;
+      const fromBottom = curCenter.y > window.innerHeight * 0.55;
+      const entryMove =
+        !inDrawer && ((dir === 'down' && fromTop) || (dir === 'up' && fromBottom));
+      const stayMove = inDrawer && (dir === 'down' || dir === 'up');
+      if (entryMove) {
+        score -= 5000;
+      } else if (stayMove) {
+        score -= 400;
+      } else if (dir === 'right') {
+        score -= 800;
+      }
+    }
+
+    // 17. Live Game Sidebar trigger (drawer closed): the D-pad entry point
+    // for opening the drawer. Right from the main content, Down from the
+    // titlebar / sports-scores area, or Up from the now-playing bar favors
+    // the trigger; pressing OK on it then opens the drawer.
+    if (slgTriggerVisible && cand.classList.contains('slg-tab-trigger')) {
+      const fromTop = curCenter.y < window.innerHeight * 0.45;
+      const fromBottom = curCenter.y > window.innerHeight * 0.55;
+      const towardTrigger =
+        dir === 'right' || (dir === 'down' && fromTop) || (dir === 'up' && fromBottom);
+      if (towardTrigger) score -= 800;
+    }
+
     if (score < minScore) {
       minScore = score;
       bestElement = cand;
@@ -1133,6 +1215,9 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
         (active.tagName === 'DIV' &&
           !active.classList.contains('playlist-card') &&
           !active.classList.contains('local-card__poster-wrap') &&
+          !active.classList.contains('stremio-detail-stream-card') &&
+          !active.classList.contains('series-detail__episode-card') &&
+          !active.classList.contains('slg-card') &&
           active.querySelector('button.category-item, button.category-folder-header, button'))
       ) {
         const innerBtn = active.querySelector<HTMLElement>(
@@ -1155,7 +1240,10 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
         active.classList.contains('sports-card') ||
         active.classList.contains('program-block') ||
         active.classList.contains('playlist-card') ||
-        active.classList.contains('local-card__poster-wrap')
+        active.classList.contains('local-card__poster-wrap') ||
+        active.classList.contains('stremio-detail-stream-card') ||
+        active.classList.contains('series-detail__episode-card') ||
+        active.classList.contains('slg-card')
       ) {
         actionable = active;
       } else {
@@ -1238,10 +1326,21 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
     const openModal = getActiveModal();
     if (openModal) {
       const modalClose = openModal.querySelector<HTMLElement>(
-        '.modal-close, .modal-close-btn, [data-action="close"], .dialog-close, .movie-detail__back, .series-detail__back'
+        '.modal-close, .modal-close-btn, [data-action="close"], .dialog-close, .movie-detail__back, .series-detail__back, .game-detail-close'
       );
       if (modalClose && isElementVisible(modalClose)) {
         modalClose.click();
+        return true;
+      }
+    }
+
+    // 1.5. If the Live Game Sidebar drawer is open, close it before any view
+    // navigation — back on a controller/remote should retract the drawer.
+    const openSlgDrawer = document.querySelector<HTMLElement>('.slg-drawer.open');
+    if (openSlgDrawer && isElementVisible(openSlgDrawer)) {
+      const slgClose = openSlgDrawer.querySelector<HTMLElement>('.slg-close-btn');
+      if (slgClose && isElementVisible(slgClose)) {
+        slgClose.click();
         return true;
       }
     }

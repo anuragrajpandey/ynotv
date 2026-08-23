@@ -25,6 +25,7 @@ const AVAILABLE_ACTIONS: Array<{ id: string; label: string }> = [
   { id: 'toggle_stremio', label: 'Toggle Stremio' },
   { id: 'toggle_transparent_overlay', label: 'Toggle Transparent Overlay' },
   { id: 'toggle_overlay', label: 'Toggle Overlay' },
+  { id: 'toggle_live_game_sidebar', label: 'Toggle Live Game Sidebar' },
   { id: 'open_movies', label: 'Open Movies' },
   { id: 'open_series', label: 'Open TV Series' },
   { id: 'open_sports', label: 'Open Sports Hub' },

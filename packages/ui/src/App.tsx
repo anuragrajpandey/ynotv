@@ -2264,7 +2264,37 @@ function useTmdbPresencePoster(
   const handleRemoveSportsLiveSidebar = useCallback(() => {
     setSportsLiveSidebarWidget(false);
     localStorage.removeItem('sportsLiveSidebarWidget');
+    setLiveGameSidebarOpen(false);
   }, []);
+
+  // Open state of the Live Game Sidebar drawer (lifted so controller/remote
+  // actions and spatial-navigation back can open/close it).
+  const [liveGameSidebarOpen, setLiveGameSidebarOpen] = useState(false);
+
+  // 'Toggle Live Game Sidebar' controller/remote action: if the widget is
+  // disabled, enable it and open the drawer; otherwise flip the drawer.
+  useEffect(() => {
+    const handleToggleLiveGameSidebar = () => {
+      if (!sportsLiveSidebarWidget) {
+        setSportsLiveSidebarWidget(true);
+        localStorage.setItem('sportsLiveSidebarWidget', 'true');
+        setLiveGameSidebarOpen(true);
+      } else {
+        setLiveGameSidebarOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('ynotv:gamepad-toggle-live-game-sidebar', handleToggleLiveGameSidebar);
+    return () => window.removeEventListener('ynotv:gamepad-toggle-live-game-sidebar', handleToggleLiveGameSidebar);
+  }, [sportsLiveSidebarWidget]);
+
+  // Close the Live Game Sidebar drawer when the user navigates away from the
+  // main screen (Live TV, Movies, Series, Sports hub, …) so it never lingers
+  // open behind a different view.
+  useEffect(() => {
+    if (activeView !== 'none') {
+      setLiveGameSidebarOpen(false);
+    }
+  }, [activeView]);
 
   const handleAddRecent10Overlay = useCallback(() => {
     setRecentOverlayWidget('10');
@@ -5248,6 +5278,8 @@ function useTmdbPresencePoster(
           activeView={activeView}
           onChannelClick={handlePlayChannelWrapper}
           currentChannel={currentChannel}
+          isOpen={liveGameSidebarOpen}
+          onOpenChange={setLiveGameSidebarOpen}
         />
       )}
 

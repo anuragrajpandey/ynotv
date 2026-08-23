@@ -536,6 +536,9 @@ export function executeAction(action: string) {
     case 'toggle_overlay':
       window.dispatchEvent(new CustomEvent('ynotv:gamepad-toggle-overlay'));
       break;
+    case 'toggle_live_game_sidebar':
+      window.dispatchEvent(new CustomEvent('ynotv:gamepad-toggle-live-game-sidebar'));
+      break;
     case 'open_movies':
       window.dispatchEvent(new CustomEvent('ynotv:navigate-view', { detail: { view: 'movies' } }));
       break;

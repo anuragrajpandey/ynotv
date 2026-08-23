@@ -25,6 +25,8 @@ interface SportsLiveGameSidebarProps {
   activeView: string;
   onChannelClick: (channel: StoredChannel) => void;
   currentChannel?: StoredChannel | null;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 function stringToColor(str: string): string {
@@ -486,9 +488,10 @@ export function SportsLiveGameSidebar({
   activeView,
   onChannelClick,
   currentChannel,
+  isOpen,
+  onOpenChange,
 }: SportsLiveGameSidebarProps) {
   const { t } = useTranslation('sports');
-  const [isOpen, setIsOpen] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState<string>('all');
   const [selectedEventForDetail, setSelectedEventForDetail] = useState<SportsEvent | null>(null);
 
@@ -519,8 +522,8 @@ export function SportsLiveGameSidebar({
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-    setIsOpen(true);
-  }, []);
+    onOpenChange(true);
+  }, [onOpenChange]);
 
   const handleMouseEnterDrawer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -534,17 +537,17 @@ export function SportsLiveGameSidebar({
       clearTimeout(closeTimerRef.current);
     }
     closeTimerRef.current = setTimeout(() => {
-      setIsOpen(false);
+      onOpenChange(false);
     }, 200);
-  }, []);
+  }, [onOpenChange]);
 
   const handleClose = useCallback(() => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-    setIsOpen(false);
-  }, []);
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   useEffect(() => {
     return () => {
@@ -652,7 +655,7 @@ export function SportsLiveGameSidebar({
         className={`slg-tab-trigger ${showControls ? '' : 'controls-hidden'} ${isOpen ? 'open' : ''}`}
         onMouseEnter={handleMouseEnterTrigger}
         onMouseLeave={handleMouseLeave}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => onOpenChange(!isOpen)}
         title={t('liveGamesSidebar', 'Live Games Sidebar')}
       >
         <span className={`slg-live-dot ${liveEvents.length > 0 ? 'pulsing' : 'idle'}`} />
