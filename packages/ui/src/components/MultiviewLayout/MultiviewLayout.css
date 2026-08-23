@@ -40,6 +40,18 @@
     display: none;
 }
 
+/* Round the PiP cell so the second player nestles inside the overlay's rounded
+   frame. The slot video is rendered by a position:fixed wrapper (HlsAbsoluteWrapper)
+   that mirrors this container's computed border-radius and clips its own content,
+   so the radius here is what gives the video its rounded corners — the overlay's
+   own overflow:hidden can't clip a fixed-position sibling. The radius matches the
+   overlay's 10px frame minus its 1.5px border, so the video corners meet the
+   border's inner curve instead of poking out. */
+.layout-pip-container .multiview-cell-container {
+    border-radius: calc(10px - 1.5px);
+    overflow: hidden;
+}
+
 /* Close button (top-right) */
 .layout-pip-close {
     position: absolute;

@@ -2152,12 +2152,15 @@ function useTmdbPresencePoster(
 
   const isChannelInfoOverlayVisible = useMemo(() => {
     if (!channelInfoOverlayEnabled || !currentChannel || pipMode) return false;
+    // In multiview the main channel is confined to a grid cell — the overlay
+    // would float over unrelated cells, so it's suppressed entirely.
+    if (multiviewLayout !== 'main') return false;
     const isVod = currentChannel.stream_id === 'vod' || currentChannel.stream_id?.startsWith('recording_');
     if (isVod) return false;
     // Don't show when in LiveTV guide (unless transparent guide is active and triggered by zapping) or Sports views
     if ((activeView === 'guide' && (!guideTransparent || !isTransparentGuideZapActive)) || activeView === 'sports') return false;
     return showControls || channelChangeFlash;
-  }, [channelInfoOverlayEnabled, currentChannel, pipMode, showControls, channelChangeFlash, activeView, guideTransparent, isTransparentGuideZapActive]);
+  }, [channelInfoOverlayEnabled, currentChannel, pipMode, multiviewLayout, showControls, channelChangeFlash, activeView, guideTransparent, isTransparentGuideZapActive]);
 
 
   // ==========================================================================
