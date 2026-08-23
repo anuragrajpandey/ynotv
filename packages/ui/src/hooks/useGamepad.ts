@@ -68,6 +68,13 @@ export interface GamepadEventPayload {
   gamepad_name: string;
 }
 
+export interface GamepadStickPayload {
+  x: number;
+  y: number;
+  gamepad_id: number;
+  gamepad_name: string;
+}
+
 export interface LiveButtonEvent {
   action: string;
   rawLabel: string;
@@ -113,45 +120,6 @@ function tryDispatchAction(action: string): boolean {
 function scrollActiveContainerByStick(rawX: number, rawY: number, deadzone: number) {
   if (typeof document === 'undefined') return;
 
-  const getScroller = (): HTMLElement | null => {
-    // 1. If an active modal is open, find its scroller (z-aware, so stacked
-    // modals like Game Detail over the Live Games picker resolve correctly).
-    const modal = getActiveModal();
-    if (modal) {
-      const modalScroller = modal.querySelector<HTMLElement>(
-        '.settings-tab-content, .movie-detail__scroll, .series-detail__scroll, .stremio-detail-body, .game-detail-content, [data-virtuoso-scroller]'
-      );
-      return modalScroller || modal;
-    }
-
-    // 2. Focused element's scrollable ancestor
-    const active = document.activeElement as HTMLElement | null;
-    if (active && active !== document.body) {
-      let node: HTMLElement | null = active.parentElement;
-      while (node && node !== document.body && node !== document.documentElement) {
-        const style = window.getComputedStyle(node);
-        if (
-          (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflowX === 'auto' || style.overflowX === 'scroll') &&
-          (node.scrollHeight > node.clientHeight + 4 || node.scrollWidth > node.clientWidth + 4)
-        ) {
-          return node;
-        }
-        node = node.parentElement;
-      }
-    }
-
-    // 3. Known active page scrollers
-    const known = document.querySelector<HTMLElement>(
-      '.nuvio-main, .stremio-home, .stremio-main, .vod-page__home, .vod-browse__grid-scroll, .local-grid-scroll, .guide-channels, .sports-hub, .dvr-dashboard, .tv-calendar-page, .channel-panel, .epg-content'
-    );
-    if (known) return known;
-
-    return (document.scrollingElement as HTMLElement | null) || document.documentElement;
-  };
-
-  const scroller = getScroller();
-  if (!scroller) return;
-
   // Exponential response curve for fine precision and rapid sweeping
   const calcDelta = (val: number) => {
     const abs = Math.abs(val);
@@ -162,15 +130,80 @@ function scrollActiveContainerByStick(rawX: number, rawY: number, deadzone: numb
 
   const deltaY = calcDelta(rawY);
   const deltaX = calcDelta(rawX);
+  if (deltaY === 0 && deltaX === 0) return;
 
-  if (deltaY !== 0) {
-    scroller.scrollTop += deltaY;
-    onUserManualScroll();
+  const isScrollable = (el: HTMLElement): boolean => {
+    const style = window.getComputedStyle(el);
+    return (
+      style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+      style.overflowX === 'auto' || style.overflowX === 'scroll'
+    );
+  };
+
+  // Collect candidate scrollers, innermost first:
+  //   1. the active modal's scroller (z-aware, so stacked modals like Game
+  //      Detail over the Live Games picker resolve correctly),
+  //   2. the focused element's scrollable ancestors (rail → row → page),
+  //   3. the known active page scroller,
+  //   4. the document root.
+  const candidates: HTMLElement[] = [];
+
+  const modal = getActiveModal();
+  if (modal) {
+    const modalScroller = modal.querySelector<HTMLElement>(
+      '.settings-tab-content, .movie-detail__scroll, .series-detail__scroll, .stremio-detail-body, .game-detail-content, [data-virtuoso-scroller]'
+    );
+    candidates.push(modalScroller || modal);
   }
-  if (deltaX !== 0) {
-    scroller.scrollLeft += deltaX;
-    onUserManualScroll();
+
+  const active = document.activeElement as HTMLElement | null;
+  if (active && active !== document.body) {
+    let node: HTMLElement | null = active.parentElement;
+    while (node && node !== document.body && node !== document.documentElement) {
+      if (isScrollable(node)) candidates.push(node);
+      node = node.parentElement;
+    }
   }
+
+  const known = document.querySelector<HTMLElement>(
+    '.nuvio-main, .stremio-home, .stremio-main, .vod-page__home, .vod-browse__grid-scroll, .local-grid-scroll, .guide-channels, .sports-hub, .dvr-dashboard, .tv-calendar-page, .channel-panel, .epg-content'
+  );
+  if (known) candidates.push(known);
+
+  candidates.push((document.scrollingElement as HTMLElement | null) || document.documentElement);
+
+  // When a modal is open, its scroller owns both axes — never leak scroll to
+  // the page behind the modal.
+  if (modal && candidates[0]) {
+    const modalScroller = candidates[0];
+    if (deltaY !== 0) modalScroller.scrollTop += deltaY;
+    if (deltaX !== 0) modalScroller.scrollLeft += deltaX;
+    onUserManualScroll();
+    return;
+  }
+
+  // Rail layouts (nuvio/stremio home): the focused poster sits inside a
+  // horizontal .nuvio-scroll-rail that can only scroll left/right, so vertical
+  // stick input must fall through to the nearest ancestor that can actually
+  // scroll vertically (the page), instead of being swallowed by the rail.
+  const findScroller = (axis: 'x' | 'y'): HTMLElement | null =>
+    candidates.find((el) =>
+      axis === 'y' ? el.scrollHeight > el.clientHeight + 4 : el.scrollWidth > el.clientWidth + 4
+    ) || null;
+
+  const scrollerY = deltaY !== 0 ? findScroller('y') : null;
+  const scrollerX = deltaX !== 0 ? findScroller('x') : null;
+
+  let didScroll = false;
+  if (scrollerY) {
+    scrollerY.scrollTop += deltaY;
+    didScroll = true;
+  }
+  if (scrollerX) {
+    scrollerX.scrollLeft += deltaX;
+    didScroll = true;
+  }
+  if (didScroll) onUserManualScroll();
 }
 
 // Standard HTML5 Gamepad Layout
@@ -247,6 +280,7 @@ export function useGamepad() {
   useEffect(() => {
     let unlistenGamepad: (() => void) | null = null;
     let unlistenStatus: (() => void) | null = null;
+    let unlistenStick: (() => void) | null = null;
     let unlistenRemote: (() => void) | null = null;
     let isCancelled = false;
 
@@ -324,6 +358,22 @@ export function useGamepad() {
           tryDispatchAction(action);
         });
 
+        // Listen for native right-stick scroll updates (both gilrs XInput and
+        // the raw HID backend emit these). Claimed pads never reach the browser
+        // poller's scroll path, so this is the only way they can scroll.
+        unlistenStick = await listen<GamepadStickPayload>('ynotv://gamepad-stick', (event) => {
+          const p = event.payload;
+          if (!p) return;
+          // Any native event from a pad means the native side owns it.
+          claimNativePad(p.gamepad_name || 'Controller');
+          if (!enabledRef.current || !isInputActive()) return;
+          // The native backends emit Y with UP positive (matching their D-pad
+          // emulation), while scrollActiveContainerByStick expects the browser
+          // Gamepad API convention — UP negative, since scrollTop grows
+          // downward. Flip Y at the boundary so up scrolls up.
+          scrollActiveContainerByStick(p.x, -p.y, deadzoneRef.current);
+        });
+
         // Listen for Phone Remote Web commands
         unlistenRemote = await listen<any>('remote://cmd', (event) => {
           const payload = event.payload;
@@ -356,6 +406,7 @@ export function useGamepad() {
       isCancelled = true;
       unlistenGamepad?.();
       unlistenStatus?.();
+      unlistenStick?.();
       unlistenRemote?.();
     };
   }, []);

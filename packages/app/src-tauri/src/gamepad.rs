@@ -55,6 +55,51 @@ pub struct GamepadStatusPayload {
     pub gamepads: Vec<GamepadInfo>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GamepadStickPayload {
+    /// Right-stick X in [-1, 1] (right positive).
+    pub x: f32,
+    /// Right-stick Y in [-1, 1] with UP positive (same convention as the
+    /// D-pad emulation). The frontend flips the sign before scrolling because
+    /// DOM scrollTop grows downward.
+    pub y: f32,
+    pub gamepad_id: usize,
+    pub gamepad_name: String,
+}
+
+/// Minimum time between right-stick scroll updates. Pads report at up to
+/// ~1 kHz, so without a throttle the event bus would be flooded with scroll
+/// updates; 16 ms (~60 Hz) keeps scrolling smooth while staying cheap.
+pub const STICK_SCROLL_MIN_INTERVAL_MS: u128 = 16;
+
+/// Emit a right-stick scroll update (`ynotv://gamepad-stick`), throttled to
+/// ~60 Hz. `last_emit` is the caller's per-device throttle clock. Both native
+/// backends (gilrs XInput + raw HID) use this so claimed pads scroll too —
+/// the browser poller only handles pads the native side hasn't claimed.
+pub fn emit_stick_scroll(
+    handle: &AppHandle,
+    x: f32,
+    y: f32,
+    gamepad_id: usize,
+    gamepad_name: &str,
+    last_emit: &mut Instant,
+) {
+    let now = Instant::now();
+    if now.duration_since(*last_emit).as_millis() < STICK_SCROLL_MIN_INTERVAL_MS {
+        return;
+    }
+    *last_emit = now;
+    let _ = handle.emit(
+        "ynotv://gamepad-stick",
+        GamepadStickPayload {
+            x,
+            y,
+            gamepad_id,
+            gamepad_name: gamepad_name.to_string(),
+        },
+    );
+}
+
 fn connected_gamepads_slot() -> &'static Mutex<HashMap<usize, GamepadInfo>> {
     static S: OnceLock<Mutex<HashMap<usize, GamepadInfo>>> = OnceLock::new();
     S.get_or_init(|| Mutex::new(HashMap::new()))
@@ -141,6 +186,11 @@ pub fn start(app_handle: &AppHandle) {
 
             let mut stick_x: f32 = 0.0;
             let mut stick_y: f32 = 0.0;
+            let mut stick_rx: f32 = 0.0;
+            let mut stick_ry: f32 = 0.0;
+            let mut last_scroll_emit = Instant::now();
+            let mut last_axis_id: usize = 0;
+            let mut last_axis_name = String::from("Controller");
 
             while RUNNING.load(Ordering::Relaxed) {
                 let mut had_event = false;
@@ -228,8 +278,20 @@ pub fn start(app_handle: &AppHandle) {
                             }
                             if axis == Axis::LeftStickX {
                                 stick_x = val;
+                                last_axis_id = gamepad_id;
+                                last_axis_name = gamepad_name.clone();
                             } else if axis == Axis::LeftStickY {
                                 stick_y = val;
+                                last_axis_id = gamepad_id;
+                                last_axis_name = gamepad_name.clone();
+                            } else if axis == Axis::RightStickX {
+                                stick_rx = val;
+                                last_axis_id = gamepad_id;
+                                last_axis_name = gamepad_name.clone();
+                            } else if axis == Axis::RightStickY {
+                                stick_ry = val;
+                                last_axis_id = gamepad_id;
+                                last_axis_name = gamepad_name.clone();
                             } else if axis == Axis::DPadX {
                                 if val > 0.4 {
                                     emit_debug(&gamepad_name, "dpad_right", "DPadRight", true, gamepad_id);
@@ -322,6 +384,21 @@ pub fn start(app_handle: &AppHandle) {
                     }
                 } else if active_dir.is_some() {
                     active_dir = None;
+                }
+
+                // Right analog stick → smooth page scrolling (ynotv://gamepad-stick),
+                // emitted natively so XInput pads keep scrolling even after the
+                // browser poller hands them off to the claimed native backend.
+                let rmag = (stick_rx * stick_rx + stick_ry * stick_ry).sqrt();
+                if rmag > 0.12 {
+                    emit_stick_scroll(
+                        &handle,
+                        stick_rx,
+                        stick_ry,
+                        last_axis_id,
+                        &last_axis_name,
+                        &mut last_scroll_emit,
+                    );
                 }
 
                 if !had_event {

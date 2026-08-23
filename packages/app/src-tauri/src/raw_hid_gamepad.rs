@@ -28,7 +28,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
-use crate::gamepad::{GamepadInfo, GamepadPayload};
+use crate::gamepad::{emit_stick_scroll, GamepadInfo, GamepadPayload};
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 /// Device paths currently open by a reader thread, so the scanner doesn't
@@ -106,6 +106,11 @@ fn profile_for(vid: u16, pid: u16) -> Option<Profile> {
 // ---------------------------------------------------------------------------
 
 /// Decoded snapshot of one input report.
+///
+/// The normalized stick fields are only consumed by the unit tests (the
+/// reader works from the raw bytes so it can apply the measured center), so
+/// silence the dead-code lint for non-test builds.
+#[allow(dead_code)]
 struct ReportState {
     /// Standard action bits — see the BIT_* constants below.
     buttons: u32,
@@ -119,6 +124,14 @@ struct ReportState {
     raw_x: u8,
     /// Raw left-stick Y byte as read from the report (for auto-calibration).
     raw_y: u8,
+    /// Right stick X, normalized to [-1, 1] (right positive), 0x80-relative.
+    rstick_x: f32,
+    /// Right stick Y, normalized to [-1, 1] with UP positive, 0x80-relative.
+    rstick_y: f32,
+    /// Raw right-stick X byte as read from the report (for auto-calibration).
+    raw_rx: u8,
+    /// Raw right-stick Y byte as read from the report (for auto-calibration).
+    raw_ry: u8,
 }
 
 /// Locate the report payload and validate the report ID.
@@ -284,6 +297,10 @@ fn parse_dualsense(buf: &[u8]) -> Option<ReportState> {
         stick_y: (128.0 - p[stick_ofs + 1] as f32) / 128.0,
         raw_x: p[stick_ofs],
         raw_y: p[stick_ofs + 1],
+        rstick_x: (p[stick_ofs + 2] as f32 - 128.0) / 128.0,
+        rstick_y: (128.0 - p[stick_ofs + 3] as f32) / 128.0,
+        raw_rx: p[stick_ofs + 2],
+        raw_ry: p[stick_ofs + 3],
     })
 }
 
@@ -373,6 +390,10 @@ fn parse_ds4(buf: &[u8]) -> Option<ReportState> {
         stick_y: (128.0 - p[stick_ofs + 1] as f32) / 128.0,
         raw_x: p[stick_ofs],
         raw_y: p[stick_ofs + 1],
+        rstick_x: (p[stick_ofs + 2] as f32 - 128.0) / 128.0,
+        rstick_y: (128.0 - p[stick_ofs + 3] as f32) / 128.0,
+        raw_rx: p[stick_ofs + 2],
+        raw_ry: p[stick_ofs + 3],
     })
 }
 
@@ -526,9 +547,12 @@ fn run_reader(
     let mut prev_buttons: u32 = 0;
     let mut prev_sx: f32 = 0.0;
     let mut prev_sy: f32 = 0.0;
+    let mut prev_rx: f32 = 0.0;
+    let mut prev_ry: f32 = 0.0;
     let mut prev_dir: Option<&'static str> = None;
     let mut dir_held_since = Instant::now();
     let mut last_dir_time = Instant::now();
+    let mut last_scroll_emit = Instant::now();
     let mut logged_first_report = false;
 
     // ── Stick auto-calibration ────────────────────────────────────────────
@@ -544,9 +568,13 @@ fn run_reader(
     let calib_start = Instant::now();
     let mut calib_x: Vec<u8> = Vec::new();
     let mut calib_y: Vec<u8> = Vec::new();
+    let mut calib_rx: Vec<u8> = Vec::new();
+    let mut calib_ry: Vec<u8> = Vec::new();
     let mut calibrated = false;
     let mut center_x: f32 = 128.0;
     let mut center_y: f32 = 128.0;
+    let mut center_rx: f32 = 128.0;
+    let mut center_ry: f32 = 128.0;
 
     loop {
         match device.read(&mut buf) {
@@ -589,15 +617,21 @@ fn run_reader(
                     {
                         calib_x.push(state.raw_x);
                         calib_y.push(state.raw_y);
+                        calib_rx.push(state.raw_rx);
+                        calib_ry.push(state.raw_ry);
                     } else if !calib_x.is_empty() {
                         center_x = median_u8(&calib_x);
                         center_y = median_u8(&calib_y);
+                        center_rx = median_u8(&calib_rx);
+                        center_ry = median_u8(&calib_ry);
                         calibrated = true;
                         info!(
-                            "[raw-hid] {} stick center calibrated: x={:.0} y={:.0} ({} samples)",
+                            "[raw-hid] {} stick center calibrated: L=({:.0},{:.0}) R=({:.0},{:.0}) ({} samples)",
                             name,
                             center_x,
                             center_y,
+                            center_rx,
+                            center_ry,
                             calib_x.len()
                         );
                     } else {
@@ -609,23 +643,33 @@ fn run_reader(
                 // Effective stick position relative to the measured center.
                 let eff_x = ((state.raw_x as f32 - center_x) / 128.0).clamp(-1.0, 1.0);
                 let eff_y = ((center_y - state.raw_y as f32) / 128.0).clamp(-1.0, 1.0);
+                let eff_rx = ((state.raw_rx as f32 - center_rx) / 128.0).clamp(-1.0, 1.0);
+                let eff_ry = ((center_ry - state.raw_ry as f32) / 128.0).clamp(-1.0, 1.0);
                 if dbg
                     && (state.buttons != prev_buttons
                         || (eff_x - prev_sx).abs() > 0.01
-                        || (eff_y - prev_sy).abs() > 0.01)
+                        || (eff_y - prev_sy).abs() > 0.01
+                        || (eff_rx - prev_rx).abs() > 0.01
+                        || (eff_ry - prev_ry).abs() > 0.01)
                 {
                     info!(
-                        "[raw-hid-debug] {} state: raw=({},{}) stick_x={:.3} stick_y={:.3} buttons={:08x}",
+                        "[raw-hid-debug] {} state: raw=({},{},{},{}) L=({:.3},{:.3}) R=({:.3},{:.3}) buttons={:08x}",
                         name,
                         state.raw_x,
                         state.raw_y,
+                        state.raw_rx,
+                        state.raw_ry,
                         eff_x,
                         eff_y,
+                        eff_rx,
+                        eff_ry,
                         state.buttons
                     );
                 }
                 prev_sx = eff_x;
                 prev_sy = eff_y;
+                prev_rx = eff_rx;
+                prev_ry = eff_ry;
 
                 // Button edge events (rising and falling edges — the frontend
                 // only acts on presses, but releases keep the monitor honest).
@@ -687,6 +731,21 @@ fn run_reader(
                     }
                 } else if prev_dir.is_some() {
                     prev_dir = None;
+                }
+
+                // Right analog stick → smooth page scrolling (ynotv://gamepad-stick),
+                // from the calibrated raw bytes. This backend drives claimed pads
+                // (the browser poller only scrolls pads the native side hasn't
+                // claimed), so the right stick has to be emitted here.
+                let rmag = (eff_rx * eff_rx + eff_ry * eff_ry).sqrt();
+                if rmag > 0.12 {
+                    if dbg {
+                        info!(
+                            "[raw-hid-debug] {} emit right_stick_scroll x={:.3} y={:.3} id={}",
+                            name, eff_rx, eff_ry, gamepad_id
+                        );
+                    }
+                    emit_stick_scroll(&app, eff_rx, eff_ry, gamepad_id, &name, &mut last_scroll_emit);
                 }
             }
             Err(e) => {
@@ -793,9 +852,59 @@ mod tests {
                 s.stick_x
             );
             assert!(s.stick_y.abs() < 0.05);
+            assert!(s.rstick_x.abs() < 0.05);
+            assert!(s.rstick_y.abs() < 0.05);
             assert_eq!(s.buttons & (BIT_DPAD_LEFT | BIT_DPAD_RIGHT | BIT_DPAD_UP | BIT_DPAD_DOWN), 0);
             assert_eq!(s.buttons & (BIT_WEST | BIT_SOUTH | BIT_EAST | BIT_NORTH), 0);
         }
+    }
+
+    #[test]
+    fn dualsense_right_stick_offsets() {
+        // Right stick sits at RX/RY = data[3]/data[4] (after the left stick).
+        // USB: data[3]=0 → rstick_x = −1 (full left); data[4]=255 → rstick_y = −1
+        // (full down). The BT full report shifts everything +1, so RX=0/RY=255
+        // at data[4]/data[5] must decode identically.
+        let usb = report(0x01, &[128, 128, 0, 255, 0, 0, 0, 0x08, 0, 0]);
+        let s = parse_dualsense(&usb).unwrap();
+        assert!(s.rstick_x < -0.9, "RX=0 should be full right-stick left, got {}", s.rstick_x);
+        assert!(s.rstick_y < -0.9, "RY=255 should be full down, got {}", s.rstick_y);
+        assert!(s.stick_x.abs() < 0.05, "left stick must stay centered");
+        assert!(s.stick_y.abs() < 0.05);
+
+        let bt = report_bt31(0x10, &[128, 128, 0, 255, 0, 0, 0, 0x08, 0, 0]);
+        let s = parse_dualsense(&bt).unwrap();
+        assert!(s.rstick_x < -0.9, "BT RX=0 should be full right-stick left, got {}", s.rstick_x);
+        assert!(s.rstick_y < -0.9, "BT RY=255 should be full down, got {}", s.rstick_y);
+        assert!(s.stick_x.abs() < 0.05);
+        assert!(s.stick_y.abs() < 0.05);
+
+        // DS4 BT report 0x11: header at [1], sticks at [2..6] — RX=0/RY=255
+        // at [4]/[5].
+        let mut ds4bt = vec![0u8; 78];
+        ds4bt[0] = 0x11;
+        ds4bt[1] = 0x80;
+        ds4bt[2] = 128;
+        ds4bt[3] = 128;
+        ds4bt[4] = 0;
+        ds4bt[5] = 255;
+        ds4bt[6] = 0x08;
+        let s = parse_ds4(&ds4bt).unwrap();
+        assert!(s.rstick_x < -0.9, "DS4 BT RX=0 should be full right-stick left, got {}", s.rstick_x);
+        assert!(s.rstick_y < -0.9, "DS4 BT RY=255 should be full down, got {}", s.rstick_y);
+        assert!(s.stick_x.abs() < 0.05);
+        assert!(s.stick_y.abs() < 0.05);
+    }
+
+    #[test]
+    fn ds4_usb_right_stick_offsets() {
+        // DS4 USB: sticks at data[0..4] — RX=0 at data[2], RY=255 at data[3].
+        let r = report(0x01, &[128, 128, 0, 255, 0x08, 0, 0]);
+        let s = parse_ds4(&r).unwrap();
+        assert!(s.rstick_x < -0.9);
+        assert!(s.rstick_y < -0.9);
+        assert!(s.stick_x.abs() < 0.05);
+        assert!(s.stick_y.abs() < 0.05);
     }
 
     #[test]
@@ -811,6 +920,8 @@ mod tests {
         let s = parse_dualsense(&r).unwrap();
         assert!(s.stick_x < -0.9, "LX=0 should be full left, got {}", s.stick_x);
         assert!(s.stick_y < -0.9, "LY=255 should be full down, got {}", s.stick_y);
+        assert!(s.rstick_x.abs() < 0.05, "right stick should stay centered");
+        assert!(s.rstick_y.abs() < 0.05);
         assert_ne!(s.buttons & BIT_EAST, 0); // circle
         assert_ne!(s.buttons & BIT_DPAD_RIGHT, 0);
         assert_ne!(s.buttons & BIT_RIGHT_BUMPER, 0);
