@@ -20,6 +20,8 @@ const AVAILABLE_ACTIONS: Array<{ id: string }> = [
   { id: 'prev_channel' },
   { id: 'toggle_fullscreen' },
   { id: 'toggle_mute' },
+  { id: 'volume_up' },
+  { id: 'volume_down' },
   { id: 'search' },
   { id: 'subtitles' },
   { id: 'toggle_livetv' },

@@ -1528,7 +1528,13 @@ function useTmdbPresencePoster(
     activeView,
     multiviewLayout,
     multiviewSlots: multiviewSlots || [],
+    volume,
+    isMuted: muted,
     onPlayChannel: handlePlayChannel,
+    onSetVolume: async (newVol: number) => {
+      setVolume(newVol);
+      await Bridge.setVolume(newVol);
+    },
     onSendToSlot: async (slotIndex: number, channel: StoredChannel) => {
       // The phone sends the app's slot ids (2|3|4); keep accepting 0-based ids
       // from other callers for backward compatibility.
@@ -4025,6 +4031,10 @@ function useTmdbPresencePoster(
     categoryId,
     setCategoryId,
     multiviewLayout,
+    volume,
+    muted,
+    setVolume,
+    handleVolumeChange,
     handleTogglePlay,
     handleToggleFullscreen,
     handleToggleMute,
@@ -4056,6 +4066,10 @@ function useTmdbPresencePoster(
     categoryId,
     setCategoryId,
     multiviewLayout,
+    volume,
+    muted,
+    setVolume,
+    handleVolumeChange,
     handleTogglePlay,
     handleToggleFullscreen,
     handleToggleMute,
@@ -4348,12 +4362,37 @@ function useTmdbPresencePoster(
       remoteRefs.current.setShowControls?.((prev: boolean) => !prev);
     };
 
+    const onVolumeStep = (e: Event) => {
+      const { delta } = (e as CustomEvent).detail || {};
+      if (typeof delta === 'number') {
+        const cur = remoteRefs.current.volume ?? 100;
+        const maxVol = useSettingsStore.getState().subtitleSettings?.audioMaxVolume || 100;
+        const target = Math.max(0, Math.min(maxVol, cur + delta));
+        remoteRefs.current.setVolume?.(target);
+        Bridge.setVolume(target).catch(console.error);
+        remoteRefs.current.setShowControls?.(true);
+      }
+    };
+
+    const onSetVolume = (e: Event) => {
+      const { volume } = (e as CustomEvent).detail || {};
+      if (typeof volume === 'number') {
+        const maxVol = useSettingsStore.getState().subtitleSettings?.audioMaxVolume || 100;
+        const target = Math.max(0, Math.min(maxVol, volume));
+        remoteRefs.current.setVolume?.(target);
+        Bridge.setVolume(target).catch(console.error);
+        remoteRefs.current.setShowControls?.(true);
+      }
+    };
+
     window.addEventListener('ynotv:navigate-view', onNavView);
     window.addEventListener('ynotv:gamepad-play-pause', onPlayPause);
     window.addEventListener('ynotv:gamepad-seek', onSeek);
     window.addEventListener('ynotv:gamepad-channel-step', onChannelStep);
     window.addEventListener('ynotv:gamepad-toggle-fullscreen', onFullscreen);
     window.addEventListener('ynotv:gamepad-toggle-mute', onMute);
+    window.addEventListener('ynotv:gamepad-volume-step', onVolumeStep);
+    window.addEventListener('ynotv:gamepad-set-volume', onSetVolume);
     window.addEventListener('ynotv:gamepad-open-subtitles', onSubtitles);
     window.addEventListener('ynotv:gamepad-open-search', onSearch);
     window.addEventListener('ynotv:gamepad-toggle-transparent-guide', onToggleTransparentGuide);
@@ -4366,6 +4405,8 @@ function useTmdbPresencePoster(
       window.removeEventListener('ynotv:gamepad-channel-step', onChannelStep);
       window.removeEventListener('ynotv:gamepad-toggle-fullscreen', onFullscreen);
       window.removeEventListener('ynotv:gamepad-toggle-mute', onMute);
+      window.removeEventListener('ynotv:gamepad-volume-step', onVolumeStep);
+      window.removeEventListener('ynotv:gamepad-set-volume', onSetVolume);
       window.removeEventListener('ynotv:gamepad-open-subtitles', onSubtitles);
       window.removeEventListener('ynotv:gamepad-open-search', onSearch);
       window.removeEventListener('ynotv:gamepad-toggle-transparent-guide', onToggleTransparentGuide);

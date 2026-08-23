@@ -473,11 +473,14 @@ async fn bind_with_retry(addr: SocketAddr, max_attempts: u32) -> std::io::Result
 }
 
 async fn serve_remote_html() -> impl IntoResponse {
-    let html = r#"<!DOCTYPE html>
+    let html = r###"<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#07090e">
   <title>YNOTV Remote & Companion</title>
   <style>
     * {
@@ -490,20 +493,46 @@ async fn serve_remote_html() -> impl IntoResponse {
       -webkit-touch-callout: none;
     }
     :root {
-      --bg: #0b0d13;
-      --card-bg: #131722;
-      --card-border: #222738;
-      --accent: #38bdf8;
-      --accent-glow: rgba(56, 189, 248, 0.25);
-      --text: #f3f4f6;
+      --bg-deep: #07090e;
+      --bg-surface: rgba(18, 22, 34, 0.72);
+      --bg-surface-elevated: rgba(26, 32, 48, 0.75);
+      --bg-card: rgba(255, 255, 255, 0.04);
+      --bg-card-hover: rgba(255, 255, 255, 0.07);
+      --border-glass: rgba(255, 255, 255, 0.08);
+      --border-glass-bright: rgba(255, 255, 255, 0.16);
+      --glass-filter: blur(22px) saturate(180%);
+      --glass-filter-modal: blur(28px) saturate(190%);
+      --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.02), 0 8px 32px rgba(0, 0, 0, 0.4);
+      --glass-card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 4px 18px rgba(0, 0, 0, 0.25);
+      
+      --accent-cyan: #38bdf8;
+      --accent-cyan-bright: #00d4ff;
+      --accent-purple: #818cf8;
+      --accent-violet: #a855f7;
+      --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #818cf8 55%, #a855f7 100%);
+      --accent-gradient-subtle: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(129, 140, 248, 0.15) 100%);
+      --accent-glow: 0 0 16px rgba(56, 189, 248, 0.35);
+      --accent-glow-subtle: 0 0 10px rgba(56, 189, 248, 0.2);
+      
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
       --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
       --live-red: #ef4444;
+      --live-red-glow: 0 0 10px rgba(239, 68, 68, 0.6);
       --live-green: #10b981;
+      --live-green-glow: 0 0 10px rgba(16, 185, 129, 0.6);
     }
+    
     html, body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-deep);
+      background-image: 
+        radial-gradient(ellipse 90% 60% at 50% -10%, rgba(99, 102, 241, 0.18), transparent 70%),
+        radial-gradient(ellipse 70% 50% at 90% 90%, rgba(56, 189, 248, 0.12), transparent 70%),
+        radial-gradient(ellipse 60% 40% at 10% 80%, rgba(168, 85, 247, 0.08), transparent 70%);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', Helvetica, Arial, sans-serif;
       height: 100dvh;
       display: flex;
       flex-direction: column;
@@ -512,11 +541,28 @@ async fn serve_remote_html() -> impl IntoResponse {
       overscroll-behavior: none;
     }
 
-    button, input, select, a, .dpad, .dpad-btn, .dpad-center, .action-btn, .media-btn, .section-btn, .nav-tab-btn, .tree-item, .folder-item, .channel-card, .team-link-pill, .mv-layout-btn {
+    button, input, select, a, .dpad, .dpad-btn, .dpad-center, .action-btn, .media-btn, .header-menu-btn, .dest-card, .nav-tab-btn, .tree-item, .folder-item, .channel-card, .team-link-pill, .mv-layout-btn {
       touch-action: manipulation;
+      font-family: inherit;
     }
     .dpad, .dpad-btn, .dpad-center {
       touch-action: none !important;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-cyan);
     }
 
     /* Header */
@@ -524,63 +570,119 @@ async fn serve_remote_html() -> impl IntoResponse {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 16px;
-      background: #11141d;
-      border-bottom: 1px solid var(--card-border);
+      padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
+      background: rgba(11, 14, 23, 0.8);
+      backdrop-filter: var(--glass-filter);
+      -webkit-backdrop-filter: var(--glass-filter);
+      border-bottom: 1px solid var(--border-glass);
       flex-shrink: 0;
-      z-index: 20;
+      z-index: 30;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo-icon-svg {
+      width: 22px;
+      height: 22px;
+      color: var(--accent-cyan);
+      filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.4));
     }
     .logo {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      letter-spacing: -0.4px;
+      background: var(--accent-gradient);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
+    .logo-badge {
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: var(--accent-cyan);
+    }
     .status-badge {
-      font-size: 11.5px;
+      font-size: 11px;
       font-weight: 600;
       padding: 4px 10px;
       border-radius: 999px;
-      background: #1e2333;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-glass);
       color: var(--text-muted);
       display: flex;
       align-items: center;
       gap: 6px;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #ef4444; }
-    .status-badge.connected .status-dot { background: #10b981; box-shadow: 0 0 8px #10b981; }
-    .status-badge.connected { color: #d1fae5; background: rgba(16, 185, 129, 0.12); }
+    .status-dot { 
+      width: 7px; 
+      height: 7px; 
+      border-radius: 50%; 
+      background: var(--live-red); 
+      box-shadow: var(--live-red-glow);
+    }
+    .status-badge.connected .status-dot { 
+      background: var(--live-green); 
+      box-shadow: var(--live-green-glow); 
+      animation: pulseGreen 2.2s infinite;
+    }
+    .status-badge.connected { 
+      color: #6ee7b7; 
+      background: rgba(16, 185, 129, 0.12); 
+      border-color: rgba(16, 185, 129, 0.25); 
+    }
+    @keyframes pulseGreen {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.25); opacity: 0.8; }
+    }
 
-    /* Sticky Now Playing Banner */
+    /* Floating Now Playing Mini Capsule */
     .now-playing-banner {
-      background: #161b27;
-      border-bottom: 1px solid var(--card-border);
-      padding: 8px 14px;
+      background: rgba(22, 27, 44, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 14px;
+      margin: 8px 12px 4px;
+      padding: 8px 12px;
       display: flex;
       align-items: center;
       gap: 10px;
       flex-shrink: 0;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      animation: slideDownFade 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes slideDownFade {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     .np-logo {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
       object-fit: contain;
-      background: #10121a;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       flex-shrink: 0;
     }
     .np-logo-fallback {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
-      background: #232a3d;
-      color: #38bdf8;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      color: var(--accent-cyan);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 700;
+      font-weight: 800;
       font-size: 11px;
       flex-shrink: 0;
     }
@@ -592,17 +694,17 @@ async fn serve_remote_html() -> impl IntoResponse {
       gap: 2px;
     }
     .np-channel {
-      font-size: 12px;
+      font-size: 12.5px;
       font-weight: 700;
-      color: #cbd5e1;
+      color: #fff;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .np-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: #f8fafc;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -610,16 +712,16 @@ async fn serve_remote_html() -> impl IntoResponse {
     .np-progress-bar {
       width: 100%;
       height: 3px;
-      background: #252d42;
-      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
       overflow: hidden;
-      margin-top: 2px;
+      margin-top: 3px;
     }
     .np-progress-fill {
       height: 100%;
-      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      background: var(--accent-gradient);
       width: 0%;
-      transition: width 0.3s;
+      transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .np-controls {
       display: flex;
@@ -630,17 +732,23 @@ async fn serve_remote_html() -> impl IntoResponse {
     .np-btn {
       width: 34px;
       height: 34px;
-      border-radius: 8px;
-      background: #202638;
-      border: 1px solid #2d364f;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-glass-bright);
       color: #f1f5f9;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
       cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .np-btn:active { background: #38bdf8; color: #000; }
+    .np-btn svg { width: 14px; height: 14px; }
+    .np-btn:active { 
+      background: var(--accent-cyan); 
+      color: #04101c; 
+      transform: scale(0.92);
+      box-shadow: var(--accent-glow);
+    }
 
     /* Tab Container */
     .tab-content-container {
@@ -657,78 +765,261 @@ async fn serve_remote_html() -> impl IntoResponse {
     }
     .tab-pane.active { display: flex; }
 
-    /* Bottom Navigation Bar */
+    /* Bottom Navigation Dock */
     nav.bottom-nav {
-      height: 60px;
-      background: #11141d;
-      border-top: 1px solid var(--card-border);
+      height: calc(58px + env(safe-area-inset-bottom, 0px));
+      background: rgba(11, 14, 23, 0.85);
+      backdrop-filter: var(--glass-filter);
+      -webkit-backdrop-filter: var(--glass-filter);
+      border-top: 1px solid var(--border-glass);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-around;
       flex-shrink: 0;
-      z-index: 20;
+      z-index: 30;
+      padding-top: 4px;
       padding-bottom: env(safe-area-inset-bottom, 0px);
     }
     .nav-tab-btn {
       flex: 1;
-      height: 100%;
+      height: 50px;
       background: transparent;
       border: none;
-      color: #64748b;
+      color: var(--text-dim);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 3px;
       cursor: pointer;
-      transition: color 0.15s;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
     }
-    .nav-tab-btn .nav-icon { font-size: 18px; }
-    .nav-tab-btn .nav-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.2px; }
-    .nav-tab-btn.active { color: #38bdf8; }
-    .nav-tab-btn.active .nav-icon { transform: scale(1.1); }
-    /* Desktop-view indicator dot: lights up when the app is showing this view */
+    .nav-tab-btn .nav-icon-svg { 
+      width: 20px; 
+      height: 20px; 
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .nav-tab-btn .nav-label { 
+      font-size: 10px; 
+      font-weight: 700; 
+      letter-spacing: 0.3px; 
+      transition: color 0.2s;
+    }
+    .nav-tab-btn:active { transform: scale(0.92); }
+    .nav-tab-btn.active { color: var(--accent-cyan); }
+    .nav-tab-btn.active .nav-icon-svg { 
+      transform: translateY(-2px); 
+      filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5));
+    }
+    /* Desktop-view indicator dot */
     .nav-tab-btn.view-active::after {
       content: '';
       position: absolute;
-      top: 5px;
-      right: calc(50% - 20px);
-      width: 6px;
-      height: 6px;
+      top: 4px;
+      right: calc(50% - 16px);
+      width: 5px;
+      height: 5px;
       border-radius: 50%;
-      background: #38bdf8;
-      box-shadow: 0 0 6px rgba(56, 189, 248, 0.8);
+      background: var(--accent-cyan);
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.9);
     }
 
-    /* ================= TAB 1: REMOTE ================= */
-    .sections-bar {
+    .header-right {
       display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding: 10px 14px;
-      background: #0f121a;
-      scrollbar-width: none;
-      flex-shrink: 0;
+      align-items: center;
+      gap: 7px;
     }
-    .sections-bar::-webkit-scrollbar { display: none; }
-    .section-btn {
-      flex-shrink: 0;
-      background: #1a1f2e;
-      border: 1px solid #283045;
-      color: #cbd5e1;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 6px 12px;
+    .header-menu-btn {
+      height: 29px;
+      padding: 0 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-glass-bright);
       border-radius: 999px;
+      color: #e2e8f0;
+      font-size: 11.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .header-menu-btn svg { width: 13px; height: 13px; color: var(--accent-cyan); }
+    .header-menu-btn:active {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--accent-cyan);
+      transform: scale(0.94);
+    }
+
+    /* ================= SECTIONS SHEET / APP LAUNCHER MODAL ================= */
+    .sections-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      background: rgba(4, 7, 14, 0.72);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .sections-overlay.open {
+      display: flex;
+      opacity: 1;
+    }
+    .sections-sheet {
+      width: 100%;
+      max-width: 480px;
+      max-height: 85vh;
+      background: rgba(15, 19, 32, 0.96);
+      backdrop-filter: var(--glass-filter-modal);
+      -webkit-backdrop-filter: var(--glass-filter-modal);
+      border: 1px solid var(--border-glass-bright);
+      border-bottom: none;
+      border-radius: 24px 24px 0 0;
+      padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transform: translateY(100%);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow-y: auto;
+    }
+    .sections-overlay.open .sections-sheet {
+      transform: translateY(0);
+    }
+    .sheet-handle {
+      width: 36px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.22);
+      margin: 0 auto -2px;
       cursor: pointer;
     }
-    .section-btn:active { background: #38bdf8; color: #000; border-color: #38bdf8; }
-    .section-btn.active {
-      background: #38bdf8;
-      color: #04101c;
-      border-color: #7dd3fc;
+    .sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2px 2px 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .sheet-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sheet-title-wrap svg {
+      width: 17px;
+      height: 17px;
+      color: var(--accent-cyan);
+    }
+    .sheet-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.3px;
+    }
+    .sheet-close-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-glass);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .sheet-close-btn svg { width: 13px; height: 13px; }
+    .sheet-close-btn:active {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      transform: scale(0.92);
+    }
+
+    /* 2-Column Grid of Destinations */
+    .destinations-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .dest-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-glass);
+      border-radius: 14px;
+      padding: 11px 12px;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      cursor: pointer;
+      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .dest-card:active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-cyan);
+      transform: scale(0.96);
+    }
+    .dest-card.active {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.2);
+    }
+    .dest-card.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3.5px;
+      background: var(--accent-cyan);
+    }
+    .dest-icon-box {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .dest-icon-box svg {
+      width: 19px;
+      height: 19px;
+    }
+    .dest-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .dest-name {
+      font-size: 12.5px;
       font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dest-sub {
+      font-size: 10px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dest-card.active .dest-name {
+      color: var(--accent-cyan);
     }
 
     .pad-container {
@@ -737,153 +1028,322 @@ async fn serve_remote_html() -> impl IntoResponse {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 10px;
+      padding: 8px 12px;
+      gap: 14px;
     }
+    
+    /* Futuristic D-Pad Dial */
     .dpad {
       width: 240px;
       height: 240px;
       border-radius: 50%;
-      background: #161b28;
-      border: 2px solid #252c40;
+      background: radial-gradient(circle at 50% 50%, #1a2032 0%, #0e121e 100%);
+      border: 2px solid rgba(255, 255, 255, 0.1);
       position: relative;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.05);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), inset 0 2px 6px rgba(255, 255, 255, 0.12);
     }
     .dpad-btn {
       position: absolute;
       background: transparent;
       border: none;
       color: #94a3b8;
-      font-size: 22px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      transition: all 0.12s ease;
     }
-    .dpad-btn:active { color: #38bdf8; background: rgba(56, 189, 248, 0.15); }
+    .dpad-btn svg {
+      width: 24px;
+      height: 24px;
+      transition: transform 0.12s ease;
+    }
+    .dpad-btn:active { 
+      color: var(--accent-cyan); 
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, transparent 80%);
+    }
+    .dpad-btn:active svg { transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.8)); }
     .dpad-up { top: 0; left: 70px; width: 100px; height: 70px; border-radius: 120px 120px 0 0; }
     .dpad-down { bottom: 0; left: 70px; width: 100px; height: 70px; border-radius: 0 0 120px 120px; }
     .dpad-left { left: 0; top: 70px; width: 70px; height: 100px; border-radius: 120px 0 0 120px; }
     .dpad-right { right: 0; top: 70px; width: 70px; height: 100px; border-radius: 0 120px 120px 0; }
+    
     .dpad-center {
       position: absolute;
       top: 70px; left: 70px;
       width: 100px; height: 100px;
       border-radius: 50%;
-      background: #232b3e;
-      border: 2px solid #35405a;
+      background: radial-gradient(circle at 50% 30%, #28334e 0%, #151b2c 100%);
+      border: 2px solid rgba(255, 255, 255, 0.16);
       color: #fff;
       font-weight: 800;
       font-size: 16px;
+      letter-spacing: 0.5px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255, 255, 255, 0.25);
+      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .dpad-center:active { background: #38bdf8; color: #000; border-color: #7dd3fc; }
+    .dpad-center:active { 
+      background: var(--accent-gradient); 
+      color: #04101c; 
+      border-color: #7dd3fc;
+      box-shadow: 0 0 24px rgba(56, 189, 248, 0.6);
+      transform: scale(0.94);
+    }
 
     .action-row {
       display: flex;
       justify-content: space-around;
       width: 100%;
-      max-width: 320px;
-      margin-top: 12px;
-      gap: 10px;
+      max-width: 340px;
+      gap: 8px;
     }
     .action-btn {
       flex: 1;
-      height: 44px;
-      background: #171c2a;
-      border: 1px solid #283147;
+      height: 42px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-glass);
       border-radius: 12px;
-      color: #cbd5e1;
+      color: var(--text-secondary);
       font-weight: 600;
-      font-size: 13px;
+      font-size: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
+      gap: 5px;
       cursor: pointer;
+      box-shadow: var(--glass-card-shadow);
+      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .action-btn:active { background: #2b3652; color: #fff; }
-    .action-btn.back-btn:active { background: #e11d48; color: #fff; }
+    .action-btn svg { width: 15px; height: 15px; }
+    .action-btn:active { 
+      background: rgba(56, 189, 248, 0.15); 
+      border-color: var(--accent-cyan);
+      color: #fff; 
+      transform: scale(0.94);
+    }
+    .action-btn.back-btn:active { 
+      background: rgba(239, 68, 68, 0.2); 
+      border-color: var(--live-red);
+      color: #fff; 
+    }
 
     .media-footer {
-      background: #11141d;
-      border-top: 1px solid var(--card-border);
-      padding: 10px 16px;
+      background: rgba(11, 14, 23, 0.8);
+      backdrop-filter: var(--glass-filter);
+      -webkit-backdrop-filter: var(--glass-filter);
+      border-top: 1px solid var(--border-glass);
+      padding: 8px 12px 10px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
-    .media-row { display: flex; gap: 8px; }
+    .media-row { display: flex; gap: 6px; }
     .media-btn {
-      height: 42px;
+      height: 38px;
       flex: 1;
       border-radius: 10px;
-      background: #1a2030;
-      border: 1px solid #29334a;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-glass);
       color: #e2e8f0;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       display: flex;
       align-items: center;
       justify-content: center;
+      gap: 5px;
+      cursor: pointer;
+      box-shadow: var(--glass-card-shadow);
+      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .media-btn svg { width: 15px; height: 15px; }
+    .media-btn:active { 
+      background: rgba(56, 189, 248, 0.15); 
+      border-color: var(--accent-cyan);
+      color: #fff;
+      transform: scale(0.95);
+    }
+    .media-btn.btn-sm {
+      flex: 0.75;
+      height: 34px;
+      font-size: 11px;
+      padding: 0 6px;
+      gap: 3px;
+      color: #94a3b8;
+    }
+    .media-btn.btn-sm svg { width: 13px; height: 13px; }
+    .media-btn.play-btn { 
+      background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); 
+      color: #fff; 
+      border-color: rgba(255, 255, 255, 0.2); 
+      flex: 1.5; 
+      height: 38px;
+      font-size: 12.5px;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+    }
+    .media-btn.play-btn:active { 
+      background: linear-gradient(135deg, #1d4ed8 0%, #6d28d9 100%); 
+      transform: scale(0.95);
+    }
+
+    /* Volume Control Bar */
+    .volume-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-glass);
+      border-radius: 10px;
+    }
+    .vol-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-glass);
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+    .vol-btn svg { width: 13px; height: 13px; }
+    .vol-btn:active {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--accent-cyan);
+      color: #fff;
+      transform: scale(0.92);
+    }
+    .vol-slider-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      position: relative;
+    }
+    .vol-slider {
+      width: 100%;
+      height: 5px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      outline: none;
       cursor: pointer;
     }
-    .media-btn:active { background: #38bdf8; color: #000; }
-    .media-btn.play-btn { background: #2563eb; color: #fff; border-color: #3b82f6; flex: 1.3; }
-    .media-btn.play-btn:active { background: #1d4ed8; }
+    .vol-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
+      cursor: pointer;
+      border: 2px solid #fff;
+    }
+    .vol-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
+      cursor: pointer;
+      border: 2px solid #fff;
+    }
+    .vol-badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+      min-width: 32px;
+      text-align: right;
+      flex-shrink: 0;
+    }
 
     /* ================= TAB 2: LIVE GUIDE 2-PANE ================= */
     .guide-header-controls {
       padding: 8px 12px;
-      background: #11141d;
-      border-bottom: 1px solid var(--card-border);
+      background: rgba(11, 14, 23, 0.7);
+      backdrop-filter: var(--glass-filter);
+      -webkit-backdrop-filter: var(--glass-filter);
+      border-bottom: 1px solid var(--border-glass);
       display: flex;
       align-items: center;
       gap: 8px;
       flex-shrink: 0;
     }
     .sidebar-toggle-btn {
-      height: 36px;
-      padding: 0 10px;
-      background: #1a2030;
-      border: 1px solid #28334a;
-      border-radius: 8px;
+      height: 38px;
+      padding: 0 11px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-glass);
+      border-radius: 10px;
       color: #cbd5e1;
-      font-size: 11.5px;
+      font-size: 12px;
       font-weight: 700;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       cursor: pointer;
       flex-shrink: 0;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .sidebar-toggle-btn:active { background: #38bdf8; color: #000; }
+    .sidebar-toggle-btn svg { width: 15px; height: 15px; }
+    .sidebar-toggle-btn:active { 
+      background: var(--accent-cyan); 
+      color: #04101c; 
+      transform: scale(0.95);
+    }
     .search-input-box {
       position: relative;
       flex: 1;
     }
+    .search-icon-svg {
+      position: absolute;
+      left: 10px;
+      top: 11px;
+      width: 15px;
+      height: 15px;
+      color: var(--text-dim);
+      pointer-events: none;
+    }
     .search-input {
       width: 100%;
-      height: 36px;
-      background: #191f2e;
-      border: 1px solid #2b354d;
-      border-radius: 8px;
-      padding: 0 30px 0 10px;
+      height: 38px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-glass);
+      border-radius: 10px;
+      padding: 0 32px 0 32px;
       color: #f8fafc;
       font-size: 13px;
       outline: none;
+      transition: all 0.2s ease;
     }
-    .search-input:focus { border-color: #38bdf8; }
+    .search-input:focus { 
+      border-color: var(--accent-cyan); 
+      background: rgba(255, 255, 255, 0.07);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.18);
+    }
     .search-clear-btn {
       position: absolute;
       right: 8px;
       top: 8px;
-      background: transparent;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
       border: none;
-      color: #64748b;
-      font-size: 14px;
+      color: #94a3b8;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
     }
 
@@ -896,10 +1356,12 @@ async fn serve_remote_html() -> impl IntoResponse {
 
     /* Left Sidebar */
     .guide-sidebar {
-      width: 145px;
+      width: 150px;
       flex-shrink: 0;
-      background: #0e1119;
-      border-right: 1px solid var(--card-border);
+      background: rgba(9, 11, 18, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-right: 1px solid var(--border-glass);
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       display: flex;
@@ -907,21 +1369,21 @@ async fn serve_remote_html() -> impl IntoResponse {
       transition: width 0.2s, margin-left 0.2s;
     }
     .guide-sidebar.collapsed {
-      margin-left: -145px;
+      margin-left: -150px;
     }
     .sidebar-tree {
-      padding: 6px 4px 20px;
+      padding: 6px 6px 20px;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 3px;
     }
     .tree-header {
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.6px;
       color: #64748b;
-      padding: 6px 6px 2px;
+      padding: 8px 6px 2px;
       margin-top: 4px;
     }
     .tree-item {
@@ -930,19 +1392,20 @@ async fn serve_remote_html() -> impl IntoResponse {
       justify-content: space-between;
       padding: 7px 8px;
       border-radius: 8px;
-      font-size: 11.5px;
+      font-size: 12px;
       font-weight: 600;
       color: #94a3b8;
       cursor: pointer;
       line-height: 1.2;
       gap: 4px;
+      transition: all 0.15s ease;
     }
-    .tree-item:active { background: #1a2133; color: #fff; }
+    .tree-item:active { background: rgba(255, 255, 255, 0.08); color: #fff; }
     .tree-item.active {
-      background: rgba(56, 189, 248, 0.15);
-      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.14);
+      color: var(--accent-cyan);
       font-weight: 700;
-      border-left: 2.5px solid #38bdf8;
+      border-left: 3px solid var(--accent-cyan);
     }
     .tree-item-title {
       white-space: nowrap;
@@ -951,25 +1414,29 @@ async fn serve_remote_html() -> impl IntoResponse {
       flex: 1;
     }
     .tree-badge {
-      font-size: 10px;
+      font-size: 9.5px;
       color: #64748b;
       font-weight: 600;
       flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 1px 5px;
+      border-radius: 999px;
     }
     .tree-source-row {
       display: flex;
       align-items: center;
       gap: 4px;
-      padding: 6px 6px;
-      border-radius: 6px;
+      padding: 7px 6px;
+      border-radius: 7px;
       font-size: 11.5px;
       font-weight: 700;
       color: #cbd5e1;
       cursor: pointer;
-      background: #141824;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.04);
       margin-top: 4px;
     }
-    .tree-source-row:active { background: #1d2538; }
+    .tree-source-row:active { background: rgba(255, 255, 255, 0.08); }
     .tree-folder-row {
       display: flex;
       align-items: center;
@@ -982,7 +1449,7 @@ async fn serve_remote_html() -> impl IntoResponse {
       cursor: pointer;
       margin-left: 4px;
     }
-    .tree-folder-row:active { background: #192030; color: #fff; }
+    .tree-folder-row:active { background: rgba(255, 255, 255, 0.06); color: #fff; }
     .tree-chevron {
       font-size: 8px;
       width: 10px;
@@ -994,7 +1461,7 @@ async fn serve_remote_html() -> impl IntoResponse {
       padding-left: 8px;
       display: flex;
       flex-direction: column;
-      gap: 1px;
+      gap: 2px;
     }
 
     /* Right Main Channel List */
@@ -1004,19 +1471,19 @@ async fn serve_remote_html() -> impl IntoResponse {
       flex-direction: column;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
-      background: var(--bg);
+      background: transparent;
     }
     .guide-cat-banner {
-      padding: 8px 12px;
-      background: #11151f;
-      border-bottom: 1px solid var(--card-border);
+      padding: 9px 14px;
+      background: rgba(14, 18, 28, 0.6);
+      border-bottom: 1px solid var(--border-glass);
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-shrink: 0;
     }
     .guide-cat-title {
-      font-size: 12.5px;
+      font-size: 13px;
       font-weight: 800;
       color: #f1f5f9;
       white-space: nowrap;
@@ -1024,15 +1491,16 @@ async fn serve_remote_html() -> impl IntoResponse {
       text-overflow: ellipsis;
     }
     .guide-pick-indicator {
-      font-size: 10.5px;
+      font-size: 10px;
       font-weight: 800;
       color: #04101c;
-      background: #38bdf8;
+      background: var(--accent-cyan);
       border-radius: 999px;
       padding: 2px 8px;
       margin-left: 8px;
       flex-shrink: 0;
       white-space: nowrap;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
     }
     .guide-cat-count {
       font-size: 11px;
@@ -1042,46 +1510,49 @@ async fn serve_remote_html() -> impl IntoResponse {
       flex-shrink: 0;
     }
     .guide-channel-list {
-      padding: 8px 10px;
+      padding: 10px 12px;
       display: flex;
       flex-direction: column;
       gap: 8px;
     }
     .guide-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 9px 10px;
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid var(--border-glass);
+      border-radius: 14px;
+      padding: 10px 12px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
+      box-shadow: var(--glass-card-shadow);
+      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .guide-card:active {
-      background: #1d2538;
-      border-color: #38bdf8;
-      transform: scale(0.99);
+      background: rgba(56, 189, 248, 0.12);
+      border-color: var(--accent-cyan);
+      transform: scale(0.985);
     }
     .guide-logo {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
       object-fit: contain;
-      background: #0d1017;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       flex-shrink: 0;
     }
     .guide-logo-fallback {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
-      background: #1e2638;
-      color: #38bdf8;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      color: var(--accent-cyan);
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 800;
-      font-size: 12px;
+      font-size: 13px;
       flex-shrink: 0;
     }
     .guide-card-content {
@@ -1097,9 +1568,9 @@ async fn serve_remote_html() -> impl IntoResponse {
       justify-content: space-between;
     }
     .guide-card-ch-name {
-      font-size: 12px;
+      font-size: 12.5px;
       font-weight: 700;
-      color: #94a3b8;
+      color: var(--text-muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1113,12 +1584,12 @@ async fn serve_remote_html() -> impl IntoResponse {
       text-overflow: ellipsis;
     }
     .guide-prog-time {
-      font-size: 10.5px;
+      font-size: 11px;
       color: #64748b;
       margin-top: 1px;
     }
     .guide-card-next {
-      font-size: 10.5px;
+      font-size: 11px;
       color: #64748b;
       white-space: nowrap;
       overflow: hidden;
@@ -1135,13 +1606,14 @@ async fn serve_remote_html() -> impl IntoResponse {
       overflow-y: auto;
     }
     .sports-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid var(--border-glass);
       border-radius: 16px;
       padding: 12px 14px;
       display: flex;
       flex-direction: column;
       gap: 10px;
+      box-shadow: var(--glass-card-shadow);
     }
     .sports-card-header {
       display: flex;
@@ -1149,13 +1621,15 @@ async fn serve_remote_html() -> impl IntoResponse {
       justify-content: space-between;
     }
     .sports-league-tag {
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 800;
-      color: #38bdf8;
+      color: var(--accent-cyan);
       background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.25);
       padding: 2px 8px;
       border-radius: 6px;
       text-transform: uppercase;
+      letter-spacing: 0.4px;
     }
     .sports-clock-badge {
       font-size: 11.5px;
@@ -1163,14 +1637,19 @@ async fn serve_remote_html() -> impl IntoResponse {
       color: #f1f5f9;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
     }
     .sports-live-dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
       background: var(--live-red);
-      box-shadow: 0 0 6px var(--live-red);
+      box-shadow: var(--live-red-glow);
+      animation: pulseRed 1.8s infinite;
+    }
+    @keyframes pulseRed {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
     }
     .sports-team-row {
       display: flex;
@@ -1194,17 +1673,20 @@ async fn serve_remote_html() -> impl IntoResponse {
       width: 100%;
     }
     .sports-team-logo {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
       object-fit: contain;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.08);
       flex-shrink: 0;
     }
     .sports-team-fallback {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-      background: #252e42;
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
       color: #cbd5e1;
       font-weight: 700;
       font-size: 10px;
@@ -1214,7 +1696,7 @@ async fn serve_remote_html() -> impl IntoResponse {
       flex-shrink: 0;
     }
     .sports-team-name {
-      font-size: 14px;
+      font-size: 14.5px;
       font-weight: 700;
       color: #f8fafc;
       white-space: nowrap;
@@ -1222,28 +1704,33 @@ async fn serve_remote_html() -> impl IntoResponse {
       text-overflow: ellipsis;
     }
     .sports-team-score {
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 800;
       color: #f8fafc;
+      font-variant-numeric: tabular-nums;
     }
     .sports-team-link-pill {
       font-size: 11px;
-      font-weight: 600;
-      background: #1c2333;
-      border: 1px solid #2d374f;
-      color: #38bdf8;
-      padding: 4px 8px;
+      font-weight: 700;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: var(--accent-cyan);
+      padding: 4px 10px;
       border-radius: 8px;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       cursor: pointer;
-      margin-left: 6px;
+      transition: all 0.15s ease;
     }
-    .sports-team-link-pill:active { background: #38bdf8; color: #000; }
+    .sports-team-link-pill:active { 
+      background: var(--accent-cyan); 
+      color: #04101c; 
+      transform: scale(0.95);
+    }
 
     .sports-streams-accordion {
-      border-top: 1px solid #1e2436;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
       padding-top: 8px;
       display: flex;
       flex-direction: column;
@@ -1257,9 +1744,9 @@ async fn serve_remote_html() -> impl IntoResponse {
       cursor: pointer;
       user-select: none;
       -webkit-user-select: none;
-      padding: 2px 0;
+      padding: 4px 0;
     }
-    .sports-streams-toggle:active { color: #38bdf8; }
+    .sports-streams-toggle:active { color: var(--accent-cyan); }
     .sports-streams-toggle .chev {
       font-size: 9px;
       color: #64748b;
@@ -1269,8 +1756,9 @@ async fn serve_remote_html() -> impl IntoResponse {
     .sports-streams-title {
       font-size: 11px;
       font-weight: 700;
-      color: #64748b;
+      color: #94a3b8;
       text-transform: uppercase;
+      letter-spacing: 0.4px;
     }
     .sports-team-links {
       display: flex;
@@ -1279,21 +1767,21 @@ async fn serve_remote_html() -> impl IntoResponse {
       flex-wrap: wrap;
       max-width: 100%;
     }
-    .sports-team-links .sports-team-link-pill { margin-left: 0; }
     .sports-link-dropdown {
       font-size: 11px;
       font-weight: 600;
-      background: #1c2333;
-      border: 1px solid #2d374f;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-glass);
       color: #94a3b8;
-      padding: 4px 6px;
+      padding: 4px 8px;
       border-radius: 8px;
       max-width: 120px;
       cursor: pointer;
+      outline: none;
     }
     .sports-stream-item {
-      background: #181e2b;
-      border: 1px solid #263045;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-glass);
       border-radius: 10px;
       padding: 6px 10px;
       display: flex;
@@ -1317,16 +1805,27 @@ async fn serve_remote_html() -> impl IntoResponse {
     .sports-stream-btn {
       font-size: 11px;
       font-weight: 700;
-      padding: 4px 8px;
-      border-radius: 6px;
-      background: #2563eb;
+      padding: 4px 10px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
       color: #fff;
       border: none;
       cursor: pointer;
+      transition: all 0.15s ease;
     }
-    .sports-stream-btn:active { background: #1d4ed8; }
-    .sports-stream-btn.mv-btn { background: #334155; }
-    .sports-stream-btn.mv-btn:active { background: #475569; }
+    .sports-stream-btn:active { 
+      transform: scale(0.94); 
+      background: #1d4ed8; 
+    }
+    .sports-stream-btn.mv-btn { 
+      background: rgba(255, 255, 255, 0.08); 
+      border: 1px solid var(--border-glass);
+      color: #cbd5e1;
+    }
+    .sports-stream-btn.mv-btn:active { 
+      background: var(--accent-cyan); 
+      color: #04101c; 
+    }
 
     /* ================= TAB 4: MULTIVIEW ================= */
     .mv-container {
@@ -1342,19 +1841,23 @@ async fn serve_remote_html() -> impl IntoResponse {
     }
     .mv-layout-btn {
       flex: 1;
-      height: 40px;
-      border-radius: 10px;
-      background: #171c28;
-      border: 1px solid #283147;
+      height: 42px;
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-glass);
       color: #cbd5e1;
       font-size: 12px;
       font-weight: 700;
       cursor: pointer;
+      box-shadow: var(--glass-card-shadow);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
+    .mv-layout-btn:active { transform: scale(0.95); }
     .mv-layout-btn.active {
-      background: #38bdf8;
+      background: var(--accent-gradient);
       color: #04101c;
-      border-color: #7dd3fc;
+      border-color: transparent;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
     }
     .mv-grid-preview {
       display: grid;
@@ -1362,51 +1865,67 @@ async fn serve_remote_html() -> impl IntoResponse {
       gap: 10px;
     }
     .mv-slot-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid var(--border-glass);
       border-radius: 14px;
       padding: 12px;
       display: flex;
       flex-direction: column;
       gap: 8px;
-      min-height: 90px;
+      min-height: 94px;
       min-width: 0;
       cursor: pointer;
+      box-shadow: var(--glass-card-shadow);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
+    .mv-slot-card:active { transform: scale(0.98); }
     .mv-slot-card.picking {
-      border-color: #38bdf8;
-      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.3);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4), 0 0 16px rgba(56, 189, 248, 0.25);
+      animation: pulsePick 1.6s infinite;
     }
-    .mv-slot-card.mv-main-card { cursor: default; }
+    @keyframes pulsePick {
+      0%, 100% { border-color: var(--accent-cyan); }
+      50% { border-color: var(--accent-purple); }
+    }
+    .mv-slot-card.mv-main-card { 
+      cursor: default; 
+      border-color: rgba(16, 185, 129, 0.25);
+      background: rgba(16, 185, 129, 0.05);
+    }
     .mv-pick-pill {
       font-size: 10px;
-      font-weight: 700;
+      font-weight: 800;
       color: #04101c;
-      background: #38bdf8;
+      background: var(--accent-cyan);
       border-radius: 999px;
       padding: 2px 8px;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
     }
     .mv-pick-banner {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      background: #16233a;
-      border-bottom: 1px solid #2d374f;
-      padding: 9px 12px;
+      background: rgba(22, 35, 58, 0.85);
+      backdrop-filter: var(--glass-filter);
+      -webkit-backdrop-filter: var(--glass-filter);
+      border-bottom: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 10px 14px;
       font-size: 12.5px;
       font-weight: 600;
       color: #dbeafe;
       flex-shrink: 0;
-      z-index: 15;
+      z-index: 25;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     }
     .mv-pick-cancel {
       flex-shrink: 0;
       font-size: 11.5px;
       font-weight: 700;
       color: #fca5a5;
-      background: #2a1b22;
-      border: 1px solid #4c2634;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
       border-radius: 8px;
       padding: 5px 12px;
       cursor: pointer;
@@ -1421,6 +1940,8 @@ async fn serve_remote_html() -> impl IntoResponse {
       font-size: 11px;
       font-weight: 800;
       color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
     }
     .mv-slot-channel {
       font-size: 13px;
@@ -1431,12 +1952,13 @@ async fn serve_remote_html() -> impl IntoResponse {
       line-height: 1.3;
     }
     .mv-audio-pill {
-      font-size: 10.5px;
+      font-size: 10px;
       font-weight: 700;
       padding: 3px 8px;
       border-radius: 6px;
-      background: #10b981;
-      color: #042f1a;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -1445,21 +1967,23 @@ async fn serve_remote_html() -> impl IntoResponse {
     /* Toast */
     .toast {
       position: fixed;
-      top: 60px;
+      top: 66px;
       left: 50%;
       transform: translateX(-50%) translateY(-20px);
-      background: rgba(15, 23, 42, 0.95);
-      border: 1px solid #38bdf8;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.4);
       color: #f8fafc;
       font-size: 12.5px;
       font-weight: 600;
-      padding: 8px 16px;
+      padding: 8px 18px;
       border-radius: 999px;
       pointer-events: none;
       opacity: 0;
-      transition: opacity 0.2s, transform 0.2s;
+      transition: opacity 0.2s, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       z-index: 100;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5), 0 0 16px rgba(56, 189, 248, 0.2);
     }
     .toast.show {
       opacity: 1;
@@ -1476,53 +2000,114 @@ async fn serve_remote_html() -> impl IntoResponse {
       align-items: center;
       justify-content: center;
       padding: 24px;
-      background: #0b0d13;
+      background: var(--bg-deep);
+      background-image: radial-gradient(circle at 50% 30%, rgba(99, 102, 241, 0.2), transparent 70%);
     }
     .pair-card {
-      max-width: 420px;
+      max-width: 400px;
       width: 100%;
-      background: #131722;
-      border: 1px solid var(--card-border);
-      border-radius: 20px;
-      padding: 28px 24px;
+      background: rgba(18, 22, 34, 0.85);
+      backdrop-filter: var(--glass-filter-modal);
+      -webkit-backdrop-filter: var(--glass-filter-modal);
+      border: 1px solid var(--border-glass-bright);
+      border-radius: 24px;
+      padding: 32px 24px;
       text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.15);
     }
-    .pair-icon { font-size: 40px; margin-bottom: 12px; }
-    .pair-title { font-size: 22px; font-weight: 800; margin-bottom: 8px; color: #f3f4f6; }
-    .pair-desc { font-size: 13.5px; line-height: 1.5; color: #94a3b8; margin-bottom: 18px; }
+    .pair-icon { 
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 16px;
+      color: var(--accent-cyan);
+      filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.5));
+    }
+    .pair-title { 
+      font-size: 22px; 
+      font-weight: 800; 
+      margin-bottom: 8px; 
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .pair-desc { font-size: 13.5px; line-height: 1.5; color: var(--text-muted); margin-bottom: 20px; }
     .pair-steps {
       text-align: left;
-      margin: 0 auto 18px;
-      padding-left: 20px;
-      color: #cbd5e1;
-      font-size: 13.5px;
-      line-height: 1.9;
+      margin: 0 auto 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .pair-step-item {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-glass);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .pair-step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--accent-gradient);
+      color: #04101c;
+      font-weight: 800;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
     .pair-retry {
       display: block;
       width: 100%;
-      height: 44px;
-      background: #2563eb;
+      height: 46px;
+      background: var(--accent-gradient);
       border: none;
       border-radius: 12px;
-      color: #fff;
+      color: #04101c;
       font-size: 14px;
-      font-weight: 700;
+      font-weight: 800;
+      letter-spacing: 0.3px;
       cursor: pointer;
+      box-shadow: 0 4px 16px rgba(56, 189, 248, 0.4);
+      transition: all 0.15s ease;
     }
+    .pair-retry:active { transform: scale(0.97); opacity: 0.9; }
   </style>
 </head>
 <body>
   <div id="app-root" style="display:flex; flex-direction:column; height:100dvh; overflow:hidden;">
     <header>
-      <div class="logo">YNOTV Remote</div>
-      <div id="status" class="status-badge">
-        <span class="status-dot"></span>
-        <span id="status-text">Connecting...</span>
+      <div class="logo-container">
+        <svg class="logo-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="7" width="20" height="15" rx="3"></rect>
+          <polyline points="17 2 12 7 7 2"></polyline>
+        </svg>
+        <span class="logo">YNOTV</span>
+        <span class="logo-badge">Remote</span>
+      </div>
+      <div class="header-right">
+        <button id="open-sections-btn" class="header-menu-btn" onpointerdown="toggleSectionsMenu(event)" title="App Destinations">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+          <span>Open...</span>
+        </button>
+        <div id="status" class="status-badge">
+          <span class="status-dot"></span>
+          <span id="status-text">Connecting...</span>
+        </div>
       </div>
     </header>
 
-    <!-- Now Playing Mini Bar -->
+    <!-- Now Playing Floating Capsule -->
     <div id="now-playing-banner" class="now-playing-banner" style="display:none;">
       <div id="np-logo-box"></div>
       <div class="np-info">
@@ -1533,22 +2118,19 @@ async fn serve_remote_html() -> impl IntoResponse {
         </div>
       </div>
       <div class="np-controls">
-        <button class="np-btn" onpointerdown="sendAction('play_pause', event)">⏯</button>
-        <button class="np-btn" onpointerdown="sendAction('toggle_mute', event)">🔇</button>
+        <button class="np-btn" onpointerdown="sendAction('play_pause', event)" title="Play / Pause">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+        </button>
+        <button class="np-btn" onpointerdown="sendAction('toggle_mute', event)" title="Mute">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <line x1="23" y1="9" x2="17" y2="15"></line>
+            <line x1="17" y1="9" x2="23" y2="15"></line>
+          </svg>
+        </button>
       </div>
-    </div>
-
-    <!-- Shared sections bar: every view reachable from any tab -->
-    <div class="sections-bar">
-      <button class="section-btn" data-view="livetv" onpointerdown="sendView('livetv', event)">📺 Live TV</button>
-      <button class="section-btn" data-view="guide" onpointerdown="sendView('guide', event)">📅 Guide</button>
-      <button class="section-btn" data-view="movies" onpointerdown="sendView('movies', event)">🎬 Movies</button>
-      <button class="section-btn" data-view="series" onpointerdown="sendView('series', event)">🍿 Series</button>
-      <button class="section-btn" data-view="sports" onpointerdown="sendView('sports', event)">⚽ Sports</button>
-      <button class="section-btn" data-view="stremio" onpointerdown="sendView('stremio', event)">🎥 Stremio</button>
-      <button class="section-btn" data-view="nuvio" onpointerdown="sendView('nuvio', event)">☁️ Nuvio</button>
-      <button class="section-btn" data-view="dvr" onpointerdown="sendView('dvr', event)">📼 DVR</button>
-      <button class="section-btn" data-view="settings" onpointerdown="sendView('settings', event)">⚙️ Settings</button>
     </div>
 
     <!-- Tab Container -->
@@ -1556,32 +2138,137 @@ async fn serve_remote_html() -> impl IntoResponse {
       <!-- 1. REMOTE TAB -->
       <div id="tab-remote" class="tab-pane active" style="overflow-y:auto;">
         <div class="pad-container">
+          <!-- D-Pad Dial -->
           <div class="dpad">
-            <button class="dpad-btn dpad-up" onpointerdown="startNavRepeat('up', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">▲</button>
-            <button class="dpad-btn dpad-down" onpointerdown="startNavRepeat('down', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">▼</button>
-            <button class="dpad-btn dpad-left" onpointerdown="startNavRepeat('left', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">◀</button>
-            <button class="dpad-btn dpad-right" onpointerdown="startNavRepeat('right', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">▶</button>
+            <button class="dpad-btn dpad-up" onpointerdown="startNavRepeat('up', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="18 15 12 9 6 15"></polyline>
+              </svg>
+            </button>
+            <button class="dpad-btn dpad-down" onpointerdown="startNavRepeat('down', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <button class="dpad-btn dpad-left" onpointerdown="startNavRepeat('left', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            <button class="dpad-btn dpad-right" onpointerdown="startNavRepeat('right', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
             <button class="dpad-center" onpointerdown="sendNav('select', event)">OK</button>
           </div>
 
+          <!-- Quick Actions -->
           <div class="action-row">
-            <button class="action-btn back-btn" onpointerdown="sendNav('back', event)">↩ Back</button>
-            <button class="action-btn" onpointerdown="sendAction('search', event)">🔍 Search</button>
-            <button class="action-btn" onpointerdown="sendAction('subtitles', event)">💬 Subs</button>
-            <button class="action-btn" onpointerdown="sendAction('toggle_fullscreen', event)">⛶ Screen</button>
+            <button class="action-btn back-btn" onpointerdown="sendNav('back', event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 14 4 9 9 4"></polyline>
+                <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+              </svg>
+              Back
+            </button>
+            <button class="action-btn" onpointerdown="sendAction('search', event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              Search
+            </button>
+            <button class="action-btn" onpointerdown="sendAction('subtitles', event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                <path d="M7 15h4M15 15h2M7 11h2M13 11h4"></path>
+              </svg>
+              Subs
+            </button>
+            <button class="action-btn" onpointerdown="sendAction('toggle_fullscreen', event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="14" y2="10"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+              Screen
+            </button>
           </div>
         </div>
 
+        <!-- Playback Footer Strip -->
         <div class="media-footer">
+          <!-- Row 1: Seek & Play/Pause -->
           <div class="media-row">
-            <button class="media-btn" onpointerdown="sendAction('seek_backward', event)">⏪ -10s</button>
-            <button class="media-btn play-btn" onpointerdown="sendAction('play_pause', event)">⏯ Play / Pause</button>
-            <button class="media-btn" onpointerdown="sendAction('seek_forward', event)">⏩ +10s</button>
+            <button class="media-btn btn-sm" onpointerdown="sendAction('seek_backward', event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 19 2 12 11 5 11 19"></polygon>
+                <polygon points="22 19 13 12 22 5 22 19"></polygon>
+              </svg>
+              &lt;&lt; 10s
+            </button>
+            <button class="media-btn play-btn" onpointerdown="sendAction('play_pause', event)">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Play / Pause
+            </button>
+            <button class="media-btn btn-sm" onpointerdown="sendAction('seek_forward', event)">
+              10s &gt;&gt;
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 19 22 12 13 5 13 19"></polygon>
+                <polygon points="2 19 11 12 2 5 2 19"></polygon>
+              </svg>
+            </button>
           </div>
+
+          <!-- Row 2: Channel & Mute -->
           <div class="media-row">
-            <button class="media-btn" onpointerdown="sendAction('prev_channel', event)">⏮ Ch -</button>
-            <button class="media-btn" onpointerdown="sendAction('toggle_mute', event)">🔇 Mute</button>
-            <button class="media-btn" onpointerdown="sendAction('next_channel', event)">⏭ Ch +</button>
+            <button class="media-btn btn-sm" onpointerdown="sendAction('prev_channel', event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                <line x1="5" y1="19" x2="5" y2="5"></line>
+              </svg>
+              Ch -
+            </button>
+            <button class="media-btn" id="mute-btn" onpointerdown="sendAction('toggle_mute', event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+              </svg>
+              Mute
+            </button>
+            <button class="media-btn btn-sm" onpointerdown="sendAction('next_channel', event)">
+              Ch +
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                <line x1="19" y1="5" x2="19" y2="19"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Row 3: Volume Control -->
+          <div class="volume-bar">
+            <button class="vol-btn" title="Volume Down" onpointerdown="sendVolumeStep(-5, event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+            </button>
+            <div class="vol-slider-wrap">
+              <input type="range" class="vol-slider" id="vol-slider" min="0" max="100" value="100" oninput="onVolumeSliderInput(this.value)" onchange="onVolumeSliderChange(this.value)">
+            </div>
+            <button class="vol-btn" title="Volume Up" onpointerdown="sendVolumeStep(5, event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+            </button>
+            <span class="vol-badge" id="vol-badge">100%</span>
           </div>
         </div>
       </div>
@@ -1590,9 +2277,18 @@ async fn serve_remote_html() -> impl IntoResponse {
       <div id="tab-guide" class="tab-pane">
         <div class="guide-header-controls">
           <button id="sidebar-toggle" class="sidebar-toggle-btn" onclick="toggleSidebar()">
-            <span id="sidebar-toggle-icon">☰</span> Categories
+            <svg id="sidebar-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+            Categories
           </button>
           <div class="search-input-box">
+            <svg class="search-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
             <input type="text" id="guide-search" class="search-input" placeholder="Search channels..." oninput="onSearchInput(this.value)">
             <button id="guide-search-clear" class="search-clear-btn" style="display:none;" onclick="clearSearch()">✕</button>
           </div>
@@ -1624,9 +2320,14 @@ async fn serve_remote_html() -> impl IntoResponse {
 
       <!-- 3. LIVE SPORTS TAB -->
       <div id="tab-sports" class="tab-pane" style="overflow-y:auto;">
-        <div style="padding:10px 14px 4px; display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:13px; font-weight:700; color:#cbd5e1;">Live & Upcoming Games</span>
-          <button class="section-btn" onclick="requestSports()">⟳ Refresh</button>
+        <div style="padding:12px 14px 4px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:13px; font-weight:800; color:#f1f5f9; letter-spacing:0.2px;">Live & Upcoming Games</span>
+          <button class="header-menu-btn" onclick="requestSports()" style="height:28px; padding:0 10px;">
+            <svg style="width:12px; height:12px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+            </svg>
+            Refresh
+          </button>
         </div>
         <div id="sports-list" class="sports-container">
           <div style="text-align:center; padding:30px; color:#64748b;">Loading live scores...</div>
@@ -1636,14 +2337,14 @@ async fn serve_remote_html() -> impl IntoResponse {
       <!-- 4. MULTIVIEW TAB -->
       <div id="tab-multiview" class="tab-pane" style="overflow-y:auto;">
         <div class="mv-container">
-          <span style="font-size:13px; font-weight:700; color:#cbd5e1;">Multiview Layout</span>
+          <span style="font-size:13px; font-weight:800; color:#f1f5f9; letter-spacing:0.2px;">Multiview Layout</span>
           <div class="mv-layout-row">
             <button class="mv-layout-btn" data-layout="single" onclick="switchLayout('single')">Single</button>
             <button class="mv-layout-btn" data-layout="split" onclick="switchLayout('split')">Split</button>
             <button class="mv-layout-btn" data-layout="quad" onclick="switchLayout('quad')">2x2 Quad</button>
             <button class="mv-layout-btn" data-layout="triple" onclick="switchLayout('triple')">3-Up</button>
           </div>
-          <span style="font-size:13px; font-weight:700; color:#cbd5e1; margin-top:8px;">Screens</span>
+          <span style="font-size:13px; font-weight:800; color:#f1f5f9; letter-spacing:0.2px; margin-top:8px;">Screen Slots</span>
           <div id="mv-grid" class="mv-grid-preview"></div>
         </div>
       </div>
@@ -1652,22 +2353,183 @@ async fn serve_remote_html() -> impl IntoResponse {
     <!-- Bottom Navigation Bar -->
     <nav class="bottom-nav">
       <button id="nav-remote" class="nav-tab-btn active" onclick="switchTab('remote')">
-        <span class="nav-icon">🎮</span>
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="6" width="20" height="12" rx="4"></rect>
+          <line x1="6" y1="12" x2="10" y2="12"></line>
+          <line x1="8" y1="10" x2="8" y2="14"></line>
+          <circle cx="15" cy="12" r="1" fill="currentColor"></circle>
+          <circle cx="18" cy="12" r="1" fill="currentColor"></circle>
+        </svg>
         <span class="nav-label">Remote</span>
       </button>
       <button id="nav-guide" class="nav-tab-btn" onclick="switchTab('guide')">
-        <span class="nav-icon">📺</span>
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="7" width="20" height="15" rx="3"></rect>
+          <polyline points="17 2 12 7 7 2"></polyline>
+        </svg>
         <span class="nav-label">Live Guide</span>
       </button>
       <button id="nav-sports" class="nav-tab-btn" onclick="switchTab('sports')">
-        <span class="nav-icon">⚽</span>
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+          <path d="M2 12h20"></path>
+        </svg>
         <span class="nav-label">Sports</span>
       </button>
       <button id="nav-multiview" class="nav-tab-btn" onclick="switchTab('multiview')">
-        <span class="nav-icon">🎛</span>
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+          <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+          <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+          <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+        </svg>
         <span class="nav-label">Multiview</span>
       </button>
     </nav>
+  </div>
+
+  <!-- Launch Shortcuts / Destinations Bottom Sheet Modal -->
+  <div id="sections-overlay" class="sections-overlay" onclick="onOverlayClick(event)">
+    <div class="sections-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle" onclick="closeSectionsMenu()"></div>
+      <div class="sheet-header">
+        <div class="sheet-title-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span class="sheet-title">Jump to Destination</span>
+        </div>
+        <button class="sheet-close-btn" onclick="closeSectionsMenu()" title="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="destinations-grid">
+        <!-- 1. Live TV -->
+        <div class="dest-card" data-view="livetv" onpointerdown="selectDestination('livetv', event)">
+          <div class="dest-icon-box" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="7" width="20" height="15" rx="3"></rect>
+              <polyline points="17 2 12 7 7 2"></polyline>
+            </svg>
+          </div>
+          <div class="dest-text">
+            <span class="dest-name">Live TV</span>
+            <span class="dest-sub">Channels & Guide</span>
+          </div>
+        </div>
+
+        <!-- 2. Movies -->
+        <div class="dest-card" data-view="movies" onpointerdown="selectDestination('movies', event)">
+          <div class="dest-icon-box" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+              <line x1="7" y1="2" x2="7" y2="22"></line>
+              <line x1="17" y1="2" x2="17" y2="22"></line>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <line x1="2" y1="7" x2="7" y2="7"></line>
+              <line x1="2" y1="17" x2="7" y2="17"></line>
+              <line x1="17" y1="17" x2="22" y2="17"></line>
+              <line x1="17" y1="7" x2="22" y2="7"></line>
+            </svg>
+          </div>
+          <div class="dest-text">
+            <span class="dest-name">Movies</span>
+            <span class="dest-sub">VOD & Cinema</span>
+          </div>
+        </div>
+
+        <!-- 3. Series -->
+        <div class="dest-card" data-view="series" onpointerdown="selectDestination('series', event)">
+          <div class="dest-icon-box" style="background: rgba(236, 72, 153, 0.12); color: #ec4899;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+          </div>
+          <div class="dest-text">
+            <span class="dest-name">Series</span>
+            <span class="dest-sub">Shows & Episodes</span>
+          </div>
+        </div>
+
+        <!-- 4. Sports -->
+        <div class="dest-card" data-view="sports" onpointerdown="selectDestination('sports', event)">
+          <div class="dest-icon-box" style="background: rgba(34, 197, 94, 0.12); color: #22c55e;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+              <path d="M2 12h20"></path>
+            </svg>
+          </div>
+          <div class="dest-text">
+            <span class="dest-name">Sports</span>
+            <span class="dest-sub">Scores & Games</span>
+          </div>
+        </div>
+
+        <!-- 5. Stremio -->
+        <div class="dest-card" data-view="stremio" onpointerdown="selectDestination('stremio', event)">
+          <div class="dest-icon-box" style="background: rgba(99, 102, 241, 0.12); color: #818cf8;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polygon points="10 8 16 12 10 16 10 8"></polygon>
+            </svg>
+          </div>
+          <div class="dest-text">
+            <span class="dest-name">Stremio</span>
+            <span class="dest-sub">Addon Catalogs</span>
+          </div>
+        </div>
+
+        <!-- 6. Nuvio -->
+        <div class="dest-card" data-view="nuvio" onpointerdown="selectDestination('nuvio', event)">
+          <div class="dest-icon-box" style="background: rgba(14, 165, 233, 0.12); color: #38bdf8;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+            </svg>
+          </div>
+          <div class="dest-text">
+            <span class="dest-name">Nuvio</span>
+            <span class="dest-sub">Cloud Streams</span>
+          </div>
+        </div>
+
+        <!-- 7. DVR -->
+        <div class="dest-card" data-view="dvr" onpointerdown="selectDestination('dvr', event)">
+          <div class="dest-icon-box" style="background: rgba(245, 158, 11, 0.12); color: #f59e0b;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </div>
+          <div class="dest-text">
+            <span class="dest-name">DVR</span>
+            <span class="dest-sub">Recordings</span>
+          </div>
+        </div>
+
+        <!-- 8. Settings -->
+        <div class="dest-card" data-view="settings" onpointerdown="selectDestination('settings', event)">
+          <div class="dest-icon-box" style="background: rgba(148, 163, 184, 0.12); color: #cbd5e1;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </div>
+          <div class="dest-text">
+            <span class="dest-name">Settings</span>
+            <span class="dest-sub">Options & Setup</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="toast" class="toast"></div>
@@ -1681,16 +2543,31 @@ async fn serve_remote_html() -> impl IntoResponse {
   <!-- Not-paired overlay -->
   <div id="pair-screen" class="pair-screen" hidden>
     <div class="pair-card">
-      <div class="pair-icon">🔒</div>
-      <h1 class="pair-title" id="pair-title">Not paired</h1>
-      <p class="pair-desc" id="pair-desc"></p>
-      <ol class="pair-steps">
-        <li>Open <strong>YNOTV</strong> on your computer</li>
-        <li>Go to <strong>Settings → Controllers</strong></li>
-        <li>Make sure <strong>Virtual Phone Remote</strong> is enabled</li>
-        <li>Scan the <strong>QR code</strong> shown there with this phone's camera</li>
-      </ol>
-      <button class="pair-retry" id="pair-retry">Try again</button>
+      <svg class="pair-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+      </svg>
+      <h1 class="pair-title" id="pair-title">Pair with YNOTV</h1>
+      <p class="pair-desc" id="pair-desc">Scan the QR code on your computer to connect this phone remote companion.</p>
+      <div class="pair-steps">
+        <div class="pair-step-item">
+          <span class="pair-step-num">1</span>
+          <span>Open <strong>YNOTV</strong> on your computer</span>
+        </div>
+        <div class="pair-step-item">
+          <span class="pair-step-num">2</span>
+          <span>Go to <strong>Settings → Controllers</strong></span>
+        </div>
+        <div class="pair-step-item">
+          <span class="pair-step-num">3</span>
+          <span>Enable <strong>Virtual Phone Remote</strong></span>
+        </div>
+        <div class="pair-step-item">
+          <span class="pair-step-num">4</span>
+          <span>Scan the <strong>QR code</strong> with this phone</span>
+        </div>
+      </div>
+      <button class="pair-retry" id="pair-retry">Try Connecting Again</button>
     </div>
   </div>
 
@@ -1769,9 +2646,7 @@ async fn serve_remote_html() -> impl IntoResponse {
     }
 
     // Escape a value for embedding inside a single-quoted JS string literal that
-    // lives in an HTML attribute (e.g. onclick="fn('...')"). Handles both the JS
-    // string-literal escaping and the HTML attribute escaping so the value can
-    // never break out of either context.
+    // lives in an HTML attribute (e.g. onclick="fn('...')").
     function escAttr(s) {
       return String(s == null ? '' : s)
         .replace(/\\/g, '\\\\')
@@ -1866,9 +2741,6 @@ async fn serve_remote_html() -> impl IntoResponse {
     }
 
     // ── D-pad hold-to-repeat ────────────────────────────────────────────────
-    // Holding a directional button behaves like a real controller: one press
-    // immediately, then after a short delay the nav repeats, speeding up the
-    // longer it's held, capped at a maximum rate (min interval).
     const NAV_REPEAT_HOLD_MS = 350;   // delay before repeating starts
     const NAV_REPEAT_START_MS = 220;  // initial repeat interval (slow)
     const NAV_REPEAT_STEP_MS = 15;    // interval shrinks by this each repeat
@@ -1904,18 +2776,86 @@ async fn serve_remote_html() -> impl IntoResponse {
       send({ action: 'openView', view });
     }
 
+    let currentVolume = 100;
+    let isMutedState = false;
+
+    function renderVolume(vol, muted) {
+      if (typeof vol === 'number') {
+        currentVolume = Math.max(0, Math.min(200, vol));
+        const slider = document.getElementById('vol-slider');
+        const badge = document.getElementById('vol-badge');
+        if (slider) slider.value = currentVolume;
+        if (badge) badge.innerText = `${currentVolume}%`;
+      }
+      if (typeof muted === 'boolean') {
+        isMutedState = muted;
+        const muteBtn = document.getElementById('mute-btn');
+        if (muteBtn) {
+          muteBtn.classList.toggle('active', muted);
+          muteBtn.style.color = muted ? '#ef4444' : '';
+        }
+      }
+    }
+
+    function onVolumeSliderInput(val) {
+      const vol = parseInt(val, 10);
+      const badge = document.getElementById('vol-badge');
+      if (badge) badge.innerText = `${vol}%`;
+    }
+
+    function onVolumeSliderChange(val) {
+      const vol = parseInt(val, 10);
+      send({ action: 'setVolume', volume: vol });
+    }
+
+    function sendVolumeStep(delta, e) {
+      if (e && e.cancelable) e.preventDefault();
+      send({ action: 'volumeStep', delta });
+    }
+
+    function toggleSectionsMenu(e) {
+      if (e && e.cancelable) e.preventDefault();
+      const overlay = document.getElementById('sections-overlay');
+      if (!overlay) return;
+      if (overlay.classList.contains('open')) {
+        closeSectionsMenu();
+      } else {
+        openSectionsMenu();
+      }
+    }
+
+    function openSectionsMenu() {
+      if (navigator.vibrate) navigator.vibrate(10);
+      const overlay = document.getElementById('sections-overlay');
+      if (overlay) overlay.classList.add('open');
+    }
+
+    function closeSectionsMenu() {
+      const overlay = document.getElementById('sections-overlay');
+      if (overlay) overlay.classList.remove('open');
+    }
+
+    function onOverlayClick(e) {
+      if (e.target && e.target.id === 'sections-overlay') {
+        closeSectionsMenu();
+      }
+    }
+
+    function selectDestination(view, e) {
+      if (e && e.cancelable) e.preventDefault();
+      sendView(view, e);
+      closeSectionsMenu();
+    }
+
     function updateSections(view) {
-      document.querySelectorAll('.section-btn[data-view]').forEach(btn => {
-        // The app's guide view covers both the "Live TV" and "Guide" buttons
+      document.querySelectorAll('.dest-card[data-view]').forEach(card => {
         const matches =
-          btn.dataset.view === view ||
-          (view === 'guide' && (btn.dataset.view === 'livetv' || btn.dataset.view === 'guide'));
-        btn.classList.toggle('active', matches);
+          card.dataset.view === view ||
+          ((view === 'guide' || view === 'livetv') && card.dataset.view === 'livetv');
+        card.classList.toggle('active', matches);
       });
 
-      // Bottom-nav indicator: which nav tab matches the desktop's current view.
-      // Uses a separate dot so it can't clash with the "this tab is open" state.
-      const navMap = { guide: 'guide', sports: 'sports' };
+      const navMap = { guide: 'guide', livetv: 'guide', sports: 'sports' };
       const navId = navMap[view] || null;
       document.querySelectorAll('.nav-tab-btn').forEach(btn => {
         btn.classList.toggle('view-active', btn.id === `nav-${navId}`);
@@ -1928,11 +2868,14 @@ async fn serve_remote_html() -> impl IntoResponse {
         if (data.categoryTree) renderCategoryTree(data.categoryTree);
         if (data.multiview) renderMultiview(data.multiview);
         if (data.activeView !== undefined) updateSections(data.activeView);
+        if (data.volume !== undefined || data.muted !== undefined) renderVolume(data.volume, data.muted);
+      } else if (data.type === 'volume') {
+        renderVolume(data.volume, data.muted);
       } else if (data.type === 'view') {
         updateSections(data.view);
       } else if (data.type === 'nowPlaying') {
         renderNowPlaying(data.nowPlaying);
-      } else if (data.type === 'categoryTree') {
+      } else if (data.categoryTree) {
         renderCategoryTree(data.categoryTree);
       } else if (data.type === 'guideData') {
         renderGuideChannels(data.channels, data.categoryId);
@@ -2101,7 +3044,7 @@ async fn serve_remote_html() -> impl IntoResponse {
     function onSearchInput(val) {
       currentSearchTerm = val;
       const clearBtn = document.getElementById('guide-search-clear');
-      clearBtn.style.display = val ? 'block' : 'none';
+      clearBtn.style.display = val ? 'flex' : 'none';
       if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
       searchDebounceTimer = setTimeout(() => {
         document.getElementById('guide-list').innerHTML = `<div style="text-align:center; padding:30px; color:#64748b;">Searching...</div>`;
@@ -2150,7 +3093,7 @@ async fn serve_remote_html() -> impl IntoResponse {
             <div class="guide-card-content">
               <div class="guide-card-header">
                 <span class="guide-card-ch-name">${esc(name)}</span>
-                ${c.channel_num ? `<span style="font-size:10px; color:#64748b;">#${c.channel_num}</span>` : ''}
+                ${c.channel_num ? `<span style="font-size:10px; font-weight:700; color:#64748b; background:rgba(255,255,255,0.05); padding:1px 5px; border-radius:4px;">#${c.channel_num}</span>` : ''}
               </div>
               <span class="guide-card-prog-title">${esc(progTitle)}</span>
               ${progressPct > 0 ? `
@@ -2193,7 +3136,6 @@ async fn serve_remote_html() -> impl IntoResponse {
         return;
       }
 
-      // When pick mode is active, sports stream buttons assign to the slot too
       const pickTarget = pickSlot;
 
       let html = '';
@@ -2209,7 +3151,6 @@ async fn serve_remote_html() -> impl IntoResponse {
 
         const isLive = e.status === 'live' || e.status_text?.includes('Qtr') || e.status_text?.includes('Half') || e.status_text?.includes("'");
 
-        // Team linked channels: primary pill + a dropdown for backup streams
         function teamLinksHtml(team) {
           if (!team?.links?.length) return '';
           const primary = team.links[0];
@@ -2221,14 +3162,16 @@ async fn serve_remote_html() -> impl IntoResponse {
             : '';
           return `
             <div class="sports-team-links">
-              <button class="sports-team-link-pill" onclick="event.stopPropagation(); channelTap('${escAttr(primary.stream_id)}', '${escAttr(primary.channel_name)}')">📺 ${esc(primary.channel_name)}</button>
+              <button class="sports-team-link-pill" onclick="event.stopPropagation(); channelTap('${escAttr(primary.stream_id)}', '${escAttr(primary.channel_name)}')">
+                <svg style="width:11px; height:11px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                ${esc(primary.channel_name)}
+              </button>
               ${backups}
             </div>`;
         }
         const awayLinkHtml = teamLinksHtml(e.away_team);
         const homeLinkHtml = teamLinksHtml(e.home_team);
 
-        // Matched Broadcast Streams — collapsed by default, expandable per game
         let streamsHtml = '';
         if (e.available_streams && e.available_streams.length > 0) {
           const isStreamsOpen = expandedStreams.has(e.id);
@@ -2323,7 +3266,6 @@ async fn serve_remote_html() -> impl IntoResponse {
       const grid = document.getElementById('mv-grid');
       if (!mv) return;
 
-      // Highlight the layout button matching the app's current layout
       const btnLayout =
         mv.layout === 'main' ? 'single'
         : mv.layout === 'sbs' || mv.layout === 'pip' ? 'split'
@@ -2341,7 +3283,10 @@ async fn serve_remote_html() -> impl IntoResponse {
         <div class="mv-slot-card mv-main-card">
           <div class="mv-slot-header">
             <span class="mv-slot-num">Main</span>
-            <span class="mv-audio-pill">Now Playing</span>
+            <span class="mv-audio-pill">
+              <svg style="width:10px; height:10px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+              Now Playing
+            </span>
           </div>
           <span class="mv-slot-channel">${esc(mainName || 'Nothing playing')}</span>
         </div>
@@ -2353,7 +3298,11 @@ async fn serve_remote_html() -> impl IntoResponse {
           <div class="mv-slot-card ${isPickTarget ? 'picking' : ''}" onclick="pickSlotTarget(${slotId})">
             <div class="mv-slot-header">
               <span class="mv-slot-num">Slot ${slotId}</span>
-              ${s.is_active ? `<span class="mv-audio-pill">Active</span>` : ''}
+              ${s.is_active ? `
+                <span class="mv-audio-pill">
+                  <svg style="width:10px; height:10px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                  Active
+                </span>` : ''}
               ${isPickTarget ? `<span class="mv-pick-pill">Picking…</span>` : ''}
             </div>
             <span class="mv-slot-channel">${esc(s.channel_name || 'Empty — tap to add')}</span>
@@ -2416,7 +3365,7 @@ async fn serve_remote_html() -> impl IntoResponse {
     }
   </script>
 </body>
-</html>"#;
+</html>"###;
 
     Response::builder()
         .status(StatusCode::OK)

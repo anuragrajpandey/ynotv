@@ -758,6 +758,12 @@ export function executeAction(action: string) {
     case 'toggle_mute':
       window.dispatchEvent(new CustomEvent('ynotv:gamepad-toggle-mute'));
       break;
+    case 'volume_up':
+      window.dispatchEvent(new CustomEvent('ynotv:gamepad-volume-step', { detail: { delta: 5 } }));
+      break;
+    case 'volume_down':
+      window.dispatchEvent(new CustomEvent('ynotv:gamepad-volume-step', { detail: { delta: -5 } }));
+      break;
     case 'search':
       window.dispatchEvent(new CustomEvent('ynotv:gamepad-open-search'));
       break;

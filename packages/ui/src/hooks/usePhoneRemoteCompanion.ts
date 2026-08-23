@@ -48,10 +48,13 @@ export interface UsePhoneRemoteCompanionOptions {
   activeView: string;
   multiviewLayout: LayoutMode;
   multiviewSlots: ViewerSlot[];
+  volume?: number;
+  isMuted?: boolean;
   onPlayChannel: (channel: StoredChannel) => void;
   onSendToSlot?: (slotIndex: number, channel: StoredChannel) => void;
   onSwitchLayout?: (layout: string) => void;
   onSetAudioSlot?: (slotIndex: number) => void;
+  onSetVolume?: (vol: number) => void;
   /** Trigger a one-shot sports scores refresh; called only when the cached data is stale. */
   onRequestSportsRefresh?: () => Promise<void>;
 }
@@ -443,10 +446,13 @@ export function usePhoneRemoteCompanion({
   activeView,
   multiviewLayout,
   multiviewSlots,
+  volume,
+  isMuted,
   onPlayChannel,
   onSendToSlot,
   onSwitchLayout,
   onSetAudioSlot,
+  onSetVolume,
   onRequestSportsRefresh,
 }: UsePhoneRemoteCompanionOptions) {
   const latestRefs = useRef({
@@ -456,10 +462,13 @@ export function usePhoneRemoteCompanion({
     activeView,
     multiviewLayout,
     multiviewSlots,
+    volume,
+    isMuted,
     onPlayChannel,
     onSendToSlot,
     onSwitchLayout,
     onSetAudioSlot,
+    onSetVolume,
     onRequestSportsRefresh,
   });
 
@@ -470,12 +479,24 @@ export function usePhoneRemoteCompanion({
     activeView,
     multiviewLayout,
     multiviewSlots,
+    volume,
+    isMuted,
     onPlayChannel,
     onSendToSlot,
     onSwitchLayout,
     onSetAudioSlot,
+    onSetVolume,
     onRequestSportsRefresh,
   };
+
+  // Push volume / mute state when volume or mute state changes
+  useEffect(() => {
+    broadcastToRemote({
+      type: 'volume',
+      volume: volume ?? 100,
+      muted: !!isMuted,
+    });
+  }, [volume, isMuted]);
 
   // Push Now Playing state when current channel or program changes
   useEffect(() => {
@@ -610,6 +631,20 @@ export function usePhoneRemoteCompanion({
               }
               break;
 
+            case 'setVolume':
+              if (typeof payload.volume === 'number' && latestRefs.current.onSetVolume) {
+                latestRefs.current.onSetVolume(payload.volume);
+              }
+              break;
+
+            case 'volumeStep':
+              if (typeof payload.delta === 'number' && latestRefs.current.onSetVolume) {
+                const cur = latestRefs.current.volume ?? 100;
+                const target = Math.max(0, Math.min(200, cur + payload.delta));
+                latestRefs.current.onSetVolume(target);
+              }
+              break;
+
             case 'assignMultiview':
               if (payload.channelId && typeof payload.slotIndex === 'number') {
                 const chan = await db.channels.get(payload.channelId);
@@ -673,6 +708,8 @@ export function usePhoneRemoteCompanion({
     broadcastToRemote({
       type: 'initialState',
       activeView: latestRefs.current.activeView,
+      volume: latestRefs.current.volume ?? 100,
+      muted: !!latestRefs.current.isMuted,
       nowPlaying: curChan ? {
         stream_id: curChan.stream_id,
         name: curChan.alias || curChan.name,
