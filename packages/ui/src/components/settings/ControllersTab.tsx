@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSettingsStore, DEFAULT_CONTROLLER_MAPPINGS } from '../../stores/settingsStore';
 import { subscribeGamepadButtonPress, type GamepadDeviceInfo, type LiveButtonEvent } from '../../hooks/useGamepad';
 import { generateQrDataUrl } from '../../utils/qrCode';
@@ -63,6 +63,12 @@ export function ControllersTab() {
   const remoteControlEnabled = useSettingsStore((s) => s.remoteControlEnabled);
   const setRemoteControlEnabled = useSettingsStore((s) => s.setRemoteControlEnabled);
   const remoteControlPort = useSettingsStore((s) => s.remoteControlPort);
+  // Latest desired state, so a slow in-flight retry loop bails out if the user
+  // toggles again — a stale retry must never start the server after OFF.
+  const remoteEnabledRef = useRef(remoteControlEnabled);
+  useEffect(() => {
+    remoteEnabledRef.current = remoteControlEnabled;
+  }, [remoteControlEnabled]);
 
   const [connectedDevices, setConnectedDevices] = useState<GamepadDeviceInfo[]>([]);
   const [lastActiveBtn, setLastActiveBtn] = useState<string>('');
@@ -78,21 +84,90 @@ export function ControllersTab() {
     local_ip: '127.0.0.1',
   });
   const [copied, setCopied] = useState(false);
+  const [showRemotePrompt, setShowRemotePrompt] = useState(false);
+  const [showRemoteSteps, setShowRemoteSteps] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
-  // Query server status and start if enabled
+  // One-time opt-in prompt: show it the first time this tab is opened, and only
+  // while the remote is still disabled. The localStorage flag is written as soon
+  // as the prompt is shown, so it never nags again regardless of the choice.
+  useEffect(() => {
+    const KEY = 'ynotv:phoneRemotePromptSeen';
+    try {
+      if (localStorage.getItem(KEY)) return;
+      localStorage.setItem(KEY, '1');
+    } catch {
+      return;
+    }
+    if (!remoteControlEnabled) {
+      setShowRemotePrompt(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // First-time pairing guide: show the how-it-works steps while the server is
+  // enabled, until the user dismisses them with "Got it". Returning users who
+  // already dismissed the guide never see it again.
+  useEffect(() => {
+    if (!remoteControlEnabled) return;
+    try {
+      if (localStorage.getItem('ynotv:phoneRemoteStepsDismissed')) return;
+      setShowRemoteSteps(true);
+    } catch {}
+  }, [remoteControlEnabled]);
+
+  const dismissRemoteSteps = () => {
+    setShowRemoteSteps(false);
+    try {
+      localStorage.setItem('ynotv:phoneRemoteStepsDismissed', '1');
+    } catch {}
+  };
+
+  // Query server status and start if enabled. A just-stopped server releases
+  // its port asynchronously, so a quick off→on can transiently fail to re-bind;
+  // retry with short backoff, then surface the real error instead of leaving
+  // the toggle on with a dead server.
   const refreshServer = async () => {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       if (remoteControlEnabled) {
-        const res = await invoke<any>('web_serve_start', { port: remoteControlPort });
-        if (res) setRemoteStatus(res);
+        let lastErr: unknown = null;
+        for (const delay of [0, 600, 1600]) {
+          if (delay) await new Promise((r) => setTimeout(r, delay));
+          // Bail out if the user toggled again while we were waiting — a stale
+          // retry must never (re)start the server after they turned it off.
+          if (!remoteEnabledRef.current) return;
+          try {
+            const res = await invoke<any>('web_serve_start', { port: remoteControlPort });
+            if (res) {
+              setRemoteStatus(res);
+              setServerError(null);
+            }
+            return;
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+        console.warn('[ControllersTab] Server start failed:', lastErr);
+        setServerError(typeof lastErr === 'string' ? lastErr : 'Failed to start server');
+        try {
+          const status = await invoke<any>('web_serve_status');
+          if (status) setRemoteStatus(status);
+        } catch {}
       } else {
         await invoke('web_serve_stop');
+        setServerError(null);
         const status = await invoke<any>('web_serve_status');
         if (status) setRemoteStatus(status);
       }
     } catch (e) {
       console.warn('[ControllersTab] Server sync error:', e);
+      // Keep the pill truthful: re-query the server instead of assuming.
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const status = await invoke<any>('web_serve_status');
+        if (status) setRemoteStatus(status);
+      } catch {}
     }
   };
 
@@ -306,11 +381,38 @@ export function ControllersTab() {
 
       {/* Built-in Phone Remote Server */}
       <div className="settings-section">
+        {showRemotePrompt && (
+          <div className="phone-remote-prompt">
+            <div className="phone-remote-prompt-info">
+              <strong className="phone-remote-prompt-title">Enable Phone Remote?</strong>
+              <span className="phone-remote-prompt-text">
+                Control YNOTV from your phone over Wi-Fi — a touchpad, D-pad, and media remote. The
+                local server is off by default and starts only when you turn it on.
+              </span>
+            </div>
+            <div className="phone-remote-prompt-actions">
+              <button
+                className="phone-remote-prompt-btn primary"
+                onClick={() => {
+                  setRemoteControlEnabled(true);
+                  setShowRemotePrompt(false);
+                }}
+              >
+                Enable
+              </button>
+              <button className="phone-remote-prompt-btn" onClick={() => setShowRemotePrompt(false)}>
+                Not now
+              </button>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <h3 className="section-title">Virtual Phone Remote (No Hardware Needed)</h3>
             <p className="section-desc">
               Turn any smartphone into a wireless TV touchpad, D-pad, and media remote over your local Wi-Fi.
+              Off by default — enable it to start the local server.
             </p>
           </div>
           <span
@@ -326,7 +428,9 @@ export function ControllersTab() {
           <div className="setting-info">
             <span className="setting-label">Enable Phone Remote Server</span>
             <span className="setting-sublabel">
-              Hosts a wireless web remote at http://{remoteStatus.local_ip}:{remoteControlPort}/remote
+              {remoteControlEnabled
+                ? `Hosts a wireless web remote at http://${remoteStatus.local_ip}:${remoteControlPort}/remote`
+                : 'Once enabled, a QR code and connection URL appear below for pairing your phone.'}
             </span>
           </div>
           <label className="toggle-switch">
@@ -338,6 +442,32 @@ export function ControllersTab() {
             <span className="toggle-slider" />
           </label>
         </div>
+
+        {serverError && (
+          <div className="phone-remote-error">
+            <strong>Server failed to start.</strong>
+            <span>{serverError}</span>
+            <button className="phone-remote-steps-dismiss" onClick={refreshServer}>
+              Retry
+            </button>
+          </div>
+        )}
+
+        {remoteControlEnabled && showRemoteSteps && (
+          <div className="phone-remote-steps">
+            <div className="phone-remote-steps-header">
+              <span className="phone-remote-steps-title">How it works</span>
+              <button className="phone-remote-steps-dismiss" onClick={dismissRemoteSteps}>
+                Got it
+              </button>
+            </div>
+            <ol className="phone-remote-steps-list">
+              <li>Keep the YNOTV app running on this PC.</li>
+              <li>Scan the QR code with your phone&apos;s camera — or open the URL below.</li>
+              <li>Control YNOTV from your phone: touchpad, D-pad, and media remote.</li>
+            </ol>
+          </div>
+        )}
 
         {remoteControlEnabled && (
           <div className="phone-remote-card">

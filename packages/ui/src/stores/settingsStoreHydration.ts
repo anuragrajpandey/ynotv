@@ -363,7 +363,7 @@ async function hydrateSettingsStore(): Promise<void> {
         controllerMappings: data.controllerMappings && typeof data.controllerMappings === 'object'
           ? { ...DEFAULT_CONTROLLER_MAPPINGS, ...data.controllerMappings }
           : { ...DEFAULT_CONTROLLER_MAPPINGS },
-        remoteControlEnabled: data.remoteControlEnabled ?? true,
+        remoteControlEnabled: data.remoteControlEnabled ?? false,
         remoteControlPort: typeof data.remoteControlPort === 'number' ? data.remoteControlPort : 11470,
         enableCustomScrollbarWidth: data.enableCustomScrollbarWidth ?? false,
         customScrollbarWidth: data.customScrollbarWidth ?? 12,

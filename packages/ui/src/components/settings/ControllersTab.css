@@ -166,6 +166,157 @@
   text-align: right;
 }
 
+/* One-time opt-in prompt for the Phone Remote */
+.phone-remote-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(129, 140, 248, 0.1));
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 14px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+}
+
+.phone-remote-prompt-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.phone-remote-prompt-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f3f4f6;
+}
+
+.phone-remote-prompt-text {
+  font-size: 12.5px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  line-height: 1.45;
+}
+
+.phone-remote-prompt-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.phone-remote-prompt-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #f3f4f6;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.phone-remote-prompt-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.phone-remote-prompt-btn.primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.phone-remote-prompt-btn.primary:hover {
+  background: #1d4ed8;
+}
+
+/* First-time pairing guide steps */
+.phone-remote-steps {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px 18px;
+  margin-top: 14px;
+}
+
+.phone-remote-steps-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.phone-remote-steps-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-color, #38bdf8);
+}
+
+.phone-remote-steps-dismiss {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #f3f4f6;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.phone-remote-steps-dismiss:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.phone-remote-steps-list {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.phone-remote-steps-list li {
+  font-size: 12.5px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  line-height: 1.45;
+}
+
+.phone-remote-steps-list li::marker {
+  color: var(--accent-color, #38bdf8);
+  font-weight: 700;
+}
+
+/* Start-failure banner (port held by another process / race) */
+.phone-remote-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: #fca5a5;
+}
+
+.phone-remote-error strong {
+  color: #fecaca;
+  font-weight: 700;
+}
+
+.phone-remote-error span {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
 /* Phone Remote Card */
 .phone-remote-card {
   display: flex;

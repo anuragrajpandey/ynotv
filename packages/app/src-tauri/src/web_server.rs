@@ -63,6 +63,11 @@ struct ServeState {
     app: AppHandle,
     outbound: broadcast::Sender<String>,
     clients: Arc<AsyncMutex<HashSet<u64>>>,
+    /// Broadcast fired by `web_serve_stop` so active remote WebSocket handlers
+    /// exit immediately. Without this, axum's graceful shutdown waits for open
+    /// WebSocket connections (hyper's default 30s timeout), keeping the port
+    /// bound — so a quick off→on toggle fails to re-bind with AddrInUse.
+    conn_shutdown: broadcast::Sender<()>,
 }
 
 fn shutdown_slot() -> &'static Mutex<Option<oneshot::Sender<()>>> {
@@ -73,6 +78,37 @@ fn shutdown_slot() -> &'static Mutex<Option<oneshot::Sender<()>>> {
 fn serve_state_slot() -> &'static Mutex<Option<ServeState>> {
     static S: OnceLock<Mutex<Option<ServeState>>> = OnceLock::new();
     S.get_or_init(|| Mutex::new(None))
+}
+
+/// Handles of every spawned axum server task. `web_serve_stop` aborts ALL of
+/// them so the listener(s) are dropped and the port is released
+/// *deterministically* — never dependent on hyper's graceful-shutdown drain
+/// timing (which can wait on connections for up to its 30s default timeout).
+///
+/// A VEC, not an Option: if a duplicate task ever exists (e.g. a Windows
+/// concurrent-bind race slips a second listener through), its handle must not
+/// overwrite the first — the overwritten task would become an untracked
+/// zombie whose listener survives every stop and holds the port forever.
+fn server_task_slot() -> &'static Mutex<Vec<tokio::task::JoinHandle<()>>> {
+    static S: OnceLock<Mutex<Vec<tokio::task::JoinHandle<()>>>> = OnceLock::new();
+    S.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+/// Monotonic id for each spawned server task, so logs can say which task
+/// bound/exited and a stop can name the tasks it is tearing down.
+static SPAWN_COUNT: AtomicU64 = AtomicU64::new(0);
+
+/// Serializes `web_serve_start` so concurrent invocations can never both bind
+/// the same port. At launch, THREE callers race: the lib.rs setup spawn plus
+/// the Controllers tab mount effect (React StrictMode double-invokes it).
+/// Windows has a race where two simultaneous bind() calls to the same
+/// address:port can BOTH succeed (verified: 2/20 concurrent binds in a
+/// repro). The losing-but-still-bound listener spawned a second server task
+/// that was never tracked, so `web_serve_stop` could not kill it — it held
+/// the port forever and every restart failed with AddrInUse.
+fn start_lock() -> &'static AsyncMutex<()> {
+    static L: OnceLock<AsyncMutex<()>> = OnceLock::new();
+    L.get_or_init(|| AsyncMutex::new(()))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,8 +178,18 @@ pub fn web_serve_status(app: AppHandle) -> WebServeStatus {
 pub async fn web_serve_start(app: AppHandle, port: Option<u16>) -> Result<WebServeStatus, String> {
     let target_port = port.unwrap_or(DEFAULT_REMOTE_PORT);
 
-    if RUNNING.load(Ordering::SeqCst) {
-        let cur_port = *ACTIVE_PORT.lock().unwrap_or_else(|e| e.into_inner());
+    // Serialize concurrent starts (launch race above). The second caller
+    // waits here, then sees RUNNING=true and no-ops instead of binding.
+    let _start_guard = start_lock().lock().await;
+
+    let already = RUNNING.load(Ordering::SeqCst);
+    let cur_port = *ACTIVE_PORT.lock().unwrap_or_else(|e| e.into_inner());
+    info!(
+        "[remote-server] start requested: port={} running={} active_port={}",
+        target_port, already, cur_port
+    );
+
+    if already {
         if cur_port == target_port {
             return Ok(web_serve_status(app));
         }
@@ -151,22 +197,44 @@ pub async fn web_serve_start(app: AppHandle, port: Option<u16>) -> Result<WebSer
     }
 
     let addr = SocketAddr::from(([0, 0, 0, 0], target_port));
-    let listener = match TcpListener::bind(addr).await {
+    // Retry briefly: a just-stopped server releases the port asynchronously
+    // (graceful drain + the 2s stop grace window), so an immediate restart can
+    // transiently hit AddrInUse. 30 × 100ms covers the full stop window.
+    let listener = match bind_with_retry(addr, 30).await {
         Ok(l) => l,
         Err(e) => {
-            let msg = format!("Failed to bind port {}: {}", target_port, e);
+            // Is OUR tracked task still alive? That distinguishes "our own
+            // task didn't die" from "another process holds the port".
+            let tracked = server_task_slot().lock().unwrap_or_else(|e| e.into_inner());
+            let alive_count = tracked.iter().filter(|h| !h.is_finished()).count();
+            let spawned_total = SPAWN_COUNT.load(Ordering::SeqCst);
+            let holder = if alive_count > 0 {
+                "our own still-running server task(s)"
+            } else {
+                "another process or an untracked server task"
+            };
+            let msg_extra = format!(
+                " (spawned_total={} tracked_alive={})",
+                spawned_total, alive_count
+            );
+            let msg = format!(
+                "Failed to bind port {}: {} (holder: {}){}",
+                target_port, e, holder, msg_extra
+            );
             warn!("[remote-server] {}", msg);
             return Err(msg);
         }
     };
 
     let (outbound_tx, _) = broadcast::channel::<String>(128);
+    let (conn_shutdown_tx, _) = broadcast::channel::<()>(8);
     let clients = Arc::new(AsyncMutex::new(HashSet::new()));
 
     let state = ServeState {
         app: app.clone(),
         outbound: outbound_tx,
         clients,
+        conn_shutdown: conn_shutdown_tx,
     };
 
     if let Ok(mut slot) = serve_state_slot().lock() {
@@ -189,29 +257,91 @@ pub async fn web_serve_start(app: AppHandle, port: Option<u16>) -> Result<WebSer
     }
     RUNNING.store(true, Ordering::SeqCst);
 
-    tokio::spawn(async move {
-        info!("[remote-server] YNOTV Phone Remote server listening on {}", addr);
+    let gen = SPAWN_COUNT.fetch_add(1, Ordering::SeqCst);
+    info!("[remote-server] spawning server task #{} on {}", gen, addr);
+    let handle = tokio::spawn(async move {
+        info!("[remote-server] server task #{} listening on {}", gen, addr);
         if let Err(e) = axum::serve(listener, router)
             .with_graceful_shutdown(async move {
                 let _ = shutdown_rx.await;
             })
             .await
         {
-            error!("[remote-server] Server error: {}", e);
+            error!("[remote-server] Server task #{} error: {}", gen, e);
         }
         RUNNING.store(false, Ordering::SeqCst);
-        info!("[remote-server] Server stopped");
+        info!("[remote-server] server task #{} stopped", gen);
     });
+    if let Ok(mut slot) = server_task_slot().lock() {
+        slot.push(handle);
+    }
 
     Ok(web_serve_status(app))
 }
 
 #[tauri::command]
 pub fn web_serve_stop() {
+    // 1. Close active remote WebSocket connections so clients see a clean
+    //    disconnect instead of a hanging socket.
+    if let Ok(slot) = serve_state_slot().lock() {
+        if let Some(state) = slot.as_ref() {
+            let _ = state.conn_shutdown.send(());
+        }
+    }
+    // 2. Signal graceful shutdown — this is what actually closes the open
+    //    connections (hyper drains them).
     if let Ok(mut slot) = shutdown_slot().lock() {
         if let Some(tx) = slot.take() {
             let _ = tx.send(());
         }
+    }
+    // 3. Give graceful shutdown a short window to drain, then force-abort
+    //    EVERY tracked task as a safety net, then VERIFY the port is free.
+    //    Aborting all handles (not just the latest) is what guarantees no
+    //    duplicate task can survive a stop as an untracked zombie.
+    if let Ok(mut slot) = server_task_slot().lock() {
+        let handles: Vec<_> = slot.drain(..).collect();
+        let port = *ACTIVE_PORT.lock().unwrap_or_else(|e| e.into_inner());
+        if handles.is_empty() {
+            info!("[remote-server] stop: no server tasks tracked");
+        } else {
+            info!("[remote-server] stop: draining {} tracked server task(s)", handles.len());
+        }
+        tauri::async_runtime::spawn(async move {
+            let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(2000);
+            for handle in &handles {
+                while !handle.is_finished() && tokio::time::Instant::now() < deadline {
+                    tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+                }
+            }
+            let survivors: Vec<_> = handles.iter().filter(|h| !h.is_finished()).collect();
+            if !survivors.is_empty() {
+                warn!(
+                    "[remote-server] graceful shutdown did not finish in 2s ({} task(s) alive); aborting",
+                    survivors.len()
+                );
+                for handle in survivors {
+                    handle.abort();
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            }
+            // Verify the port actually released — this catches untracked
+            // tasks or foreign processes holding the port. Uses the same
+            // SO_REUSEADDR bind as the real listener so TIME_WAIT from the
+            // just-closed connections does not produce a false positive.
+            let addr = SocketAddr::from(([0, 0, 0, 0], port));
+            match bind_reuseaddr(addr).await {
+                Ok(_probe) => {
+                    info!("[remote-server] stop verified: port {} is free", port);
+                }
+                Err(e) => {
+                    warn!(
+                        "[remote-server] stop VERIFY FAILED: port {} still held after shutdown: {}. An untracked server task or another process is holding it.",
+                        port, e
+                    );
+                }
+            }
+        });
     }
     if let Ok(mut slot) = serve_state_slot().lock() {
         *slot = None;
@@ -266,6 +396,7 @@ async fn handle_remote_socket(socket: WebSocket, state: ServeState, authorized: 
 
     let (mut sender, mut receiver) = socket.split();
     let mut rx = state.outbound.subscribe();
+    let mut shutdown_rx = state.conn_shutdown.subscribe();
 
     let write_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
@@ -289,6 +420,9 @@ async fn handle_remote_socket(socket: WebSocket, state: ServeState, authorized: 
     tokio::select! {
         _ = write_task => {},
         _ = read_task => {},
+        // Server is stopping — exit so the WebSocket drops and graceful
+        // shutdown can finish releasing the port.
+        _ = shutdown_rx.recv() => {},
     }
 
     {
@@ -299,6 +433,43 @@ async fn handle_remote_socket(socket: WebSocket, state: ServeState, authorized: 
         "event": "disconnected",
         "clientId": client_id,
     }));
+}
+
+/// Bind a listener with SO_REUSEADDR set. On Windows this is REQUIRED to
+/// re-bind a port whose previous listener's connections are still draining in
+/// TIME_WAIT (2×MSL, minutes) — without it, every toggle-off→on fails with
+/// WSAEADDRINUSE even though no listener exists anymore. Rust/tokio's default
+/// `TcpListener::bind` does not set it on Windows. tokio's TcpSocket also
+/// serializes the bind via start_lock, so the permissive Windows SO_REUSEADDR
+/// (which allows duplicate binds) cannot bite.
+async fn bind_reuseaddr(addr: SocketAddr) -> std::io::Result<TcpListener> {
+    let socket = if addr.is_ipv4() {
+        tokio::net::TcpSocket::new_v4()?
+    } else {
+        tokio::net::TcpSocket::new_v6()?
+    };
+    socket.set_reuseaddr(true)?;
+    socket.bind(addr)?;
+    socket.listen(128)
+}
+
+async fn bind_with_retry(addr: SocketAddr, max_attempts: u32) -> std::io::Result<TcpListener> {
+    let mut last_err: Option<std::io::Error> = None;
+    for attempt in 0..max_attempts {
+        match bind_reuseaddr(addr).await {
+            Ok(listener) => return Ok(listener),
+            Err(e) => {
+                if attempt == 0 || attempt == max_attempts - 1 {
+                    warn!("[remote-server] bind {} failed (attempt {}): {}", addr, attempt + 1, e);
+                }
+                last_err = Some(e);
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+        }
+    }
+    Err(last_err.unwrap_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::AddrInUse, "bind failed")
+    }))
 }
 
 async fn serve_remote_html() -> impl IntoResponse {

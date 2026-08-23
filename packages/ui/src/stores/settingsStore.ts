@@ -1671,8 +1671,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     persistSettings({ controllerMappings: { ...DEFAULT_CONTROLLER_MAPPINGS } });
   },
 
-  // Phone Remote Server
-  remoteControlEnabled: cachedSettings?.remoteControlEnabled ?? true,
+  // Phone Remote Server (opt-in — off unless the user explicitly enables it)
+  remoteControlEnabled: cachedSettings?.remoteControlEnabled ?? false,
   setRemoteControlEnabled: (enabled) => {
     set({ remoteControlEnabled: enabled });
     persistSettings({ remoteControlEnabled: enabled });

@@ -4856,11 +4856,13 @@ pub fn run() {
             // silently bind an open port on every launch.
             let remote_enabled = read_store_setting(&app.handle(), "remoteControlEnabled")
                 .and_then(|v| v.as_bool())
-                .unwrap_or(true);
+                .unwrap_or(false);
             if remote_enabled {
                 let remote_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    let _ = web_server::web_serve_start(remote_handle, Some(web_server::DEFAULT_REMOTE_PORT)).await;
+                    if let Err(e) = web_server::web_serve_start(remote_handle, Some(web_server::DEFAULT_REMOTE_PORT)).await {
+                        log::error!("[remote-server] Failed to start Phone Remote server at launch: {}", e);
+                    }
                 });
             } else {
                 log::info!("[remote-server] Phone Remote disabled in settings; not starting server");
