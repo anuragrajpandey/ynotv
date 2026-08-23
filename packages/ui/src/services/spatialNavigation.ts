@@ -158,7 +158,16 @@ function isElementVisible(el: HTMLElement): boolean {
 }
 
 const MODAL_SELECTOR =
-  '.modal-content, [role="dialog"], .settings-modal, .advanced-search-modal, .subtitle-modal, .details-modal, .context-menu, .settings-panel, .movie-detail, .series-detail, .stremio-detail, .slg-team-play-menu, [class$="-modal"]';
+  '.modal-content, [role="dialog"], .settings-modal, .advanced-search-modal, .subtitle-modal, .details-modal, .context-menu, .settings-panel, .movie-detail, .series-detail, .stremio-detail, .slg-team-play-menu';
+
+// A class token ending in "-modal" marks a modal container. Token ends (not
+// the class-attribute suffix) matter: "game-detail-modal glass" and
+// "category-manager-modal vertical-flex" fail [class$="-modal"], which made
+// those modals invisible to the modal system. Child elements like
+// "dvr-modal-body" have no -modal-ending token, so they stay excluded.
+function isModalElement(el: HTMLElement): boolean {
+  return el.matches(MODAL_SELECTOR) || Array.from(el.classList).some((c) => c.endsWith('-modal'));
+}
 
 // Highest numeric z-index along an element's ancestor chain. Two modals can be
 // stacked (e.g. Game Detail over the Live Games picker); DOM order alone is
@@ -176,7 +185,10 @@ function modalZIndex(el: HTMLElement): number {
 
 function getOpenModals(): HTMLElement[] {
   // Newest-first DOM order (portals append in mount order).
-  return Array.from(document.querySelectorAll<HTMLElement>(MODAL_SELECTOR)).reverse().filter(isElementVisible);
+  return Array.from(document.querySelectorAll<HTMLElement>(`${MODAL_SELECTOR}, [class*="-modal"]`))
+    .filter(isModalElement)
+    .reverse()
+    .filter(isElementVisible);
 }
 
 export function getActiveModal(): HTMLElement | null {

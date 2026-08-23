@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSettingsStore } from '../stores/settingsStore';
-import { dispatchSpatialNav, onUserManualScroll } from '../services/spatialNavigation';
+import { dispatchSpatialNav, getActiveModal, onUserManualScroll } from '../services/spatialNavigation';
 
 export interface GamepadDeviceInfo {
   id: number;
@@ -63,13 +63,12 @@ function scrollActiveContainerByStick(rawX: number, rawY: number, deadzone: numb
   if (typeof document === 'undefined') return;
 
   const getScroller = (): HTMLElement | null => {
-    // 1. If an active modal is open, find its scroller
-    const modal = document.querySelector<HTMLElement>(
-      '.modal-content, [role="dialog"], .settings-modal, .advanced-search-modal, .subtitle-modal, .details-modal, .movie-detail, .series-detail, .stremio-detail'
-    );
+    // 1. If an active modal is open, find its scroller (z-aware, so stacked
+    // modals like Game Detail over the Live Games picker resolve correctly).
+    const modal = getActiveModal();
     if (modal) {
       const modalScroller = modal.querySelector<HTMLElement>(
-        '.settings-tab-content, .movie-detail__scroll, .series-detail__scroll, .stremio-detail-body, [data-virtuoso-scroller]'
+        '.settings-tab-content, .movie-detail__scroll, .series-detail__scroll, .stremio-detail-body, .game-detail-content, [data-virtuoso-scroller]'
       );
       return modalScroller || modal;
     }
