@@ -5,52 +5,53 @@ import { subscribeGamepadButtonPress, type GamepadDeviceInfo, type LiveButtonEve
 import { generateQrDataUrl } from '../../utils/qrCode';
 import './ControllersTab.css';
 
-const AVAILABLE_ACTIONS: Array<{ id: string; label: string }> = [
-  { id: 'select', label: 'Select / Play (Click)' },
-  { id: 'back', label: 'Back / Close Dialog' },
-  { id: 'nav_up', label: 'Navigate Up' },
-  { id: 'nav_down', label: 'Navigate Down' },
-  { id: 'nav_left', label: 'Navigate Left' },
-  { id: 'nav_right', label: 'Navigate Right' },
-  { id: 'play_pause', label: 'Play / Pause Toggle' },
-  { id: 'seek_forward', label: 'Fast Forward (+10s)' },
-  { id: 'seek_backward', label: 'Rewind (-10s)' },
-  { id: 'next_channel', label: 'Next Channel (Channel Up)' },
-  { id: 'prev_channel', label: 'Previous Channel (Channel Down)' },
-  { id: 'toggle_fullscreen', label: 'Toggle Fullscreen' },
-  { id: 'toggle_mute', label: 'Toggle Mute' },
-  { id: 'search', label: 'Search' },
-  { id: 'subtitles', label: 'Audio & Subtitle Tracks' },
-  { id: 'toggle_livetv', label: 'Toggle LiveTV' },
-  { id: 'toggle_nuvio', label: 'Toggle Nuvio' },
-  { id: 'toggle_stremio', label: 'Toggle Stremio' },
-  { id: 'toggle_transparent_overlay', label: 'Toggle Transparent Overlay' },
-  { id: 'toggle_overlay', label: 'Toggle Overlay' },
-  { id: 'toggle_live_game_sidebar', label: 'Open Live Games' },
-  { id: 'open_movies', label: 'Open Movies' },
-  { id: 'open_series', label: 'Open TV Series' },
-  { id: 'open_sports', label: 'Open Sports Hub' },
-  { id: 'open_settings', label: 'Open Settings' },
-  { id: 'none', label: 'None (Unassigned)' },
+// Each entry id doubles as the i18n key suffix under settings:controllers.mapping.
+const AVAILABLE_ACTIONS: Array<{ id: string }> = [
+  { id: 'select' },
+  { id: 'back' },
+  { id: 'nav_up' },
+  { id: 'nav_down' },
+  { id: 'nav_left' },
+  { id: 'nav_right' },
+  { id: 'play_pause' },
+  { id: 'seek_forward' },
+  { id: 'seek_backward' },
+  { id: 'next_channel' },
+  { id: 'prev_channel' },
+  { id: 'toggle_fullscreen' },
+  { id: 'toggle_mute' },
+  { id: 'search' },
+  { id: 'subtitles' },
+  { id: 'toggle_livetv' },
+  { id: 'toggle_nuvio' },
+  { id: 'toggle_stremio' },
+  { id: 'toggle_transparent_overlay' },
+  { id: 'toggle_overlay' },
+  { id: 'toggle_live_game_sidebar' },
+  { id: 'open_movies' },
+  { id: 'open_series' },
+  { id: 'open_sports' },
+  { id: 'open_settings' },
+  { id: 'none' },
 ];
 
-const BUTTON_CONFIG: Array<{ id: string; label: string; group: string }> = [
-  { id: 'south', label: 'A / Cross (Bottom Button)', group: 'Face Buttons' },
-  { id: 'east', label: 'B / Circle (Right Button)', group: 'Face Buttons' },
-  { id: 'west', label: 'X / Square (Left Button)', group: 'Face Buttons' },
-  { id: 'north', label: 'Y / Triangle (Top Button)', group: 'Face Buttons' },
-  { id: 'dpad_up', label: 'D-Pad Up', group: 'D-Pad' },
-  { id: 'dpad_down', label: 'D-Pad Down', group: 'D-Pad' },
-  { id: 'dpad_left', label: 'D-Pad Left', group: 'D-Pad' },
-  { id: 'dpad_right', label: 'D-Pad Right', group: 'D-Pad' },
-  { id: 'left_bumper', label: 'L1 / LB (Left Bumper)', group: 'Shoulder & Triggers' },
-  { id: 'right_bumper', label: 'R1 / RB (Right Bumper)', group: 'Shoulder & Triggers' },
-  { id: 'left_trigger', label: 'L2 / LT (Left Trigger)', group: 'Shoulder & Triggers' },
-  { id: 'right_trigger', label: 'R2 / RT (Right Trigger)', group: 'Shoulder & Triggers' },
-  { id: 'left_stick_click', label: 'L3 (Left Stick Click)', group: 'Thumbsticks' },
-  { id: 'right_stick_click', label: 'R3 (Right Stick Click)', group: 'Thumbsticks' },
-  { id: 'start', label: 'Start / Options / Menu', group: 'Menu' },
-  { id: 'select', label: 'Select / Share / Create', group: 'Menu' },
+const BUTTON_CONFIG: Array<{ id: string; group: string }> = [
+  { id: 'south', group: 'face' },
+  { id: 'east', group: 'face' },
+  { id: 'west', group: 'face' },
+  { id: 'north', group: 'face' },
+  { id: 'dpad_up', group: 'dpad' },
+  { id: 'dpad_down', group: 'dpad' },
+  { id: 'dpad_left', group: 'dpad' },
+  { id: 'dpad_right', group: 'dpad' },
+  { id: 'left_bumper', group: 'shoulders' },
+  { id: 'right_bumper', group: 'shoulders' },
+  { id: 'left_trigger', group: 'shoulders' },
+  { id: 'right_trigger', group: 'shoulders' },
+  { id: 'left_stick_click', group: 'thumbsticks' },
+  { id: 'right_stick_click', group: 'thumbsticks' },
+  { id: 'start', group: 'menu' },
+  { id: 'select', group: 'menu' },
 ];
 
 export function ControllersTab() {
@@ -411,10 +412,11 @@ export function ControllersTab() {
         {showRemotePrompt && (
           <div className="phone-remote-prompt">
             <div className="phone-remote-prompt-info">
-              <strong className="phone-remote-prompt-title">Enable Phone Remote?</strong>
+              <strong className="phone-remote-prompt-title">
+                {i18n.t('settings:controllers.remote.enablePromptTitle')}
+              </strong>
               <span className="phone-remote-prompt-text">
-                Control YNOTV from your phone over Wi-Fi — a touchpad, D-pad, and media remote. The
-                local server is off by default and starts only when you turn it on.
+                {i18n.t('settings:controllers.remote.enablePromptText')}
               </span>
             </div>
             <div className="phone-remote-prompt-actions">
@@ -425,10 +427,10 @@ export function ControllersTab() {
                   setShowRemotePrompt(false);
                 }}
               >
-                Enable
+                {i18n.t('settings:controllers.remote.enable')}
               </button>
               <button className="phone-remote-prompt-btn" onClick={() => setShowRemotePrompt(false)}>
-                Not now
+                {i18n.t('settings:controllers.remote.notNow')}
               </button>
             </div>
           </div>
@@ -436,28 +438,29 @@ export function ControllersTab() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h3 className="section-title">Virtual Phone Remote (No Hardware Needed)</h3>
-            <p className="section-desc">
-              Turn any smartphone into a wireless TV touchpad, D-pad, and media remote over your local Wi-Fi.
-              Off by default — enable it to start the local server.
-            </p>
+            <h3 className="section-title">{i18n.t('settings:controllers.remote.title')}</h3>
+            <p className="section-desc">{i18n.t('settings:controllers.remote.description')}</p>
           </div>
           <span
             className={`device-pill ${
               remoteStatus.running ? 'pill-connected' : 'pill-disconnected'
             }`}
           >
-            {remoteStatus.running ? `Server Active (Port ${remoteControlPort})` : 'Server Stopped'}
+            {remoteStatus.running
+              ? i18n.t('settings:controllers.remote.serverActive', { port: remoteControlPort })
+              : i18n.t('settings:controllers.remote.serverStopped')}
           </span>
         </div>
 
         <div className="setting-row">
           <div className="setting-info">
-            <span className="setting-label">Enable Phone Remote Server</span>
+            <span className="setting-label">{i18n.t('settings:controllers.remote.enableServer')}</span>
             <span className="setting-sublabel">
               {remoteControlEnabled
-                ? `Hosts a wireless web remote at http://${remoteStatus.local_ip}:${remoteControlPort}/remote`
-                : 'Once enabled, a QR code and connection URL appear below for pairing your phone.'}
+                ? i18n.t('settings:controllers.remote.enabledHint', {
+                    url: `http://${remoteStatus.local_ip}:${remoteControlPort}/remote`,
+                  })
+                : i18n.t('settings:controllers.remote.disabledHint')}
             </span>
           </div>
           <label className="toggle-switch">
@@ -472,10 +475,10 @@ export function ControllersTab() {
 
         {serverError && (
           <div className="phone-remote-error">
-            <strong>Server failed to start.</strong>
+            <strong>{i18n.t('settings:controllers.remote.serverFailed')}</strong>
             <span>{serverError}</span>
             <button className="phone-remote-steps-dismiss" onClick={refreshServer}>
-              Retry
+              {i18n.t('settings:controllers.remote.retry')}
             </button>
           </div>
         )}
@@ -483,15 +486,15 @@ export function ControllersTab() {
         {remoteControlEnabled && showRemoteSteps && (
           <div className="phone-remote-steps">
             <div className="phone-remote-steps-header">
-              <span className="phone-remote-steps-title">How it works</span>
+              <span className="phone-remote-steps-title">{i18n.t('settings:controllers.remote.howItWorks')}</span>
               <button className="phone-remote-steps-dismiss" onClick={dismissRemoteSteps}>
-                Got it
+                {i18n.t('settings:controllers.remote.gotIt')}
               </button>
             </div>
             <ol className="phone-remote-steps-list">
-              <li>Keep the YNOTV app running on this PC.</li>
-              <li>Scan the QR code with your phone&apos;s camera — or open the URL below.</li>
-              <li>Control YNOTV from your phone: touchpad, D-pad, and media remote.</li>
+              <li>{i18n.t('settings:controllers.remote.step1')}</li>
+              <li>{i18n.t('settings:controllers.remote.step2')}</li>
+              <li>{i18n.t('settings:controllers.remote.step3')}</li>
             </ol>
           </div>
         )}
@@ -502,7 +505,7 @@ export function ControllersTab() {
               {qrDataUrl ? (
                 <img
                   src={qrDataUrl}
-                  alt="Remote QR Code"
+                  alt={i18n.t('settings:controllers.remote.qrAlt')}
                   className="qr-img"
                   style={{
                     width: '160px',
@@ -529,33 +532,39 @@ export function ControllersTab() {
                     fontWeight: 600,
                   }}
                 >
-                  Generating QR...
+                  {i18n.t('settings:controllers.remote.generatingQr')}
                 </div>
               )}
-              <span className="qr-hint">Scan with phone camera</span>
+              <span className="qr-hint">{i18n.t('settings:controllers.remote.scanHint')}</span>
             </div>
             <div className="remote-details">
-              <span className="remote-url-label">Open on your phone's browser:</span>
+              <span className="remote-url-label">{i18n.t('settings:controllers.remote.openUrlLabel')}</span>
               <div className="remote-url-bar">
                 <span className="remote-url-text">{remoteStatus.remote_url}</span>
                 <button className="copy-btn" onClick={() => copyUrl(remoteStatus.remote_url)}>
-                  {copied ? '✓ Copied' : 'Copy'}
+                  {copied
+                    ? i18n.t('settings:controllers.remote.copied')
+                    : i18n.t('settings:controllers.remote.copy')}
                 </button>
-                <button className="open-btn" onClick={openInBrowser} title="Test in local browser">
-                  Open
+                <button
+                  className="open-btn"
+                  onClick={openInBrowser}
+                  title={i18n.t('settings:controllers.remote.testInBrowser')}
+                >
+                  {i18n.t('settings:controllers.remote.open')}
                 </button>
               </div>
 
               {remoteStatus.all_urls && remoteStatus.all_urls.length > 1 && (
                 <div className="alt-urls-box">
-                  <span className="alt-urls-title">Alternative Network Addresses:</span>
+                  <span className="alt-urls-title">{i18n.t('settings:controllers.remote.altUrlsTitle')}</span>
                   <div className="alt-urls-list">
                     {remoteStatus.all_urls.map((url) => (
                       <button
                         key={url}
                         className="alt-url-pill"
                         onClick={() => copyUrl(url)}
-                        title="Click to copy"
+                        title={i18n.t('settings:controllers.remote.clickToCopy')}
                       >
                         {url}
                       </button>
@@ -564,13 +573,11 @@ export function ControllersTab() {
                 </div>
               )}
 
-              <p className="remote-instructions">
-                Make sure your phone is connected to the same Wi-Fi network as this PC. You will have a full wireless touchpad, D-Pad, volume controls, and section shortcuts!
-              </p>
+              <p className="remote-instructions">{i18n.t('settings:controllers.remote.instructions')}</p>
 
               <div style={{ marginTop: '4px' }}>
                 <button className="restart-server-btn" onClick={refreshServer}>
-                  🔄 Restart Server on Port {remoteControlPort}
+                  {i18n.t('settings:controllers.remote.restartServer', { port: remoteControlPort })}
                 </button>
               </div>
             </div>
@@ -582,11 +589,11 @@ export function ControllersTab() {
       <div className="settings-section">
         <div className="matrix-header">
           <div>
-            <h3 className="section-title">Button Mapping Customization</h3>
-            <p className="section-desc">Choose what each controller button does</p>
+            <h3 className="section-title">{i18n.t('settings:controllers.mapping.title')}</h3>
+            <p className="section-desc">{i18n.t('settings:controllers.mapping.description')}</p>
           </div>
           <button className="reset-btn" onClick={resetControllerMappings}>
-            Reset to Defaults
+            {i18n.t('settings:controllers.mapping.reset')}
           </button>
         </div>
 
@@ -594,8 +601,16 @@ export function ControllersTab() {
           {BUTTON_CONFIG.map((btn) => (
             <div key={btn.id} className="mapping-card">
               <div className="mapping-label-box">
-                <span className="mapping-group">{btn.group}</span>
-                <span className="mapping-btn-name">{btn.label}</span>
+                <span className="mapping-group">
+                  {i18n.t(`settings:controllers.mapping.groups.${btn.group}`, {
+                    defaultValue: btn.group,
+                  })}
+                </span>
+                <span className="mapping-btn-name">
+                  {i18n.t(`settings:controllers.mapping.buttons.${btn.id}`, {
+                    defaultValue: btn.id,
+                  })}
+                </span>
               </div>
               <select
                 className="mapping-select"
@@ -608,7 +623,9 @@ export function ControllersTab() {
               >
                 {AVAILABLE_ACTIONS.map((act) => (
                   <option key={act.id} value={act.id}>
-                    {act.label}
+                    {i18n.t(`settings:controllers.mapping.actions.${act.id}`, {
+                      defaultValue: act.id,
+                    })}
                   </option>
                 ))}
               </select>

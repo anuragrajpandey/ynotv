@@ -122,6 +122,9 @@ const UNTRANSLATED_ALLOWLIST = new Set([
   'settings.strem.badgeUrlPlaceholder', 'settings.categoryManager.enterFolderNamePost',
   'settings.categoryManager.enterNewFolderNamePost', 'settings.categoryManager.deleteFolderConfirmPost',
   'settings.categoryManager.deleteFolderConfirmName',
+  // controller hardware labels (printed on the physical buttons) + universal terms
+  'settings.controllers.mapping.buttons.select', 'settings.controllers.mapping.buttons.start',
+  'settings.controllers.mapping.groups.dpad', 'settings.controllers.mapping.groups.menu',
   // brand / product names
   'nav.items.nuvio', 'nav.items.stremio', 'settings.tabs.nuvio', 'settings.tabs.strem',
   'settings.tabs.scrobbling', 'settings.tabs.simkl', 'settings.tabs.discord',
