@@ -21,6 +21,22 @@ interface HlsAbsoluteWrapperProps {
 function HlsAbsoluteWrapper({ slotId, activeView, layout, hidden, active, children }: HlsAbsoluteWrapperProps) {
     const [style, setStyle] = useState<React.CSSProperties>({ display: 'none' });
 
+    // Pick the DOM container that defines where this slot's video lives:
+    // the EPG preview grid (Guide), the Sports preview pane, or the Hero
+    // multiview layout grids. All multiview engines render as DOM elements, so
+    // any container works as long as it's on screen in the active view.
+    const containerId = () => {
+        if (activeView === 'guide') return `epg-slot-container-${slotId}`;
+        if (activeView === 'sports') return `sports-slot-container-${slotId}`;
+        return `multiview-slot-container-${slotId}`;
+    };
+
+    const zIndexFor = (view: string) => {
+        if (view === 'guide') return 1000;
+        if (view === 'sports') return 15; // above pane content, below the minibar (20)
+        return 10;
+    };
+
     useLayoutEffect(() => {
         const updatePosition = () => {
             if (!active) {
@@ -28,10 +44,7 @@ function HlsAbsoluteWrapper({ slotId, activeView, layout, hidden, active, childr
                 return;
             }
 
-            const id = activeView === 'guide' 
-                ? `epg-slot-container-${slotId}` 
-                : `multiview-slot-container-${slotId}`;
-
+            const id = containerId();
             const el = document.getElementById(id);
             if (!el) {
                 setStyle({ display: 'none' });
@@ -48,7 +61,7 @@ function HlsAbsoluteWrapper({ slotId, activeView, layout, hidden, active, childr
                 top: `${rect.top / zoom}px`,
                 width: `${rect.width / zoom}px`,
                 height: `${rect.height / zoom}px`,
-                zIndex: activeView === 'guide' ? 1000 : 10,
+                zIndex: zIndexFor(activeView),
                 pointerEvents: 'auto',
                 borderRadius: window.getComputedStyle(el).borderRadius,
                 overflow: 'hidden',
@@ -58,11 +71,7 @@ function HlsAbsoluteWrapper({ slotId, activeView, layout, hidden, active, childr
         updatePosition();
 
         let observer: ResizeObserver | null = null;
-        const targetId = activeView === 'guide' 
-            ? `epg-slot-container-${slotId}` 
-            : `multiview-slot-container-${slotId}`;
-        
-        const targetEl = document.getElementById(targetId);
+        const targetEl = document.getElementById(containerId());
         if (targetEl) {
             observer = new ResizeObserver(() => {
                 requestAnimationFrame(updatePosition);

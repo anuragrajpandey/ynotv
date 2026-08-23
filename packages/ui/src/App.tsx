@@ -34,7 +34,7 @@ import { ChannelPanel } from './components/ChannelPanel';
 import { MoviesPage } from './components/MoviesPage';
 import { SeriesPage } from './components/SeriesPage';
 import { DvrDashboard } from './components/DvrDashboard';
-import { SportsHub } from './components/sports/SportsHub';
+import { SportsHub, SportsMultiviewOverlay } from './components/sports/SportsHub';
 import { TVCalendarPage } from './components/TVCalendarPage';
 import { LiveSportsOverlay } from './components/LiveSportsOverlay';
 import { SportsLiveGameSidebar } from './components/sports/SportsLiveGameSidebar';
@@ -1829,7 +1829,6 @@ function useTmdbPresencePoster(
 
     // 3. Handle other active views that have onClose / exit logic
     if (
-      activeView === 'settings' ||
       activeView === 'dvr' ||
       activeView === 'sports' ||
       activeView === 'calendar'
@@ -4192,12 +4191,7 @@ function useTmdbPresencePoster(
           break;
 
         case 'settings':
-          if (layout !== 'main') {
-            setCats(false);
-            setView(curView === 'settings' ? 'none' : 'settings');
-          } else {
-            setSettingsPopup(!isSettingsPopup);
-          }
+          setSettingsPopup(!isSettingsPopup);
           setTimeout(() => focusViewOnOpen(), 120);
           break;
 
@@ -4217,7 +4211,6 @@ function useTmdbPresencePoster(
           } else if (isSettingsPopup) {
             setSettingsPopup(false);
           } else if (
-            curView === 'settings' ||
             curView === 'movies' ||
             curView === 'series' ||
             curView === 'sports' ||
@@ -4705,9 +4698,45 @@ function useTmdbPresencePoster(
         stremioMeta={currentStremioMeta}
         vodInfo={vodInfo}
         currentEpisode={currentStremioEpisode}
-        onOpenAppDetails={() => {
+        onOpenAppDetails={async () => {
           setShowPlaybackDetailsModal(false);
-          handleStop();
+          // Stremio/Nuvio: stopping already restores the detail page in those
+          // apps (the app keeps its own view state), so nothing else to do.
+          const isStremio = vodInfo?.source_id === 'stremio' || vodInfo?.source_id === 'trailer';
+          const isNuvio = vodInfo?.source_id === 'nuvio';
+          if (isStremio || isNuvio) {
+            await handleStop();
+            return;
+          }
+          // VOD series/movies: stop playback, then open the app's full detail
+          // page for the item that was playing (not just the browse home).
+          const store = useUIStore.getState();
+          if (vodInfo?.type === 'series' && vodInfo?.seriesId) {
+            const series = await db.vodSeries.get(vodInfo.seriesId);
+            await handleStop();
+            if (series) {
+              store.setSeriesSelectedItem(series);
+              // Open on the season being watched.
+              if (vodInfo.seasonNum) store.setSeriesSelectedSeason(vodInfo.seasonNum);
+            } else if (vodInfo.title) {
+              // Series row missing (e.g. cache cleared): fall back to a search.
+              store.setSeriesSearchQuery(vodInfo.title);
+              store.setSeriesSelectedItem(null);
+            }
+            setActiveView('series');
+          } else if (vodInfo?.type === 'movie' && vodInfo?.mediaId) {
+            const movie = await db.vodMovies.get(vodInfo.mediaId);
+            await handleStop();
+            if (movie) {
+              store.setMoviesSelectedItem(movie);
+            } else if (vodInfo.title) {
+              store.setMoviesSearchQuery(vodInfo.title);
+              store.setMoviesSelectedItem(null);
+            }
+            setActiveView('movies');
+          } else {
+            await handleStop();
+          }
         }}
         onPlayEpisode={(video) => {
           const meta = currentStremioMeta;
@@ -5121,16 +5150,9 @@ function useTmdbPresencePoster(
 
         {/* Settings Button */}
         <button
-          className={`title-bar-settings-btn ${(showSettingsPopup || activeView === 'settings') ? 'active' : ''}`}
+          className={`title-bar-settings-btn ${showSettingsPopup ? 'active' : ''}`}
           onClick={() => {
-            // In multiview (not main), use full view mode; otherwise use popup
-            if (multiviewLayout !== 'main') {
-              setCategoriesOpen(false);
-              setActiveView(activeView === 'settings' ? 'none' : 'settings');
-            } else {
-              // In main layout, settings is a popup - don't close categories
-              setShowSettingsPopup(!showSettingsPopup);
-            }
+            setShowSettingsPopup(!showSettingsPopup);
             setSettingsTab('sources');
             setEditSourceId(null);
           }}
@@ -5588,10 +5610,20 @@ function useTmdbPresencePoster(
         duration={duration}
       />
 
+      {/* Multiview slot layout over the Sports preview pane (root-level so the
+          cells render above its cutout shadow, below the hub's controls) */}
+      {activeView === 'sports' && multiviewLayout !== 'main' && previewVideoRect && (
+        <SportsMultiviewOverlay rect={previewVideoRect} layout={multiviewLayout} />
+      )}
+
       {/* Multiview Layout */}
       {multiviewLayout !== 'main' && (
         <MultiviewLayout
-          hidden={activeView !== 'none' && activeView !== 'guide'}
+          // The layout grids hide themselves whenever activeView !== 'none', so
+          // this gate only controls whether the slot CELLS keep streaming. Sports
+          // renders its own slot containers inside the preview pane, so the cells
+          // must stay alive there (like Guide) instead of stopping.
+          hidden={activeView !== 'none' && activeView !== 'guide' && activeView !== 'sports'}
           layout={multiviewLayout}
           slots={multiviewSlots}
           engineMode={multiviewEngineMode}
@@ -5808,7 +5840,7 @@ function useTmdbPresencePoster(
         onEditSource={(sourceId) => {
           setSettingsTab('sources');
           setEditSourceId(sourceId);
-          setActiveView('settings');
+          setShowSettingsPopup(true);
           setCategoriesOpen(false);
         }}
         onClose={() => {
@@ -5924,8 +5956,8 @@ function useTmdbPresencePoster(
         }
       />
 
-      {/* Settings Panel - as popup overlay in main layout, or full view in multiview */}
-      {(showSettingsPopup || activeView === 'settings') && (
+      {/* Settings Panel - as popup overlay */}
+      {showSettingsPopup && (
         <Settings
           language={language}
           onLanguageChange={setLanguage}
@@ -5998,11 +6030,7 @@ function useTmdbPresencePoster(
           onConsumePendingSubTab={() => setPendingSettingsSubTab(null)}
           editSourceId={editSourceId}
           onClose={() => {
-            if (showSettingsPopup) {
-              setShowSettingsPopup(false);
-            } else {
-              setActiveView('none');
-            }
+            setShowSettingsPopup(false);
             setEditSourceId(null);
           }}
           onShortcutsChange={setShortcuts}
@@ -6131,6 +6159,7 @@ function useTmdbPresencePoster(
           onChannelUp={handleChannelUp}
           onChannelDown={handleChannelDown}
           onPreviewVideoRectChange={setPreviewVideoRect}
+          multiviewLayout={multiviewLayout}
           sportsOverlayWidget={sportsOverlayWidget}
           onSportsOverlayWidgetChange={(mode) => {
             if (mode === null) {

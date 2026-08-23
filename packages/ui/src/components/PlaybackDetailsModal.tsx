@@ -5,8 +5,9 @@ import type { VodPlayInfo } from '../types/media';
 import { useLazyStremioCast, type StremioCastMember } from '../hooks/useLazyStremioCast';
 import { useLazyStremioRecommendations, type RecommendationItem } from '../hooks/useLazyStremioRecommendations';
 import { useActiveTmdbToken } from '../hooks/useTmdbLists';
-import { useSeriesById, useSeriesDetails } from '../hooks/useVod';
+import { useMovie, useSeriesById, useSeriesDetails } from '../hooks/useVod';
 import { useLazySeriesExtras } from '../hooks/useLazySeriesExtras';
+import { useLazyBackdrop } from '../hooks/useLazyBackdrop';
 import './PlaybackDetailsModal.css';
 
 export interface PlaybackDetailsModalProps {
@@ -408,6 +409,24 @@ export function PlaybackDetailsModal({
   const [expandedOverview, setExpandedOverview] = useState(false);
   const tmdbToken = useActiveTmdbToken();
 
+  // If the caller didn't provide a usable backdrop (some playback entry points
+  // only carry a raw provider path), look the item up and lazy-fetch a real
+  // backdrop from TMDB/TVMaze so the banner always has a chance to load.
+  const explicitBackdrop = vodInfo?.backdropUrl;
+  const needsLazyBackdrop =
+    !stremioMeta?.background &&
+    !(explicitBackdrop && /^https?:\/\//i.test(explicitBackdrop));
+  const { series: vodSeriesForBackdrop } = useSeriesById(
+    needsLazyBackdrop && vodInfo?.type === 'series' && vodInfo?.seriesId ? vodInfo.seriesId : null
+  );
+  const { movie: vodMovieForBackdrop } = useMovie(
+    needsLazyBackdrop && vodInfo?.type === 'movie' && vodInfo?.mediaId ? vodInfo.mediaId : null
+  );
+  const lazyBackdropUrl = useLazyBackdrop(
+    vodSeriesForBackdrop ?? vodMovieForBackdrop,
+    tmdbToken
+  );
+
   useEffect(() => {
     if (open) {
       setView('title');
@@ -436,7 +455,17 @@ export function PlaybackDetailsModal({
   // Derived metadata from StremioMeta or VodPlayInfo
   const title = stremioMeta?.name || vodInfo?.title || t('unknownTitle');
   const poster = stremioMeta?.poster || vodInfo?.posterUrl || null;
-  const backdrop = stremioMeta?.background || vodInfo?.backdropUrl || null;
+  // A raw relative path (e.g. a provider backdrop_path passed without an
+  // absolute base) would render as a broken image — prefer the lazy-fetched
+  // URL in that case. Last resort: the poster/cover so the banner isn't empty.
+  const backdrop =
+    stremioMeta?.background ||
+    (explicitBackdrop && /^https?:\/\//i.test(explicitBackdrop) ? explicitBackdrop : null) ||
+    lazyBackdropUrl ||
+    vodSeriesForBackdrop?.cover ||
+    vodMovieForBackdrop?.stream_icon ||
+    explicitBackdrop ||
+    null;
   const overview =
     stremioMeta?.description ||
     vodInfo?.plot ||

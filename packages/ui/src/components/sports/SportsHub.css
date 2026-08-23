@@ -294,6 +294,91 @@
   border: var(--sports-pane-preview-border, none);
 }
 
+/* ── MULTIVIEW OVERLAY OVER THE PREVIEW PANE ─────────────────────────
+   Rendered in the root stacking context (NOT inside .sports-hub, which is a
+   z-100 context) so the black box-shadow cutout on .sports-mv-main paints
+   below the multiview cells (z-15) instead of covering them: the native main
+   video shows through the transparent main cell, the shadow hides its bleed
+   elsewhere, and the slot cells draw their own streams on top. The hub (z-100,
+   transparent over the pane) and its mini bar / resize handle stay above. */
+.sports-mv-layout {
+  position: fixed;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sports-mv-main {
+  position: relative;
+  pointer-events: none;
+  box-shadow: 0 0 0 4000px #000;
+}
+
+/* Side by side: two 16:9 cells centered vertically */
+.sports-mv-sbs {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+}
+
+.sports-mv-sbs .sports-mv-main,
+.sports-mv-sbs .sports-mv-slot {
+  width: 100%;
+  height: auto;
+  max-width: calc(50% - 1px);
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+/* 2x2 (and bigbottom, which renders as 2x2 in Sports): the grid fills the
+   pane like the Hero page, but each quadrant centers a 16:9 cell so the
+   videos never stretch to the quadrant's shape. The letterbox inside each
+   quadrant is covered by the main-cell cutout shadow (black). */
+.sports-mv-2x2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+}
+
+.sports-mv-2x2 .sports-mv-quad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sports-mv-2x2 .sports-mv-quad .sports-mv-main,
+.sports-mv-2x2 .sports-mv-quad .sports-mv-slot {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.sports-mv-2x2 .sports-mv-slot {
+  pointer-events: all;
+}
+
+/* PiP: main fills the whole pane, slot 2 floats in the corner (above the
+   mini media bar, below the resizer handle) */
+.sports-mv-pip {
+  position: absolute;
+  bottom: 56px;
+  right: 12px;
+  width: 320px;
+  height: 180px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  z-index: 6;
+  pointer-events: all;
+}
+
 /* Filler overlays that cover empty space around the centered video */
 .sports-preview-filler {
   position: absolute;

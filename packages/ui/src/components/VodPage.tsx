@@ -40,6 +40,7 @@ import {
   useCinemetaHero,
 } from '../hooks/useCinemetaCatalogs';
 import { useTmdbApiKey } from '../hooks/useTmdbLists';
+import { getTmdbImageUrl, TMDB_BACKDROP_SIZES } from '../services/tmdb';
 import {
   useMoviesCategory,
   useSetMoviesCategory,
@@ -738,6 +739,10 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
         type: 'movie',
         source_id: movie.source_id,
         mediaId: movie.stream_id,
+        // Mirror MovieDetail: absolute backdrop URL (or provider poster).
+        backdropUrl: movie.backdrop_path
+          ? (getTmdbImageUrl(movie.backdrop_path, TMDB_BACKDROP_SIZES.large) || movie.stream_icon || undefined)
+          : (movie.stream_icon || undefined),
         tmdbId: movie.tmdb_id,
         imdbId: movie.imdb_id,
       }, targetMode);
@@ -845,7 +850,12 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
           episodeNum: targetEp.episode_num,
           episodeId: targetEp.id,
           posterUrl: series.cover || (series as any).stream_icon || (series as any).poster || undefined,
-          backdropUrl: series.backdrop_path || undefined,
+          // backdrop_path is often a relative TMDB path (e.g. /abc123.jpg) or
+          // a provider-relative path — wrap it so the image URL is absolute;
+          // fall back to the cover like SeriesDetail does.
+          backdropUrl: series.backdrop_path
+            ? (getTmdbImageUrl(series.backdrop_path, TMDB_BACKDROP_SIZES.large) || series.cover || undefined)
+            : (series.cover || undefined),
           tmdbId: series.tmdb_id,
           imdbId: series.imdb_id,
         }, targetMode);

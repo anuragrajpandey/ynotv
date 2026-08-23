@@ -113,12 +113,7 @@ export function useNavigation(options: UseNavigationOptions): NavigationState {
       if (customEvent.detail?.subTab) {
         setPendingSettingsSubTab(customEvent.detail.subTab);
       }
-      // Open as popup if in main layout, otherwise as full view
-      if (multiviewLayoutRef.current === 'main') {
-        setShowSettingsPopup(true);
-      } else {
-        setActiveView('settings');
-      }
+      setShowSettingsPopup(true);
     };
     window.addEventListener('open-settings', handleOpenSettings);
     return () => window.removeEventListener('open-settings', handleOpenSettings);

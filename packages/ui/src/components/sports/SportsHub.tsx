@@ -20,6 +20,7 @@ import { WorldCupTab } from './WorldCupTab';
 import { SportsScoresOverlay } from './SportsScoresOverlay';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import type { LayoutMode } from '../../hooks/useMultiview';
 import './SportsHub.css';
 
 interface SportsHubProps {
@@ -38,6 +39,9 @@ interface SportsHubProps {
   aspectRatio?: AspectRatioMode;
   onSetAspectRatio?: (mode: AspectRatioMode) => void;
   onPreviewVideoRectChange?: (rect: { left: number; top: number; width: number; height: number } | null) => void;
+  // Active multiview layout (when set and not 'main', the secondary slots are
+  // rendered inside the preview pane so the multiview follows you into Sports).
+  multiviewLayout?: LayoutMode;
   sportsOverlayWidget?: 'autohide' | 'persistent' | null;
   onSportsOverlayWidgetChange?: (mode: 'autohide' | 'persistent' | null) => void;
   sportsLiveSidebarWidget?: boolean;
@@ -59,6 +63,7 @@ export function SportsHub({
   aspectRatio = 'fit',
   onSetAspectRatio,
   onPreviewVideoRectChange,
+  multiviewLayout = 'main',
   sportsOverlayWidget,
   onSportsOverlayWidgetChange,
   sportsLiveSidebarWidget,
@@ -181,6 +186,9 @@ export function SportsHub({
   // Compute mini bar visibility based on hover state
   const isMiniBarVisible = previewHovered || miniBarHovered;
 
+  // Multiview is on when the user picked a layout with secondary slots
+  const multiviewActive = multiviewLayout !== 'main';
+
   // Resize persistence state
   const [previewHeightPx, setPreviewHeightPx] = useState(() => {
     const saved = localStorage.getItem('sportsPreviewHeight');
@@ -220,7 +228,36 @@ export function SportsHub({
       if (isSyncing) return;
       isSyncing = true;
 
-      const clientRect = previewRef.current.getBoundingClientRect();
+      // The pane rect drives the root-level multiview overlay position and the
+      // liquid-glass cutout — always report the pane itself.
+      const paneRect = previewRef.current.getBoundingClientRect();
+
+      if (paneRect.width === 0 || paneRect.height === 0) {
+        onPreviewVideoRectChange?.(null);
+        isSyncing = false;
+        return;
+      }
+
+      onPreviewVideoRectChange?.({
+        left: paneRect.left,
+        top: paneRect.top,
+        width: paneRect.width,
+        height: paneRect.height,
+      });
+
+      // In multiview layouts the main MPV window fills only its own cell (like
+      // the Hero page placeholder). The main cell lives in the root-level
+      // sports-mv overlay (which the pane rect above positions), so query the
+      // document. Falls back to the full pane while the overlay mounts.
+      let targetEl: HTMLElement = previewRef.current;
+      if (multiviewLayout !== 'main' && multiviewLayout !== 'pip') {
+        const mainCell = document.querySelector<HTMLElement>('.sports-mv-main');
+        if (mainCell && mainCell.getBoundingClientRect().width > 0) {
+          targetEl = mainCell;
+        }
+      }
+
+      const clientRect = targetEl.getBoundingClientRect();
       const rect = {
         left: clientRect.left,
         top: clientRect.top,
@@ -229,19 +266,6 @@ export function SportsHub({
         width: clientRect.width,
         height: clientRect.height,
       };
-
-      if (rect.width === 0 || rect.height === 0) {
-        onPreviewVideoRectChange?.(null);
-        isSyncing = false;
-        return;
-      }
-
-      onPreviewVideoRectChange?.({
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-        height: rect.height,
-      });
 
       // Reset empty space filler overlays (handled natively by MPV window bounding box now)
       if (fillerLeftRef.current) fillerLeftRef.current.style.width = '0px';
@@ -360,7 +384,7 @@ export function SportsHub({
       cancelAnimationFrame(animationFrameId);
       onPreviewVideoRectChange?.(null);
     };
-  }, [previewEnabled, aspectRatio, visible, transitionCompleted]);
+  }, [previewEnabled, aspectRatio, visible, transitionCompleted, multiviewLayout]);
 
   const handleSearchChannels = useCallback((channelName: string) => {
     if (onSearchChannels) {
@@ -648,11 +672,16 @@ export function SportsHub({
                 }}
                 title={i18n.t('sports:doubleClickFullscreen')}
               >
-                {/* Opaque fillers that cover the empty space around the centered video */}
-                <div ref={fillerLeftRef} className="sports-preview-filler sports-preview-filler-left" />
-                <div ref={fillerRightRef} className="sports-preview-filler sports-preview-filler-right" />
-                <div ref={fillerTopRef} className="sports-preview-filler sports-preview-filler-top" />
-                <div ref={fillerBottomRef} className="sports-preview-filler sports-preview-filler-bottom" />
+                {/* Opaque fillers that cover the empty space around the centered video.
+                    In multiview the layout cutouts handle the empty space instead. */}
+                {!multiviewActive && (
+                  <>
+                    <div ref={fillerLeftRef} className="sports-preview-filler sports-preview-filler-left" />
+                    <div ref={fillerRightRef} className="sports-preview-filler sports-preview-filler-right" />
+                    <div ref={fillerTopRef} className="sports-preview-filler sports-preview-filler-top" />
+                    <div ref={fillerBottomRef} className="sports-preview-filler sports-preview-filler-bottom" />
+                  </>
+                )}
 
                 {/* Resizer Handle */}
                 <div
@@ -801,6 +830,64 @@ export function SportsHub({
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+/**
+ * Root-level overlay that defines where each multiview slot lives inside the
+ * Sports preview pane. Rendered outside .sports-hub (which is a z-100 stacking
+ * context) so the black box-shadow cutout on .sports-mv-main paints BELOW the
+ * multiview cells instead of covering them, while the mini media bar and the
+ * resize handle (inside the hub) still paint above the cells.
+ */
+export function SportsMultiviewOverlay({
+  rect,
+  layout,
+}: {
+  rect: { left: number; top: number; width: number; height: number };
+  layout: LayoutMode;
+}) {
+  const zoom =
+    parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-zoom').trim()) || 1;
+
+  // In Sports, big+bottom renders as a 2x2 grid too — the preview pane is too
+  // wide/short for a meaningful "big" cell plus a bottom bar.
+  const displayLayout: LayoutMode = layout === 'bigbottom' ? '2x2' : layout;
+
+  return (
+    <div
+      className={`sports-mv-layout sports-mv-${displayLayout}`}
+      style={{
+        left: `${rect.left / zoom}px`,
+        top: `${rect.top / zoom}px`,
+        width: `${rect.width / zoom}px`,
+        height: `${rect.height / zoom}px`,
+      }}
+    >
+      {displayLayout === 'pip' ? (
+        <div id="sports-slot-container-2" className="sports-mv-slot sports-mv-pip" />
+      ) : displayLayout === 'sbs' ? (
+        <>
+          <div className="sports-mv-main" />
+          <div id="sports-slot-container-2" className="sports-mv-slot" />
+        </>
+      ) : (
+        <>
+          <div className="sports-mv-quad">
+            <div className="sports-mv-main" />
+          </div>
+          <div className="sports-mv-quad">
+            <div id="sports-slot-container-2" className="sports-mv-slot" />
+          </div>
+          <div className="sports-mv-quad">
+            <div id="sports-slot-container-3" className="sports-mv-slot" />
+          </div>
+          <div className="sports-mv-quad">
+            <div id="sports-slot-container-4" className="sports-mv-slot" />
+          </div>
+        </>
+      )}
     </div>
   );
 }
