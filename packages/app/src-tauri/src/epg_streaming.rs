@@ -341,7 +341,7 @@ pub async fn stream_parse_epg<R: tauri::Runtime>(
     };
 
     let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(12))
         .timeout(std::time::Duration::from_secs(300))
         .pool_max_idle_per_host(10)
         .danger_accept_invalid_certs(true)  // Accept self-signed/invalid certificates
@@ -528,7 +528,7 @@ pub async fn stream_parse_epg_multi<R: tauri::Runtime>(
     };
 
     let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(12))
         .timeout(std::time::Duration::from_secs(300))
         .pool_max_idle_per_host(10)
         .danger_accept_invalid_certs(true)

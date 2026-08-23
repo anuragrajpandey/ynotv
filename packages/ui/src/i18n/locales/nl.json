@@ -426,7 +426,8 @@
       "strem": "Strem",
       "subtitles": "Ondertitels & Audio",
       "theme": "Thema",
-      "ui": "Interface"
+      "ui": "Interface",
+      "controllers": "Controllers & afstandsbediening"
     },
     "title": "Instellingen",
     "ui": {

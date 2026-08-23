@@ -426,7 +426,8 @@
       "strem": "Strem",
       "subtitles": "字幕与音频",
       "theme": "主题",
-      "ui": "界面"
+      "ui": "界面",
+      "controllers": "控制器与遥控器"
     },
     "title": "设置",
     "ui": {

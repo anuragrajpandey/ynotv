@@ -426,7 +426,8 @@
       "strem": "Strem",
       "subtitles": "Titrat dhe audio",
       "theme": "Tema",
-      "ui": "Ndërfaqja"
+      "ui": "Ndërfaqja",
+      "controllers": "Kontrolluesit dhe telekomanda"
     },
     "title": "Cilësimet",
     "ui": {

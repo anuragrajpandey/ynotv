@@ -426,7 +426,8 @@
       "strem": "Strem",
       "subtitles": "Legendas e áudio",
       "theme": "Tema",
-      "ui": "UI"
+      "ui": "UI",
+      "controllers": "Controles e controle remoto"
     },
     "title": "Configurações",
     "ui": {

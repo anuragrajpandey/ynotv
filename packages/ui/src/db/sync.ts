@@ -5,7 +5,7 @@ import type { Source, Channel, Category, Movie, Series } from '@ynotv/core';
 import { useUIStore } from '../stores/uiStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { bulkOps, type BulkChannel, type BulkCategory } from '../services/bulk-ops';
-import { epgStreaming, type EpgProgressCallback, type EpgParseResult } from '../services/epg-streaming';
+import { epgStreaming, getEpgUrlCandidates, type EpgProgressCallback, type EpgParseResult } from '../services/epg-streaming';
 import { dbEvents } from './sqlite-adapter';
 import { matchAllMoviesLazy, matchAllSeriesLazy } from '../services/title-match';
 import type { GlobalEpgLink } from '../types/app';
@@ -257,6 +257,36 @@ function sanitizeSeries(series: any, existingSeries?: any): any {
   return clean;
 }
 
+/**
+ * Persists a working fallback EPG URL so subsequent syncs and the UI
+ * automatically use the working URL as default.
+ */
+async function persistWorkingEpgUrl(source: Source, workingUrl: string, originalUrl?: string): Promise<void> {
+  if (!workingUrl || !source?.id) return;
+
+  try {
+    // 1. Update sourcesMeta table in DB so UI immediately reflects working EPG URL
+    await bulkOps.updateSourceMeta({
+      source_id: source.id,
+      epg_url: workingUrl,
+    });
+    dbEvents.notify('sourcesMeta', 'update');
+
+    // 2. If source.epg_url was explicitly set or differs from workingUrl, update source storage
+    if (window.storage?.saveSource && source.epg_url !== workingUrl) {
+      const updatedSource = {
+        ...source,
+        epg_url: workingUrl,
+      };
+      await window.storage.saveSource(updatedSource);
+      console.log(`[EPG] Persisted working EPG URL as default for source "${source.name || source.id}": ${workingUrl}`);
+      debugLog(`Persisted working EPG URL as default for source "${source.name || source.id}": ${workingUrl}`, 'epg');
+    }
+  } catch (err) {
+    console.warn(`[EPG] Failed to persist working EPG URL for source "${source.name || source.id}":`, err);
+  }
+}
+
 // Sync EPG from XMLTV URL(s) for M3U sources using streaming parser
 async function syncEpgFromUrl(
   source: Source,
@@ -313,7 +343,7 @@ async function syncEpgFromUrl(
       return 0;
     }
 
-    // Use streaming EPG parser
+    // Use streaming EPG parser with candidate fallback
     const result = await epgStreaming.streamParseEpg(
       source.id,
       source.name || source.id,
@@ -330,6 +360,11 @@ async function syncEpgFromUrl(
       true, // clearExisting = true for main EPG
       source.user_agent
     );
+
+    // If a working URL was found, persist it as the default EPG URL for this source
+    if (result.working_url) {
+      await persistWorkingEpgUrl(source, result.working_url, epgUrl);
+    }
 
     debugLog(
       `Matched ${result.matched_programs}/${result.total_programs} programs (${result.unmatched_channels} unmatched EPG channels)`,
@@ -379,17 +414,11 @@ async function syncEpgForSource(source: Source, channels: Channel[], epgUrl?: st
   debugLog(`Starting EPG sync with Rust streaming parser for source: ${source.name || source.id}`, 'epg');
 
   // Use the provided EPG URL or construct from source.url
-  let xmltvUrl = epgUrl || `${source.url}/xmltv.php?username=${encodeURIComponent(source.username)}&password=${encodeURIComponent(source.password)}`;
-  
-  // Convert HTTPS to HTTP for EPG URLs to avoid TLS certificate issues
-  // Many IPTV providers have misconfigured HTTPS on their EPG endpoints
-  if (xmltvUrl.startsWith('https://')) {
-    xmltvUrl = xmltvUrl.replace('https://', 'http://');
-    console.log(`[EPG] Converted HTTPS to HTTP for EPG URL: ${xmltvUrl.substring(0, 80)}...`);
-  }
-  
-  console.log(`[EPG] Streaming XMLTV from: ${xmltvUrl.substring(0, 80)}...`);
-  debugLog(`Streaming XMLTV from: ${xmltvUrl}`, 'epg');
+  const primaryXmltvUrl = epgUrl || `${source.url}/xmltv.php?username=${encodeURIComponent(source.username)}&password=${encodeURIComponent(source.password)}`;
+  const candidateUrls = getEpgUrlCandidates(primaryXmltvUrl, source.url, source.username, source.password);
+
+  console.log(`[EPG] Candidate URLs for ${source.name || source.id}:`, candidateUrls);
+  debugLog(`Streaming XMLTV from candidates: ${candidateUrls[0]} (total ${candidateUrls.length} candidate(s))`, 'epg');
 
   try {
     // Load user-applied EPG channel ID overrides so they win over the raw channel value
@@ -407,18 +436,24 @@ async function syncEpgForSource(source: Source, channels: Channel[], epgUrl?: st
     console.log(`[EPG] Channels with EPG mapping (tvg-id or name): ${channelMappings.length}/${channels.length}`);
     debugLog(`${channelMappings.length}/${channels.length} channels have epg_channel_id`, 'epg');
 
-    // Use native Rust streaming parser for maximum performance
-    // This downloads, parses, matches, and inserts all in Rust
-    const result = await invoke<EpgParseResult>('stream_parse_epg', {
-      sourceId: source.id,
-      sourceName: source.name || source.id,
-      epgUrl: xmltvUrl,
+    // Use native Rust streaming parser for maximum performance with automatic fallback retry
+    const result = await epgStreaming.streamParseEpg(
+      source.id,
+      source.name || source.id,
+      primaryXmltvUrl,
       channelMappings,
-      advancedEpgMatching: source.advanced_epg_matching ?? false,
-      timeshiftHours: source.epg_timeshift_hours ?? 0,
-      clearExisting: true,
-      userAgent: source.user_agent || null,
-    });
+      undefined,
+      source.advanced_epg_matching ?? false,
+      source.epg_timeshift_hours ?? 0,
+      true,
+      source.user_agent,
+      candidateUrls
+    );
+
+    // If a working URL was found, persist it as the default EPG URL for this source
+    if (result.working_url) {
+      await persistWorkingEpgUrl(source, result.working_url, epgUrl);
+    }
 
     console.log(`[EPG] Rust streaming parser COMPLETE:`);
     console.log(`  - Total programs in XML: ${result.total_programs}`);
@@ -927,17 +962,22 @@ async function syncAdditionalEpgUrls(
   const epgOverrideMap = await loadEpgChannelOverrideMap();
   let totalInserted = 0;
 
-  for (let i = 0; i < source.additional_epg_urls.length; i++) {
+  const additionalUrls = source.additional_epg_urls;
+  if (!additionalUrls || additionalUrls.length === 0) {
+    return 0;
+  }
+
+  for (let i = 0; i < additionalUrls.length; i++) {
     if (channelsNeedingEpg.length === 0) break;
 
-    const epgUrl = source.additional_epg_urls[i].trim();
+    const epgUrl = additionalUrls[i].trim();
     if (!epgUrl) continue;
 
     debugLog(
-      `Additional EPG ${i + 1}/${source.additional_epg_urls.length}: ${epgUrl.substring(0, 80)}...`,
+      `Additional EPG ${i + 1}/${additionalUrls.length}: ${epgUrl.substring(0, 80)}...`,
       'epg'
     );
-    onProgress?.(`Updating EPG (additional ${i + 1}/${source.additional_epg_urls.length})...`);
+    onProgress?.(`Updating EPG (additional ${i + 1}/${additionalUrls.length})...`);
 
     try {
       // Build channel mappings for Rust parser
@@ -981,6 +1021,25 @@ async function syncAdditionalEpgUrls(
         `Additional EPG ${i + 1}: inserted ${result.inserted_programs} programs`,
         'epg'
       );
+
+      // If a fallback URL was used and differs from the configured URL, persist it
+      if (result.working_url && result.working_url !== epgUrl) {
+        const updatedAdditional: string[] = [...additionalUrls];
+        updatedAdditional[i] = result.working_url;
+        source.additional_epg_urls = updatedAdditional;
+        try {
+          if (window.storage?.saveSource) {
+            await window.storage.saveSource({
+              ...source,
+              additional_epg_urls: updatedAdditional,
+            });
+            console.log(`[EPG] Persisted working additional EPG URL (${i + 1}): ${result.working_url}`);
+            debugLog(`Persisted working additional EPG URL (${i + 1}): ${result.working_url}`, 'epg');
+          }
+        } catch (saveErr) {
+          console.warn('[EPG] Failed to persist working additional EPG URL:', saveErr);
+        }
+      }
 
       if (result.inserted_programs === 0) {
         console.warn(`[EPG] Additional EPG ${i + 1}: No programs inserted!`);
@@ -2226,7 +2285,14 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
             if (!url.startsWith('http://') && !url.startsWith('https://')) {
               url = `${server_protocol === 'https' ? 'https' : 'http'}://${url}`;
             }
-            epgUrl = `${url}:${port}/xmltv.php?username=${source.username}&password=${source.password}`;
+            if (url.startsWith('https://') && port === '80') {
+              url = url.replace('https://', 'http://');
+            } else if (url.startsWith('http://') && port === '443') {
+              url = url.replace('http://', 'https://');
+            }
+            const isStandardPort = (url.startsWith('https://') && port === '443') || (url.startsWith('http://') && port === '80');
+            const portSuffix = port && !isStandardPort ? `:${port}` : '';
+            epgUrl = `${url}${portSuffix}/xmltv.php?username=${source.username}&password=${source.password}`;
           }
 
           debugLog(`Native Rust Sync for Xtream: ${source.url}`, 'sync');
@@ -2362,8 +2428,15 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
           const scheme = server_protocol === 'https' ? 'https' : 'http';
           url = `${scheme}://${url}`;
         }
+        if (url.startsWith('https://') && port === '80') {
+          url = url.replace('https://', 'http://');
+        } else if (url.startsWith('http://') && port === '443') {
+          url = url.replace('http://', 'https://');
+        }
+        const isStandardPort = (url.startsWith('https://') && port === '443') || (url.startsWith('http://') && port === '80');
+        const portSuffix = port && !isStandardPort ? `:${port}` : '';
         // Xtream typically serves EPG at /xmltv.php
-        epgUrl = `${url}:${port}/xmltv.php?username=${source.username}&password=${source.password}`;
+        epgUrl = `${url}${portSuffix}/xmltv.php?username=${source.username}&password=${source.password}`;
         debugLog(`Constructed EPG URL from server_info: ${epgUrl}`, 'sync');
       }
     } else if (source.type === 'stalker') {

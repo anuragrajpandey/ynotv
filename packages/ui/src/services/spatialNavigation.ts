@@ -28,6 +28,8 @@ const INTERACTIVE_SELECTOR = [
   '.media-card',
   '.movie-card',
   '.series-card',
+  '.playlist-card',
+  '.local-card__poster-wrap',
   '.stremio-card',
   '.stremio-row-card',
   '.stremio-meta-card',
@@ -210,6 +212,17 @@ function getFocusCandidates(): HTMLElement[] {
       return false;
     }
 
+    // Playlist and Local cards own their D-pad navigation as single targets;
+    // their inner action/play/resume/remove buttons (including divs with
+    // role="button", like the local hover play button) are mouse-only helpers
+    // and must not be reachable with directional keys.
+    if (
+      (el.tagName === 'BUTTON' || (el.tagName === 'DIV' && el.getAttribute('role') === 'button')) &&
+      (el.closest('.playlist-card') || el.closest('.local-card'))
+    ) {
+      return false;
+    }
+
     return true;
   });
 }
@@ -221,7 +234,9 @@ function scrollIntoViewTv(el: HTMLElement) {
     el.classList.contains('movie-card') ||
     el.classList.contains('series-card') ||
     el.classList.contains('nuvio-card') ||
-    el.classList.contains('stremio-card');
+    el.classList.contains('stremio-card') ||
+    el.classList.contains('playlist-card') ||
+    el.classList.contains('local-card__poster-wrap');
   const edgePaddingY = isCard ? 24 : 12;
   const edgePaddingX = isCard ? 32 : 16;
 
@@ -977,13 +992,26 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
       }
     }
 
-    // 6. Moving right from the VOD sidebar always enters the posters — never
+    // 6. Moving right from the VOD sidebar always enters the content — never
     // the toolbar or search (when the grid is scrolled deep, those have a
     // smaller weighted distance than the below-the-fold cards and would win).
     // The card whose row contains the current item wins outright; otherwise
-    // the nearest card wins and the grid scrolls to it.
+    // the nearest card wins and the grid scrolls to it. Local poster wraps are
+    // cards too (LocalTab renders .local-card, not .media-card), and playlist
+    // cards (overview) — plus everything inside an open .playlists-view
+    // (detail rows, toolbar) — are valid targets so Left→Right returns into
+    // the playlists.
     if (dir === 'right' && isVodSidebarItem) {
-      if (!cand.classList.contains('media-card')) continue;
+      const playlistsViewEl = document.querySelector<HTMLElement>('.playlists-view');
+      const playlistsViewOpen = !!playlistsViewEl && isElementVisible(playlistsViewEl);
+      if (
+        !cand.classList.contains('media-card') &&
+        !cand.classList.contains('local-card__poster-wrap') &&
+        !cand.classList.contains('playlist-card') &&
+        !(playlistsViewOpen && cand.closest('.playlists-view'))
+      ) {
+        continue;
+      }
       if (rect.top <= curCenter.y && rect.bottom >= curCenter.y) {
         score -= 800;
       } else if (Math.abs(dy) < 260) {
@@ -1081,6 +1109,11 @@ export function moveSpatialFocus(dir: SpatialDir): boolean {
 }
 
 export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): boolean {
+  // Any remote/controller press — directional moves, select, or back — is user
+  // activity: emit the same signal a mouse move sends, so the auto-hiding
+  // titlebar and hero overlay appear and the auto-hide timer resets.
+  window.dispatchEvent(new CustomEvent('ynotv:spatial-activity'));
+
   if (action === 'up' || action === 'down' || action === 'left' || action === 'right') {
     return moveSpatialFocus(action);
   }
@@ -1090,10 +1123,17 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
     if (active && active !== document.body) {
       let actionable: HTMLElement = active;
 
-      // 1. If active is a sortable wrapper div, resolve to the inner button
+      // 1. If active is a sortable wrapper div, resolve to the inner button.
+      // Playlist and Local cards are excluded: they're DIVs containing buttons
+      // (Local's Refresh-metadata/Fix-match buttons sit INSIDE the poster
+      // wrap), but the card itself is the nav target — pressing OK opens the
+      // playlist / detail page, and the inner buttons are mouse-only.
       if (
         active.classList.contains('sortable-sidebar-item') ||
-        (active.tagName === 'DIV' && active.querySelector('button.category-item, button.category-folder-header, button'))
+        (active.tagName === 'DIV' &&
+          !active.classList.contains('playlist-card') &&
+          !active.classList.contains('local-card__poster-wrap') &&
+          active.querySelector('button.category-item, button.category-folder-header, button'))
       ) {
         const innerBtn = active.querySelector<HTMLElement>(
           'button.category-item, button.category-folder-header, button:not(.favorite-btn):not(.fav-btn):not([aria-label*="favorite" i]), a, input'
@@ -1113,7 +1153,9 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
         active.classList.contains('movie-card') ||
         active.classList.contains('series-card') ||
         active.classList.contains('sports-card') ||
-        active.classList.contains('program-block')
+        active.classList.contains('program-block') ||
+        active.classList.contains('playlist-card') ||
+        active.classList.contains('local-card__poster-wrap')
       ) {
         actionable = active;
       } else {
@@ -1154,7 +1196,7 @@ export function dispatchSpatialNav(action: SpatialDir | 'select' | 'back'): bool
       const isAlphabetSelection = Boolean(active.closest('.alphabet-rail'));
       if (isAlphabetSelection) {
         setTimeout(() => {
-          const firstCard = document.querySelector<HTMLElement>('.vod-browse__grid .media-card, .local-grid .media-card, .media-card');
+          const firstCard = document.querySelector<HTMLElement>('.vod-browse__grid .media-card, .local-grid .media-card, .media-card, .local-card__poster-wrap');
           if (firstCard && isElementVisible(firstCard)) {
             applyTvFocus(firstCard);
           }

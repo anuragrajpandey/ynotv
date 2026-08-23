@@ -426,7 +426,8 @@
       "strem": "Strem",
       "subtitles": "Feliratok és hang",
       "theme": "Téma",
-      "ui": "UI"
+      "ui": "UI",
+      "controllers": "Vezérlők és távirányító"
     },
     "title": "Beállítások",
     "ui": {

@@ -1946,6 +1946,18 @@ function useTmdbPresencePoster(
     };
   }, [activeView, setVolume, handleMouseMove, useScrollwheelSeek, useScrollwheelSeekInvert, currentChannel, vodInfo, position, duration, handleSeek]);
 
+  // Remote/gamepad directional input counts as activity, exactly like a mouse
+  // move: it reveals the auto-hidden titlebar and hero overlay and resets the
+  // auto-hide timer. The event is emitted by the spatial navigation engine on
+  // every dispatched directional action.
+  useEffect(() => {
+    const onSpatialActivity = () => handleMouseMovePip();
+    window.addEventListener('ynotv:spatial-activity', onSpatialActivity);
+    return () => {
+      window.removeEventListener('ynotv:spatial-activity', onSpatialActivity);
+    };
+  }, [handleMouseMovePip]);
+
   // ==========================================================================
   // Aspect Ratio — tracked separately for the hero screen
   // ==========================================================================

@@ -426,7 +426,8 @@
       "strem": "Strem",
       "subtitles": "Titlovi i audio",
       "theme": "Tema",
-      "ui": "UI"
+      "ui": "UI",
+      "controllers": "Kontroleri i daljinski"
     },
     "title": "Podešavanja",
     "ui": {

@@ -426,7 +426,8 @@
       "strem": "Strem",
       "subtitles": "Altyazı ve Ses",
       "theme": "Tema",
-      "ui": "Arayüz"
+      "ui": "Arayüz",
+      "controllers": "Kontrolcüler ve Uzaktan Kumanda"
     },
     "title": "Ayarlar",
     "ui": {
