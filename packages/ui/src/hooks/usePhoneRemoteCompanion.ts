@@ -14,13 +14,29 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { db } from '../db';
-import type { StoredChannel, StoredCategory, StoredProgram } from '../db';
+import type {
+  StoredChannel,
+  StoredCategory,
+  StoredProgram,
+  CategoryFolder,
+  CustomGroup,
+  CustomPlaylist,
+  PlaylistCategoryLink,
+} from '../db';
+import {
+  comparePlaylistCategory,
+  compareSidebarCategory,
+  compareSidebarFolder,
+  readStoredKeys,
+} from '../utils/categorySortRules';
 import { useTeamChannelLinksStore, getTeamLinks } from '../stores/teamChannelLinksStore';
 import { searchGameStreams, getCachedGameStreams, setCachedGameStreams } from '../services/sports/gameStreamSearcher';
 import { buildTeamSearchQuery } from '../services/sports/teamChannelMatcher';
 import { getStatusDisplay } from '../services/sports/utils';
 import { isEventLiveOrPastStart } from '../services/sports';
 import { getRecentChannels } from '../utils/recentChannels';
+import { getCustomizedCategorySortOrders } from '../utils/categorySortOverrides';
+import { useSettingsStore } from '../stores/settingsStore';
 import type { LayoutMode, ViewerSlot } from './useMultiview';
 import { ensureCategoryStreamIndex } from './useChannels';
 import { getSportsCacheEvents, isSportsCacheFresh, subscribeSportsCache } from './useSportsPolling';
@@ -72,6 +88,299 @@ function broadcastToRemote(data: Record<string, any>) {
   invoke('remote_ws_broadcast', { payload: JSON.stringify(data) }).catch(() => {});
 }
 
+export interface CategoryTreeBuildInput {
+  sourceList: Array<{ id: string; name: string; display_order?: number }>;
+  categories: StoredCategory[];
+  foldersList: CategoryFolder[];
+  customGroupsList: CustomGroup[];
+  customPlaylistsList: CustomPlaylist[];
+  playlistLinksList: PlaylistCategoryLink[];
+  sidebarOrder: string[] | null;
+  categorySortOrder: string;
+  pinnedCategories: string[];
+  pinnedFolders: string[];
+  customizedSourceIds: string[];
+}
+
+/**
+ * Pure, environment-free tree builder used by the phone-remote companion.
+ * No window/localStorage/store/db access — fixtures can drive it in tests and
+ * diff it against the app's CategoryStrip ordering.
+ */
+export async function buildCategoryTreeFromData(input: CategoryTreeBuildInput): Promise<CategoryTree> {
+  const {
+    sourceList,
+    categories,
+    foldersList,
+    customGroupsList,
+    customPlaylistsList,
+    playlistLinksList,
+    sidebarOrder,
+    categorySortOrder,
+    pinnedCategories,
+    pinnedFolders,
+    customizedSourceIds,
+  } = input;
+
+  const pinnedSet = new Set(pinnedCategories);
+  const pinnedFoldersSet = new Set(pinnedFolders);
+  const customizedSet = new Set(customizedSourceIds);
+  const sortCtx = {
+    categorySortOrder,
+    pinnedCategories: pinnedSet,
+    pinnedFolders: pinnedFoldersSet,
+    customizedSourceIds: customizedSet,
+  };
+
+  const sortCategoriesWithSidebarRule = (
+    items: Array<CategoryTreeItem & { _pinKey?: string; _displayOrder?: number }>,
+    ownerId: string
+  ) => {
+    items.sort((a, b) =>
+      compareSidebarCategory(
+        { id: a.id, name: a.name, displayOrder: a._displayOrder, pinnedKey: a._pinKey },
+        { id: b.id, name: b.name, displayOrder: b._displayOrder, pinnedKey: b._pinKey },
+        sortCtx,
+        ownerId
+      )
+    );
+    // Strip the transient sort metadata before the tree is serialized to the phone.
+    for (const it of items) {
+      delete (it as any)._pinKey;
+      delete (it as any)._displayOrder;
+    }
+  };
+
+  // Playlists sort differently in the app: pure alphabetical (no pins) when
+  // the user set alphabetical order, otherwise pure display_order. The
+  // customized check uses the RAW playlist id, like CategoryStrip.
+  const sortPlaylistCategoriesWithSidebarRule = (
+    items: Array<CategoryTreeItem & { _pinKey?: string; _displayOrder?: number }>,
+    playlistId: string
+  ) => {
+    items.sort((a, b) =>
+      comparePlaylistCategory(
+        { id: a.id, name: a.name, displayOrder: a._displayOrder },
+        { id: b.id, name: b.name, displayOrder: b._displayOrder },
+        sortCtx,
+        playlistId
+      )
+    );
+    for (const it of items) {
+      delete (it as any)._pinKey;
+      delete (it as any)._displayOrder;
+  }
+};
+
+const sourceNameMap = new Map<string, string>();
+sourceList.forEach((s) => sourceNameMap.set(s.id, s.name));
+
+  // Map folders by playlist_id (which is source_id or custom playlist_id)
+  const foldersBySource = new Map<string, typeof foldersList>();
+  foldersList.forEach((f) => {
+    const arr = foldersBySource.get(f.playlist_id) || [];
+    arr.push(f);
+    foldersBySource.set(f.playlist_id, arr);
+  });
+
+  // Sort each owner's folders the way CategoryStrip does: pinned folders
+  // first, then display_order.
+  for (const [ownerId, arr] of foldersBySource) {
+    arr.sort((a, b) => compareSidebarFolder(a, b, sortCtx, ownerId));
+  }
+
+  const sourceGroupsMap = new Map<string, SourceGroupItem>();
+
+  // 1. Build real sources
+  for (const source of sourceList) {
+    const sId = source.id;
+    const sName = source.name;
+    const sFolders: CategoryFolderItem[] = (foldersBySource.get(sId) || []).map((f) => ({
+      folder_id: f.folder_id,
+      name: f.name,
+      count: 0,
+      categories: [],
+    }));
+
+    sourceGroupsMap.set(sId, {
+      source_id: sId,
+      source_name: sName,
+      type: 'real',
+      count: 0,
+      folders: sFolders,
+      categories: [],
+    });
+  }
+
+  // Populate categories into real sources
+  for (const cat of categories) {
+    if (cat.category_id.startsWith('__') || cat.enabled === false) continue;
+    const sId = cat.source_id || 'default';
+    let sGroup = sourceGroupsMap.get(sId);
+    if (!sGroup) {
+      const sFolders: CategoryFolderItem[] = (foldersBySource.get(sId) || []).map((f) => ({
+        folder_id: f.folder_id,
+        name: f.name,
+        count: 0,
+        categories: [],
+      }));
+      sGroup = {
+        source_id: sId,
+        source_name: sourceNameMap.get(sId) || sId,
+        type: 'real',
+        count: 0,
+        folders: sFolders,
+        categories: [],
+      };
+      sourceGroupsMap.set(sId, sGroup);
+    }
+
+    const item: CategoryTreeItem & { _pinKey?: string; _displayOrder?: number } = {
+      id: cat.category_id,
+      name: cat.alias || cat.category_name,
+      count: cat.channel_count ?? 0,
+    };
+    item._pinKey = `${sId}:${cat.category_id}`;
+    item._displayOrder = cat.display_order ?? 0;
+    sGroup.count += item.count;
+
+    if (cat.folder_id) {
+      const folder = sGroup.folders.find((f) => f.folder_id === cat.folder_id);
+      if (folder) {
+        folder.categories.push(item);
+        folder.count += item.count;
+      } else {
+        sGroup.categories.push(item);
+      }
+    } else {
+      sGroup.categories.push(item);
+    }
+  }
+
+  // Add each real source's custom playlist category links (categories added
+  // to a source via the playlist editor) into the source group, matching the
+  // app's sidebar which mixes them with native categories before sorting.
+  for (const [sId, sGroup] of sourceGroupsMap) {
+    if (sGroup.type !== 'real') continue;
+    const sLinks = playlistLinksList.filter((l) => l.playlist_id === sId);
+    for (const link of sLinks) {
+      const origCat = categories.find((c) => c.category_id === link.category_id);
+      const item: CategoryTreeItem & { _pinKey?: string; _displayOrder?: number } = {
+        id: `__plcat_${link.id}`,
+        name: link.custom_name || origCat?.alias || origCat?.category_name || link.category_id,
+        count: origCat?.channel_count ?? 0,
+      };
+      item._pinKey = `${sId}:link:${link.id}`;
+      item._displayOrder = link.display_order ?? 0;
+      sGroup.count += item.count;
+      if (link.folder_id) {
+        const folder = sGroup.folders.find((f) => f.folder_id === link.folder_id);
+        if (folder) {
+          folder.categories.push(item);
+          folder.count += item.count;
+        } else {
+          sGroup.categories.push(item);
+        }
+      } else {
+        sGroup.categories.push(item);
+      }
+    }
+  }
+
+  // 2. Build custom playlists
+  for (const pl of customPlaylistsList) {
+    const plId = `playlist:${pl.playlist_id}`;
+    const plFolders: CategoryFolderItem[] = (foldersBySource.get(pl.playlist_id) || []).map((f) => ({
+      folder_id: f.folder_id,
+      name: f.name,
+      count: 0,
+      categories: [],
+    }));
+
+    const plLinks = playlistLinksList.filter((l) => l.playlist_id === pl.playlist_id);
+    const plCategories: CategoryTreeItem[] = [];
+    let totalPlCount = 0;
+
+    for (const link of plLinks) {
+      const origCat = categories.find((c) => c.category_id === link.category_id);
+      const item: CategoryTreeItem & { _pinKey?: string; _displayOrder?: number } = {
+        id: `__plcat_${link.id}`,
+        name: link.custom_name || origCat?.alias || origCat?.category_name || link.category_id,
+        count: origCat?.channel_count ?? 0,
+      };
+      item._pinKey = `${pl.playlist_id}:link:${link.id}`;
+      item._displayOrder = link.display_order ?? 0;
+      totalPlCount += item.count;
+      if (link.folder_id) {
+        const folder = plFolders.find((f) => f.folder_id === link.folder_id);
+        if (folder) {
+          folder.categories.push(item);
+          folder.count += item.count;
+        } else {
+          plCategories.push(item);
+        }
+      } else {
+        plCategories.push(item);
+      }
+    }
+
+    // Sort playlist categories with the app's playlist rule (pure
+    // alphabetical or pure display_order — no pins, like CategoryStrip).
+    sortPlaylistCategoriesWithSidebarRule(plCategories, pl.playlist_id);
+    for (const plFolder of plFolders) {
+      sortPlaylistCategoriesWithSidebarRule(plFolder.categories, pl.playlist_id);
+    }
+
+    sourceGroupsMap.set(plId, {
+      source_id: plId,
+      source_name: `📋 ${pl.name}`,
+      type: 'playlist',
+      count: totalPlCount,
+      folders: plFolders.filter((f) => f.categories.length > 0),
+      categories: plCategories,
+    });
+  }    // Sort real-source categories with the same sidebar rule the app uses.
+    // Playlist groups were already sorted by the pure playlist rule (and their
+    // sort metadata stripped), so skip them here — re-sorting would apply a
+    // name tiebreak that overrides the display_order order.
+    for (const sg of sourceGroupsMap.values()) {
+      if (sg.type !== 'real') continue;
+      sortCategoriesWithSidebarRule(sg.categories, sg.source_id);
+      for (const f of sg.folders) {
+        sortCategoriesWithSidebarRule(f.categories, sg.source_id);
+      }
+      sg.folders = sg.folders.filter((f) => f.categories.length > 0);
+    }
+
+
+  let sourceGroups = Array.from(sourceGroupsMap.values()).filter(
+    (sg) => sg.count > 0 || sg.categories.length > 0 || sg.folders.length > 0
+  );
+
+  // Apply LiveTV sidebar source order
+  if (sidebarOrder && sidebarOrder.length > 0) {
+    const orderMap = new Map(sidebarOrder.map((id, index) => [id, index]));
+    sourceGroups.sort((a, b) => {
+      const orderA = orderMap.has(a.source_id) ? orderMap.get(a.source_id)! : Number.MAX_SAFE_INTEGER;
+      const orderB = orderMap.has(b.source_id) ? orderMap.get(b.source_id)! : Number.MAX_SAFE_INTEGER;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.source_name.localeCompare(b.source_name);
+    });
+  }
+
+  return {
+    virtuals: [
+      { id: '__favorites__', name: 'Favorites', icon: '⭐' },
+      { id: '__recent__', name: 'Recently Viewed', icon: '🕐' },
+    ],
+    custom_groups: customGroupsList.map((g) => ({
+      id: g.group_id,
+      name: g.name,
+    })),
+    source_groups: sourceGroups,
+  };
+}
+
 async function buildCategoryTree(categories: StoredCategory[]): Promise<CategoryTree> {
   try {
     let sourceList: Array<{ id: string; name: string; display_order?: number }> = [];
@@ -101,163 +410,19 @@ async function buildCategoryTree(categories: StoredCategory[]): Promise<Category
       } catch (e) {}
     }
 
-    const sourceNameMap = new Map<string, string>();
-    sourceList.forEach((s) => sourceNameMap.set(s.id, s.name));
-
-    // Map folders by playlist_id (which is source_id or custom playlist_id)
-    const foldersBySource = new Map<string, typeof foldersList>();
-    foldersList.forEach((f) => {
-      const arr = foldersBySource.get(f.playlist_id) || [];
-      arr.push(f);
-      foldersBySource.set(f.playlist_id, arr);
+    return await buildCategoryTreeFromData({
+      sourceList,
+      categories,
+      foldersList,
+      customGroupsList,
+      customPlaylistsList,
+      playlistLinksList,
+      sidebarOrder,
+      categorySortOrder: useSettingsStore.getState().categorySortOrder || 'default',
+      pinnedCategories: readStoredKeys('ynotv:pinnedCategories'),
+      pinnedFolders: readStoredKeys('ynotv:pinnedFolders'),
+      customizedSourceIds: getCustomizedCategorySortOrders(),
     });
-
-    const sourceGroupsMap = new Map<string, SourceGroupItem>();
-
-    // 1. Build real sources
-    for (const source of sourceList) {
-      const sId = source.id;
-      const sName = source.name;
-      const sFolders: CategoryFolderItem[] = (foldersBySource.get(sId) || []).map((f) => ({
-        folder_id: f.folder_id,
-        name: f.name,
-        count: 0,
-        categories: [],
-      }));
-
-      sourceGroupsMap.set(sId, {
-        source_id: sId,
-        source_name: sName,
-        type: 'real',
-        count: 0,
-        folders: sFolders,
-        categories: [],
-      });
-    }
-
-    // Populate categories into real sources
-    for (const cat of categories) {
-      if (cat.category_id.startsWith('__') || cat.enabled === false) continue;
-      const sId = cat.source_id || 'default';
-      let sGroup = sourceGroupsMap.get(sId);
-      if (!sGroup) {
-        const sFolders: CategoryFolderItem[] = (foldersBySource.get(sId) || []).map((f) => ({
-          folder_id: f.folder_id,
-          name: f.name,
-          count: 0,
-          categories: [],
-        }));
-        sGroup = {
-          source_id: sId,
-          source_name: sourceNameMap.get(sId) || sId,
-          type: 'real',
-          count: 0,
-          folders: sFolders,
-          categories: [],
-        };
-        sourceGroupsMap.set(sId, sGroup);
-      }
-
-      const item: CategoryTreeItem = {
-        id: cat.category_id,
-        name: cat.alias || cat.category_name,
-        count: cat.channel_count ?? 0,
-      };
-      sGroup.count += item.count;
-
-      if (cat.folder_id) {
-        const folder = sGroup.folders.find((f) => f.folder_id === cat.folder_id);
-        if (folder) {
-          folder.categories.push(item);
-          folder.count += item.count;
-        } else {
-          sGroup.categories.push(item);
-        }
-      } else {
-        sGroup.categories.push(item);
-      }
-    }
-
-    // 2. Build custom playlists
-    for (const pl of customPlaylistsList) {
-      const plId = `playlist:${pl.playlist_id}`;
-      const plFolders: CategoryFolderItem[] = (foldersBySource.get(pl.playlist_id) || []).map((f) => ({
-        folder_id: f.folder_id,
-        name: f.name,
-        count: 0,
-        categories: [],
-      }));
-
-      const plLinks = playlistLinksList.filter((l) => l.playlist_id === pl.playlist_id);
-      const plCategories: CategoryTreeItem[] = [];
-      let totalPlCount = 0;
-
-      for (const link of plLinks) {
-        const origCat = categories.find((c) => c.category_id === link.category_id);
-        const item: CategoryTreeItem = {
-          id: `__plcat_${link.id}`,
-          name: link.custom_name || origCat?.alias || origCat?.category_name || 'Category',
-          count: origCat?.channel_count ?? 0,
-        };
-        totalPlCount += item.count;
-        if (link.folder_id) {
-          const folder = plFolders.find((f) => f.folder_id === link.folder_id);
-          if (folder) {
-            folder.categories.push(item);
-            folder.count += item.count;
-          } else {
-            plCategories.push(item);
-          }
-        } else {
-          plCategories.push(item);
-        }
-      }
-
-      sourceGroupsMap.set(plId, {
-        source_id: plId,
-        source_name: `📋 ${pl.name}`,
-        type: 'playlist',
-        count: totalPlCount,
-        folders: plFolders.filter((f) => f.categories.length > 0),
-        categories: plCategories,
-      });
-    }
-
-    // Sort categories within each source/folder by display order or name
-    for (const sg of sourceGroupsMap.values()) {
-      sg.categories.sort((a, b) => a.name.localeCompare(b.name));
-      for (const f of sg.folders) {
-        f.categories.sort((a, b) => a.name.localeCompare(b.name));
-      }
-      sg.folders = sg.folders.filter((f) => f.categories.length > 0);
-    }
-
-    let sourceGroups = Array.from(sourceGroupsMap.values()).filter(
-      (sg) => sg.count > 0 || sg.categories.length > 0 || sg.folders.length > 0
-    );
-
-    // Apply LiveTV sidebar source order
-    if (sidebarOrder && sidebarOrder.length > 0) {
-      const orderMap = new Map(sidebarOrder.map((id, index) => [id, index]));
-      sourceGroups.sort((a, b) => {
-        const orderA = orderMap.has(a.source_id) ? orderMap.get(a.source_id)! : Number.MAX_SAFE_INTEGER;
-        const orderB = orderMap.has(b.source_id) ? orderMap.get(b.source_id)! : Number.MAX_SAFE_INTEGER;
-        if (orderA !== orderB) return orderA - orderB;
-        return a.source_name.localeCompare(b.source_name);
-      });
-    }
-
-    return {
-      virtuals: [
-        { id: '__favorites__', name: 'Favorites', icon: '⭐' },
-        { id: '__recent__', name: 'Recently Viewed', icon: '🕐' },
-      ],
-      custom_groups: customGroupsList.map((g) => ({
-        id: g.group_id,
-        name: g.name,
-      })),
-      source_groups: sourceGroups,
-    };
   } catch (err) {
     console.error('[usePhoneRemoteCompanion] buildCategoryTree error:', err);
     return {

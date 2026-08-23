@@ -27,7 +27,8 @@ import { EpgEditorModal } from './EpgEditorModal';
 import { LogoEditorModal } from './LogoEditorModal';
 import { clearRecentChannels } from '../utils/recentChannels';
 import { useCategorySortOrder, useIncludeAllChannelsToPlaylist, useSidebarDragHotkey } from '../stores/uiStore';
-import { isCategorySortCustomized, setCategorySortCustomized } from '../utils/categorySortOverrides';
+import { getCustomizedCategorySortOrders, setCategorySortCustomized } from '../utils/categorySortOverrides';
+import { comparePlaylistCategory, compareSidebarCategory, compareSidebarFolder } from '../utils/categorySortRules';
 import {
   DndContext,
   PointerSensor,
@@ -1799,30 +1800,20 @@ export function CategoryStrip({ selectedCategoryId, onSelectCategory, visible, o
                         });
                       }
                       
-                      // Sort
-                      const isAlphabetical = categorySortOrder === 'alphabetical' && !isCategorySortCustomized(group.sourceId);
-                      if (isAlphabetical) {
-                        list.sort((a, b) => {
-                          const aKey = `${group.sourceId}:${a.id}`;
-                          const bKey = `${group.sourceId}:${b.id}`;
-                          const aPinned = pinnedCategories.includes(aKey);
-                          const bPinned = pinnedCategories.includes(bKey);
-                          if (aPinned && !bPinned) return -1;
-                          if (!aPinned && bPinned) return 1;
-                          return a.name.localeCompare(b.name);
-                        });
-                      } else {
-                        list.sort((a, b) => {
-                          const aKey = `${group.sourceId}:${a.id}`;
-                          const bKey = `${group.sourceId}:${b.id}`;
-                          const aPinned = pinnedCategories.includes(aKey);
-                          const bPinned = pinnedCategories.includes(bKey);
-                          if (aPinned && !bPinned) return -1;
-                          if (!aPinned && bPinned) return 1;
-                          if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
-                          return a.name.localeCompare(b.name);
-                        });
-                      }
+                      // Sort with the canonical sidebar rule (shared with the
+                      // phone-remote companion so both orderings agree).
+                      list.sort((a, b) =>
+                        compareSidebarCategory(
+                          { id: a.id, name: a.name, displayOrder: a.displayOrder },
+                          { id: b.id, name: b.name, displayOrder: b.displayOrder },
+                          {
+                            categorySortOrder,
+                            pinnedCategories: new Set(pinnedCategories),
+                            customizedSourceIds: new Set(getCustomizedCategorySortOrders()),
+                          },
+                          group.sourceId
+                        )
+                      );
                       
                       const individualCount = flatPlaylistIndividualCounts?.get(group.sourceId) || 0;
                       
@@ -1949,13 +1940,14 @@ export function CategoryStrip({ selectedCategoryId, onSelectCategory, visible, o
 
                             const isFolderPinned = (fId: string) => pinnedFolders.includes(`${group.sourceId}:${fId}`);
 
-                            const sortedSourceFolders = [...sourceFolders].sort((a, b) => {
-                              const aPinned = isFolderPinned(a.folder_id);
-                              const bPinned = isFolderPinned(b.folder_id);
-                              if (aPinned && !bPinned) return -1;
-                              if (!aPinned && bPinned) return 1;
-                              return (a.display_order ?? 0) - (b.display_order ?? 0);
-                            });
+                            const sortedSourceFolders = [...sourceFolders].sort((a, b) =>
+                              compareSidebarFolder(
+                                a,
+                                b,
+                                { pinnedFolders: new Set(pinnedFolders) },
+                                group.sourceId
+                              )
+                            );
 
                             const folderContext = (folder: CategoryFolder) => ({
                               onContextMenu: (e: React.MouseEvent) => {
@@ -2059,17 +2051,17 @@ export function CategoryStrip({ selectedCategoryId, onSelectCategory, visible, o
             const playlistLinks = (allPlaylistCategoryLinks || [])
               .filter(l => l.playlist_id === playlist.playlist_id);
 
-            const isAlphabetical = categorySortOrder === 'alphabetical' && !isCategorySortCustomized(playlist.playlist_id);
-
-            if (isAlphabetical) {
-              playlistLinks.sort((a, b) => {
-                const nameA = getLinkName(a);
-                const nameB = getLinkName(b);
-                return nameA.localeCompare(nameB);
-              });
-            } else {
-              playlistLinks.sort((a, b) => a.display_order - b.display_order);
-            }
+            playlistLinks.sort((a, b) =>
+              comparePlaylistCategory(
+                { id: String(a.id), name: getLinkName(a), displayOrder: a.display_order },
+                { id: String(b.id), name: getLinkName(b), displayOrder: b.display_order },
+                {
+                  categorySortOrder,
+                  customizedSourceIds: new Set(getCustomizedCategorySortOrders()),
+                },
+                playlist.playlist_id
+              )
+            );
 
             const individualCount = flatPlaylistIndividualCounts?.get(playlist.playlist_id) || 0;
 
@@ -2167,13 +2159,14 @@ export function CategoryStrip({ selectedCategoryId, onSelectCategory, visible, o
 
                         const isFolderPinned = (fId: string) => pinnedFolders.includes(`${playlist.playlist_id}:${fId}`);
 
-                        const sortedSourceFolders = [...sourceFolders].sort((a, b) => {
-                          const aPinned = isFolderPinned(a.folder_id);
-                          const bPinned = isFolderPinned(b.folder_id);
-                          if (aPinned && !bPinned) return -1;
-                          if (!aPinned && bPinned) return 1;
-                          return (a.display_order ?? 0) - (b.display_order ?? 0);
-                        });
+                        const sortedSourceFolders = [...sourceFolders].sort((a, b) =>
+                          compareSidebarFolder(
+                            a,
+                            b,
+                            { pinnedFolders: new Set(pinnedFolders) },
+                            playlist.playlist_id
+                          )
+                        );
 
                         const folderContext = (folder: CategoryFolder) => ({
                           onContextMenu: (e: React.MouseEvent) => {
