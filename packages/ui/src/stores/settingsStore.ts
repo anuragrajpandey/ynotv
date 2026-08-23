@@ -562,6 +562,8 @@ export interface SettingsState {
   // Controller & Gamepad
   controllerEnabled: boolean;
   setControllerEnabled: (enabled: boolean) => void;
+  controllerBackgroundListening: boolean;
+  setControllerBackgroundListening: (enabled: boolean) => void;
   controllerDeadzone: number;
   setControllerDeadzone: (deadzone: number) => void;
   controllerMappings: Record<string, string>;
@@ -1650,11 +1652,19 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     dispatchAppEvent('ynotv:auto-backup-settings-changed', {});
   },
 
-  // Controller & Gamepad
-  controllerEnabled: cachedSettings?.controllerEnabled ?? true,
+  // Controller & Gamepad — controller support is opt-in, so it's OFF unless
+  // the user explicitly enables it (previously it defaulted to on).
+  controllerEnabled: cachedSettings?.controllerEnabled ?? false,
   setControllerEnabled: (enabled) => {
     set({ controllerEnabled: enabled });
     persistSettings({ controllerEnabled: enabled });
+  },
+  // Background listening is also opt-in — inputs are ignored while the app
+  // window is not focused unless this is enabled.
+  controllerBackgroundListening: cachedSettings?.controllerBackgroundListening ?? false,
+  setControllerBackgroundListening: (enabled) => {
+    set({ controllerBackgroundListening: enabled });
+    persistSettings({ controllerBackgroundListening: enabled });
   },
   controllerDeadzone: cachedSettings?.controllerDeadzone ?? 0.45,
   setControllerDeadzone: (deadzone) => {

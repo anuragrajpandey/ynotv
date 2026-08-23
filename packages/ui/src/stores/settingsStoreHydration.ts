@@ -67,7 +67,7 @@ const BOOLEAN_KEYS = new Set([
   'showVodAll', 'showVodFavorites', 'showVodPlaylists', 'showVodLocal', 'showVodRecent',
   'useEventBasedReconnect', 'stallDetectionEnabled', 'showLoadingScreen',
   'transparentGuideHideHeader', 'allowLanSources', 'v3DefaultMigrated', 'volumePercentDefaultMigrated',
-  'hdrTonemapToSdr', 'showHdrQuickToggle', 'controllerEnabled', 'remoteControlEnabled',
+  'hdrTonemapToSdr', 'showHdrQuickToggle', 'controllerEnabled', 'controllerBackgroundListening', 'remoteControlEnabled',
 ] as const);
 
 const NUMBER_KEYS = new Set([
@@ -358,7 +358,8 @@ async function hydrateSettingsStore(): Promise<void> {
         discordShowWhenBrowsing: data.discordShowWhenBrowsing ?? true,
         discordShowPoster: data.discordShowPoster ?? true,
         discordShowTimestamp: data.discordShowTimestamp ?? true,
-        controllerEnabled: data.controllerEnabled ?? true,
+        controllerEnabled: data.controllerEnabled ?? false,
+        controllerBackgroundListening: data.controllerBackgroundListening ?? false,
         controllerDeadzone: typeof data.controllerDeadzone === 'number' ? data.controllerDeadzone : 0.45,
         controllerMappings: data.controllerMappings && typeof data.controllerMappings === 'object'
           ? { ...DEFAULT_CONTROLLER_MAPPINGS, ...data.controllerMappings }

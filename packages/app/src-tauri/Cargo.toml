@@ -86,7 +86,13 @@ libmpv2-sys = "4"
 libc = "0.2"
 
 # Gamepad & Controller support
-gilrs = "0.10"
+# gilrs must use the XInput backend, NOT the default WGI (Windows.Gaming.Input)
+# backend: WGI silently finds zero controllers in unpackaged Win32 apps (it
+# needs a package identity), which left the native listener with nothing to
+# emit while the browser Gamepad API (which has its own XInput stack) kept
+# working only while the window was focused. XInput sees the standard pads
+# (real Xbox controllers, and DualSense pads emulated as Xbox 360).
+gilrs = { version = "0.10", default-features = false, features = ["xinput"] }
 
 # Embedded Web & Remote WebSocket server
 axum = { version = "0.7", features = ["ws"] }

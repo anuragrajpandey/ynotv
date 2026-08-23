@@ -168,6 +168,7 @@ const DUALSENSE_BT_MAP: Record<number, string> = {
 
 export function useGamepad() {
   const controllerEnabled = useSettingsStore((s) => s.controllerEnabled);
+  const controllerBackgroundListening = useSettingsStore((s) => s.controllerBackgroundListening);
   const controllerMappings = useSettingsStore((s) => s.controllerMappings);
   const controllerDeadzone = useSettingsStore((s) => s.controllerDeadzone);
   const [connectedGamepads, setConnectedGamepads] = useState<GamepadDeviceInfo[]>([]);
@@ -178,8 +179,18 @@ export function useGamepad() {
   const enabledRef = useRef(controllerEnabled);
   enabledRef.current = controllerEnabled;
 
+  const backgroundListenRef = useRef(controllerBackgroundListening);
+  backgroundListenRef.current = controllerBackgroundListening;
+
   const deadzoneRef = useRef(controllerDeadzone);
   deadzoneRef.current = controllerDeadzone;
+
+  // Controller input is only processed while the app window has focus, unless
+  // the user opted into background listening. Shared by the native gilrs
+  // listener and the browser Gamepad API poller, so an unfocused window can
+  // never react to a pad that belongs to the app the user is actually using.
+  const isInputActive = () =>
+    backgroundListenRef.current || (typeof document !== 'undefined' && document.hasFocus());
 
   // 1. Tauri Native Backend Listener (gilrs & Phone Remote Server)
   useEffect(() => {
@@ -242,7 +253,7 @@ export function useGamepad() {
             notifyButtonPressed(rawAction, event.payload.button || rawAction, gpName);
           }
 
-          if (!enabledRef.current || !pressed) return;
+          if (!enabledRef.current || !pressed || !isInputActive()) return;
 
           const action = mappingsRef.current[rawAction] || rawAction;
           tryDispatchAction(action);
@@ -298,6 +309,13 @@ export function useGamepad() {
     const REPEAT_INTERVAL_MS = 120;
 
     const pollGamepads = () => {
+      // Chromium refuses to expose gamepads while the document isn't focused,
+      // so a hidden window has nothing to poll — skip the scan (background
+      // input rides entirely on the native gilrs path in that state).
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        rafId = requestAnimationFrame(pollGamepads);
+        return;
+      }
       const gamepads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
       let anyConnected = false;
       const connectedList: GamepadDeviceInfo[] = [];
@@ -342,7 +360,7 @@ export function useGamepad() {
             const rawAction = buttonMap[btnIdx] || `button_${btnIdx}`;
             notifyButtonPressed(rawAction, `Button ${btnIdx} (${rawAction})`, gpName);
 
-            if (enabledRef.current) {
+            if (enabledRef.current && isInputActive()) {
               const action = mappingsRef.current[rawAction] || rawAction;
               tryDispatchAction(action);
             }
@@ -394,7 +412,7 @@ export function useGamepad() {
             lastDirTime = now;
             notifyButtonPressed(currentDir, currentDir.toUpperCase(), gpName);
 
-            if (enabledRef.current) {
+            if (enabledRef.current && isInputActive()) {
               const action = mappingsRef.current[currentDir] || currentDir;
               tryDispatchAction(action);
             }
@@ -405,7 +423,7 @@ export function useGamepad() {
               lastDirTime = now;
               notifyButtonPressed(currentDir, currentDir.toUpperCase(), gpName);
 
-              if (enabledRef.current) {
+              if (enabledRef.current && isInputActive()) {
                 const action = mappingsRef.current[currentDir] || currentDir;
                 executeAction(action);
               }
@@ -416,7 +434,7 @@ export function useGamepad() {
         }
 
         // Scan Right Analog Stick (Axes 2 & 3/5) for smooth variable-speed page scrolling
-        if (enabledRef.current) {
+        if (enabledRef.current && isInputActive()) {
           let rightStickX = 0;
           let rightStickY = 0;
 

@@ -55,6 +55,8 @@ const BUTTON_CONFIG: Array<{ id: string; label: string; group: string }> = [
 export function ControllersTab() {
   const controllerEnabled = useSettingsStore((s) => s.controllerEnabled);
   const setControllerEnabled = useSettingsStore((s) => s.setControllerEnabled);
+  const controllerBackgroundListening = useSettingsStore((s) => s.controllerBackgroundListening);
+  const setControllerBackgroundListening = useSettingsStore((s) => s.setControllerBackgroundListening);
   const controllerDeadzone = useSettingsStore((s) => s.controllerDeadzone);
   const setControllerDeadzone = useSettingsStore((s) => s.setControllerDeadzone);
   const controllerMappings = useSettingsStore((s) => s.controllerMappings);
@@ -275,7 +277,8 @@ export function ControllersTab() {
           <div className="setting-info">
             <span className="setting-label">Enable Controller Navigation</span>
             <span className="setting-sublabel">
-              Control channels, menus, movies, sports, and video playback with connected gamepads
+              Control channels, menus, movies, sports, and video playback with connected gamepads.
+              Off by default — enable it to start listening for controller input.
             </span>
           </div>
           <label className="toggle-switch">
@@ -283,6 +286,24 @@ export function ControllersTab() {
               type="checkbox"
               checked={controllerEnabled}
               onChange={(e) => setControllerEnabled(e.target.checked)}
+            />
+            <span className="toggle-slider" />
+          </label>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <span className="setting-label">Listen When App Is Not Focused</span>
+            <span className="setting-sublabel">
+              Process controller input while YNOTV is running in the background. Off by default —
+              inputs are ignored unless the app window is focused.
+            </span>
+          </div>
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={controllerBackgroundListening}
+              onChange={(e) => setControllerBackgroundListening(e.target.checked)}
             />
             <span className="toggle-slider" />
           </label>

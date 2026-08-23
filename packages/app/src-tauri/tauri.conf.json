@@ -22,7 +22,8 @@
         "decorations": false,
         "transparent": true,
         "acceptFirstMouse": true,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "backgroundThrottling": "disabled"
       }
     ],
     "security": {
