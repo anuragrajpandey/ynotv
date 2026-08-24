@@ -143,6 +143,19 @@ export const useNuvioAuthStore = create<NuvioAuthStore>()(
           console.error('[NuvioAuthStore] Failed to clear Nuvio addons on logout:', e);
         }
 
+        try {
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.startsWith('nuvio_cw_cursor_') || key.startsWith('nuvio_cw_initialized_') || key.startsWith('nuvio_cw_entries_'))) {
+              keysToRemove.push(key);
+            }
+          }
+          for (const key of keysToRemove) {
+            localStorage.removeItem(key);
+          }
+        } catch {}
+
         set({
           token: null,
           refreshToken: null,

@@ -796,7 +796,7 @@ export function FavoritesTab({ onSearchChannels, onPlayChannel, onSetTab }: Favo
     }
   };
 
-  const toggleInlineStreams = useCallback(async (cardKey: string, searchQuery: string, leagueId?: string) => {
+  const toggleInlineStreams = useCallback(async (cardKey: string, searchQuery: string | string[], leagueId?: string) => {
     if (inlineStreams[cardKey] !== undefined && inlineStreams[cardKey] !== null) {
       // Toggle hide
       setInlineStreams((prev) => ({ ...prev, [cardKey]: null }));

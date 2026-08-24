@@ -194,7 +194,7 @@ async function executeNuvioRequestOnce<T>(
     'apikey': getEffectiveNuvioKey(),
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'User-Agent': 'NuvioDesktop/0.1.16-alpha',
+    'User-Agent': 'NuvioDesktop/0.1.20-alpha',
   };
 
   if (token) {
@@ -309,7 +309,11 @@ async function callNuvioApiRaw<T>(
   body?: any,
   token?: string | null
 ): Promise<T> {
-  const isGetOrPull = method === 'GET' || path.includes('rpc/sync_pull_');
+  const isGetOrPull =
+    method === 'GET' ||
+    path.includes('rpc/sync_pull_') ||
+    path.includes('rpc/sync_get_') ||
+    path.includes('rpc/get_');
 
   if (!isGetOrPull) {
     clearNuvioApiCache();
@@ -545,10 +549,13 @@ export async function pushNuvioLibrary(token: string, profileId: number, items: 
 // ==========================================
 
 export async function fetchNuvioWatchProgressDeltaCursor(token: string, profileId: number): Promise<number> {
-  const res = await callNuvioApi<number[]>('POST', 'rest/v1/rpc/sync_get_watch_progress_delta_cursor', {
+  const res = await callNuvioApi<any>('POST', 'rest/v1/rpc/sync_get_watch_progress_delta_cursor', {
     p_profile_id: profileId,
   }, token);
-  return Array.isArray(res) ? (res[0] ?? 0) : (res ?? 0);
+  if (typeof res === 'number') return res;
+  if (Array.isArray(res)) return typeof res[0] === 'number' ? res[0] : 0;
+  if (res && typeof res === 'object' && typeof res.cursor === 'number') return res.cursor;
+  return Number(res) || 0;
 }
 
 export interface NuvioWatchProgressDeltaEvent {
@@ -612,10 +619,13 @@ export async function deleteNuvioWatchProgress(token: string, profileId: number,
 // ==========================================
 
 export async function fetchNuvioWatchedItemsDeltaCursor(token: string, profileId: number): Promise<number> {
-  const res = await callNuvioApi<number[]>('POST', 'rest/v1/rpc/sync_get_watched_items_delta_cursor', {
+  const res = await callNuvioApi<any>('POST', 'rest/v1/rpc/sync_get_watched_items_delta_cursor', {
     p_profile_id: profileId,
   }, token);
-  return Array.isArray(res) ? (res[0] ?? 0) : (res ?? 0);
+  if (typeof res === 'number') return res;
+  if (Array.isArray(res)) return typeof res[0] === 'number' ? res[0] : 0;
+  if (res && typeof res === 'object' && typeof res.cursor === 'number') return res.cursor;
+  return Number(res) || 0;
 }
 
 export interface NuvioWatchedDeltaEvent {

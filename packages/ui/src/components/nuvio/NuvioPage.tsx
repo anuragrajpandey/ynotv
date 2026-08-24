@@ -931,18 +931,16 @@ function NuvioPageContent({
   };
 
   const deltaCursorRef = useRef<number>(0);
+  const lastSyncTimeRef = useRef<number>(0);
 
   const applyWatchProgressDelta = (existing: NuvioWatchProgressSyncEntry[], events: NuvioWatchProgressDeltaEvent[]): NuvioWatchProgressSyncEntry[] => {
     const map = new Map(existing.map(e => [e.progress_key || e.video_id, e]));
-    const deleteKeys = new Set<string>();
 
     for (const event of events) {
       const key = event.progress_key || event.video_id;
       if (event.operation === 'delete') {
-        deleteKeys.add(key);
         map.delete(key);
       } else {
-        deleteKeys.delete(key);
         map.set(key, {
           content_id: event.content_id,
           content_type: event.content_type,
@@ -963,7 +961,7 @@ function NuvioPageContent({
   const lastDeltaPullTimeRef = useRef<number>(0);
 
   const loadWatchProgressDelta = async (profileId: number, existingEntries: NuvioWatchProgressSyncEntry[]): Promise<NuvioWatchProgressSyncEntry[]> => {
-    if (Date.now() - lastDeltaPullTimeRef.current < 15000 && existingEntries.length > 0) {
+    if (Date.now() - lastDeltaPullTimeRef.current < 5000 && existingEntries.length > 0) {
       return existingEntries;
     }
     lastDeltaPullTimeRef.current = Date.now();
@@ -972,15 +970,30 @@ function NuvioPageContent({
     if (!events || events.length === 0) return existingEntries;
 
     const maxEventId = Math.max(...events.map(e => e.event_id));
-    deltaCursorRef.current = maxEventId;
+    if (maxEventId > cursor) {
+      deltaCursorRef.current = maxEventId;
+      try {
+        localStorage.setItem(`nuvio_cw_cursor_${profileId}`, String(maxEventId));
+      } catch {}
+    }
 
-    return applyWatchProgressDelta(existingEntries, events);
+    const updated = applyWatchProgressDelta(existingEntries, events);
+    try {
+      localStorage.setItem(`nuvio_cw_entries_${profileId}`, JSON.stringify(updated));
+    } catch {}
+    return updated;
   };
 
   const inFlightLoadSyncedDataRef = useRef<Promise<void> | null>(null);
 
   const loadSyncedData = async (background = false) => {
     if (!token || !profile) return;
+    const now = Date.now();
+    if (background && now - lastSyncTimeRef.current < 5000) {
+      return;
+    }
+    lastSyncTimeRef.current = now;
+
     // Match NuvioDesktop: If library data is already loaded in memory state, serve from memory unless background/forced
     if (!background && libraryLoaded) {
       return;
@@ -991,26 +1004,42 @@ function NuvioPageContent({
     if (!background) setLoading(true);
     const task = (async () => {
       try {
-        const libraryPromise = fetchNuvioLibrary(token, profile.profile_index, 500);
+        const profileId = profile.profile_index;
+        const libraryPromise = fetchNuvioLibrary(token, profileId, 500);
 
-        // Try delta sync first, fall back to full pull
+        const isInitialized = localStorage.getItem(`nuvio_cw_initialized_${profileId}`) === 'true';
+        const savedCursor = Number(localStorage.getItem(`nuvio_cw_cursor_${profileId}`)) || 0;
+        deltaCursorRef.current = savedCursor;
+
+        let cachedEntries: NuvioWatchProgressSyncEntry[] = [];
+        try {
+          const raw = localStorage.getItem(`nuvio_cw_entries_${profileId}`);
+          if (raw) cachedEntries = JSON.parse(raw);
+        } catch {}
+
+        // Try delta sync if initialized and we have entries, fall back to full pull + initialize cursor
         let progressPromise: Promise<NuvioWatchProgressSyncEntry[]>;
-        if (deltaCursorRef.current === 0) {
-          // First load: try to initialize delta cursor
+        if (!isInitialized || (cachedEntries.length === 0 && rawWatchProgress.length === 0)) {
           progressPromise = (async () => {
+            let cursorBeforeSnapshot = 0;
             try {
-              const cursor = await fetchNuvioWatchProgressDeltaCursor(token!, profile.profile_index);
-              if (cursor > 0) {
-                deltaCursorRef.current = 0;
-                const entries = await loadWatchProgressDelta(profile.profile_index, []);
-                return entries;
-              }
+              cursorBeforeSnapshot = await fetchNuvioWatchProgressDeltaCursor(token!, profileId);
+            } catch (e) {
+              console.warn('[NuvioPage] Failed to fetch delta cursor before snapshot:', e);
+            }
+            const entries = await fetchNuvioWatchProgress(token!, profileId, null, 100);
+            const validEntries = entries || [];
+            deltaCursorRef.current = cursorBeforeSnapshot;
+            try {
+              localStorage.setItem(`nuvio_cw_cursor_${profileId}`, String(cursorBeforeSnapshot));
+              localStorage.setItem(`nuvio_cw_initialized_${profileId}`, 'true');
+              localStorage.setItem(`nuvio_cw_entries_${profileId}`, JSON.stringify(validEntries));
             } catch {}
-            // Fallback to full pull
-            return fetchNuvioWatchProgress(token!, profile.profile_index, null, 100);
+            return validEntries;
           })();
         } else {
-          progressPromise = loadWatchProgressDelta(profile.profile_index, rawWatchProgress);
+          const currentEntries = rawWatchProgress.length > 0 ? rawWatchProgress : cachedEntries;
+          progressPromise = loadWatchProgressDelta(profileId, currentEntries);
         }
 
         // Handle progress promise resolution as soon as it resolves
@@ -1019,6 +1048,9 @@ function NuvioPageContent({
             setRawWatchProgress(progress);
             setResolvedWatchProgress(progress.map(p => ({ ...p, name: `Content ID: ${p.content_id}` })));
             resolveProgressMetadata(progress);
+            try {
+              localStorage.setItem(`nuvio_cw_entries_${profile.profile_index}`, JSON.stringify(progress));
+            } catch {}
           } else {
             setRawWatchProgress([]);
             setResolvedWatchProgress([]);
