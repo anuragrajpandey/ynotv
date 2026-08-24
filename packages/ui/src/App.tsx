@@ -166,6 +166,69 @@ import { useDiscordPresence } from './hooks/useDiscordPresence';
 import { usePlaybackPresence } from './hooks/usePlaybackPresence';
 
 // ============================================================================
+// Channel navigation helpers
+// ============================================================================
+
+// Sort used by the DB fallback lists for ch up/down navigation.
+function sortByChannelNumThenName(a: StoredChannel, b: StoredChannel): number {
+  return (a.channel_num ?? 0) - (b.channel_num ?? 0) || (a.alias || a.name).localeCompare(b.alias || b.name);
+}
+
+// Resolve the ordered channel list + current index for ch up/down navigation.
+// Prefers the in-memory list for the active category; when the playing channel
+// isn't in it (tuned via phone remote, sports, or search), falls back to the
+// channel's own category from the DB, then to all channels of its source.
+// resolvedCategoryId is set when the fallback resolved a category, so the
+// caller can sync the guide to it. Returns index -1 when the channel can't be
+// found anywhere — callers should then do nothing.
+async function resolveChannelNavList(
+  currentChannel: StoredChannel,
+  currentChannels: StoredChannel[]
+): Promise<{ list: StoredChannel[]; index: number; resolvedCategoryId: string | null }> {
+  let list = currentChannels;
+  let index = list.findIndex((ch) => ch.stream_id === currentChannel.stream_id);
+  let resolvedCategoryId: string | null = null;
+
+  if (index === -1) {
+    const catId = parseCategoryIds(currentChannel.category_ids)[0];
+    if (catId) {
+      try {
+        const catChannels = await db.channels.whereRaw(
+          `source_id = ? AND EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false'))`,
+          [currentChannel.source_id, catId]
+        ).toArray();
+        if (catChannels.length > 0) {
+          catChannels.sort(sortByChannelNumThenName);
+          list = catChannels;
+          index = list.findIndex((ch) => ch.stream_id === currentChannel.stream_id);
+          resolvedCategoryId = catId;
+        }
+      } catch (e) {
+        console.warn('[App] Failed to load adjacent channels for category:', e);
+      }
+    }
+    if (index === -1 && currentChannel.source_id) {
+      try {
+        const srcChannels = await db.channels
+          .where('source_id')
+          .equals(currentChannel.source_id)
+          .filter((c) => c.enabled !== false)
+          .toArray();
+        if (srcChannels.length > 0) {
+          srcChannels.sort(sortByChannelNumThenName);
+          list = srcChannels;
+          index = list.findIndex((ch) => ch.stream_id === currentChannel.stream_id);
+        }
+      } catch (e) {
+        console.warn('[App] Failed to load adjacent channels for source:', e);
+      }
+    }
+  }
+
+  return { list, index, resolvedCategoryId };
+}
+
+// ============================================================================
 // TransitionView Component
 // ============================================================================
 
@@ -791,6 +854,7 @@ function App() {
   // Refs for multiview (used by keyboard shortcuts)
   const multiviewLayoutRef = useRef<LayoutMode>('main');
   const handlePlayChannelRef = useRef<((channel: StoredChannel, autoSwitched?: boolean) => void) | null>(null);
+  const handlePlayChannelWrapperRef = useRef<((channel: StoredChannel, autoSwitched?: boolean, categoryOverride?: string) => Promise<void>) | null>(null);
   const lastPlayedChannelRef = useRef<StoredChannel | null>(null);
   useEffect(() => { multiviewLayoutRef.current = multiviewLayout; }, [multiviewLayout]);
 
@@ -1533,7 +1597,18 @@ function useTmdbPresencePoster(
     multiviewSlots: multiviewSlots || [],
     volume,
     isMuted: muted,
-    onPlayChannel: handlePlayChannel,
+    onPlayChannel: (channel: StoredChannel, sourceCategoryId?: string) => {
+      const catIds = parseCategoryIds(channel?.category_ids);
+      const targetCat = sourceCategoryId ?? catIds[0];
+      if (targetCat) {
+        setCategoryId(targetCat);
+      }
+      if (handlePlayChannelWrapperRef.current) {
+        handlePlayChannelWrapperRef.current(channel, undefined, sourceCategoryId);
+      } else {
+        handlePlayChannel(channel);
+      }
+    },
     onSetVolume: async (newVol: number) => {
       setVolume(newVol);
       await Bridge.setVolume(newVol);
@@ -2684,8 +2759,13 @@ function useTmdbPresencePoster(
     }
   }, []);
 
-  const handlePlayChannelWrapper = useCallback(async (channel: StoredChannel, autoSwitched?: boolean) => {
+  const handlePlayChannelWrapper = useCallback(async (channel: StoredChannel, autoSwitched?: boolean, categoryOverride?: string) => {
     setPlaybackSourceView(null);
+    const catIds = parseCategoryIds(channel?.category_ids);
+    const targetCat = categoryOverride ?? catIds[0];
+    if (targetCat && targetCat !== categoryId) {
+      setCategoryId(targetCat);
+    }
     const currentMode = popoutModeRef.current;
     if (currentMode === 'external') {
       await handlePlayInExternal(channel);
@@ -2694,7 +2774,11 @@ function useTmdbPresencePoster(
     } else {
       handlePlayChannel(channel, autoSwitched);
     }
-  }, [handlePlayChannel, popoutSwapChannel, handlePlayInExternal]);
+  }, [handlePlayChannel, popoutSwapChannel, handlePlayInExternal, categoryId, setCategoryId]);
+
+  useEffect(() => {
+    handlePlayChannelWrapperRef.current = handlePlayChannelWrapper;
+  }, [handlePlayChannelWrapper]);
 
   // Channel queued by a live-sports play action while a multiview layout is
   // active — the user still has to pick which screen it goes to.
@@ -3830,16 +3914,21 @@ function useTmdbPresencePoster(
     }
     
     // Default: navigate channels
-    if (currentChannels.length > 0 && currentChannel) {
-      const currentIndex = currentChannels.findIndex((ch) => ch.stream_id === currentChannel.stream_id);
-      if (currentIndex > 0) {
-        handlePlayChannel(currentChannels[currentIndex - 1]);
-      } else if (currentIndex === 0) {
-        // Wrap to last channel
-        handlePlayChannel(currentChannels[currentChannels.length - 1]);
+    if (currentChannel) {
+      const { list: channelsList, index: currentIndex, resolvedCategoryId } = await resolveChannelNavList(currentChannel, currentChannels);
+      if (resolvedCategoryId) {
+        setCategoryId(resolvedCategoryId);
+      }
+      if (currentIndex >= 0 && channelsList.length > 0) {
+        if (currentIndex > 0) {
+          handlePlayChannel(channelsList[currentIndex - 1]);
+        } else {
+          // Wrap to last channel
+          handlePlayChannel(channelsList[channelsList.length - 1]);
+        }
       }
     }
-  }, [currentChannels, currentChannel, handlePlayChannel, vodInfo, handlePlayVod, handleStop]);
+  }, [currentChannels, currentChannel, handlePlayChannel, vodInfo, handlePlayVod, handleStop, setCategoryId]);
 
   const handleChannelDown = useCallback(async () => {
     // Check if we're watching a series with episode info
@@ -4007,16 +4096,21 @@ function useTmdbPresencePoster(
     }
     
     // Default: navigate channels
-    if (currentChannels.length > 0 && currentChannel) {
-      const currentIndex = currentChannels.findIndex((ch) => ch.stream_id === currentChannel.stream_id);
-      if (currentIndex >= 0 && currentIndex < currentChannels.length - 1) {
-        handlePlayChannel(currentChannels[currentIndex + 1]);
-      } else if (currentIndex === currentChannels.length - 1) {
-        // Wrap to first channel
-        handlePlayChannel(currentChannels[0]);
+    if (currentChannel) {
+      const { list: channelsList, index: currentIndex, resolvedCategoryId } = await resolveChannelNavList(currentChannel, currentChannels);
+      if (resolvedCategoryId) {
+        setCategoryId(resolvedCategoryId);
+      }
+      if (currentIndex >= 0 && channelsList.length > 0) {
+        if (currentIndex < channelsList.length - 1) {
+          handlePlayChannel(channelsList[currentIndex + 1]);
+        } else {
+          // Wrap to first channel
+          handlePlayChannel(channelsList[0]);
+        }
       }
     }
-  }, [currentChannels, currentChannel, handlePlayChannel, vodInfo, handlePlayVod, handleStop]);
+  }, [currentChannels, currentChannel, handlePlayChannel, vodInfo, handlePlayVod, handleStop, setCategoryId]);
 
   // ==========================================================================
   // Keyboard Shortcuts (using latest ref pattern)

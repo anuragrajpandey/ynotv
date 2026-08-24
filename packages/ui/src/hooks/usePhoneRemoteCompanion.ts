@@ -52,7 +52,7 @@ export interface UsePhoneRemoteCompanionOptions {
   multiviewSlots: ViewerSlot[];
   volume?: number;
   isMuted?: boolean;
-  onPlayChannel: (channel: StoredChannel) => void;
+  onPlayChannel: (channel: StoredChannel, sourceCategoryId?: string) => void;
   onSendToSlot?: (slotIndex: number, channel: StoredChannel) => void;
   onSwitchLayout?: (layout: string) => void;
   onSetAudioSlot?: (slotIndex: number) => void;
@@ -639,7 +639,7 @@ export function usePhoneRemoteCompanion({
               if (payload.channelId) {
                 const chan = await db.channels.get(payload.channelId);
                 if (chan) {
-                  latestRefs.current.onPlayChannel(chan);
+                  latestRefs.current.onPlayChannel(chan, payload.categoryId);
                 }
               }
               break;

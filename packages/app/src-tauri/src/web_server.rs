@@ -3424,6 +3424,9 @@ async fn serve_remote_html() -> impl IntoResponse {
         return;
       }
 
+      // Search results are cross-category, so only attach the browsed category
+      // for non-search guide taps.
+      const tapCat = currentSearchTerm ? '' : (currentCategoryId || '');
       let html = '';
       channels.forEach(c => {
         const name = c.name || '';
@@ -3437,7 +3440,7 @@ async fn serve_remote_html() -> impl IntoResponse {
         const nextTitle = c.next_program ? `Next: ${esc(c.next_program.title)}` : '';
 
         html += `
-          <div class="guide-card" onclick="channelTap('${escAttr(c.stream_id)}', '${escAttr(name)}')">
+          <div class="guide-card" onclick="channelTap('${escAttr(c.stream_id)}', '${escAttr(name)}', '${escAttr(tapCat)}')">
             ${logoHtml}
             <div class="guide-card-content">
               <div class="guide-card-header">
@@ -3466,9 +3469,9 @@ async fn serve_remote_html() -> impl IntoResponse {
       } catch (e) { return ''; }
     }
 
-    function playChannel(channelId, name) {
+    function playChannel(channelId, name, catId) {
       if (navigator.vibrate) navigator.vibrate(25);
-      send({ action: 'playChannel', channelId });
+      send({ action: 'playChannel', channelId, categoryId: catId || undefined });
       showToast(`Tuning to ${name || 'Channel'}`);
     }
 
@@ -3687,13 +3690,16 @@ async fn serve_remote_html() -> impl IntoResponse {
       if (lastSportsEvents) renderSports(lastSportsEvents);
     }
 
-    /* Guide card tap: routes to slot-assign when in pick mode, otherwise plays */
-    function channelTap(channelId, name) {
+    /* Guide card tap: routes to slot-assign when in pick mode, otherwise plays.
+       catId is the guide category the channel was browsed in (omitted for
+       sports links and cross-category search results), so the app can sync its
+       guide category for ch up/down. */
+    function channelTap(channelId, name, catId) {
       if (pickSlot) {
         assignToMultiview(pickSlot, channelId);
         cancelPick();
       } else {
-        playChannel(channelId, name);
+        playChannel(channelId, name, catId);
       }
     }
 
