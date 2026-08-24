@@ -745,9 +745,9 @@
       "blurUnwatchedEpisodes": "Zamućenje nepregledanih epizoda",
       "blurUnwatchedEpisodesSub": "Zamućuje slike epizoda koje nisu označene kao pregledane na stranicama s detaljima serije.",
       "hdrTonemapLabel": "Mapiranje tonova HDR u SDR",
-      "hdrTonemapHint": "Pretvara HDR video izvore (HDR10, HLG, Dolby Vision) u SDR za točne boje i kontrast na standardnim zaslonima. Preporučuje se ako HDR sadržaj izgleda isprano ili sivo.",
+      "hdrTonemapHint": "Pretvara HDR video izvore (HDR10, HLG, Dolby Vision) u SDR za točne boje i kontrast na standardnim zaslonima. Preporučuje se ako HDR sadržaj izgleda isprano ili sivo. Može dodati kratko kašnjenje pri pokretanju streama dok se analizira HDR svjetlina.",
       "showHdrQuickToggleLabel": "Prikaži brzi HDR prekidač na traci reproduktora",
-      "showHdrQuickToggleHint": "Prikazuje gumb [HDR] na kontrolnoj traci za trenutno uključivanje mapiranja tonova tijekom reprodukcije."
+      "showHdrQuickToggleHint": "Prikazuje gumb [HDR] na kontrolnoj traci za trenutno uključivanje mapiranja tonova tijekom reprodukcije. Može se koristiti čak i kada je gornja HDR-u-SDR tonska korekcija onemogućena."
     },
     "livetv": {
       "tabs": {

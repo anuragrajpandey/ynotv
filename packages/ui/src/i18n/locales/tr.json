@@ -745,9 +745,9 @@
       "blurUnwatchedEpisodes": "İzlenmemiş bölümleri bulanıklaştır",
       "blurUnwatchedEpisodesSub": "Dizi ayrıntıları sayfalarında izlendi olarak işaretlenmemiş bölümlerin önizleme resimlerini bulanıklaştırır.",
       "hdrTonemapLabel": "HDR'den SDR'ye Ton Eşleme",
-      "hdrTonemapHint": "HDR video kaynaklarını (HDR10, HLG, Dolby Vision) standart ekranlarda doğru renkler ve kontrast için SDR'ye dönüştürür. HDR içeriği soluk veya grimsi görünüyorsa önerilir.",
+      "hdrTonemapHint": "HDR video kaynaklarını (HDR10, HLG, Dolby Vision) standart ekranlarda doğru renkler ve kontrast için SDR'ye dönüştürür. HDR içeriği soluk veya grimsi görünüyorsa önerilir. HDR parlaklığı analiz edilirken akışın başlatılmasında kısa bir gecikmeye neden olabilir.",
       "showHdrQuickToggleLabel": "Oynatıcı çubuğunda hızlı HDR düğmesini göster",
-      "showHdrQuickToggleHint": "Oynatma sırasında HDR ton eşlemeyi anında değiştirmek için kontrol çubuğunda bir [HDR] düğmesi gösterir."
+      "showHdrQuickToggleHint": "Oynatma sırasında HDR ton eşlemeyi anında değiştirmek için kontrol çubuğunda bir [HDR] düğmesi gösterir. Yukarıdaki HDR'den SDR'ye ton eşleme devre dışı olsa bile kullanılabilir."
     },
     "livetv": {
       "tabs": {

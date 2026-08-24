@@ -745,9 +745,9 @@
       "blurUnwatchedEpisodes": "模糊未观看剧集",
       "blurUnwatchedEpisodesSub": "在剧集详情页面上模糊未标记为已观看的剧集截图。",
       "hdrTonemapLabel": "HDR 转 SDR 色调映射",
-      "hdrTonemapHint": "将 HDR 视频源（HDR10、HLG、杜比视界）映射为 SDR，在普通显示器上呈现准确色彩与高对比度。若 HDR 画质发白、偏灰发雾，推荐开启。",
+      "hdrTonemapHint": "将 HDR 视频源（HDR10、HLG、杜比视界）映射为 SDR，在普通显示器上呈现准确色彩与高对比度。若 HDR 画质发白、偏灰发雾，推荐开启。分析 HDR 亮度时，可能使直播启动出现短暂延迟。",
       "showHdrQuickToggleLabel": "在播放控制栏显示 HDR 快捷切换按钮",
-      "showHdrQuickToggleHint": "在播放控制栏显示 [HDR] 按钮，播放过程中可随时一键切换色调映射。"
+      "showHdrQuickToggleHint": "在播放控制栏显示 [HDR] 按钮，播放过程中可随时一键切换色调映射。即使上方 HDR 转 SDR 色调映射已关闭，也可使用。"
     },
     "livetv": {
       "tabs": {

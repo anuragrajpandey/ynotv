@@ -60,6 +60,18 @@ pub fn create_canvas_mpv_instance(slot_id: u8) -> Result<(Mpv, *mut mpv_render_c
         let _ = init.set_property("demuxer-max-back-bytes", "20MiB");
         let _ = init.set_property("cache-secs", "10");
         let _ = init.set_property("keepaspect", "no");
+        // Low-latency profile for the small secondary windows: the canvas path
+        // is software-rendered on the CPU, so cheap scalers and no dithering /
+        // peak analysis keep per-frame cost down. Bilinear is visually fine at
+        // slot sizes; hdr-compute-peak is off so HDR peak analysis never runs
+        // even if tonemapping args are later injected into the slots.
+        let _ = init.set_property("scale", "bilinear");
+        let _ = init.set_property("cscale", "bilinear");
+        let _ = init.set_property("dscale", "bilinear");
+        let _ = init.set_property("dither", "no");
+        let _ = init.set_property("deband", "no");
+        let _ = init.set_property("interpolation", "no");
+        let _ = init.set_property("hdr-compute-peak", "no");
         let _ = init.set_property("mute", "yes");
         Ok(())
     }).map_err(|e| format!("Failed to create mpv instance: {}", e))?;

@@ -2164,9 +2164,9 @@
       "blurUnwatchedEpisodes": "Làm mờ các tập chưa xem",
       "blurUnwatchedEpisodesSub": "Làm mờ ảnh chụp màn hình của các tập chưa được đánh dấu là đã xem trên các trang chi tiết phim bộ.",
       "hdrTonemapLabel": "Ánh xạ tông màu HDR sang SDR",
-      "hdrTonemapHint": "Chuyển đổi nguồn video HDR (HDR10, HLG, Dolby Vision) sang SDR để hiển thị màu sắc và độ tương phản chuẩn xác trên màn hình thông thường. Khuyên dùng nếu video HDR bị nhạt hoặc mờ đục.",
+      "hdrTonemapHint": "Chuyển đổi nguồn video HDR (HDR10, HLG, Dolby Vision) sang SDR để hiển thị màu sắc và độ tương phản chuẩn xác trên màn hình thông thường. Khuyên dùng nếu video HDR bị nhạt hoặc mờ đục. Có thể gây trễ ngắn khi khởi động luồng phát trong khi độ sáng HDR được phân tích.",
       "showHdrQuickToggleLabel": "Hiển thị nút bật tắt nhanh HDR trên thanh điều khiển",
-      "showHdrQuickToggleHint": "Hiển thị nút [HDR] trên thanh điều khiển để chuyển đổi ánh xạ HDR trực tiếp khi đang phát."
+      "showHdrQuickToggleHint": "Hiển thị nút [HDR] trên thanh điều khiển để chuyển đổi ánh xạ HDR trực tiếp khi đang phát. Có thể sử dụng ngay cả khi tính năng chuyển đổi HDR sang SDR ở trên bị tắt."
     },
     "optimization": {
       "title": "Tăng Tốc Phần Cứng",

@@ -3,6 +3,23 @@ import Database from '@tauri-apps/plugin-sql';
 import { invoke } from '@tauri-apps/api/core';
 import type { Channel, Category, Movie, Series, Episode } from '@ynotv/core';
 
+// Debug logging helper - logs to console only when the global debug flag is
+// enabled (matches the pattern in db/sync.ts). Hot paths like episode watch
+// progress must not spam the production console on every save.
+function debugLog(message: string | (() => string), category = 'db'): void {
+  if (typeof window === 'undefined' || !(window as any).__debugLoggingEnabled) {
+    return;
+  }
+  // Lazy message: string-building (e.g. JSON.stringify of DB rows) only runs
+  // when debug logging is actually enabled.
+  const msg = typeof message === 'function' ? message() : message;
+  const logMsg = `[${category}] ${msg}`;
+  console.log(logMsg);
+  if (window.debug?.logFromRenderer) {
+    window.debug.logFromRenderer(logMsg).catch(() => { });
+  }
+}
+
 // Extended channel with local metadata
 export interface StoredChannel extends Omit<Channel, 'stream_icon' | 'epg_channel_id' | 'tv_archive'> {
   name: string;
@@ -3141,7 +3158,7 @@ export async function recordEpisodeWatch(
                            (totalDuration === 1 && progressSeconds === 1);
     let completed = isCompletedCalc ? 1 : 0;
 
-    console.log('[DB] recordEpisodeWatch called:', { episodeId, progressSeconds, totalDuration, completed });
+    debugLog(`recordEpisodeWatch called: ${episodeId} progress=${progressSeconds}/${totalDuration} completed=${completed}`, 'DB');
 
     const dbInstance = await (db as any).dbPromise;
     
@@ -3153,13 +3170,13 @@ export async function recordEpisodeWatch(
     
     if (existingRecord && existingRecord.length > 0) {
       // Update existing entry - preserve duration if new value is 0 or invalid, and preserve completed state
-      console.log('[DB] Updating existing episode record:', episodeId);
+      debugLog(`Updating existing episode record: ${episodeId}`, 'DB');
       
       let effectiveDuration = totalDuration;
       if ((totalDuration === 0 || totalDuration === undefined || totalDuration === null) && 
           existingRecord[0].total_duration > 0) {
         effectiveDuration = existingRecord[0].total_duration;
-        console.log('[DB] Preserving existing duration:', effectiveDuration, '(new value was:', totalDuration + ')');
+        debugLog(`Preserving existing duration: ${effectiveDuration} (new value was: ${totalDuration})`, 'DB');
       }
 
       // If existing record was already completed, keep it completed when the user
@@ -3186,7 +3203,7 @@ export async function recordEpisodeWatch(
       );
     } else {
       // Create new entry
-      console.log('[DB] Creating new episode record:', episodeId);
+      debugLog(`Creating new episode record: ${episodeId}`, 'DB');
       await dbInstance.execute(
         `INSERT INTO episode_history (episode_id, series_id, source_id, season_num, episode_num, title, watched_at, progress_seconds, total_duration, completed) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -3195,7 +3212,7 @@ export async function recordEpisodeWatch(
     }
     
     dbEvents.notify('episode_history', 'update');
-    console.log('[DB] Episode watch recorded successfully');
+    debugLog('Episode watch recorded successfully', 'DB');
 
     // If this episode completed, advance series-level vod_history to the next episode if one exists
     if (completed === 1 && seriesId && seasonNum > 0 && episodeNum > 0) {
@@ -3252,9 +3269,9 @@ export async function getEpisodeProgress(episodeId: string): Promise<EpisodeWatc
       'SELECT * FROM episode_history WHERE episode_id = ?',
       [episodeId]
     );
-    console.log('[DB] getEpisodeProgress raw result:', result);
+    debugLog(() => `getEpisodeProgress raw result: ${JSON.stringify(result)}`, 'DB');
     if (result && result.length > 0) {
-      console.log('[DB] getEpisodeProgress found record:', result[0]);
+      debugLog(() => `getEpisodeProgress found record: ${JSON.stringify(result[0])}`, 'DB');
       return result[0];
     }
     return null;

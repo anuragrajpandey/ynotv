@@ -745,9 +745,9 @@
       "blurUnwatchedEpisodes": "Desfocar episódios não assistidos",
       "blurUnwatchedEpisodesSub": "Desfoca as capturas de tela dos episódios que não estão marcados como assistidos nas páginas de detalhes da série.",
       "hdrTonemapLabel": "Mapeamento de Tons HDR para SDR",
-      "hdrTonemapHint": "Converte vídeos HDR (HDR10, HLG, Dolby Vision) para SDR garantindo cores e contraste precisos em telas padrão. Recomendado se o conteúdo HDR parecer lavado ou acinzentado.",
+      "hdrTonemapHint": "Converte vídeos HDR (HDR10, HLG, Dolby Vision) para SDR garantindo cores e contraste precisos em telas padrão. Recomendado se o conteúdo HDR parecer lavado ou acinzentado. Pode adicionar um pequeno atraso ao iniciar a transmissão enquanto o brilho HDR é analisado.",
       "showHdrQuickToggleLabel": "Exibir botão rápido de HDR na barra do player",
-      "showHdrQuickToggleHint": "Exibe um botão [HDR] na barra de controles para alternar o mapeamento HDR instantaneamente durante a reprodução."
+      "showHdrQuickToggleHint": "Exibe um botão [HDR] na barra de controles para alternar o mapeamento HDR instantaneamente durante a reprodução. Pode ser usado mesmo quando a conversão de HDR para SDR acima está desativada."
     },
     "livetv": {
       "tabs": {

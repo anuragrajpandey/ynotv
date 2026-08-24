@@ -745,9 +745,9 @@
       "blurUnwatchedEpisodes": "Turbullo episodet e pashikuara",
       "blurUnwatchedEpisodesSub": "Turbullon pamjet e episodeve që nuk janë shënuar si të shikuara në faqet e detajeve të serialit.",
       "hdrTonemapLabel": "Hartëzimi i Toneve HDR në SDR",
-      "hdrTonemapHint": "Përshtat burimet e videos HDR (HDR10, HLG, Dolby Vision) në SDR për ngjyra dhe kontrast të saktë në ekrane standarde. Rekomandohet nëse përmbajtja HDR duket e zbehtë ose gri.",
+      "hdrTonemapHint": "Përshtat burimet e videos HDR (HDR10, HLG, Dolby Vision) në SDR për ngjyra dhe kontrast të saktë në ekrane standarde. Rekomandohet nëse përmbajtja HDR duket e zbehtë ose gri. Mund të shtojë një vonesë të shkurtër gjatë nisjes së transmetimit ndërsa analizohet shkëlqimi HDR.",
       "showHdrQuickToggleLabel": "Shfaq butonin e shpejtë HDR në shiritin e luajtësit",
-      "showHdrQuickToggleHint": "Shfaq një buton [HDR] në shiritin e kontrollit për të ndryshuar menjëherë hartëzimin gjatë shikimit."
+      "showHdrQuickToggleHint": "Shfaq një buton [HDR] në shiritin e kontrollit për të ndryshuar menjëherë hartëzimin gjatë shikimit. Mund të përdoret edhe kur konvertimi HDR në SDR më sipër është i çaktivizuar."
     },
     "livetv": {
       "tabs": {

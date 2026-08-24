@@ -3207,6 +3207,12 @@ async fn serve_remote_html() -> impl IntoResponse {
         if (data.multiview) renderMultiview(data.multiview);
         if (data.activeView !== undefined) updateSections(data.activeView);
         if (data.volume !== undefined || data.muted !== undefined) renderVolume(data.volume, data.muted);
+        if (data.searchQuery !== undefined) {
+          lastSyncedRemoteQuery = data.searchQuery || '';
+          const searchInput = document.getElementById('remote-search-input');
+          if (searchInput) searchInput.value = lastSyncedRemoteQuery;
+          updateRemoteSearchUi();
+        }
       } else if (data.type === 'volume') {
         renderVolume(data.volume, data.muted);
       } else if (data.type === 'view') {

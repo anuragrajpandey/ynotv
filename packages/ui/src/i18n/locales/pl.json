@@ -745,9 +745,9 @@
       "blurUnwatchedEpisodes": "Rozmyj nieobejrzane odcinki",
       "blurUnwatchedEpisodesSub": "Rozmywa zrzuty ekranu odcinków, które nie są oznaczone jako obejrzane na stronach szczegółów serialu.",
       "hdrTonemapLabel": "Mapowanie tonów HDR do SDR",
-      "hdrTonemapHint": "Konwertuje źródła wideo HDR (HDR10, HLG, Dolby Vision) do SDR w celu uzyskania dokładnych kolorów i kontrastu na standardowych ekranach. Zalecane, jeśli obraz HDR wygląda na wyblakły lub szary.",
+      "hdrTonemapHint": "Konwertuje źródła wideo HDR (HDR10, HLG, Dolby Vision) do SDR w celu uzyskania dokładnych kolorów i kontrastu na standardowych ekranach. Zalecane, jeśli obraz HDR wygląda na wyblakły lub szary. Może spowodować krótkie opóźnienie przy uruchamianiu strumienia podczas analizy jasności HDR.",
       "showHdrQuickToggleLabel": "Pokaż szybki przełącznik HDR na pasku odtwarzacza",
-      "showHdrQuickToggleHint": "Wyświetla przycisk [HDR] na pasku sterowania, umożliwiający szybkie przełączanie mapowania HDR podczas odtwarzania."
+      "showHdrQuickToggleHint": "Wyświetla przycisk [HDR] na pasku sterowania, umożliwiający szybkie przełączanie mapowania HDR podczas odtwarzania. Można używać nawet wtedy, gdy powyższa funkcja mapowania tonów HDR na SDR jest wyłączona."
     },
     "livetv": {
       "tabs": {

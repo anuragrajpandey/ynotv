@@ -745,9 +745,9 @@
       "scrollwheelSeekInvert": "Invert Scrollwheel Direction",
       "scrollwheelSeekInvertSub": "Scroll up to seek backward and scroll down to seek forward.",
       "hdrTonemapLabel": "HDR-to-SDR Tonemapping",
-      "hdrTonemapHint": "Maps HDR video sources (HDR10, HLG, Dolby Vision) to SDR for accurate colors and contrast on standard displays. Recommended if HDR content looks washed-out or grey.",
+      "hdrTonemapHint": "Maps HDR video sources (HDR10, HLG, Dolby Vision) to SDR for accurate colors and contrast on standard displays. Recommended if HDR content looks washed-out or grey. May add a short delay to stream startup while HDR brightness is analyzed.",
       "showHdrQuickToggleLabel": "Show HDR Quick Toggle in Player Bar",
-      "showHdrQuickToggleHint": "Displays an [HDR] button on the player control bar to toggle HDR tonemapping on the fly during playback."
+      "showHdrQuickToggleHint": "Displays an [HDR] button on the player control bar to toggle HDR tonemapping on the fly during playback. Can be used even when HDR-to-SDR Tonemapping above is disabled."
     },
     "livetv": {
       "tabs": {

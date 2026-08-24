@@ -745,9 +745,9 @@
       "blurUnwatchedEpisodes": "Niet-bekeken afleveringen vervagen",
       "blurUnwatchedEpisodesSub": "Vervaag voorbeeldafbeeldingen van afleveringen die niet als bekeken zijn gemarkeerd op serie-detailpagina's.",
       "hdrTonemapLabel": "HDR-naar-SDR tonemapping",
-      "hdrTonemapHint": "Zet HDR-videobronnen (HDR10, HLG, Dolby Vision) om naar SDR voor nauwkeurige kleuren en contrast op standaardschermen. Aanbevolen als HDR-content flets of grijs oogt.",
+      "hdrTonemapHint": "Zet HDR-videobronnen (HDR10, HLG, Dolby Vision) om naar SDR voor nauwkeurige kleuren en contrast op standaardschermen. Aanbevolen als HDR-content flets of grijs oogt. Kan een korte vertraging veroorzaken bij het starten van de stream terwijl de HDR-helderheid wordt geanalyseerd.",
       "showHdrQuickToggleLabel": "HDR-snelknop tonen in de spelerbalk",
-      "showHdrQuickToggleHint": "Toont een [HDR]-knop op de bedieningsbalk om HDR-tonemapping direct tijdens het afspelen in of uit te schakelen."
+      "showHdrQuickToggleHint": "Toont een [HDR]-knop op de bedieningsbalk om HDR-tonemapping direct tijdens het afspelen in of uit te schakelen. Kan ook worden gebruikt wanneer de bovenstaande HDR-naar-SDR-tonemapping is uitgeschakeld."
     },
     "livetv": {
       "tabs": {

@@ -745,9 +745,9 @@
       "blurUnwatchedEpisodes": "Nem látott epizódok elhomályosítása",
       "blurUnwatchedEpisodesSub": "Elhomályosítja azon epizódok előnézeti képeit a sorozat részletező oldalain, amelyek nincsenek megtekintettként megjelölve.",
       "hdrTonemapLabel": "HDR - SDR tónusleképezés",
-      "hdrTonemapHint": "A HDR videoforrásokat (HDR10, HLG, Dolby Vision) SDR-re alakítja a pontos színek és kontraszt érdekében a hagyományos kijelzőkön. Ajánlott, ha a HDR tartalom fakónak vagy szürkének tűnik.",
+      "hdrTonemapHint": "A HDR videoforrásokat (HDR10, HLG, Dolby Vision) SDR-re alakítja a pontos színek és kontraszt érdekében a hagyományos kijelzőkön. Ajánlott, ha a HDR tartalom fakónak vagy szürkének tűnik. Kis késleltetést okozhat a stream indításakor, amíg a HDR fényerő elemzése tart.",
       "showHdrQuickToggleLabel": "HDR gyorsgomb megjelenítése a lejátszó sávján",
-      "showHdrQuickToggleHint": "Megjelenít egy [HDR] gombot a vezérlősávon a tónusleképezés azonnali váltásához lejátszás közben."
+      "showHdrQuickToggleHint": "Megjelenít egy [HDR] gombot a vezérlősávon a tónusleképezés azonnali váltásához lejátszás közben. Akkor is használható, ha a fenti HDR–SDR tónusleképezés ki van kapcsolva."
     },
     "livetv": {
       "tabs": {
