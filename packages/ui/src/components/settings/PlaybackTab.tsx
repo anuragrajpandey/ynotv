@@ -574,35 +574,7 @@ export function PlaybackTab({
                 </button>
               </div>
 
-              <div className="playback-help">
-                <h4>{i18n.t('settings:playback.commonParams')}</h4>
-                <div className="help-grid">
-                  <div className="help-item">
-                    <code>--hwdec=auto</code>
-                    <span>{i18n.t('settings:playback.helpHwdec')}</span>
-                  </div>
-                  <div className="help-item">
-                    <code>--cache=yes</code>
-                    <span>{i18n.t('settings:playback.helpCache')}</span>
-                  </div>
-                  <div className="help-item">
-                    <code>--network-timeout=10</code>
-                    <span>{i18n.t('settings:playback.helpTimeout')}</span>
-                  </div>
-                  <div className="help-item">
-                    <code>--video-sync=display-resample</code>
-                    <span>{i18n.t('settings:playback.helpVsync')}</span>
-                  </div>
-                  <div className="help-item">
-                    <code>--demuxer-max-bytes=50MiB</code>
-                    <span>{i18n.t('settings:playback.helpDemuxer')}</span>
-                  </div>
-                  <div className="help-item">
-                    <code>--stream-lavf-o=reconnect=1</code>
-                    <span>{i18n.t('settings:playback.helpReconnect')}</span>
-                  </div>
-                </div>
-              </div>
+
 
 
 

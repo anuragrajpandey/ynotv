@@ -3850,6 +3850,7 @@
     "viewLayout": "View Layout",
     "viewerEngine": "Viewer Engine",
     "mpvNativeWindows": "Native MPV secondary windows",
+    "mpvInDom": "libmpv player — supports overlays",
     "hlsInBrowser": "In-browser HLS player — supports overlays",
     "sendToViewerSlot": "Send to Viewer {{slot}}",
     "sendToViewerMain": "Send to Viewer {{slot}} (Main)",

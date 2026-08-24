@@ -3850,6 +3850,7 @@
     "viewLayout": "نمایش چیدمان",
     "viewerEngine": "موتور نمایشگر",
     "mpvNativeWindows": "پنجره‌های ثانویه بومی MPV",
+    "mpvInDom": "پخش‌کننده libmpv — پشتیبانی از لایه‌ها",
     "hlsInBrowser": "پخش‌کننده HLS در مرورگر — پشتیبانی از لایه‌ها",
     "sendToViewerSlot": "ارسال به نمایشگر {{slot}}",
     "sendToViewerMain": "ارسال به نمایشگر {{slot}} (اصلی)",

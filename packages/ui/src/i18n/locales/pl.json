@@ -3850,6 +3850,7 @@
     "viewLayout": "Układ widoku",
     "viewerEngine": "Silnik widoku",
     "mpvNativeWindows": "Natywne okna pomocnicze MPV",
+    "mpvInDom": "Odtwarzacz libmpv — obsługuje nakładki",
     "hlsInBrowser": "Odtwarzacz HLS w przeglądarce — obsługuje nakładki",
     "sendToViewerSlot": "Wyślij do widoku {{slot}}",
     "sendToViewerMain": "Wyślij do widoku {{slot}} (Główny)",

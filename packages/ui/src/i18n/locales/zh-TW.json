@@ -3850,6 +3850,7 @@
     "viewLayout": "視圖佈局",
     "viewerEngine": "檢視器引擎",
     "mpvNativeWindows": "原生 MPV 輔助視窗",
+    "mpvInDom": "libmpv 播放器 — 支援覆蓋層",
     "hlsInBrowser": "瀏覽器內 HLS 播放器 — 支援覆蓋層",
     "sendToViewerSlot": "發送到檢視器 {{slot}}",
     "sendToViewerMain": "發送到檢視器 {{slot}}（主）",

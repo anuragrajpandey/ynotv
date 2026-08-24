@@ -3850,6 +3850,7 @@
     "viewLayout": "Layout vista",
     "viewerEngine": "Motore visualizzatore",
     "mpvNativeWindows": "Finestre secondarie MPV native",
+    "mpvInDom": "Lettore libmpv — supporta gli overlay",
     "hlsInBrowser": "Lettore HLS nel browser — supporta gli overlay",
     "sendToViewerSlot": "Invia al Visualizzatore {{slot}}",
     "sendToViewerMain": "Invia al Visualizzatore {{slot}} (Principale)",

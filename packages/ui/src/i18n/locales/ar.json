@@ -3850,6 +3850,7 @@
     "viewLayout": "عرض التخطيط",
     "viewerEngine": "محرك العرض",
     "mpvNativeWindows": "نوافذ MPV الأصلية الثانوية",
+    "mpvInDom": "مشغّل libmpv — يدعم الطبقات",
     "hlsInBrowser": "مشغّل HLS داخل المتصفح — يدعم الطبقات",
     "sendToViewerSlot": "إرسال إلى الشاشة {{slot}}",
     "sendToViewerMain": "إرسال إلى الشاشة {{slot}} (الرئيسية)",

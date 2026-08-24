@@ -3850,6 +3850,7 @@
     "viewLayout": "Распоред приказа",
     "viewerEngine": "Мотор приказа",
     "mpvNativeWindows": "Нативни MPV помоћни прозори",
+    "mpvInDom": "libmpv плејер — подржава преклопе",
     "hlsInBrowser": "HLS плејер у прегледачу — подржава преклопе",
     "sendToViewerSlot": "Пошаљи у приказ {{slot}}",
     "sendToViewerMain": "Пошаљи у приказ {{slot}} (Главни)",

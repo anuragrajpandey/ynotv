@@ -3850,6 +3850,7 @@
     "viewLayout": "Indeling bekijken",
     "viewerEngine": "Kijkerengine",
     "mpvNativeWindows": "Native MPV-vensters",
+    "mpvInDom": "libmpv-speler — ondersteunt overlays",
     "hlsInBrowser": "HLS-speler in browser — ondersteunt overlays",
     "sendToViewerSlot": "Naar kijker {{slot}} sturen",
     "sendToViewerMain": "Naar kijker {{slot}} sturen (hoofd)",

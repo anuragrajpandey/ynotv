@@ -101,9 +101,9 @@ export function LayoutPicker({ currentLayout, onSelect, engineMode, onEngineChan
                             <button
                                 className={`lp-engine-pill ${engineMode === 'mpv_canvas' ? 'lp-engine-pill-active lp-engine-pill-canvas-active' : ''}`}
                                 onClick={() => onEngineChange('mpv_canvas')}
-                                title="libmpv In-DOM Canvas with full Overlay support"
+                                title={t('mpvInDom')}
                             >
-                                CANVAS
+                                MPV
                             </button>
                             <button
                                 className={`lp-engine-pill lp-engine-pill-hls ${engineMode === 'hls' ? 'lp-engine-pill-active lp-engine-pill-hls-active' : ''}`}

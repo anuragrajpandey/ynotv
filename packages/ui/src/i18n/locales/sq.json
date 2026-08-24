@@ -3850,6 +3850,7 @@
     "viewLayout": "Pamja e shikimit",
     "viewerEngine": "Motori i shikimit",
     "mpvNativeWindows": "Dritare ndihmëse amë MPV",
+    "mpvInDom": "Luajtës libmpv — mbështet mbivendosjet",
     "hlsInBrowser": "Luajtës HLS në shfletues — mbështet mbivendosjet",
     "sendToViewerSlot": "Dërgo te shikuesi {{slot}}",
     "sendToViewerMain": "Dërgo te shikuesi {{slot}} (Kryesor)",

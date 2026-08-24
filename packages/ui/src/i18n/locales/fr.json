@@ -3850,6 +3850,7 @@
     "viewLayout": "Voir la disposition",
     "viewerEngine": "Moteur de visionnage",
     "mpvNativeWindows": "Fenêtres secondaires MPV natives",
+    "mpvInDom": "Lecteur libmpv — prend en charge les superpositions",
     "hlsInBrowser": "Lecteur HLS dans le navigateur — prend en charge les superpositions",
     "sendToViewerSlot": "Envoyer vers la visionneuse {{slot}}",
     "sendToViewerMain": "Envoyer vers la visionneuse {{slot}} (principale)",

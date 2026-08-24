@@ -3850,6 +3850,7 @@
     "viewLayout": "Ver diseño",
     "viewerEngine": "Motor del visor",
     "mpvNativeWindows": "Ventanas secundarias nativas de MPV",
+    "mpvInDom": "Reproductor libmpv — admite superposiciones",
     "hlsInBrowser": "Reproductor HLS en navegador — admite superposiciones",
     "sendToViewerSlot": "Enviar al visor {{slot}}",
     "sendToViewerMain": "Enviar al visor {{slot}} (principal)",

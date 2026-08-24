@@ -3850,6 +3850,7 @@
     "viewLayout": "Raspored prikaza",
     "viewerEngine": "Motor prikaza",
     "mpvNativeWindows": "Nativni MPV pomoćni prozori",
+    "mpvInDom": "libmpv plejer — podržava preklope",
     "hlsInBrowser": "HLS plejer u pregledaču — podržava preklope",
     "sendToViewerSlot": "Pošalji u prikaz {{slot}}",
     "sendToViewerMain": "Pošalji u prikaz {{slot}} (Glavni)",

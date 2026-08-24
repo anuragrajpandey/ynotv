@@ -3850,6 +3850,7 @@
     "viewLayout": "लेआउट देखें",
     "viewerEngine": "व्यूअर इंजन",
     "mpvNativeWindows": "नेटिव MPV द्वितीयक विंडो",
+    "mpvInDom": "libmpv प्लेयर — ओवरले समर्थन करता है",
     "hlsInBrowser": "इन-ब्राउज़र HLS प्लेयर — ओवरले समर्थन करता है",
     "sendToViewerSlot": "व्यूअर {{slot}} को भेजें",
     "sendToViewerMain": "व्यूअर {{slot}} को भेजें (मुख्य)",

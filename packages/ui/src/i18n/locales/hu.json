@@ -3850,6 +3850,7 @@
     "viewLayout": "Elrendezés megtekintése",
     "viewerEngine": "Megjelenítő motor",
     "mpvNativeWindows": "Natív MPV másodlagos ablakok",
+    "mpvInDom": "libmpv-lejátszó — támogatja a fedvényeket",
     "hlsInBrowser": "Böngészőn belüli HLS-lejátszó — támogatja a fedvényeket",
     "sendToViewerSlot": "Küldés a(z) {{slot}}. megjelenítőhöz",
     "sendToViewerMain": "Küldés a(z) {{slot}}. megjelenítőhöz (Fő)",

@@ -3850,6 +3850,7 @@
     "viewLayout": "ویو لی آؤٹ",
     "viewerEngine": "ویور انجن",
     "mpvNativeWindows": "نیٹیو ایم پی وی سیکنڈری ونڈوز",
+    "mpvInDom": "libmpv پلیئر — اوورلے سپورٹ کرتا ہے",
     "hlsInBrowser": "براؤزر میں HLS پلیئر — اوورلے سپورٹ کرتا ہے",
     "sendToViewerSlot": "ویور {{slot}} کو بھیجیں",
     "sendToViewerMain": "ویور {{slot}} کو بھیجیں (مین)",

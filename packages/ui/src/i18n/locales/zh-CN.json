@@ -3850,6 +3850,7 @@
     "viewLayout": "视图布局",
     "viewerEngine": "查看器引擎",
     "mpvNativeWindows": "原生 MPV 辅助窗口",
+    "mpvInDom": "libmpv 播放器 — 支持覆盖层",
     "hlsInBrowser": "浏览器内 HLS 播放器 — 支持覆盖层",
     "sendToViewerSlot": "发送到查看器 {{slot}}",
     "sendToViewerMain": "发送到查看器 {{slot}}（主）",

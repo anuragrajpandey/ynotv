@@ -3850,6 +3850,7 @@
     "viewLayout": "Макет просмотра",
     "viewerEngine": "Движок просмотрщика",
     "mpvNativeWindows": "Нативные вторичные окна MPV",
+    "mpvInDom": "libmpv-плеер — поддерживает оверлеи",
     "hlsInBrowser": "HLS-плеер в браузере — поддерживает оверлеи",
     "sendToViewerSlot": "Отправить в просмотрщик {{slot}}",
     "sendToViewerMain": "Отправить в просмотрщик {{slot}} (основной)",

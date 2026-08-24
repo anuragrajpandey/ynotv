@@ -1250,6 +1250,7 @@
     "viewLayout": "Chế Độ Xem Bố Cục",
     "viewerEngine": "Công Cụ Màn",
     "mpvNativeWindows": "Cửa sổ phụ MPV gốc",
+    "mpvInDom": "Trình phát libmpv — hỗ trợ lớp phủ",
     "hlsInBrowser": "Trình phát HLS trong trình duyệt — hỗ trợ lớp phủ",
     "sendToViewerSlot": "Gửi tới Màn {{slot}}",
     "sendToViewerMain": "Gửi tới Màn {{slot}} (Chính)",

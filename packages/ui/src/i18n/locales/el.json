@@ -3850,6 +3850,7 @@
     "viewLayout": "Διάταξη Προβολής",
     "viewerEngine": "Μηχανή Προβολέα",
     "mpvNativeWindows": "Εγγενή δευτερεύοντα παράθυρα MPV",
+    "mpvInDom": "Συσκευή libmpv — υποστηρίζει επικαλύψεις",
     "hlsInBrowser": "Συσκευή HLS στον browser — υποστηρίζει επικαλύψεις",
     "sendToViewerSlot": "Αποστολή σε Προβολέα {{slot}}",
     "sendToViewerMain": "Αποστολή σε Προβολέα {{slot}} (Κύριο)",

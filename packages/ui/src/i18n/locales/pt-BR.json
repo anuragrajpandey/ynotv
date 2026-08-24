@@ -3850,6 +3850,7 @@
     "viewLayout": "Ver layout",
     "viewerEngine": "Mecanismo do visualizador",
     "mpvNativeWindows": "Janelas secundárias nativas do MPV",
+    "mpvInDom": "Player libmpv — suporta sobreposições",
     "hlsInBrowser": "Player HLS no navegador — suporta sobreposições",
     "sendToViewerSlot": "Enviar para o visualizador {{slot}}",
     "sendToViewerMain": "Enviar para o visualizador {{slot}} (principal)",
