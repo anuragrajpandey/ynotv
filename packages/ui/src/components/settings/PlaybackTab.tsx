@@ -75,6 +75,34 @@ interface PlaybackTabProps {
   onUseScrollwheelSeekInvertChange: (enabled: boolean) => void;
 }
 
+// MPV picture quality profiles (Settings -> Playback -> MPV). These mirror the
+// profiles injected by the Rust param builder (get_mpv_params_from_store);
+// 'balanced' applies no extra options (MPV defaults).
+const MPV_QUALITY_PARAMS: Record<'performance' | 'quality', string> = {
+  performance: [
+    'scale=bilinear',
+    'cscale=bilinear',
+    'dscale=bilinear',
+    'dither=no',
+    'deband=no',
+    'vd-lavc-fast=yes',
+    'interpolation=no',
+    'hdr-compute-peak=no',
+  ].join('\n'),
+  quality: [
+    // mpv's own gpu-hq baseline, plus stronger debanding and per-frame HDR peak.
+    'profile=gpu-hq',
+    'deband-iterations=2',
+    'hdr-compute-peak=yes',
+  ].join('\n'),
+};
+
+const MPV_QUALITY_OPTIONS: { value: 'performance' | 'balanced' | 'quality'; labelKey: string; descKey: string }[] = [
+  { value: 'performance', labelKey: 'mpvQualityPerformance', descKey: 'mpvQualityPerformanceDesc' },
+  { value: 'balanced', labelKey: 'mpvQualityBalanced', descKey: 'mpvQualityBalancedDesc' },
+  { value: 'quality', labelKey: 'mpvQualityQuality', descKey: 'mpvQualityQualityDesc' },
+];
+
 const DEFAULT_MPV_PARAMS = `--hwdec=auto
 --vo=gpu
 --cache=yes
@@ -166,7 +194,11 @@ export function PlaybackTab({
     setHdrTonemapToSdr,
     showHdrQuickToggle,
     setShowHdrQuickToggle,
+    mpvQuality,
+    setMpvQuality,
   } = useSettingsStore();
+
+  const [showQualityParams, setShowQualityParams] = useState<'performance' | 'quality' | null>(null);
 
   const handleEngineChange = async (newEngine: 'libmpv' | 'sidecar') => {
     if (newEngine === playerEngine) return;
@@ -453,6 +485,59 @@ export function PlaybackTab({
                   </p>
                 </div>
               </div>
+
+            {/* Picture Quality Profiles (MPV) */}
+            <div style={{ marginBottom: '1.25rem', background: 'var(--card-bg, var(--surface-color))', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--border-color, var(--surface-border))' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '4px' }}>
+                {i18n.t('settings:playback.mpvQualityLabel', 'Picture Quality Profiles')}
+              </div>
+              <p style={{ margin: '0 0 10px 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                {i18n.t('settings:playback.mpvQualityHint', 'Video scaling and processing profile applied to MPV on the next stream start. Balanced uses MPV\'s standard defaults.')}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {MPV_QUALITY_OPTIONS.map((opt) => {
+                  const val = opt.value;
+                  const showable = val !== 'balanced';
+                  return (
+                    <div key={val} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="mpvQuality"
+                          value={val}
+                          checked={mpvQuality === val}
+                          onChange={() => { void setMpvQuality(val); }}
+                          style={{ marginTop: '3px' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>                            {i18n.t(`settings:playback.${opt.labelKey}`, { defaultValue: opt.labelKey })}
+                        </span>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.35' }}>
+                          {i18n.t(`settings:playback.${opt.descKey}`, { defaultValue: opt.descKey })}
+                          </p>
+                        </div>
+                      </label>
+                      {showable && (
+                        <div style={{ marginLeft: '26px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowQualityParams(showQualityParams === val ? null : val)}
+                            style={{ background: 'none', border: 'none', padding: '2px 0', color: 'var(--accent-color, #00d4ff)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit' }}
+                          >
+                            {showQualityParams === val
+                              ? i18n.t('settings:playback.mpvQualityHideParams', 'Hide parameters')
+                              : i18n.t('settings:playback.mpvQualityShowParams', 'Show parameters')}
+                          </button>
+                          {showQualityParams === val && (
+                            <pre style={{ margin: '4px 0 0 0', padding: '8px 10px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-color, rgba(255,255,255,0.08))', fontSize: '0.78rem', lineHeight: '1.5', overflowX: 'auto', color: 'var(--text-secondary)' }}>{MPV_QUALITY_PARAMS[val]}</pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             <div className="playback-section" style={{ marginTop: 0 }}>
               <div className="playback-label">

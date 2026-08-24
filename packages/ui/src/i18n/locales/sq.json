@@ -747,6 +747,16 @@
       "hdrTonemapLabel": "Hartëzimi i Toneve HDR në SDR",
       "hdrTonemapHint": "Përshtat burimet e videos HDR (HDR10, HLG, Dolby Vision) në SDR për ngjyra dhe kontrast të saktë në ekrane standarde. Rekomandohet nëse përmbajtja HDR duket e zbehtë ose gri. Mund të shtojë një vonesë të shkurtër gjatë nisjes së transmetimit ndërsa analizohet shkëlqimi HDR.",
       "showHdrQuickToggleLabel": "Shfaq butonin e shpejtë HDR në shiritin e luajtësit",
+      "mpvQualityLabel": "Profilet e cilësisë së figurës",
+      "mpvQualityHint": "Profili i shkallëzimit dhe përpunimit të videos që aplikohet në MPV në fillimin tjetër të transmetimit. I ekuilibruar përdor parazgjedhjet standarde të MPV.",
+      "mpvQualityPerformance": "I qetë në kompjuterë të dobët",
+      "mpvQualityPerformanceDesc": "Ngarkesa më e ulët GPU/CPU: shkallëzim bilinear, pa dithering ose debanding, dekodim më i shpejtë.",
+      "mpvQualityBalanced": "I ekuilibruar",
+      "mpvQualityBalancedDesc": "Parazgjedhjet standarde të MPV pa përpunim shtesë (parazgjedhur).",
+      "mpvQualityQuality": "Cilësi maksimale",
+      "mpvQualityQualityDesc": "Shkallëzim me cilësi të lartë, debanding dhe analizë dinamike e pikut HDR për GPU të fuqishme.",
+      "mpvQualityShowParams": "Shfaq parametrat",
+      "mpvQualityHideParams": "Fshih parametrat",
       "showHdrQuickToggleHint": "Shfaq një buton [HDR] në shiritin e kontrollit për të ndryshuar menjëherë hartëzimin gjatë shikimit. Mund të përdoret edhe kur konvertimi HDR në SDR më sipër është i çaktivizuar."
     },
     "livetv": {

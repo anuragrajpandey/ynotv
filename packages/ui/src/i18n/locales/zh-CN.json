@@ -747,6 +747,16 @@
       "hdrTonemapLabel": "HDR 转 SDR 色调映射",
       "hdrTonemapHint": "将 HDR 视频源（HDR10、HLG、杜比视界）映射为 SDR，在普通显示器上呈现准确色彩与高对比度。若 HDR 画质发白、偏灰发雾，推荐开启。分析 HDR 亮度时，可能使直播启动出现短暂延迟。",
       "showHdrQuickToggleLabel": "在播放控制栏显示 HDR 快捷切换按钮",
+      "mpvQualityLabel": "画质配置文件",
+      "mpvQualityHint": "下次直播启动时应用于 MPV 的视频缩放和处理配置文件。平衡模式使用 MPV 的标准默认设置。",
+      "mpvQualityPerformance": "低配电脑流畅",
+      "mpvQualityPerformanceDesc": "最低 GPU/CPU 负载：双线性缩放，无抖动或去色带，解码更快。",
+      "mpvQualityBalanced": "平衡",
+      "mpvQualityBalancedDesc": "MPV 标准默认设置，无额外处理（默认）。",
+      "mpvQualityQuality": "最高画质",
+      "mpvQualityQualityDesc": "高质量缩放、去色带和动态 HDR 峰值分析，适合高性能显卡。",
+      "mpvQualityShowParams": "显示参数",
+      "mpvQualityHideParams": "隐藏参数",
       "showHdrQuickToggleHint": "在播放控制栏显示 [HDR] 按钮，播放过程中可随时一键切换色调映射。即使上方 HDR 转 SDR 色调映射已关闭，也可使用。"
     },
     "livetv": {

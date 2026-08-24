@@ -747,6 +747,16 @@
       "hdrTonemapLabel": "Mapiranje tonova HDR u SDR",
       "hdrTonemapHint": "Pretvara HDR video izvore (HDR10, HLG, Dolby Vision) u SDR za točne boje i kontrast na standardnim zaslonima. Preporučuje se ako HDR sadržaj izgleda isprano ili sivo. Može dodati kratko kašnjenje pri pokretanju streama dok se analizira HDR svjetlina.",
       "showHdrQuickToggleLabel": "Prikaži brzi HDR prekidač na traci reproduktora",
+      "mpvQualityLabel": "Profili kvalitete slike",
+      "mpvQualityHint": "Profil skaliranja i obrade videa koji se primjenjuje na MPV pri sljedećem pokretanju streama. Uravnoteženo koristi standardne MPV postavke.",
+      "mpvQualityPerformance": "Glatko na slabijim računalima",
+      "mpvQualityPerformanceDesc": "Najmanje opterećenje GPU/CPU: bilinearno skaliranje, bez ditheringa ili debandinga, brže dekodiranje.",
+      "mpvQualityBalanced": "Uravnoteženo",
+      "mpvQualityBalancedDesc": "Standardne MPV postavke bez dodatne obrade (zadano).",
+      "mpvQualityQuality": "Maksimalna kvaliteta",
+      "mpvQualityQualityDesc": "Skaliranje visoke kvalitete, debanding i dinamička analiza HDR vršne svjetline za snažne GPU-ove.",
+      "mpvQualityShowParams": "Prikaži parametre",
+      "mpvQualityHideParams": "Sakrij parametre",
       "showHdrQuickToggleHint": "Prikazuje gumb [HDR] na kontrolnoj traci za trenutno uključivanje mapiranja tonova tijekom reprodukcije. Može se koristiti čak i kada je gornja HDR-u-SDR tonska korekcija onemogućena."
     },
     "livetv": {

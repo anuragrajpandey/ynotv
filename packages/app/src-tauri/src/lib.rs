@@ -507,6 +507,96 @@ async fn test_proxy_connection<R: Runtime>(app: AppHandle<R>) -> Result<String, 
 /// Supports both nested `settings` object (frontend format) and root-level keys (legacy).
 /// Get custom MPV parameters from settings store.
 /// Supports both nested `settings` object (frontend format) and root-level keys (legacy).
+/// mpv picture-quality profile params, shared by the init-time injection and
+/// the per-stream apply on load (Settings -> Playback -> MPV -> Picture Quality
+/// Profiles). 'balanced' applies no extra options.
+fn mpv_quality_profile_args(quality: &str) -> &'static [&'static str] {
+    match quality {
+        "performance" => &[
+            "scale=bilinear",
+            "cscale=bilinear",
+            "dscale=bilinear",
+            "dither=no",
+            "deband=no",
+            "vd-lavc-fast=yes",
+            "interpolation=no",
+            "hdr-compute-peak=no",
+        ],
+        "quality" => &[
+            // mpv's own gpu-hq baseline, plus stronger debanding and per-frame
+            // HDR peak analysis.
+            "profile=gpu-hq",
+            "deband-iterations=2",
+            "hdr-compute-peak=yes",
+        ],
+        _ => &[],
+    }
+}
+
+/// Runtime-settable quality profile args for `mpv_load`. Unlike the init-time
+/// injection, `profile=gpu-hq` cannot be set as a property after init, so the
+/// quality profile is expanded here into its literal flags (mpv's gpu-hq
+/// defaults) plus the two extras.
+fn mpv_quality_profile_args_live(quality: &str) -> &'static [&'static str] {
+    match quality {
+        "performance" => mpv_quality_profile_args("performance"),
+        "quality" => &[
+            "scale=ewa_lanczossharp",
+            "cscale=ewa_lanczossharp",
+            "dscale=mitchell",
+            "correct-downscaling=yes",
+            "linear-downscaling=yes",
+            "sigmoid-upscaling=yes",
+            "deband=yes",
+            "dither-depth=auto",
+            "deband-iterations=2",
+            "hdr-compute-peak=yes",
+        ],
+        _ => &[],
+    }
+}
+
+/// Applies the selected Picture Quality profile's properties live on the
+/// active engine before a stream loads, so switching streams picks up setting
+/// changes without an app restart. Both engines support runtime
+/// `set_property` for every flag in the profiles (the `quality` profile is
+/// passed pre-expanded via `mpv_quality_profile_args_live`).
+async fn apply_quality_profile_on_load<R: Runtime>(app: &AppHandle<R>, engine: PlayerEngine) {
+    let quality = read_store_setting(app, "mpvQuality")
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| "balanced".to_string());
+    let args = mpv_quality_profile_args_live(&quality);
+    if args.is_empty() {
+        return;
+    }
+    log::info!(
+        "[MPV] Applying picture quality profile '{}' ({} propert(ies)) before load",
+        quality,
+        args.len()
+    );
+    for arg in args.iter().copied() {
+        let (key, value) = match arg.split_once('=') {
+            Some((k, v)) => (k, serde_json::json!(v)),
+            None => (arg, serde_json::json!(true)),
+        };
+        match engine {
+            PlayerEngine::LibMpv => {
+                let _ = mpv_core::set_property(app, key.to_string(), value).await;
+            }
+            PlayerEngine::Sidecar => {
+                #[cfg(target_os = "windows")]
+                {
+                    let _ = mpv_windows::set_property(app, key.to_string(), value).await;
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    let _ = (key, value);
+                }
+            }
+        }
+    }
+}
+
 pub(crate) async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
     use tauri_plugin_store::StoreExt;
 
@@ -532,6 +622,18 @@ pub(crate) async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) ->
                 }
                 root_val
             };
+
+            // 0. Picture quality profile (Settings -> Playback -> MPV -> Picture
+            //    Quality Profiles). Injected FIRST so the user's explicit
+            //    mpvParams below can override these defaults.
+            let mpv_quality = get_value("mpvQuality")
+                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "balanced".to_string());
+            let profile_args = mpv_quality_profile_args(&mpv_quality);
+            for arg in profile_args {
+                debug!("[MPV] Quality profile '{}': injecting --{}", mpv_quality, arg);
+                args.push(format!("--{}", arg));
+            }
 
             // 1. Load user-defined MPV params (Settings -> Playback -> MPV params)
             if let Some(params) = get_value("mpvParams") {
@@ -983,6 +1085,7 @@ async fn init_mpv<R: Runtime>(app: AppHandle<R>, args: Vec<String>) -> Result<()
 async fn mpv_load<R: Runtime>(app: AppHandle<R>, url: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
+        apply_quality_profile_on_load(&app, PlayerEngine::LibMpv).await;
         let _ = mpv_core::set_property(&app, "audio-delay".to_string(), serde_json::json!(0.0)).await;
         mpv_core::load_file(&app, url).await
     }
@@ -991,15 +1094,18 @@ async fn mpv_load<R: Runtime>(app: AppHandle<R>, url: String) -> Result<(), Stri
         let engine = get_player_engine(&app).await;
         log::info!("[MPV] mpv_load engine selected: {:?}, url: {}", engine, url);
         if engine == PlayerEngine::LibMpv {
+            apply_quality_profile_on_load(&app, PlayerEngine::LibMpv).await;
             let _ = mpv_core::set_property(&app, "audio-delay".to_string(), serde_json::json!(0.0)).await;
             mpv_core::load_file(&app, url).await
         } else {
+            apply_quality_profile_on_load(&app, PlayerEngine::Sidecar).await;
             let _ = mpv_windows::set_property(&app, "audio-delay".to_string(), serde_json::json!(0.0)).await;
             mpv_windows::load_file(&app, url).await
         }
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
+        apply_quality_profile_on_load(&app, PlayerEngine::LibMpv).await;
         let _ = mpv_set_property(app.clone(), "audio-delay".to_string(), serde_json::json!(0.0)).await;
         mpv_core::load_file(&app, url).await
     }

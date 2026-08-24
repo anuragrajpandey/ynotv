@@ -747,6 +747,16 @@
       "hdrTonemapLabel": "HDR - SDR tónusleképezés",
       "hdrTonemapHint": "A HDR videoforrásokat (HDR10, HLG, Dolby Vision) SDR-re alakítja a pontos színek és kontraszt érdekében a hagyományos kijelzőkön. Ajánlott, ha a HDR tartalom fakónak vagy szürkének tűnik. Kis késleltetést okozhat a stream indításakor, amíg a HDR fényerő elemzése tart.",
       "showHdrQuickToggleLabel": "HDR gyorsgomb megjelenítése a lejátszó sávján",
+      "mpvQualityLabel": "Képminőség-profilok",
+      "mpvQualityHint": "A MPV-re a következő stream indításakor alkalmazott videó-skálázási és -feldolgozási profil. A Kiegyensúlyozott az MPV alapértelmezéseit használja.",
+      "mpvQualityPerformance": "Simán gyenge PC-ken",
+      "mpvQualityPerformanceDesc": "Legkisebb GPU/CPU-terhelés: bilineáris skálázás, dithering és debanding nélkül, gyorsabb dekódolás.",
+      "mpvQualityBalanced": "Kiegyensúlyozott",
+      "mpvQualityBalancedDesc": "Az MPV alapértelmezései további feldolgozás nélkül (alapértelmezett).",
+      "mpvQualityQuality": "Maximális minőség",
+      "mpvQualityQualityDesc": "Kiváló minőségű skálázás, debanding és dinamikus HDR csúcsfényerő-elemzés erős GPU-khoz.",
+      "mpvQualityShowParams": "Paraméterek megjelenítése",
+      "mpvQualityHideParams": "Paraméterek elrejtése",
       "showHdrQuickToggleHint": "Megjelenít egy [HDR] gombot a vezérlősávon a tónusleképezés azonnali váltásához lejátszás közben. Akkor is használható, ha a fenti HDR–SDR tónusleképezés ki van kapcsolva."
     },
     "livetv": {

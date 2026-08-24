@@ -747,6 +747,16 @@
       "hdrTonemapLabel": "HDR سے SDR ٹون میپنگ",
       "hdrTonemapHint": "معیاری ڈسپلے پر درست رنگوں اور کنٹراسٹ کے لیے HDR ویڈیو ذرائع (HDR10, HLG, Dolby Vision) کو SDR میں تبدیل کرتا ہے۔ اگر HDR مواد مدہم یا سرمئی نظر آئے تو تجویز کیا جاتا ہے۔ HDR چمک کا تجزیہ کرتے ہوئے اسٹریم شروع ہونے میں تھوڑی تاخیر ہو سکتی ہے۔",
       "showHdrQuickToggleLabel": "پلیئر بار میں فوری HDR ٹوگل بٹن دکھائیں",
+      "mpvQualityLabel": "تصویری معیار پروفائلز",
+      "mpvQualityHint": "اگلی اسٹریم شروع ہونے پر MPV پر لاگو ہونے والا ویڈیو اسکیلنگ اور پروسیسنگ پروفائل۔ متوازن MPV کے معیاری ڈیفالٹس استعمال کرتا ہے۔",
+      "mpvQualityPerformance": "کمزور پی سی پر ہموار",
+      "mpvQualityPerformanceDesc": "سب سے کم GPU/CPU بوجھ: bilinear اسکیلنگ، بغیر dithering یا debanding، تیز ڈی کوڈنگ۔",
+      "mpvQualityBalanced": "متوازن",
+      "mpvQualityBalancedDesc": "بغیر اضافی پروسیسنگ کے MPV معیاری ڈیفالٹس (ڈیفالٹ)۔",
+      "mpvQualityQuality": "زیادہ سے زیادہ معیار",
+      "mpvQualityQualityDesc": "اعلیٰ معیار کی اسکیلنگ، debanding، اور طاقتور GPU کے لیے ڈائنامک HDR پیک تجزیہ۔",
+      "mpvQualityShowParams": "پیرامیٹرز دکھائیں",
+      "mpvQualityHideParams": "پیرامیٹرز چھپائیں",
       "showHdrQuickToggleHint": "پلے بیک کے دوران فوری طور پر HDR ٹون میپنگ کو تبدیل کرنے کے لیے کنٹرول بار پر [HDR] بٹن دکھاتا ہے۔ اوپر دیا گیا HDR سے SDR ٹون میپنگ بند ہونے پر بھی استعمال کیا جا سکتا ہے۔"
     },
     "livetv": {

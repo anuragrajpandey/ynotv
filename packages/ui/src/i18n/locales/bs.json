@@ -747,6 +747,16 @@
       "hdrTonemapLabel": "Mapiranje tonova HDR u SDR",
       "hdrTonemapHint": "Prilagođava HDR video izvore (HDR10, HLG, Dolby Vision) na SDR radi tačnih boja i kontrasta na standardnim ekranima. Preporučuje se ako HDR sadržaj izgleda isprano ili sivo. Može dodati kratko kašnjenje pri pokretanju streama dok se analizira HDR svjetlina.",
       "showHdrQuickToggleLabel": "Prikaži brzi HDR prekidač na traci plejera",
+      "mpvQualityLabel": "Profili kvalitete slike",
+      "mpvQualityHint": "Profil skaliranja i obrade videa koji se primjenjuje na MPV pri sljedećem pokretanju streama. Balansirano koristi standardne MPV postavke.",
+      "mpvQualityPerformance": "Glatko na slabijim računarima",
+      "mpvQualityPerformanceDesc": "Najmanje opterećenje GPU/CPU: bilinearno skaliranje, bez ditheringa ili debandinga, brže dekodiranje.",
+      "mpvQualityBalanced": "Balansirano",
+      "mpvQualityBalancedDesc": "Standardne MPV postavke bez dodatne obrade (podrazumijevano).",
+      "mpvQualityQuality": "Maksimalni kvalitet",
+      "mpvQualityQualityDesc": "Skaliranje visokog kvaliteta, debanding i dinamička HDR analiza vršne svjetline za snažne GPU-ove.",
+      "mpvQualityShowParams": "Prikaži parametre",
+      "mpvQualityHideParams": "Sakrij parametre",
       "showHdrQuickToggleHint": "Prikazuje dugme [HDR] na kontrolnoj traci za trenutno prebacivanje mapiranja tonova tokom reprodukcije. Može se koristiti čak i kada je gornji HDR-u-SDR tonemapping onemogućen."
     },
     "livetv": {

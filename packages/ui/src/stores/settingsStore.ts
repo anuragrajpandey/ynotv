@@ -408,6 +408,8 @@ export interface SettingsState {
   setHdrTonemapToSdr: (enabled: boolean) => void;
   showHdrQuickToggle: boolean;
   setShowHdrQuickToggle: (enabled: boolean) => void;
+  mpvQuality: 'performance' | 'balanced' | 'quality';
+  setMpvQuality: (quality: 'performance' | 'balanced' | 'quality') => Promise<void> | void;
 
   // Widget scale
   widgetScale: number;
@@ -1068,6 +1070,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setShowHdrQuickToggle: (enabled) => {
     set({ showHdrQuickToggle: enabled });
     persistSettings({ showHdrQuickToggle: enabled });
+  },
+  mpvQuality: (cachedSettings?.mpvQuality as 'performance' | 'balanced' | 'quality') || 'balanced',
+  setMpvQuality: (quality) => {
+    set({ mpvQuality: quality });
+    return persistSettings({ mpvQuality: quality });
   },
 
   // Widget scale

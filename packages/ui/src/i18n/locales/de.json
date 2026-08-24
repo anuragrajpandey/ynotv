@@ -747,6 +747,16 @@
       "hdrTonemapLabel": "HDR-zu-SDR Tonemapping",
       "hdrTonemapHint": "Passt HDR-Videoquellen (HDR10, HLG, Dolby Vision) an SDR an, um präzise Farben und Kontraste auf Standard-Displays zu gewährleisten. Empfohlen, wenn HDR-Inhalte verwaschen oder gräulich wirken. Kann beim Starten des Streams eine kurze Verzögerung verursachen, während die HDR-Helligkeit analysiert wird.",
       "showHdrQuickToggleLabel": "HDR-Schnellumschalter in der Player-Leiste anzeigen",
+      "mpvQualityLabel": "Bildqualitätsprofile",
+      "mpvQualityHint": "Profil für Video-Skalierung und -Verarbeitung, das MPV beim nächsten Stream-Start anwendet. Ausgeglichen nutzt die MPV-Standardwerte.",
+      "mpvQualityPerformance": "Flüssig auf schwachen PCs",
+      "mpvQualityPerformanceDesc": "Geringste GPU-/CPU-Last: bilineare Skalierung, kein Dithering oder Debanding, schnelleres Dekodieren.",
+      "mpvQualityBalanced": "Ausgeglichen",
+      "mpvQualityBalancedDesc": "MPV-Standardwerte ohne zusätzliche Verarbeitung (Standard).",
+      "mpvQualityQuality": "Maximale Qualität",
+      "mpvQualityQualityDesc": "Hochwertige Skalierung, Debanding und dynamische HDR-Spitzenanalyse für leistungsstarke GPUs.",
+      "mpvQualityShowParams": "Parameter anzeigen",
+      "mpvQualityHideParams": "Parameter ausblenden",
       "showHdrQuickToggleHint": "Zeigt eine [HDR]-Schaltfläche in der Steuerleiste an, um das Tonemapping während der Wiedergabe direkt umzuschalten. Kann auch verwendet werden, wenn das oben genannte HDR-zu-SDR-Tonemapping deaktiviert ist."
     },
     "livetv": {

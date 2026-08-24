@@ -747,6 +747,16 @@
       "hdrTonemapLabel": "HDR-naar-SDR tonemapping",
       "hdrTonemapHint": "Zet HDR-videobronnen (HDR10, HLG, Dolby Vision) om naar SDR voor nauwkeurige kleuren en contrast op standaardschermen. Aanbevolen als HDR-content flets of grijs oogt. Kan een korte vertraging veroorzaken bij het starten van de stream terwijl de HDR-helderheid wordt geanalyseerd.",
       "showHdrQuickToggleLabel": "HDR-snelknop tonen in de spelerbalk",
+      "mpvQualityLabel": "Beeldkwaliteitprofielen",
+      "mpvQualityHint": "Videoschaal- en verwerkingsprofiel dat bij de volgende streamstart op MPV wordt toegepast. Gebalanceerd gebruikt de standaardwaarden van MPV.",
+      "mpvQualityPerformance": "Vloeiend op zwakke pc's",
+      "mpvQualityPerformanceDesc": "Laagste GPU/CPU-belasting: bilineaire schaling, zonder dithering of debanding, sneller decoderen.",
+      "mpvQualityBalanced": "Gebalanceerd",
+      "mpvQualityBalancedDesc": "Standaardwaarden van MPV zonder extra verwerking (standaard).",
+      "mpvQualityQuality": "Maximale kwaliteit",
+      "mpvQualityQualityDesc": "Hoogwaardige schaling, debanding en dynamische HDR-piekanalyse voor krachtige GPU's.",
+      "mpvQualityShowParams": "Parameters tonen",
+      "mpvQualityHideParams": "Parameters verbergen",
       "showHdrQuickToggleHint": "Toont een [HDR]-knop op de bedieningsbalk om HDR-tonemapping direct tijdens het afspelen in of uit te schakelen. Kan ook worden gebruikt wanneer de bovenstaande HDR-naar-SDR-tonemapping is uitgeschakeld."
     },
     "livetv": {

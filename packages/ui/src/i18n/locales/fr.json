@@ -747,6 +747,16 @@
       "hdrTonemapLabel": "Mappage tonal HDR vers SDR",
       "hdrTonemapHint": "Convertit les sources vidéo HDR (HDR10, HLG, Dolby Vision) en SDR pour des couleurs et un contraste précis sur les écrans standards. Recommandé si les vidéos HDR paraissent délavées ou grisâtres. Peut ajouter un léger délai au démarrage du flux pendant l'analyse de la luminosité HDR.",
       "showHdrQuickToggleLabel": "Afficher le bouton HDR rapide dans la barre du lecteur",
+      "mpvQualityLabel": "Profils de qualité d'image",
+      "mpvQualityHint": "Profil de mise à l'échelle et de traitement vidéo appliqué à MPV au prochain démarrage du flux. Équilibré utilise les valeurs par défaut de MPV.",
+      "mpvQualityPerformance": "Fluide sur PC faibles",
+      "mpvQualityPerformanceDesc": "Charge GPU/CPU minimale : mise à l'échelle bilinéaire, sans tramage ni débruitage, décodage plus rapide.",
+      "mpvQualityBalanced": "Équilibré",
+      "mpvQualityBalancedDesc": "Valeurs par défaut de MPV sans traitement supplémentaire (par défaut).",
+      "mpvQualityQuality": "Qualité maximale",
+      "mpvQualityQualityDesc": "Mise à l'échelle haute qualité, débruitage et analyse dynamique de la luminance HDR pour les GPU puissants.",
+      "mpvQualityShowParams": "Afficher les paramètres",
+      "mpvQualityHideParams": "Masquer les paramètres",
       "showHdrQuickToggleHint": "Affiche un bouton [HDR] dans la barre de contrôle pour basculer le mappage HDR instantanément pendant la lecture. Peut être utilisé même lorsque le mappage HDR vers SDR ci-dessus est désactivé."
     },
     "livetv": {
