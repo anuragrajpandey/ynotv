@@ -307,7 +307,7 @@ fn bulk_upsert_channels_inner(db: &DvrDatabase, channels: Vec<BulkChannel>) -> R
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     // Prepare the upsert statement once
     let mut stmt = tx.prepare(
@@ -413,7 +413,7 @@ fn bulk_upsert_categories_inner(
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let mut stmt = tx.prepare(
         "INSERT INTO categories (
@@ -477,7 +477,7 @@ pub fn bulk_upsert_vod_categories(
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let mut stmt = tx.prepare(
         "INSERT INTO vodCategories (
@@ -544,7 +544,7 @@ fn bulk_replace_programs_inner(
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     // Delete existing programs for this source
     let deleted = tx.execute(
@@ -606,7 +606,7 @@ pub fn bulk_upsert_movies(db: &DvrDatabase, movies: Vec<BulkMovie>) -> Result<Bu
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let mut stmt = tx.prepare(
         "INSERT INTO vodMovies (
@@ -697,7 +697,7 @@ pub fn bulk_upsert_series(db: &DvrDatabase, series: Vec<BulkSeries>) -> Result<B
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let mut stmt = tx.prepare(
         "INSERT INTO vodSeries (
@@ -799,7 +799,7 @@ pub fn bulk_upsert_series(db: &DvrDatabase, series: Vec<BulkSeries>) -> Result<B
 /// Delete channels by stream_id
 pub fn bulk_delete_channels(db: &DvrDatabase, stream_ids: Vec<String>) -> Result<usize> {
     let mut conn = db.get_conn()?;
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let placeholders: Vec<String> = stream_ids.iter().map(|_| "?".to_string()).collect();
     let sql = format!(
@@ -825,7 +825,7 @@ pub fn bulk_delete_channels(db: &DvrDatabase, stream_ids: Vec<String>) -> Result
 /// Delete categories by category_id
 pub fn bulk_delete_categories(db: &DvrDatabase, category_ids: Vec<String>) -> Result<usize> {
     let mut conn = db.get_conn()?;
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let placeholders: Vec<String> = category_ids.iter().map(|_| "?".to_string()).collect();
     let sql = format!(
@@ -884,7 +884,13 @@ pub fn update_source_meta(db: &DvrDatabase, meta: SourceMetaUpdate) -> Result<()
 
 fn update_source_meta_inner(db: &DvrDatabase, meta: SourceMetaUpdate) -> Result<()> {
     let mut conn = db.get_conn()?;
-    let tx = conn.transaction()?;
+    // IMMEDIATE: acquire the write lock at BEGIN instead of lazily at the
+    // first UPDATE. In WAL mode a deferred read-transaction that upgrades to a
+    // write gets SQLITE_BUSY_SNAPSHOT (stale snapshot) the moment another
+    // connection commits — busy_timeout can't fix that, and concurrent EPG
+    // inserts trigger it constantly. IMMEDIATE queues on the lock
+    // (busy_timeout waits) and never hits the stale-snapshot error.
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     // Try to update first - using COALESCE to preserve existing values when new values are NULL
     // This approach works for both partial updates and new records
@@ -985,7 +991,7 @@ fn bulk_upsert_channel_metadata_inner(
 ) -> Result<BulkResult> {
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let mut stmt = tx.prepare(
         "INSERT INTO channelMetadata (

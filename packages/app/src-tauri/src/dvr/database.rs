@@ -60,7 +60,12 @@ impl DvrDatabase {
 
         // Build connection pool with custom configuration
         let pool = Pool::builder()
-            .max_size(15) // Support 10+ concurrent syncs with headroom
+            // Headroom for 10+ concurrent syncs, each of which holds a
+            // connection during every insert batch plus transient delete/
+            // meta-write connections — 15 starved under full sync (a
+            // connection request would block for the 30s pool timeout and
+            // fail the whole EPG parse).
+            .max_size(32)
             .connection_timeout(std::time::Duration::from_secs(30))
             .connection_customizer(Box::new(BusyTimeoutCustomizer))
             .build(manager)
@@ -1432,6 +1437,55 @@ impl DvrDatabase {
 mod tests {
     use super::*;
 
-    // Note: Tests would need a mock AppHandle or use temp files
-    // For now, we're skipping tests in this module
+    // Regression test for the EPG insert busy_timeout leak. r2d2's
+    // on_acquire customizer only runs when a connection is first CREATED, so
+    // a connection returned to the pool with busy_timeout=0 stays at 0 for
+    // every later checkout. The EPG insert path (epg_streaming.rs) relies on
+    // this when it deliberately sets busy_timeout=0 for honest lock timing,
+    // and must restore 30s itself before returning the connection — if a
+    // future change assumes the pool re-applies it, every other writer
+    // (update_source_meta, deletes, channel upserts) starts failing
+    // instantly with "database is locked" under contention.
+    #[test]
+    fn pooled_connection_keeps_busy_timeout_across_checkouts() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let manager = SqliteConnectionManager::file(dir.path().join("test.db"));
+        let pool = Pool::builder()
+            .max_size(2)
+            .connection_customizer(Box::new(BusyTimeoutCustomizer))
+            .build(manager)
+            .expect("pool");
+
+        // Fresh connection: customizer applies 30s.
+        {
+            let conn = pool.get().expect("first conn");
+            let ms: i64 = conn
+                .query_row("PRAGMA busy_timeout", [], |r| r.get(0))
+                .expect("pragma");
+            assert_eq!(ms, 30_000, "on_acquire must apply 30s to new connections");
+        }
+
+        // Simulate the EPG insert path poisoning the connection.
+        {
+            let conn = pool.get().expect("second conn");
+            conn.busy_timeout(std::time::Duration::ZERO)
+                .expect("set 0");
+        }
+
+        // On reuse the pool does NOT re-apply the customizer — the 0 persists.
+        {
+            let conn = pool.get().expect("reused conn");
+            let ms: i64 = conn
+                .query_row("PRAGMA busy_timeout", [], |r| r.get(0))
+                .expect("pragma");
+            assert_eq!(
+                ms, 0,
+                "r2d2 does not re-run on_acquire on reuse — a busy_timeout=0 set \
+                 on a checked-out connection persists for all later users. The \
+                 EPG insert path must restore 30s itself before returning."
+            );
+        }
+    }
 }

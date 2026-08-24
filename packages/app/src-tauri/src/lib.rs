@@ -2468,6 +2468,53 @@ async fn stream_parse_epg_multi(
         .map_err(|e| format!("Stream parse EPG multi failed: {}", e))
 }
 
+/// Drop the `programs` secondary indexes before a bulk EPG load (sync-all).
+/// Rebuild them afterwards with `epg_bulk_load_finish`.
+#[tauri::command]
+async fn epg_bulk_load_start(state: tauri::State<'_, DvrState>) -> Result<(), String> {
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || epg_streaming::drop_programs_indexes(&db))
+        .await
+        .map_err(|e| format!("EPG bulk load start task failed: {}", e))?
+        .map_err(|e| format!("EPG bulk load start failed: {}", e))
+}
+
+/// Recreate the `programs` secondary indexes after a bulk EPG load (sync-all).
+///
+/// Runs on a detached background thread so `syncAllSources` resolves without
+/// waiting ~10s of index creation on the critical path. The rebuild is
+/// serialized with all other EPG writes via EPG_WRITE_LOCK and is idempotent
+/// (IF NOT EXISTS); if the app exits mid-rebuild, the schema init on next app
+/// start recreates the indexes (packages/ui/src/db/index.ts), so a missing
+/// rebuild is self-healing rather than data loss.
+#[tauri::command]
+async fn epg_bulk_load_finish(state: tauri::State<'_, DvrState>) -> Result<(), String> {
+    let db = state.db.clone();
+    std::thread::Builder::new()
+        .name("epg-index-rebuild".to_string())
+        .spawn(move || {
+            match epg_streaming::recreate_programs_indexes(&db) {
+                Ok(()) => info!("[EPG] Background programs index rebuild complete"),
+                Err(e) => error!("[EPG] Background programs index rebuild failed (recreated on next app start): {}", e),
+            }
+        })
+        .map_err(|e| format!("EPG bulk load finish spawn failed: {}", e))?;
+    Ok(())
+}
+
+/// Write one per-run summary row into `epg_timings.jsonl` and reset the
+/// accumulator. Called by the TS sync orchestration in its finally block.
+#[tauri::command]
+async fn epg_timing_run_end(
+    app: tauri::AppHandle,
+    alignment_max_ms: Option<u64>,
+    sources_ok: Option<usize>,
+    sources_failed: Option<usize>,
+) -> Result<(), String> {
+    epg_streaming::epg_timing_run_end(&app, alignment_max_ms, sources_ok, sources_failed)
+        .map_err(|e| format!("EPG timing run end failed: {}", e))
+}
+
 /// Sync and save all EPG channels and programs to a separate database cache file
 #[tauri::command]
 async fn cache_entire_epg_db(
@@ -5165,6 +5212,9 @@ pub fn run() {
             stream_parse_epg,
             stream_parse_epg_multi,
             parse_epg_file,
+            epg_bulk_load_start,
+            epg_bulk_load_finish,
+            epg_timing_run_end,
             cache_entire_epg_db,
             // DVR commands
             init_dvr,

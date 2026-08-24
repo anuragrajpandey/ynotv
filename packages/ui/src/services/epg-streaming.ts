@@ -45,6 +45,16 @@ export interface EpgParseResult {
   duration_ms: number;
   bytes_processed: number;
   working_url?: string;
+  /** Wall time spent downloading the EPG file (or reading it, for local files). */
+  download_ms: number;
+  /** Wall time spent decompressing (0 when the payload wasn't gzipped). */
+  decompress_ms: number;
+  /** Wall time spent parsing the XML (XMLTV -> matched programs). */
+  parse_ms: number;
+  /** Wall time spent inserting the parsed batches into the database (includes waiting for the SQLite write lock). */
+  insert_ms: number;
+  /** Wall time of insert_ms spent waiting for the SQLite write lock (contention), not writing rows. */
+  lock_wait_ms: number;
 }
 
 export interface SourceEpgConfig {
@@ -454,6 +464,42 @@ export function formatProgress(progress: EpgParseProgress): string {
   return message;
 }
 
+/**
+ * Drop the `programs` secondary indexes before a bulk EPG load (sync-all).
+ * Call bulkLoadFinish() when the load is done (use a finally block).
+ */
+export async function bulkLoadStart(): Promise<void> {
+  await invoke<void>('epg_bulk_load_start');
+}
+
+/**
+ * Recreate the `programs` secondary indexes after a bulk EPG load.
+ *
+ * Runs on a background Rust thread and resolves immediately; the indexes are
+ * rebuilt within seconds. If the process exits first, the schema init on next
+ * app start recreates them (CREATE INDEX IF NOT EXISTS).
+ */
+export async function bulkLoadFinish(): Promise<void> {
+  await invoke<void>('epg_bulk_load_finish');
+}
+
+/**
+ * Write one per-run summary row into epg_timings.jsonl (kind: "run") and
+ * reset the Rust-side accumulator. Called by the sync orchestration's finally
+ * block so even failed runs get a row.
+ */
+export async function timingRunEnd(opts: {
+  alignmentMaxMs?: number;
+  sourcesOk?: number;
+  sourcesFailed?: number;
+}): Promise<void> {
+  await invoke<void>('epg_timing_run_end', {
+    alignmentMaxMs: opts.alignmentMaxMs ?? null,
+    sourcesOk: opts.sourcesOk ?? null,
+    sourcesFailed: opts.sourcesFailed ?? null,
+  });
+}
+
 // Export all functions as a namespace
 export const epgStreaming = {
   streamParseEpg,
@@ -461,6 +507,9 @@ export const epgStreaming = {
   parseEpgFile,
   createChannelMappings,
   formatProgress,
+  bulkLoadStart,
+  bulkLoadFinish,
+  timingRunEnd,
 };
 
 export default epgStreaming;

@@ -12,6 +12,52 @@ import type { GlobalEpgLink } from '../types/app';
 
 import { invoke } from '@tauri-apps/api/core';
 
+// Slowest per-source bulk EPG alignment of the current sync-all run, reported
+// in the run summary row written by epgStreaming.timingRunEnd().
+let lastRunAlignmentMaxMs = 0;
+
+// ── Staggered bulk EPG alignment scheduler (sync-all only) ────────────────
+// Each source's alignment is queued the moment its own EPG lands, so the work
+// overlaps the remaining sources' downloads/inserts instead of forming a
+// post-sync tail. The concurrency cap keeps queued alignments from retrying
+// 15x against each other on the single-writer SQLite connection.
+const ALIGNMENT_MAX_CONCURRENT = 2;
+let alignmentQueue: string[] = [];
+let alignmentInFlight = 0;
+let alignmentDrainResolve: (() => void) | null = null;
+
+function pumpAlignmentQueue(): void {
+  while (alignmentInFlight < ALIGNMENT_MAX_CONCURRENT && alignmentQueue.length > 0) {
+    const sourceId = alignmentQueue.shift()!;
+    alignmentInFlight++;
+    alignOverriddenChannelPrograms(sourceId)
+      .finally(() => {
+        alignmentInFlight--;
+        pumpAlignmentQueue();
+      })
+      .catch(() => {});
+  }
+  if (alignmentQueue.length === 0 && alignmentInFlight === 0 && alignmentDrainResolve) {
+    const resolve = alignmentDrainResolve;
+    alignmentDrainResolve = null;
+    resolve();
+  }
+}
+
+function queueAlignment(sourceId: string): void {
+  alignmentQueue.push(sourceId);
+  pumpAlignmentQueue();
+}
+
+function drainAlignments(): Promise<void> {
+  if (alignmentQueue.length === 0 && alignmentInFlight === 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    alignmentDrainResolve = resolve;
+  });
+}
+
 // Debug logging helper - logs to console and optionally to debug file
 function debugLog(message: string, category = 'sync'): void {
   // Check if debug logging is enabled via global flag
@@ -373,7 +419,7 @@ async function syncEpgFromUrl(
 
     console.log(`[EPG] Streaming parser result: ${result.matched_programs}/${result.total_programs} programs matched`);
     console.log(`[EPG] ${result.inserted_programs} programs inserted, ${result.unmatched_channels} unmatched EPG channels`);
-    console.log(`[EPG] Duration: ${result.duration_ms}ms`);
+    console.log(`[EPG] Duration: ${result.duration_ms}ms (download ${result.download_ms}ms, decompress ${result.decompress_ms}ms, parse ${result.parse_ms}ms, insert ${result.insert_ms}ms, lock-wait ${result.lock_wait_ms ?? 0}ms)`);
 
     if (result.inserted_programs === 0) {
       console.warn(`[EPG] WARNING: No programs inserted! Check if EPG channel IDs match M3U tvg-id values.`);
@@ -459,7 +505,7 @@ async function syncEpgForSource(source: Source, channels: Channel[], epgUrl?: st
     console.log(`  - Total programs in XML: ${result.total_programs}`);
     console.log(`  - Matched to channels: ${result.matched_programs}`);
     console.log(`  - Inserted to DB: ${result.inserted_programs}`);
-    console.log(`  - Duration: ${result.duration_ms}ms`);
+    console.log(`  - Duration: ${result.duration_ms}ms (download ${result.download_ms}ms, decompress ${result.decompress_ms}ms, parse ${result.parse_ms}ms, insert ${result.insert_ms}ms, lock-wait ${result.lock_wait_ms ?? 0}ms)`);
 
     debugLog(`EPG sync complete: ${result.inserted_programs} programs stored (${result.duration_ms}ms)`, 'epg');
 
@@ -1015,7 +1061,7 @@ async function syncAdditionalEpgUrls(
         source.user_agent
       );
 
-      console.log(`[EPG] Additional EPG ${i + 1}: Matched ${result.matched_programs}/${result.total_programs} programs. Inserted: ${result.inserted_programs}`);
+      console.log(`[EPG] Additional EPG ${i + 1}: Matched ${result.matched_programs}/${result.total_programs} programs. Inserted: ${result.inserted_programs}. Duration: ${result.duration_ms}ms (download ${result.download_ms}ms, decompress ${result.decompress_ms}ms, parse ${result.parse_ms}ms, insert ${result.insert_ms}ms, lock-wait ${result.lock_wait_ms ?? 0}ms)`);
 
       debugLog(
         `Additional EPG ${i + 1}: inserted ${result.inserted_programs} programs`,
@@ -2128,10 +2174,10 @@ export async function enrichM3uWithXtreamCatchup(
   }
 }
 
-export async function syncSource(source: Source, onProgress?: (msg: string) => void): Promise<SyncResult> {
+export async function syncSource(source: Source, onProgress?: (msg: string) => void, staggerAlignment = false): Promise<SyncResult> {
   source = await resolveSourceUserAgent(source);
   // Try primary URL first
-  const result = await _doSyncSourceImpl(source, onProgress);
+  const result = await _doSyncSourceImpl(source, onProgress, staggerAlignment);
   if (result.success) return result;
 
   // If primary failed and we have backup URLs, try them in order
@@ -2144,7 +2190,7 @@ export async function syncSource(source: Source, onProgress?: (msg: string) => v
       onProgress?.(i18n.t('common:primaryUrlFailedTryingBackup', { url: trimmedUrl }));
 
       const backupSource: Source = { ...source, url: trimmedUrl };
-      const backupResult = await _doSyncSourceImpl(backupSource, onProgress);
+      const backupResult = await _doSyncSourceImpl(backupSource, onProgress, staggerAlignment);
 
       if (backupResult.success) {
         // Swap: working backup becomes primary, old primary moves to backup list
@@ -2174,11 +2220,16 @@ export async function syncSource(source: Source, onProgress?: (msg: string) => v
 }
 
 // Internal sync implementation
-async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => void): Promise<SyncResult> {
+async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => void, staggerAlignment = false): Promise<SyncResult> {
   debugLog(`Starting sync for source: ${source.name} (${source.type})`, 'sync');
   onProgress?.(`Starting sync for ${source.name}...`);
   const startTime = performance.now();
-  console.time('sync-total');
+  // console.time labels are process-global: with sources syncing concurrently,
+  // the same label collides (Chrome warns "Timer 'sync-total' already exists"
+  // and the first timer's duration gets reported for the wrong source). Scope
+  // the label per source so each concurrent sync gets its own timer.
+  const timerLabel = (label: string) => `${label}: ${source.name}`;
+  console.time(timerLabel('sync-total'));
   try {
     // Wait, we need to fetch settings BEFORE clearing data
 
@@ -2329,7 +2380,10 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
           nativeSyncComplete = true;
         }
       } catch (err: any) {
-         debugLog(`Native sync failed: ${err.message}, falling back to legacy JS parser...`, 'sync');
+         // Tauri v2 rejects with a string, not always an Error — extract the
+         // real reason so lock failures aren't logged as "undefined".
+         const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err ?? 'unknown error');
+         debugLog(`Native sync failed: ${msg}, falling back to legacy JS parser...`, 'sync');
       }
     }
 
@@ -2730,18 +2784,26 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
       }
     }
 
-    // Write channel/category counts and connection metadata — but NOT last_synced yet
-    await bulkOps.updateSourceMeta({
-      source_id: meta.source_id,
-      epg_url: meta.epg_url,
-      channel_count: meta.channel_count,
-      category_count: meta.category_count,
-      expiry_date: meta.expiry_date,
-      active_cons: meta.active_cons,
-      max_connections: meta.max_connections,
-      error: meta.error,
-      epg_timeshift_hours: source.epg_timeshift_hours ?? 0,
-    });
+    // Write channel/category counts and connection metadata — but NOT last_synced yet.
+    // This is status bookkeeping only: a failure here must NOT abort the sync — the
+    // channels/categories are already stored, and aborting skips the EPG (the previous
+    // symptom: sources marked FAILED with 0 counts even though the data landed, because
+    // the status write raced a lock).
+    try {
+      await bulkOps.updateSourceMeta({
+        source_id: meta.source_id,
+        epg_url: meta.epg_url,
+        channel_count: meta.channel_count,
+        category_count: meta.category_count,
+        expiry_date: meta.expiry_date,
+        active_cons: meta.active_cons,
+        max_connections: meta.max_connections,
+        error: meta.error,
+        epg_timeshift_hours: source.epg_timeshift_hours ?? 0,
+      });
+    } catch (metaErr) {
+      debugLog(`Failed to persist channel counts for ${meta.source_id}: ${metaErr}`, 'sync');
+    }
     debugLog('Channels and categories stored successfully', 'sync');
 
     // Notify UI that categories, channels, and sourcesMeta updated so in-memory index & live queries refresh
@@ -2772,26 +2834,26 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
       console.log(`[EPG] Starting Xtream EPG sync...`);
       debugLog('Syncing EPG for Xtream source...', 'epg');
       onProgress?.(i18n.t('common:updatingEpgShort'));
-      console.time('sync-epg-insert');
+      console.time(timerLabel('sync-epg-insert'));
       // Pass the correctly constructed EPG URL (with server info from connection test)
       programCount = await syncEpgForSource(source, channels, epgUrl);
-      console.timeEnd('sync-epg-insert');
+      console.timeEnd(timerLabel('sync-epg-insert'));
       debugLog(`EPG sync complete: ${programCount} programs`, 'epg');
     } else if (shouldLoadEpg && source.type === 'stalker' && source.mac) {
       // Stalker: use get_epg_info endpoint
       debugLog('Syncing EPG for Stalker source...', 'epg');
       onProgress?.(i18n.t('common:updatingEpgShort'));
-      console.time('sync-epg-insert');
+      console.time(timerLabel('sync-epg-insert'));
       programCount = await syncEpgForStalker(source, channels);
-      console.timeEnd('sync-epg-insert');
+      console.timeEnd(timerLabel('sync-epg-insert'));
       debugLog(`Stalker EPG sync complete: ${programCount} programs`, 'epg');
     } else if (shouldLoadEpg && epgUrl) {
       // M3U with EPG URL: fetch XMLTV from the EPG URL
       debugLog('Syncing EPG for M3U source...', 'epg');
       onProgress?.(i18n.t('common:updatingEpgShort'));
-      console.time('sync-epg-insert');
+      console.time(timerLabel('sync-epg-insert'));
       programCount = await syncEpgFromUrl(source, epgUrl, channels);
-      console.timeEnd('sync-epg-insert');
+      console.timeEnd(timerLabel('sync-epg-insert'));
       debugLog(`M3U EPG sync complete: ${programCount} programs`, 'epg');
     }
 
@@ -2801,9 +2863,9 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
       debugLog('Syncing EPG from manual URL override...', 'epg');
       console.log(`[EPG] Debug - About to call syncEpgFromUrl with manual URL: ${fixedEpgUrl}`);
       onProgress?.(i18n.t('common:updatingEpgManualUrl'));
-      console.time('sync-epg-manual');
+      console.time(timerLabel('sync-epg-manual'));
       programCount = await syncEpgFromUrl(source, fixedEpgUrl, channels);
-      console.timeEnd('sync-epg-manual');
+      console.timeEnd(timerLabel('sync-epg-manual'));
       debugLog(`Manual EPG sync complete: ${programCount} programs`, 'epg');
     }
 
@@ -2811,29 +2873,43 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
     if (!source.vod_only && source.additional_epg_urls && source.additional_epg_urls.length > 0) {
       debugLog('Syncing additional EPG URLs (waterfall)...', 'epg');
       onProgress?.(i18n.t('common:updatingEpgAdditional'));
-      console.time('sync-epg-additional');
+      console.time(timerLabel('sync-epg-additional'));
       const additionalCount = await syncAdditionalEpgUrls(source, channels, onProgress);
-      console.timeEnd('sync-epg-additional');
+      console.timeEnd(timerLabel('sync-epg-additional'));
       programCount += additionalCount;
       debugLog(`Additional EPG waterfall complete: ${additionalCount} programs`, 'epg');
     }
 
     debugLog(`Sync complete for ${source.name}: ${channels.length} channels, ${categories.length} categories, ${programCount} programs`, 'sync');
-    console.timeEnd('sync-total');
+    console.timeEnd(timerLabel('sync-total'));
     debugLog(`Total sync time: ${((performance.now() - startTime) / 1000).toFixed(2)}s`, 'sync');
 
     // NOW stamp last_synced — EPG sync has completed (or was skipped for sources without EPG).
     // Writing this after EPG ensures a failed/empty EPG sync will cause the next autosync
     // cycle to retry the source rather than treating it as fresh.
-    await bulkOps.updateSourceMeta({
-      source_id: source.id,
-      last_synced: new Date().toISOString(),
-    });
-    dbEvents.notify('sourcesMeta', 'update');
+    // Non-fatal: the EPG data is already stored — a bookkeeping failure here must not flip
+    // a fully-synced source to FAILED (it previously did, via lock contention).
+    try {
+      await bulkOps.updateSourceMeta({
+        source_id: source.id,
+        last_synced: new Date().toISOString(),
+      });
+      dbEvents.notify('sourcesMeta', 'update');
+    } catch (metaErr) {
+      debugLog(`Failed to mark source ${source.id} as synced: ${metaErr}`, 'sync');
+    }
     debugLog('Source marked as synced after EPG step completed', 'sync');
 
-    // Automatically align/fill programs for manually overridden channels in this source
-    await alignOverriddenChannelPrograms(source.id);
+    // Automatically align/fill programs for manually overridden channels in this source.
+    // In sync-all the alignment is queued the moment this source's EPG lands so it
+    // overlaps the remaining sources' downloads/inserts (staggered, capped at 2
+    // concurrent) instead of forming a post-sync tail. Single-source syncs still
+    // align inline so their result reflects the full work.
+    if (staggerAlignment) {
+      queueAlignment(source.id);
+    } else {
+      await alignOverriddenChannelPrograms(source.id);
+    }
 
     // Checkpoint WAL after sync completes to reclaim space
     // TRUNCATE mode = wait for all readers/writers, then checkpoint and truncate WAL to 0
@@ -2991,6 +3067,10 @@ export async function syncAllSources(
   debugLog('Starting syncAllSources...', 'sync');
   onProgress?.(i18n.t('common:initializingSync'));
   const results = new Map<string, SyncResult>();
+  // Reset the alignment scheduler from any previous interrupted run.
+  alignmentQueue = [];
+  alignmentInFlight = 0;
+  alignmentDrainResolve = null;
 
   // Get sources from Tauri Store
   if (!window.storage) {
@@ -3013,65 +3093,116 @@ export async function syncAllSources(
   // SQLite WAL mode handles concurrent writes by serializing them internally — no lock errors.
   const CONCURRENCY_LIMIT = concurrency > 0 ? concurrency : enabledSources.length || 1;
 
-  for (let i = 0; i < enabledSources.length; i += CONCURRENCY_LIMIT) {
-    const batch = enabledSources.slice(i, i + CONCURRENCY_LIMIT);
-    const batchNum = Math.floor(i / CONCURRENCY_LIMIT) + 1;
-    const totalBatches = Math.ceil(enabledSources.length / CONCURRENCY_LIMIT);
-
-    debugLog(`Processing batch ${batchNum}/${totalBatches} (${batch.length} sources)`, 'sync');
-    onProgress?.(`Batch ${batchNum}/${totalBatches}: ${batch.map(s => s.name).join(', ')}`);
-
-    // Process batch in parallel
-    const batchResults = await Promise.all(
-      batch.map(async (source, batchIndex) => {
-        const overallIndex = i + batchIndex + 1;
-        const prefix = `[${overallIndex}/${enabledSources.length}] ${source.name}`;
-
-        debugLog(`Syncing source: ${source.name} (${source.type})`, 'sync');
-
-        // Create a specific progress handler for this source
-        const sourceProgress = (msg: string) => {
-          onProgress?.(`${prefix}: ${msg}`);
-        };
-
-        const result = await syncSource(source, sourceProgress);
-        debugLog(`Source ${source.name}: ${result.success ? 'OK' : 'FAILED'} - ${result.channelCount} channels, ${result.categoryCount} categories`, 'sync');
-        return { sourceId: source.id, result };
-      })
-    );
-
-    // Store results
-    for (const { sourceId, result } of batchResults) {
-      results.set(sourceId, result);
-    }
-  }
-
-  debugLog('syncAllSources complete', 'sync');
-  const syncedSourceIds = Array.from(results.entries())
-    .filter(([, result]) => result.success)
-    .map(([sourceId]) => sourceId);
-
-  // Post-sync: apply stale global EPG links to all linked sources
-  // (primary EPGs have already cleared + inserted; now fill gaps with shared EPGs)
-  if (syncedSourceIds.length > 0) {
-    try {
-      debugLog('Running post-sync global EPG...', 'sync');
-      onProgress?.(i18n.t('common:updatingGlobalEpgLinks'));
-      const globalCount = await syncAllStaleGlobalEpgLinks(onProgress, syncedSourceIds);
-      if (globalCount > 0) {
-        debugLog(`Post-sync global EPG: ${globalCount} programs inserted`, 'sync');
-      }
-    } catch (err) {
-      console.error('[Sync] Post-sync global EPG failed:', err);
-    }
-  }
-
-  // Final checkpoint after all sources synced
-  // TRUNCATE mode ensures WAL file is actually truncated to 0 bytes
+  // Bulk-load mode: drop the `programs` secondary indexes for the duration of
+  // the run so every insert/update touches ONE B-tree per row instead of five
+  // (the dominant cost of the serialized insert queue — ~1.7M rows this run),
+  // then rebuild them once in the finally block. A failed drop is non-fatal
+  // (just a slower run); a failed rebuild is logged loudly — the schema init
+  // on next app start recreates them anyway (CREATE INDEX IF NOT EXISTS).
   try {
-    await db.checkpoint('TRUNCATE');
+    await epgStreaming.bulkLoadStart();
+    debugLog('[Sync] Dropped programs indexes for bulk EPG load', 'epg');
   } catch (err) {
-    console.error('[Sync] Final TRUNCATE checkpoint failed:', err);
+    console.warn('[Sync] Failed to drop programs indexes (continuing without bulk load):', err);
+  }
+
+  try {
+    for (let i = 0; i < enabledSources.length; i += CONCURRENCY_LIMIT) {
+      const batch = enabledSources.slice(i, i + CONCURRENCY_LIMIT);
+      const batchNum = Math.floor(i / CONCURRENCY_LIMIT) + 1;
+      const totalBatches = Math.ceil(enabledSources.length / CONCURRENCY_LIMIT);
+
+      debugLog(`Processing batch ${batchNum}/${totalBatches} (${batch.length} sources)`, 'sync');
+      onProgress?.(`Batch ${batchNum}/${totalBatches}: ${batch.map(s => s.name).join(', ')}`);
+
+      // Process batch in parallel
+      const batchResults = await Promise.all(
+        batch.map(async (source, batchIndex) => {
+          const overallIndex = i + batchIndex + 1;
+          const prefix = `[${overallIndex}/${enabledSources.length}] ${source.name}`;
+
+          debugLog(`Syncing source: ${source.name} (${source.type})`, 'sync');
+
+          // Create a specific progress handler for this source
+          const sourceProgress = (msg: string) => {
+            onProgress?.(`${prefix}: ${msg}`);
+          };
+
+          const result = await syncSource(source, sourceProgress, true);
+          debugLog(`Source ${source.name}: ${result.success ? 'OK' : 'FAILED'} - ${result.channelCount} channels, ${result.categoryCount} categories`, 'sync');
+          return { sourceId: source.id, result };
+        })
+      );
+
+      // Store results
+      for (const { sourceId, result } of batchResults) {
+        results.set(sourceId, result);
+      }
+    }
+
+    // Staggered per-source EPG alignments: most finished in the background while
+    // the remaining sources were still downloading/inserting. Wait for any
+    // stragglers so the summary row and final checkpoint see all writes.
+    const pendingAlignments = alignmentQueue.length + alignmentInFlight;
+    if (pendingAlignments > 0) {
+      debugLog(`[Sync] Waiting for ${pendingAlignments} staggered bulk EPG alignment(s) to finish...`, 'epg');
+    }
+    await drainAlignments();
+
+    debugLog('syncAllSources complete', 'sync');
+    const syncedSourceIds = Array.from(results.entries())
+      .filter(([, result]) => result.success)
+      .map(([sourceId]) => sourceId);
+
+    // Post-sync: apply stale global EPG links to all linked sources
+    // (primary EPGs have already cleared + inserted; now fill gaps with shared EPGs)
+    if (syncedSourceIds.length > 0) {
+      try {
+        debugLog('Running post-sync global EPG...', 'sync');
+        onProgress?.(i18n.t('common:updatingGlobalEpgLinks'));
+        const globalCount = await syncAllStaleGlobalEpgLinks(onProgress, syncedSourceIds);
+        if (globalCount > 0) {
+          debugLog(`Post-sync global EPG: ${globalCount} programs inserted`, 'sync');
+        }
+      } catch (err) {
+        console.error('[Sync] Post-sync global EPG failed:', err);
+      }
+    }
+
+    // Final checkpoint after all sources synced
+    // TRUNCATE mode ensures WAL file is actually truncated to 0 bytes
+    try {
+      await db.checkpoint('TRUNCATE');
+    } catch (err) {
+      console.error('[Sync] Final TRUNCATE checkpoint failed:', err);
+    }
+  } finally {
+    // Per-run summary row in epg_timings.jsonl (kind: "run") — written first,
+    // before the index rebuild, so it reflects the sync itself rather than the
+    // rebuild tail. Still inside the finally so even failed runs get a row.
+    const runOk = Array.from(results.values()).filter(r => r.success).length;
+    try {
+      await epgStreaming.timingRunEnd({
+        alignmentMaxMs: Math.round(lastRunAlignmentMaxMs),
+        sourcesOk: runOk,
+        sourcesFailed: results.size - runOk,
+      });
+    } catch (err) {
+      console.error('[Sync] Failed to write run timing summary:', err);
+    } finally {
+      lastRunAlignmentMaxMs = 0;
+    }
+
+    // Always schedule the index rebuild, even when a source throws out of the
+    // loop. Runs on a background Rust thread (non-blocking) so syncAllSources
+    // resolves ~10s sooner; if the app exits before it completes, the schema
+    // init recreates the indexes on next app start (self-healing).
+    try {
+      await epgStreaming.bulkLoadFinish();
+      debugLog('[Sync] Scheduled programs index rebuild (background)', 'epg');
+    } catch (err) {
+      console.error('[Sync] Failed to schedule programs index rebuild (recreated on next app start):', err);
+    }
   }
 
   return results;
@@ -4095,24 +4226,27 @@ export async function alignOverriddenChannelPrograms(sourceId: string): Promise<
   try {
     const dbInstance = await (db as any).dbPromise;
     
-    // Check if there are any overrides that target or are sourced by this source ID (using index-friendly UNION)
-    const countResult = await selectWithRetry(
+    // Check if there are any overrides that target or are sourced by this source ID.
+    // EXISTS short-circuits on the first match, unlike COUNT(*) over a deduped UNION.
+    const existsResult = await selectWithRetry(
       dbInstance,
-      `SELECT COUNT(*) as count FROM (
-         SELECT eco.stream_id FROM epg_channel_overrides eco
-         JOIN channels tc ON tc.stream_id = eco.stream_id
-         JOIN channels sc ON sc.epg_channel_id = eco.epg_channel_id AND sc.stream_id != eco.stream_id
-         WHERE tc.source_id = $1 OR sc.source_id = $1
-         UNION
-         SELECT eco.stream_id FROM epg_channel_overrides eco
-         JOIN channels tc ON tc.stream_id = eco.stream_id
-         JOIN channels sc ON sc.name = eco.epg_channel_id AND sc.stream_id != eco.stream_id
-         WHERE tc.source_id = $1 OR sc.source_id = $1
-       )`,
+      `SELECT
+         EXISTS(SELECT 1 FROM epg_channel_overrides eco
+                JOIN channels tc ON tc.stream_id = eco.stream_id
+                JOIN channels sc ON sc.epg_channel_id = eco.epg_channel_id AND sc.stream_id != eco.stream_id
+                WHERE tc.source_id = $1 OR sc.source_id = $1)
+         OR
+         EXISTS(SELECT 1 FROM epg_channel_overrides eco
+                JOIN channels tc ON tc.stream_id = eco.stream_id
+                JOIN channels sc ON sc.name = eco.epg_channel_id AND sc.stream_id != eco.stream_id
+                WHERE tc.source_id = $1 OR sc.source_id = $1) AS has_overrides`,
       [sourceId]
-    ) as { count: number }[];
+    ) as { has_overrides: number }[];
     
-    if (countResult[0]?.count === 0) return;
+    if (!existsResult[0]?.has_overrides) {
+      debugLog(`[Sync] Skipping bulk EPG alignment for source: ${sourceId} (no overrides)`, 'epg');
+      return;
+    }
 
     const start = performance.now();
     debugLog(`[Sync] Starting bulk EPG alignment for source: ${sourceId}...`, 'epg');
@@ -4178,7 +4312,10 @@ export async function alignOverriddenChannelPrograms(sourceId: string): Promise<
       [sourceId]
     );
     
-    debugLog(`[Sync] Bulk EPG alignment complete in ${(performance.now() - start).toFixed(2)}ms`, 'epg');
+    const alignmentMs = performance.now() - start;
+    // Track the slowest alignment of the run for the per-run timing summary.
+    lastRunAlignmentMaxMs = Math.max(lastRunAlignmentMaxMs, alignmentMs);
+    debugLog(`[Sync] Bulk EPG alignment complete in ${alignmentMs.toFixed(2)}ms`, 'epg');
     const { dbEvents } = await import('./sqlite-adapter');
     dbEvents.notify('programs', 'clear');
     dbEvents.notify('programs', 'add');
