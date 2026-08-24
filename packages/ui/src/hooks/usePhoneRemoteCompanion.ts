@@ -31,7 +31,7 @@ import {
 } from '../utils/categorySortRules';
 import { useTeamChannelLinksStore, getTeamLinks } from '../stores/teamChannelLinksStore';
 import { searchGameStreams, getCachedGameStreams, setCachedGameStreams } from '../services/sports/gameStreamSearcher';
-import { buildTeamSearchQuery } from '../services/sports/teamChannelMatcher';
+import { buildTeamSearchQuery, buildTeamSearchQueries } from '../services/sports/teamChannelMatcher';
 import { getStatusDisplay } from '../services/sports/utils';
 import { isEventLiveOrPastStart } from '../services/sports';
 import { getRecentChannels } from '../utils/recentChannels';
@@ -961,12 +961,12 @@ export function usePhoneRemoteCompanion({
 
           let availableStreams: Array<{ stream_id: string; channel_name: string; logo?: string }> = [];
           try {
-            const query = buildTeamSearchQuery(event.homeTeam.name, event.awayTeam.name, event.title);
-            const cacheKey = `${event.id}_${query}_${event.league.id}`;
-            let cached = getCachedGameStreams(cacheKey) || getCachedGameStreams(`${query}_${event.league.id}_15`);
+            const queries = buildTeamSearchQueries(event.homeTeam.name, event.awayTeam.name, event.league?.id, event.title);
+            const cacheKey = `${event.id}_${queries.join('||')}_${event.league.id}`;
+            let cached = getCachedGameStreams(cacheKey) || getCachedGameStreams(`${queries.join('||')}_${event.league.id}_8`);
 
             if (!cached) {
-              cached = await searchGameStreams(query, event.league.id, 8);
+              cached = await searchGameStreams(queries, event.league.id, 8);
               setCachedGameStreams(cacheKey, cached);
             }
 

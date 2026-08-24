@@ -33,13 +33,14 @@ export { normalizeText };
  */
 export const TEAM_CITY_PREFIXES: string[] = [
   'San Francisco', 'Golden State', 'New England', 'Tampa Bay', 'Green Bay',
-  'Kansas City', 'Oklahoma City', 'New York', 'New Orleans', 'Los Angeles',
+  'Kansas City', 'Oklahoma City', 'New York City', 'New York', 'New Orleans', 'Los Angeles',
   'San Antonio', 'San Diego', 'San Jose', 'North Carolina', 'South Carolina',
-  'West Virginia', 'Saint Louis', 'St. Louis', 'St Louis',
+  'West Virginia', 'Saint Louis', 'St. Louis', 'St Louis', 'Salt Lake City', 'Salt Lake',
+  'Saint Paul', 'St. Paul', 'St Paul', 'Las Vegas', 'Fort Worth', 'St. Petersburg',
   'Real Madrid', 'Atletico Madrid', 'Paris Saint-Germain', 'Bayern Munich',
   'Borussia Dortmund', 'Inter Milan', 'AC Milan', 'Aston Villa', 'West Ham',
   'Crystal Palace', 'Wolverhampton Wanderers',
-  'Arizona', 'Atlanta', 'Baltimore', 'Boston', 'Buffalo', 'Carolina',
+  'Arizona', 'Atlanta', 'Austin', 'Baltimore', 'Boston', 'Buffalo', 'Carolina',
   'Charlotte', 'Chicago', 'Cincinnati', 'Cleveland', 'Dallas', 'Denver',
   'Detroit', 'Houston', 'Indianapolis', 'Indiana', 'Jacksonville', 'Miami',
   'Milwaukee', 'Minnesota', 'Memphis', 'Nashville', 'Oakland', 'Orlando',
@@ -49,12 +50,95 @@ export const TEAM_CITY_PREFIXES: string[] = [
   'Vegas', 'Columbus', 'Anaheim', 'Colorado', 'Florida',
   'Flamengo', 'Palmeiras', 'Corinthians', 'Santos', 'Sao Paulo',
   'Gremio', 'Internacional',
-  'Inter', 'Internazionale', 'Manchester', 'Tottenham', 'Blackburn', 'Blackpool',
+  'Manchester', 'Tottenham', 'Blackburn', 'Blackpool',
   'Newcastle', 'Swindon', 'Coventry', 'Luton', 'Cambridge',
   'Rangers', 'Celtic', 'Aberdeen', 'Hibernian', 'Hearts',
+  'Arsenal', 'Chelsea', 'Liverpool', 'Everton', 'Fulham', 'Brentford', 'Brighton',
+  'Bournemouth', 'Burnley', 'Southampton', 'Leicester', 'Leeds', 'Watford', 'Norwich',
+  'Juventus', 'Napoli', 'Roma', 'Lazio', 'Fiorentina', 'Atalanta', 'Bologna', 'Torino',
+  'Barcelona', 'Sevilla', 'Valencia', 'Villarreal', 'Betis', 'Sociedad', 'Bilbao',
+  'Monaco', 'Lyon', 'Marseille', 'Lille', 'Nice', 'Rennes', 'Lens',
+  'Leipzig', 'Leverkusen', 'Frankfurt', 'Stuttgart', 'Wolfsburg', 'Freiburg', 'Hoffenheim',
 ];
 
 TEAM_CITY_PREFIXES.sort((a, b) => b.length - a.length);
+
+const SOCCER_PREFIXES = [
+  'Sporting', 'Real', 'Inter', 'FC', 'CF', 'SC', 'AC', 'AS', 'AFC', 'SS', 'BSC', 'US',
+  'Borussia', 'Bayern', 'Atletico', 'Athletic', 'Club', 'CD', 'Racing', 'Deportivo',
+  'Dynamo', 'Dinamo', 'Lokomotiv', 'CSKA', 'Red Bull', 'Red Bulls', 'United', 'City',
+];
+
+export interface TeamSearchTerms {
+  fullName: string;
+  city: string;
+  nickname: string;
+  coreTerms: string[];
+}
+
+export function extractTeamSearchTerms(name: string): TeamSearchTerms {
+  const trimmed = name.replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').trim();
+  let city = '';
+  let nickname = '';
+
+  // 1. Check if name starts with a known city prefix
+  for (const c of TEAM_CITY_PREFIXES) {
+    if (trimmed.toLowerCase().startsWith(c.toLowerCase() + ' ')) {
+      city = c;
+      nickname = trimmed.slice(c.length).trim();
+      break;
+    } else if (trimmed.toLowerCase() === c.toLowerCase()) {
+      city = c;
+      nickname = '';
+      break;
+    }
+  }
+
+  // 2. If no city prefix matched, check if it starts with a soccer club prefix (e.g. "Sporting Kansas City", "Real Salt Lake")
+  if (!city) {
+    for (const prefix of SOCCER_PREFIXES) {
+      if (trimmed.toLowerCase().startsWith(prefix.toLowerCase() + ' ')) {
+        const afterPrefix = trimmed.slice(prefix.length).trim();
+        for (const c of TEAM_CITY_PREFIXES) {
+          if (afterPrefix.toLowerCase().startsWith(c.toLowerCase())) {
+            city = c;
+            const afterCity = afterPrefix.slice(c.length).trim();
+            nickname = [prefix, afterCity].filter(Boolean).join(' ');
+            break;
+          }
+        }
+        if (city) break;
+      }
+    }
+  }
+
+  // 3. Fallback to standard splitTeamName
+  if (!city) {
+    const split = splitTeamName(trimmed);
+    city = split.city;
+    nickname = split.nickname;
+  }
+
+  // Clean generic suffixes like "FC", "CF", "SC" from nickname if needed
+  const cleanNickname = nickname.replace(/\b(FC|CF|SC)\b/gi, '').trim();
+
+  // Core distinct terms: words from city and nickname >= 3 chars (excluding generic words)
+  const genericWords = new Set(['fc', 'cf', 'sc', 'the', 'club', 'united', 'city']);
+  const coreTerms: string[] = [];
+  for (const w of trimmed.split(/\s+/)) {
+    const lower = w.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (lower.length >= 3 && !genericWords.has(lower)) {
+      coreTerms.push(w);
+    }
+  }
+
+  return {
+    fullName: trimmed,
+    city: city.trim(),
+    nickname: (cleanNickname || nickname).trim(),
+    coreTerms,
+  };
+}
 
 export function stripCityPrefix(name: string): string {
   const trimmed = name.trim();
@@ -93,8 +177,28 @@ const NCAA_LEAGUE_IDS = new Set([
   'college-softball',
 ]);
 
+const COLLEGE_SCHOOL_PREFIXES = [
+  'North Carolina', 'South Carolina', 'Florida State', 'Ohio State', 'Penn State',
+  'Michigan State', 'Oklahoma State', 'Oregon State', 'Washington State', 'Kansas State',
+  'Arizona State', 'Colorado State', 'San Diego State', 'San Jose State', 'Fresno State',
+  'Boise State', 'Utah State', 'New Mexico State', 'Texas A&M', 'Texas Tech',
+  'Notre Dame', 'Ole Miss', 'Wake Forest', 'Boston College', 'Georgia Tech',
+  'Virginia Tech', 'West Virginia', 'East Carolina', 'Western Kentucky', 'Southern Miss',
+  'Alabama', 'Georgia', 'Michigan', 'Ohio', 'Texas', 'Florida', 'Tennessee', 'LSU',
+  'Auburn', 'Clemson', 'Oklahoma', 'Oregon', 'Washington', 'Utah', 'USC', 'UCLA',
+  'Miami', 'Kentucky', 'Arkansas', 'Missouri', 'Wisconsin', 'Iowa', 'Nebraska',
+  'Minnesota', 'Indiana', 'Illinois', 'Purdue', 'Stanford', 'California', 'Colorado',
+  'Arizona', 'Baylor', 'TCU', 'BYU', 'Houston', 'Cincinnati', 'UCF', 'Memphis',
+];
+COLLEGE_SCHOOL_PREFIXES.sort((a, b) => b.length - a.length);
+
 function stripMascotForCollege(name: string): string {
   let cleaned = name.replace(/\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
+  for (const school of COLLEGE_SCHOOL_PREFIXES) {
+    if (cleaned.toLowerCase().startsWith(school.toLowerCase() + ' ') || cleaned.toLowerCase() === school.toLowerCase()) {
+      return school;
+    }
+  }
   const words = cleaned.split(/\s+/);
   if (words.length <= 1) return cleaned;
   return words.slice(0, -1).join(' ');
@@ -102,14 +206,98 @@ function stripMascotForCollege(name: string): string {
 
 export const INDIVIDUAL_SPORT_LEAGUES = new Set(['ufc', 'f1', 'nascar', 'indycar', 'pga', 'lpga', 'atp', 'wta']);
 
-export function buildTeamSearchQuery(homeTeam: string, awayTeam: string, leagueId?: string, eventTitle?: string): string {
+export function buildTeamSearchQueries(
+  homeTeam: string,
+  awayTeam: string,
+  leagueId?: string,
+  eventTitle?: string
+): string[] {
+  if (leagueId && INDIVIDUAL_SPORT_LEAGUES.has(leagueId) && eventTitle) {
+    return [eventTitle.trim()];
+  }
+
+  if (leagueId && NCAA_LEAGUE_IDS.has(leagueId)) {
+    const collegeHome = stripMascotForCollege(homeTeam);
+    const collegeAway = stripMascotForCollege(awayTeam);
+    const queries = [
+      `${collegeHome} ${collegeAway}`.trim(),
+      `${collegeAway} ${collegeHome}`.trim(),
+      `${homeTeam} ${awayTeam}`.trim(),
+    ];
+    return Array.from(new Set(queries.filter((q) => q.length > 0)));
+  }
+
+  const homeTerms = extractTeamSearchTerms(homeTeam);
+  const awayTerms = extractTeamSearchTerms(awayTeam);
+
+  const candidateQueries: string[] = [];
+
+  // 1. City vs. City (e.g. "Atlanta Kansas City", "Kansas City Atlanta", "New England New York")
+  if (homeTerms.city && awayTerms.city) {
+    candidateQueries.push(`${homeTerms.city} ${awayTerms.city}`);
+    candidateQueries.push(`${awayTerms.city} ${homeTerms.city}`);
+  }
+
+  // 2. Nicknames / Mascots (e.g. "Chiefs Ravens", "Sporting United", "Sounders Timbers")
+  if (homeTerms.nickname && awayTerms.nickname) {
+    candidateQueries.push(`${homeTerms.nickname} ${awayTerms.nickname}`);
+    candidateQueries.push(`${awayTerms.nickname} ${homeTerms.nickname}`);
+  }
+
+  // 3. City + Nickname crosses (e.g. "Kansas City United", "Atlanta Sporting", "Chiefs Baltimore")
+  if (homeTerms.city && awayTerms.nickname) {
+    candidateQueries.push(`${homeTerms.city} ${awayTerms.nickname}`);
+  }
+  if (awayTerms.city && homeTerms.nickname) {
+    candidateQueries.push(`${awayTerms.city} ${homeTerms.nickname}`);
+  }
+
+  // 4. Legacy stripCityPrefix fallback (preserves 100% of previous matching behavior)
+  const legacyHome = stripCityPrefix(homeTeam);
+  const legacyAway = stripCityPrefix(awayTeam);
+  if (legacyHome && legacyAway) {
+    candidateQueries.push(`${legacyHome} ${legacyAway}`);
+    candidateQueries.push(`${legacyAway} ${legacyHome}`);
+  }
+
+  // 5. Cleaned core distinct terms
+  if (homeTerms.coreTerms.length > 0 && awayTerms.coreTerms.length > 0) {
+    candidateQueries.push(`${homeTerms.coreTerms.join(' ')} ${awayTerms.coreTerms.join(' ')}`);
+  }
+
+  // Deduplicate and clean queries
+  const seen = new Set<string>();
+  const results: string[] = [];
+  for (const q of candidateQueries) {
+    const cleaned = q.replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (cleaned.length >= 2 && !seen.has(cleaned.toLowerCase())) {
+      seen.add(cleaned.toLowerCase());
+      results.push(cleaned);
+    }
+  }
+
+  return results.length > 0 ? results : [`${homeTeam} ${awayTeam}`.trim()];
+}
+
+export function buildTeamSearchQuery(
+  homeTeam: string,
+  awayTeam?: string,
+  leagueId?: string,
+  eventTitle?: string
+): string {
   if (leagueId && INDIVIDUAL_SPORT_LEAGUES.has(leagueId) && eventTitle) {
     return eventTitle;
+  }
+  if (!awayTeam) {
+    const terms = extractTeamSearchTerms(homeTeam);
+    return terms.city || terms.nickname || stripCityPrefix(homeTeam);
   }
   if (leagueId && NCAA_LEAGUE_IDS.has(leagueId)) {
     return `${stripMascotForCollege(homeTeam)} ${stripMascotForCollege(awayTeam)}`;
   }
-  return `${stripCityPrefix(homeTeam)} ${stripCityPrefix(awayTeam)}`;
+
+  const queries = buildTeamSearchQueries(homeTeam, awayTeam, leagueId, eventTitle);
+  return queries[0] || `${stripCityPrefix(homeTeam)} ${stripCityPrefix(awayTeam)}`;
 }
 
 // ─── Scoring ────────────────────────────────────────────────────────────────

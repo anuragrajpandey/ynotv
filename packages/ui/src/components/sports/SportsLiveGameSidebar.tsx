@@ -10,7 +10,7 @@ import { useSportsSettingsStore } from '../../stores/sportsSettingsStore';
 import { useTeamChannelLinks, useTeamLinks } from '../../stores/teamChannelLinksStore';
 import { isEventLiveOrPastStart } from '../../services/sports';
 import { getStatusDisplay } from '../../services/sports/utils';
-import { buildTeamSearchQuery } from '../../services/sports/teamChannelMatcher';
+import { buildTeamSearchQuery, buildTeamSearchQueries } from '../../services/sports/teamChannelMatcher';
 import {
   searchGameStreams,
   getCachedGameStreams,
@@ -357,16 +357,16 @@ export function MiniGameCard({
 
     setIsSearching(true);
     try {
-      const query = buildTeamSearchQuery(event.homeTeam.name, event.awayTeam.name, event.league.id, event.title);
-      const cacheKey = `${event.id}_${query}_${event.league.id}`;
-      const cached = getCachedGameStreams(cacheKey) || getCachedGameStreams(`${query}_${event.league.id}_15`);
+      const queries = buildTeamSearchQueries(event.homeTeam.name, event.awayTeam.name, event.league.id, event.title);
+      const cacheKey = `${event.id}_${queries.join('||')}_${event.league.id}`;
+      const cached = getCachedGameStreams(cacheKey) || getCachedGameStreams(`${queries.join('||')}_${event.league.id}_15`);
       if (cached) {
         setLocalSearchChannels(cached);
         setIsSearching(false);
         return;
       }
 
-      const results = await searchGameStreams(query, event.league.id, 15);
+      const results = await searchGameStreams(queries, event.league.id, 15);
       setCachedGameStreams(cacheKey, results);
       setLocalSearchChannels(results);
     } catch (err) {
@@ -672,8 +672,8 @@ export function SportsLiveGameSidebar({
   useEffect(() => {
     if (!startupReady || liveEvents.length === 0) return;
     for (const e of liveEvents) {
-      const query = buildTeamSearchQuery(e.homeTeam.name, e.awayTeam.name, e.league.id, e.title);
-      queuePrefetchGameStreams(e.id, query, e.league.id, 15);
+      const queries = buildTeamSearchQueries(e.homeTeam.name, e.awayTeam.name, e.league.id, e.title);
+      queuePrefetchGameStreams(e.id, queries, e.league.id, 15);
     }
   }, [startupReady, liveEvents]);
 

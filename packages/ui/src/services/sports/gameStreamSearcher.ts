@@ -39,15 +39,16 @@ if (typeof window !== 'undefined') {
 
 // Background prefetch queue: runs 1 game search at a time with 60ms polite yielding
 let isPrefetching = false;
-const prefetchQueue: Array<{ eventId: string; query: string; leagueId: string; limit: number }> = [];
+const prefetchQueue: Array<{ eventId: string; query: string | string[]; leagueId: string; limit: number }> = [];
 
 export function queuePrefetchGameStreams(
   eventId: string,
-  query: string,
+  query: string | string[],
   leagueId: string,
   limit = 15
 ): void {
-  const cacheKey = `${eventId}_${query}_${leagueId}`;
+  const qKey = Array.isArray(query) ? query.join('||') : query;
+  const cacheKey = `${eventId}_${qKey}_${leagueId}`;
   if (getCachedGameStreams(cacheKey)) return;
   if (prefetchQueue.some((item) => item.eventId === eventId)) return;
 
@@ -69,7 +70,8 @@ async function processPrefetchQueue(): Promise<void> {
     const item = prefetchQueue.shift();
     if (!item) break;
 
-    const cacheKey = `${item.eventId}_${item.query}_${item.leagueId}`;
+    const qKey = Array.isArray(item.query) ? item.query.join('||') : item.query;
+    const cacheKey = `${item.eventId}_${qKey}_${item.leagueId}`;
     if (!getCachedGameStreams(cacheKey)) {
       try {
         const results = await searchGameStreams(item.query, item.leagueId, item.limit);
@@ -87,18 +89,22 @@ async function processPrefetchQueue(): Promise<void> {
 }
 
 /**
- * Searches local channels database and EPG programs for matching matchup query,
+ * Searches local channels database and EPG programs for matching matchup query or queries,
  * scoped to the league's search configuration (sources and categories) if set.
  */
 export async function searchGameStreams(
-  query: string,
+  query: string | string[],
   leagueId?: string,
   limit = 20
 ): Promise<StoredChannel[]> {
-  const queryWords = query.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 0);
-  if (queryWords.length === 0) return [];
+  const rawQueries = Array.isArray(query) ? query : [query];
+  const cleanQueries = rawQueries
+    .map((q) => q.replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter((q) => q.length > 0);
 
-  const cacheKey = `${query}_${leagueId || 'all'}_${limit}`;
+  if (cleanQueries.length === 0) return [];
+
+  const cacheKey = `${cleanQueries.join('||')}_${leagueId || 'all'}_${limit}`;
   const cached = getCachedGameStreams(cacheKey);
   if (cached) {
     return cached;
@@ -142,23 +148,48 @@ export async function searchGameStreams(
     if (targetCategoryIds.length === 0) return [];
 
     const categoryPlaceholders = targetCategoryIds.map(() => '?').join(',');
-    const { sql: wordLikeClauses, params: wordParams } = buildSearchQueryClauses('c.name', query);
-    const { sql: progLikeClauses, params: progParams } = buildSearchQueryClauses('p.title', query);
+
+    // Build multi-query OR clauses for channels and programs
+    const channelClauses: string[] = [];
+    const channelParams: string[] = [];
+    const programClauses: string[] = [];
+    const programParams: string[] = [];
+
+    for (const q of cleanQueries) {
+      const chClause = buildSearchQueryClauses('c.name', q);
+      if (chClause.sql) {
+        channelClauses.push(`(${chClause.sql})`);
+        channelParams.push(...chClause.params);
+      }
+      const progClause = buildSearchQueryClauses('p.title', q);
+      if (progClause.sql) {
+        programClauses.push(`(${progClause.sql})`);
+        programParams.push(...progClause.params);
+      }
+    }
+
+    if (channelClauses.length === 0 && programClauses.length === 0) return [];
+
     const nowIso = new Date().toISOString();
-
-    const channelMatches = await db.query<StoredChannel>(
-      `SELECT DISTINCT c.* FROM channels c CROSS JOIN json_each(c.category_ids) AS cat WHERE (${wordLikeClauses}) AND c.source_id IN (${sourcePlaceholders}) AND (c.enabled IS NULL OR c.enabled != 0) AND cat.value IN (${categoryPlaceholders}) LIMIT ${limit}`,
-      [...wordParams, ...targetSourceIds, ...targetCategoryIds]
-    );
-
-    const programMatches = await db.query<StoredChannel>(
-      `SELECT DISTINCT c.* FROM channels c INNER JOIN programs p ON p.stream_id = c.stream_id CROSS JOIN json_each(c.category_ids) AS cat WHERE (${progLikeClauses}) AND p.end > ? AND c.source_id IN (${sourcePlaceholders}) AND (c.enabled IS NULL OR c.enabled != 0) AND cat.value IN (${categoryPlaceholders}) LIMIT ${limit}`,
-      [...progParams, nowIso, ...targetSourceIds, ...targetCategoryIds]
-    );
-
     const mergedMap = new Map<string, StoredChannel>();
-    for (const ch of channelMatches) mergedMap.set(ch.stream_id, ch);
-    for (const ch of programMatches) mergedMap.set(ch.stream_id, ch);
+
+    if (channelClauses.length > 0) {
+      const wordLikeClauses = channelClauses.join(' OR ');
+      const channelMatches = await db.query<StoredChannel>(
+        `SELECT DISTINCT c.* FROM channels c CROSS JOIN json_each(c.category_ids) AS cat WHERE (${wordLikeClauses}) AND c.source_id IN (${sourcePlaceholders}) AND (c.enabled IS NULL OR c.enabled != 0) AND cat.value IN (${categoryPlaceholders}) LIMIT ${limit}`,
+        [...channelParams, ...targetSourceIds, ...targetCategoryIds]
+      );
+      for (const ch of channelMatches) mergedMap.set(ch.stream_id, ch);
+    }
+
+    if (programClauses.length > 0) {
+      const progLikeClauses = programClauses.join(' OR ');
+      const programMatches = await db.query<StoredChannel>(
+        `SELECT DISTINCT c.* FROM channels c INNER JOIN programs p ON p.stream_id = c.stream_id CROSS JOIN json_each(c.category_ids) AS cat WHERE (${progLikeClauses}) AND p.end > ? AND c.source_id IN (${sourcePlaceholders}) AND (c.enabled IS NULL OR c.enabled != 0) AND cat.value IN (${categoryPlaceholders}) LIMIT ${limit}`,
+        [...programParams, nowIso, ...targetSourceIds, ...targetCategoryIds]
+      );
+      for (const ch of programMatches) mergedMap.set(ch.stream_id, ch);
+    }
 
     const results = Array.from(mergedMap.values()).slice(0, limit);
     setCachedGameStreams(cacheKey, results);
