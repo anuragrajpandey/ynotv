@@ -1393,10 +1393,24 @@ export function useRecentlyWatchedSeries(limit = 20) {
             if (episodes && episodes.length > 0) {
               const epHistMap = new Map(episodeHistory.map(eh => [eh.episode_id, eh]));
 
-              // Find the first uncompleted episode, or if all completed, pick the last episode
+              // Prefer the exact episode saved in vod_history (e.g. S2 E7) so "Continue
+              // watching" resumes where the user actually left off, even when earlier
+              // episodes were skipped and have no completion record.
               let targetEp: StoredEpisode | null = null;
               let targetHist: EpisodeWatchHistory | null = null;
 
+              if (h.season_num && h.season_num > 0 && h.episode_num && h.episode_num > 0) {
+                const savedEp = episodes.find(
+                  ep => ep.season_num === h.season_num && ep.episode_num === h.episode_num
+                );
+                if (savedEp) {
+                  targetEp = savedEp;
+                  targetHist = epHistMap.get(savedEp.id) || null;
+                }
+              }
+
+              // Fallback: the saved episode no longer exists in the catalog, so find the
+              // first uncompleted episode (or the last episode if all are completed).
               for (const ep of episodes) {
                 const eh = epHistMap.get(ep.id);
                 const dur = eh?.total_duration ?? ep.duration ?? 0;
