@@ -6,6 +6,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useNuvioAuthStore } from '../../stores/nuvioAuthStore';
 import { useNuvioCollectionStore } from '../../stores/nuvioCollectionStore';
 import { useNuvioAddonStore } from '../../stores/nuvioAddonStore';
+import { KeyboardSearchInput } from '../KeyboardSearchInput';
 import { useNuvioPluginStore } from '../../stores/nuvioPluginStore';
 import {
   useNuvioView,
@@ -1877,12 +1878,12 @@ function NuvioPageContent({
                   <circle cx="11" cy="11" r="8" />
                   <path d="m21 21-4.3-4.3" />
                 </svg>
-                <input
-                  type="text"
+                <KeyboardSearchInput
                   placeholder={t('quickSearch')}
+                  label={t('quickSearch')}
                   value={nuvioSearchQuery}
-                  onChange={(e) => {
-                    setNuvioSearchQuery(e.target.value);
+                  onValueChange={(v) => {
+                    setNuvioSearchQuery(v);
                     if (nuvioView !== 'search') {
                       navigateToView('search');
                     }

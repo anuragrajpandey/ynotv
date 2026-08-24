@@ -1,0 +1,66 @@
+.osk-input-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  animation: oskInputFadeIn 0.12s ease;
+}
+
+@keyframes oskInputFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.osk-input-modal {
+  background: var(--glass-modal-bg, var(--surface-color, #1e1e2e));
+  border: var(--glass-modal-border, none);
+  border-radius: 12px;
+  width: 94%;
+  max-width: 760px;
+  padding: 18px 16px 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  color: var(--text-primary, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+
+.osk-input-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding-right: 34px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Absolutely positioned so the first interactive element in DOM order is a
+   keyboard key (spatial-nav auto-focus lands on a letter, not this button). */
+.osk-input-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary, #888);
+  font-size: 1.3rem;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.osk-input-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #fff);
+}

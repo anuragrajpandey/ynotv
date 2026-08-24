@@ -19,6 +19,7 @@ import {
 } from '../../stores/uiStore';
 import { useSearchHistory } from '../../hooks/useSearchHistory';
 import { PosterSizeSlider } from '../PosterSizeSlider';
+import { KeyboardSearchInput } from '../KeyboardSearchInput';
 import './StremioTopbar.css';
 
 interface StremioTopbarProps {
@@ -236,14 +237,26 @@ export function StremioTopbar({ addons, onOpenAddonManager, onOpenAccount }: Str
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.3-4.3" />
             </svg>
-            <input
+            <KeyboardSearchInput
               className="stremio-topbar-search-input"
-              type="text"
               placeholder={t('search')}
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onValueChange={setInputValue}
               onFocus={() => setShowStremioHistory(true)}
               onKeyDown={handleSearchKeyDown}
+              onSubmit={(v) => {
+                const val = v.trim();
+                if (val) {
+                  stremioSearchHistory.addToHistory(val);
+                }
+                setSearchQuery(val);
+                setShowStremioHistory(false);
+                if (val.length >= 2) {
+                  setView('search');
+                } else {
+                  setView('home');
+                }
+              }}
             />
             {inputValue && (
               <button className="stremio-topbar-search-clear" onClick={handleSearchClear}>

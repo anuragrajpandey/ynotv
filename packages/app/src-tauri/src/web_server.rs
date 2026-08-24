@@ -1131,6 +1131,163 @@ async fn serve_remote_html() -> impl IntoResponse {
       color: #fff; 
     }
 
+    .remote-search {
+      display: flex;
+      width: 100%;
+      max-width: 340px;
+      gap: 8px;
+    }
+    .remote-search-input-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+    }
+    .remote-search-input {
+      width: 100%;
+      height: 42px;
+      min-width: 0;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-glass);
+      border-radius: 12px;
+      color: var(--text-primary);
+      padding: 0 40px 0 12px;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .remote-search-input:focus {
+      border-color: var(--accent-cyan);
+    }
+    .remote-search-status {
+      position: absolute;
+      right: 34px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent-cyan);
+      font-size: 14px;
+      font-weight: 700;
+      pointer-events: none;
+      display: none;
+      animation: remoteSearchPulse 1s ease-in-out infinite;
+    }
+    @keyframes remoteSearchPulse {
+      0%, 100% { opacity: 0.25; }
+      50% { opacity: 1; }
+    }
+    .remote-search-clear {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 28px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-secondary);
+      border-radius: 50%;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .remote-search-clear:active {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    /* Type-into-field modal (search box activated from the remote) */
+    .remote-type-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      padding: 20px;
+    }
+    .remote-type-box {
+      width: 100%;
+      max-width: 360px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-glass);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--glass-shadow);
+    }
+    .remote-type-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .remote-type-input {
+      height: 44px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-glass);
+      border-radius: 12px;
+      color: var(--text-primary);
+      padding: 0 12px;
+      font-size: 16px;
+      outline: none;
+    }
+    .remote-type-input:focus {
+      border-color: var(--accent-cyan);
+    }
+    .remote-type-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .remote-type-btn {
+      flex: 1;
+      height: 42px;
+      border: 1px solid var(--border-glass);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.12s ease;
+    }
+    .remote-type-ok {
+      background: var(--accent-cyan);
+      color: #04101c;
+      border-color: transparent;
+    }
+    .remote-type-cancel:active,
+    .remote-type-ok:active {
+      transform: scale(0.96);
+    }
+    .remote-search-go {
+      width: 46px;
+      height: 42px;
+      flex-shrink: 0;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid var(--border-glass);
+      border-radius: 12px;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .remote-search-go svg { width: 16px; height: 16px; }
+    .remote-search-go:active {
+      background: rgba(56, 189, 248, 0.25);
+      transform: scale(0.94);
+    }
+
     .media-footer {
       background: rgba(11, 14, 23, 0.8);
       backdrop-filter: var(--glass-filter);
@@ -2163,6 +2320,41 @@ async fn serve_remote_html() -> impl IntoResponse {
             <button class="dpad-center" onpointerdown="sendNav('select', event)">OK</button>
           </div>
 
+          <!-- Remote Search (types with the phone's own keyboard) -->
+          <div class="remote-search">
+            <div class="remote-search-input-wrap">
+              <input
+                type="text"
+                id="remote-search-input"
+                class="remote-search-input"
+                placeholder="Search channels / EPG…"
+                autocomplete="off"
+                autocapitalize="off"
+                autocorrect="off"
+                inputmode="search"
+                oninput="onRemoteSearchInput()"
+                onkeydown="if(event.key==='Enter'){ event.preventDefault(); submitRemoteSearch(); }"
+              />
+              <span class="remote-search-status" id="remote-search-status" title="Searching…">…</span>
+              <button
+                class="remote-search-clear"
+                id="remote-search-clear"
+                onpointerdown="clearRemoteSearch(event)"
+                title="Clear search"
+              >✕</button>
+            </div>
+            <button
+              class="remote-search-go"
+              onpointerdown="submitRemoteSearch(event)"
+              title="Search"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </button>
+          </div>
+
           <!-- Quick Actions -->
           <div class="action-row">
             <button class="action-btn back-btn" onpointerdown="sendNav('back', event)">
@@ -2771,6 +2963,90 @@ async fn serve_remote_html() -> impl IntoResponse {
       if (e && e.cancelable) e.preventDefault();
       send({ action });
     }
+
+    // ── Remote search box ────────────────────────────────────────────────────
+    // Typing on the phone sends the query to the app (debounced) so the app
+    // searches live, just like the titlebar search box. Enter or the Go button
+    // also commits the query into search history. Clearing the box clears the
+    // app's search. The app echoes the query back (two-way sync), so the "…"
+    // searching indicator shows while the app hasn't caught up yet.
+    let remoteSearchDebounce = null;
+    let lastSyncedRemoteQuery = '';
+    function currentRemoteSearchQuery() {
+      const input = document.getElementById('remote-search-input');
+      return input ? input.value : '';
+    }
+    function updateRemoteSearchUi() {
+      const input = document.getElementById('remote-search-input');
+      const clear = document.getElementById('remote-search-clear');
+      const status = document.getElementById('remote-search-status');
+      const q = input ? input.value : '';
+      if (clear) clear.style.display = q ? 'flex' : 'none';
+      if (status) status.style.display = (q && q !== lastSyncedRemoteQuery) ? 'flex' : 'none';
+    }
+    function onRemoteSearchInput() {
+      updateRemoteSearchUi();
+      clearTimeout(remoteSearchDebounce);
+      remoteSearchDebounce = setTimeout(() => {
+        send({ action: 'searchQuery', query: currentRemoteSearchQuery(), commit: false });
+      }, 350);
+    }
+    function submitRemoteSearch(e) {
+      if (e && e.cancelable) e.preventDefault();
+      clearTimeout(remoteSearchDebounce);
+      send({ action: 'searchQuery', query: currentRemoteSearchQuery(), commit: true });
+    }
+    function clearRemoteSearch(e) {
+      if (e && e.cancelable) e.preventDefault();
+      const input = document.getElementById('remote-search-input');
+      if (input) input.value = '';
+      lastSyncedRemoteQuery = '';
+      updateRemoteSearchUi();
+      send({ action: 'searchQuery', query: '', commit: false });
+    }
+
+    // ── Type-into-field (search box activated from the remote) ──────────────
+    // When the user navigates to a VOD/Stremio/Nuvio search box and presses
+    // select from the phone remote, the app asks this page to show a query
+    // box. Typing here streams the text back to the focused field.
+    let remoteTypeFieldId = null;
+    let remoteTypeDebounce = null;
+    function showRemoteTypeModal(fieldId, value, label) {
+      remoteTypeFieldId = fieldId;
+      const modal = document.getElementById('remote-type-modal');
+      const input = document.getElementById('remote-type-input');
+      const labelEl = document.getElementById('remote-type-label');
+      if (labelEl) labelEl.innerText = label || 'Type your search';
+      if (input) {
+        input.value = value || '';
+        input.focus();
+      }
+      if (modal) modal.style.display = 'flex';
+    }
+    function hideRemoteTypeModal() {
+      remoteTypeFieldId = null;
+      const modal = document.getElementById('remote-type-modal');
+      if (modal) modal.style.display = 'none';
+    }
+    function remoteTypeInputChanged() {
+      clearTimeout(remoteTypeDebounce);
+      remoteTypeDebounce = setTimeout(() => {
+        if (!remoteTypeFieldId) return;
+        const input = document.getElementById('remote-type-input');
+        send({ action: 'textInput', fieldId: remoteTypeFieldId, text: input ? input.value : '', commit: false });
+      }, 300);
+    }
+    function remoteTypeOk(e) {
+      if (e && e.cancelable) e.preventDefault();
+      const input = document.getElementById('remote-type-input');
+      send({ action: 'textInput', fieldId: remoteTypeFieldId, text: input ? input.value : '', commit: true });
+      hideRemoteTypeModal();
+    }
+    function remoteTypeCancel(e) {
+      if (e && e.cancelable) e.preventDefault();
+      send({ action: 'textInput', fieldId: remoteTypeFieldId, text: '', cancel: true });
+      hideRemoteTypeModal();
+    }
     function sendView(view, e) {
       if (e && e.cancelable) e.preventDefault();
       send({ action: 'openView', view });
@@ -2883,6 +3159,17 @@ async fn serve_remote_html() -> impl IntoResponse {
         renderSports(data.events);
       } else if (data.type === 'multiview') {
         renderMultiview(data.multiview);
+      } else if (data.type === 'searchQuery') {
+        // Keep the remote search box in sync with the app (titlebar typing,
+        // controller modal, or remote itself). Setting .value programmatically
+        // never fires oninput, so this cannot loop back into the app. The
+        // synced query also clears the "searching…" indicator.
+        lastSyncedRemoteQuery = data.query || '';
+        const searchInput = document.getElementById('remote-search-input');
+        if (searchInput) searchInput.value = lastSyncedRemoteQuery;
+        updateRemoteSearchUi();
+      } else if (data.type === 'requestText') {
+        showRemoteTypeModal(data.fieldId, data.value, data.label);
       }
     }
 
@@ -3364,6 +3651,29 @@ async fn serve_remote_html() -> impl IntoResponse {
       connect();
     }
   </script>
+
+  <!-- Type-into-field modal (search box activated from the remote) -->
+  <div class="remote-type-modal" id="remote-type-modal">
+    <div class="remote-type-box">
+      <div class="remote-type-label" id="remote-type-label">Type your search</div>
+      <input
+        type="text"
+        id="remote-type-input"
+        class="remote-type-input"
+        placeholder="Type here…"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        inputmode="search"
+        oninput="remoteTypeInputChanged()"
+        onkeydown="if(event.key==='Enter'){ event.preventDefault(); remoteTypeOk(); }"
+      />
+      <div class="remote-type-actions">
+        <button class="remote-type-btn remote-type-cancel" onpointerdown="remoteTypeCancel(event)">Cancel</button>
+        <button class="remote-type-btn remote-type-ok" onpointerdown="remoteTypeOk(event)">OK</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>"###;
 

@@ -46,6 +46,8 @@ export interface UsePhoneRemoteCompanionOptions {
   currentProgram: StoredProgram | null;
   categories: StoredCategory[];
   activeView: string;
+  /** Current app-wide search query (titlebar / controller modal / phone remote). */
+  searchQuery: string;
   multiviewLayout: LayoutMode;
   multiviewSlots: ViewerSlot[];
   volume?: number;
@@ -444,6 +446,7 @@ export function usePhoneRemoteCompanion({
   currentProgram,
   categories,
   activeView,
+  searchQuery,
   multiviewLayout,
   multiviewSlots,
   volume,
@@ -460,6 +463,7 @@ export function usePhoneRemoteCompanion({
     currentProgram,
     categories,
     activeView,
+    searchQuery,
     multiviewLayout,
     multiviewSlots,
     volume,
@@ -477,6 +481,7 @@ export function usePhoneRemoteCompanion({
     currentProgram,
     categories,
     activeView,
+    searchQuery,
     multiviewLayout,
     multiviewSlots,
     volume,
@@ -564,6 +569,14 @@ export function usePhoneRemoteCompanion({
     }, 200);
     return () => clearTimeout(timer);
   }, [activeView]);
+
+  // Push the app's search query so the phone remote's search box stays in sync
+  // (including when it's cleared or changed from the titlebar / controller
+  // modal). The remote only sets the input value on receipt — it never echoes
+  // the update back, so there is no feedback loop.
+  useEffect(() => {
+    broadcastToRemote({ type: 'searchQuery', query: searchQuery || '' });
+  }, [searchQuery]);
 
   // Push multiview slots when layout or slots change
   useEffect(() => {
@@ -708,6 +721,7 @@ export function usePhoneRemoteCompanion({
     broadcastToRemote({
       type: 'initialState',
       activeView: latestRefs.current.activeView,
+      searchQuery: latestRefs.current.searchQuery || '',
       volume: latestRefs.current.volume ?? 100,
       muted: !!latestRefs.current.isMuted,
       nowPlaying: curChan ? {

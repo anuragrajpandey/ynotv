@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSettingsStore } from '../stores/settingsStore';
 import { dispatchSpatialNav, getActiveModal, onUserManualScroll } from '../services/spatialNavigation';
+import { setNavSource } from '../services/controllerTextInput';
 
 // ── Native-claim tracking ──────────────────────────────────────────────────
 // The native backends (gilrs XInput + the raw HID backend) fully cover the
@@ -427,6 +428,10 @@ export function useGamepad() {
           const payload = event.payload;
           if (!payload) return;
 
+          // Nav commands from the phone remote are marked as 'remote' so search
+          // boxes can open the phone-side query box instead of the OSK.
+          setNavSource('remote');
+
           if (payload.action === 'nav' && payload.key) {
             dispatchSpatialNav(payload.key);
             return;
@@ -435,6 +440,37 @@ export function useGamepad() {
           if (payload.action === 'openView' && payload.view) {
             window.dispatchEvent(
               new CustomEvent('ynotv:navigate-view', { detail: { view: payload.view } })
+            );
+            return;
+          }
+
+          // Phone remote search box → live search in the app (mirrors typing in
+          // the titlebar search). `commit` is true on Enter / the Go button so
+          // the query is recorded in search history.
+          if (payload.action === 'searchQuery') {
+            window.dispatchEvent(
+              new CustomEvent('ynotv:remote-search-query', {
+                detail: {
+                  query: typeof payload.query === 'string' ? payload.query : '',
+                  commit: payload.commit === true,
+                },
+              })
+            );
+            return;
+          }
+
+          // Text typed in the phone remote's type-into-field modal, targeting a
+          // search box the user activated from the remote.
+          if (payload.action === 'textInput') {
+            window.dispatchEvent(
+              new CustomEvent('ynotv:remote-text-input', {
+                detail: {
+                  fieldId: typeof payload.fieldId === 'string' ? payload.fieldId : '',
+                  text: typeof payload.text === 'string' ? payload.text : '',
+                  commit: payload.commit === true,
+                  cancel: payload.cancel === true,
+                },
+              })
             );
             return;
           }
@@ -718,6 +754,8 @@ export function useGamepad() {
 }
 
 export function executeAction(action: string) {
+  // Physical controllers (and any non-remote fallback) drive spatial nav.
+  setNavSource('controller');
   switch (action) {
     case 'select':
       dispatchSpatialNav('select');

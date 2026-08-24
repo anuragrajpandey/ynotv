@@ -29,6 +29,8 @@ import { ChannelInfoOverlay } from './components/ChannelInfoOverlay';
 import { TrackSelectionModal } from './components/TrackSelectionModal';
 import { SubtitleControlModal } from './components/SubtitleControlModal';
 import { StalkerSubtitleModal } from './components/StalkerSubtitleModal';
+import { ControllerSearchModal } from './components/ControllerSearchModal';
+import { getTextField } from './services/controllerTextInput';
 import { CategoryStrip } from './components/CategoryStrip';
 import { ChannelPanel } from './components/ChannelPanel';
 import { MoviesPage } from './components/MoviesPage';
@@ -1526,6 +1528,7 @@ function useTmdbPresencePoster(
     currentProgram,
     categories: companionCategories || [],
     activeView,
+    searchQuery,
     multiviewLayout,
     multiviewSlots: multiviewSlots || [],
     volume,
@@ -2499,6 +2502,8 @@ function useTmdbPresencePoster(
   // Advanced Search State
   // ==========================================================================
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  // Dedicated controller/remote search modal (opened by the mapped search button).
+  const [showControllerSearch, setShowControllerSearch] = useState(false);
   const [advancedSearchConfig, setAdvancedSearchConfig] = useState<AdvancedSearchConfig>({
     query: '',
     scope: advancedSearchScope,
@@ -2535,6 +2540,47 @@ function useTmdbPresencePoster(
   const titlebarSearchHistory = useSearchHistory('titlebar');
   const [showTitlebarHistory, setShowTitlebarHistory] = useState(false);
   const titlebarHistoryRef = useRef<HTMLDivElement | null>(null);
+
+  // Phone remote search input → live search in the guide (mirrors typing in the
+  // titlebar search box). commit = Enter / Go on the remote also records the
+  // query in search history. A remote query supersedes the controller search
+  // modal, so the modal is closed when the user types from the phone.
+  useEffect(() => {
+    const handleRemoteSearchQuery = (e: Event) => {
+      const { query, commit } = (e as CustomEvent).detail || {};
+      const q = typeof query === 'string' ? query : '';
+      setSearchQuery(q);
+      setShowControllerSearch(false);
+      if (q.trim()) {
+        setCategoriesOpen(true);
+        if (activeViewRef.current !== 'guide') {
+          setActiveView('guide');
+        }
+        if (commit) {
+          titlebarSearchHistory.addToHistory(q.trim());
+        }
+      }
+    };
+    window.addEventListener('ynotv:remote-search-query', handleRemoteSearchQuery);
+    return () => window.removeEventListener('ynotv:remote-search-query', handleRemoteSearchQuery);
+  }, []);
+
+  // Text typed in the phone remote's type-into-field modal routes to whichever
+  // search box the user activated from the remote (VOD / Stremio / Nuvio).
+  useEffect(() => {
+    const handleRemoteTextInput = (e: Event) => {
+      const { fieldId, text, commit, cancel } = (e as CustomEvent).detail || {};
+      if (cancel) return; // cancelled on the phone — keep the field's value
+      const field = getTextField(fieldId);
+      if (!field) return;
+      field.setValue(text);
+      if (commit) {
+        field.commit(text);
+      }
+    };
+    window.addEventListener('ynotv:remote-text-input', handleRemoteTextInput);
+    return () => window.removeEventListener('ynotv:remote-text-input', handleRemoteTextInput);
+  }, []);
 
   // Determine active filters for search
   const activeSearchSourceIds = useMemo(() => {
@@ -4026,6 +4072,7 @@ function useTmdbPresencePoster(
     showSettingsPopup,
     showSubtitleModal,
     showAdvancedSearch,
+    showControllerSearch,
     showShortcutsOverlay,
     currentChannel,
     categoryId,
@@ -4048,6 +4095,7 @@ function useTmdbPresencePoster(
     setShowSettingsPopup,
     setShowSubtitleModal,
     setShowAdvancedSearch,
+    setShowControllerSearch,
     setShowShortcutsOverlay,
     setShowControls,
     categoriesHiddenTransparent,
@@ -4061,6 +4109,7 @@ function useTmdbPresencePoster(
     showSettingsPopup,
     showSubtitleModal,
     showAdvancedSearch,
+    showControllerSearch,
     showShortcutsOverlay,
     currentChannel,
     categoryId,
@@ -4083,6 +4132,7 @@ function useTmdbPresencePoster(
     setShowSettingsPopup,
     setShowSubtitleModal,
     setShowAdvancedSearch,
+    setShowControllerSearch,
     setShowShortcutsOverlay,
     setShowControls,
   };
@@ -4328,7 +4378,8 @@ function useTmdbPresencePoster(
     };
 
     const onSearch = () => {
-      remoteRefs.current.setShowAdvancedSearch((s) => !s);
+      // Controller/remote search opens the dedicated controller search modal.
+      remoteRefs.current.setShowControllerSearch?.(true);
     };
 
     const onToggleTransparentGuide = () => {
@@ -5843,6 +5894,31 @@ function useTmdbPresencePoster(
           }, 50);
         }}
         onClose={() => setShowAdvancedSearch(false)}
+      />
+
+      {/* Controller / Remote Search Modal */}
+      <ControllerSearchModal
+        isOpen={showControllerSearch}
+        initialScope={advancedSearchConfig.scope}
+        history={titlebarSearchHistory.history}
+        addToHistory={titlebarSearchHistory.addToHistory}
+        removeFromHistory={titlebarSearchHistory.removeFromHistory}
+        clearHistory={titlebarSearchHistory.clearHistory}
+        onSearch={(query, scope) => {
+          setAdvancedSearchConfig((prev) => ({ ...prev, query, scope }));
+          setAdvancedSearchScope(scope);
+          if (window.storage) {
+            window.storage.updateSettings({ advancedSearchScope: scope }).catch((err: any) => console.error('Failed to save search settings:', err));
+          }
+          setForceAdvancedFilters(false);
+          setSearchQuery(query);
+          setCategoriesOpen(true);
+          if (activeView !== 'guide') {
+            setActiveView('guide');
+          }
+          setShowControllerSearch(false);
+        }}
+        onClose={() => setShowControllerSearch(false)}
       />
 
       {/* Channel Stream Probe / IPTV Checker Modal */}

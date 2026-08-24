@@ -314,6 +314,12 @@ html[data-ui-version="v2"] .view-transition-container {
 }
 
 /* Title Bar Search History Dropdown */
+/* Controller/remote users get the dedicated controller search modal, so the
+   titlebar history dropdown is hidden while TV navigation is active. */
+body.tv-nav-active .title-bar-search-history {
+  display: none !important;
+}
+
 .title-bar-search-history {
   position: absolute;
   top: 100%;

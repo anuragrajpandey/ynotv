@@ -1,0 +1,87 @@
+.osk {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  user-select: none;
+}
+
+.osk-display {
+  min-height: 40px;
+  max-height: 56px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-primary, #fff);
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.osk-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.osk-key {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text-primary, #fff);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.osk-key:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.osk-key:active {
+  transform: scale(0.96);
+}
+
+.osk-key-wide {
+  flex: 1.4;
+  font-size: 0.85rem;
+}
+
+.osk-key-space {
+  flex: 3;
+  font-size: 0.85rem;
+}
+
+.osk-key-action {
+  flex: 1;
+  height: 44px;
+  font-size: 0.9rem;
+}
+
+.osk-key-cancel {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary, #bbb);
+}
+
+.osk-key-done {
+  background: var(--accent-color, #3b82f6);
+  color: #fff;
+}
+
+.osk-key-done:hover {
+  background: var(--accent-color, #3b82f6);
+  filter: brightness(1.1);
+}

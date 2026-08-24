@@ -15,6 +15,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useLiveQuery } from '../../hooks/useSqliteLiveQuery';
 import { db } from '../../db';
 import { useSidebarDragHotkey } from '../../stores/uiStore';
+import { KeyboardSearchInput } from '../KeyboardSearchInput';
 import {
   DndContext,
   PointerSensor,
@@ -581,11 +582,12 @@ export function VerticalSidebar({
                 <div className="vertical-sidebar__search-container">
                     <div className="vertical-sidebar__search">
                         <SearchIcon />
-                        <input
-                            type="text"
+                        <KeyboardSearchInput
                             placeholder={type === 'series' ? i18n.t('vod:searchSeries') : i18n.t('vod:searchMovies')}
+                            label={type === 'series' ? i18n.t('vod:searchSeries') : i18n.t('vod:searchMovies')}
                             value={searchQuery}
-                            onChange={(e) => onSearchChange(e.target.value)}
+                            onValueChange={onSearchChange}
+                            onSubmit={onSearchSubmit}
                             onKeyDown={handleSearchKeyDown}
                         />
                         {searchQuery && (
