@@ -635,9 +635,12 @@ pub async fn stream_parse_epg_multi<R: tauri::Runtime>(
     // Decompress
     let decompress_start = std::time::Instant::now();
     let xml_data: Vec<u8> = if should_decompress {
-        use flate2::read::GzDecoder;
+        use flate2::read::MultiGzDecoder;
         use std::io::Read;
-        let mut decoder = GzDecoder::new(&compressed_data[..]);
+        // MultiGzDecoder: handles concatenated gzip members (plain GzDecoder
+        // silently truncates at the first member boundary) — parity with the
+        // single-source parser.
+        let mut decoder = MultiGzDecoder::new(&compressed_data[..]);
         let mut decompressed = Vec::new();
         decoder.read_to_end(&mut decompressed)
             .context("Failed to decompress gzipped EPG")?;
@@ -1225,20 +1228,20 @@ fn build_display_name_mapping(xml_data: &[u8]) -> HashMap<String, String> {
 
     let mut buf = Vec::with_capacity(4096);
     let mut current_channel_id: Option<String> = None;
-    let mut current_element: Option<String> = None;
+    let mut current_element: Option<&'static str> = None;
     let mut current_text = String::new();
 
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => {
-                let name = std::str::from_utf8(e.name().as_ref()).unwrap_or("").to_string();
-                match name.as_str() {
-                    "channel" => {
+                let name = e.local_name();
+                let name = name.as_ref();
+                match name {
+                    b"channel" => {
                         // Parse channel id attribute
                         for attr in e.attributes() {
                             if let Ok(attr) = attr {
-                                let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
-                                if key == "id" {
+                                if attr.key.as_ref() == b"id" {
                                     let value = attr
                                         .decode_and_unescape_value(reader.decoder())
                                         .unwrap_or_default();
@@ -1248,8 +1251,8 @@ fn build_display_name_mapping(xml_data: &[u8]) -> HashMap<String, String> {
                             }
                         }
                     }
-                    "display-name" => {
-                        current_element = Some(name);
+                    b"display-name" => {
+                        current_element = Some("display-name");
                         current_text.clear();
                     }
                     _ => {}
@@ -1263,12 +1266,13 @@ fn build_display_name_mapping(xml_data: &[u8]) -> HashMap<String, String> {
                 }
             }
             Ok(Event::End(e)) => {
-                let name = std::str::from_utf8(e.name().as_ref()).unwrap_or("").to_string();
-                match name.as_str() {
-                    "channel" => {
+                let name = e.local_name();
+                let name = name.as_ref();
+                match name {
+                    b"channel" => {
                         current_channel_id = None;
                     }
-                    "display-name" => {
+                    b"display-name" => {
                         if let Some(ref channel_id) = current_channel_id {
                             let display_name = current_text.trim().to_string();
                             if !display_name.is_empty() {
@@ -1319,22 +1323,22 @@ fn extract_epg_channels(xml_data: &[u8]) -> Vec<EpgChannelInfo> {
     let mut current_channel_id: Option<String> = None;
     let mut current_display_name: Option<String> = None;
     let mut current_icon_url: Option<String> = None;
-    let mut current_element: Option<String> = None;
+    let mut current_element: Option<&'static str> = None;
     let mut current_text = String::new();
 
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => {
-                let name = std::str::from_utf8(e.name().as_ref()).unwrap_or("").to_string();
-                match name.as_str() {
-                    "channel" => {
+                let name = e.local_name();
+                let name = name.as_ref();
+                match name {
+                    b"channel" => {
                         current_channel_id = None;
                         current_display_name = None;
                         current_icon_url = None;
                         for attr in e.attributes() {
                             if let Ok(attr) = attr {
-                                let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
-                                if key == "id" {
+                                if attr.key.as_ref() == b"id" {
                                     let value = attr
                                         .decode_and_unescape_value(reader.decoder())
                                         .unwrap_or_default();
@@ -1344,16 +1348,15 @@ fn extract_epg_channels(xml_data: &[u8]) -> Vec<EpgChannelInfo> {
                             }
                         }
                     }
-                    "display-name" | "icon" => {
-                        current_element = Some(name.clone());
+                    b"display-name" | b"icon" => {
+                        current_element = Some(if name == b"display-name" { "display-name" } else { "icon" });
                         current_text.clear();
 
                         // For <icon>, also try to read src attribute immediately
-                        if name == "icon" {
+                        if name == b"icon" {
                             for attr in e.attributes() {
                                 if let Ok(attr) = attr {
-                                    let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
-                                    if key == "src" {
+                                    if attr.key.as_ref() == b"src" {
                                         let value = attr
                                             .decode_and_unescape_value(reader.decoder())
                                             .unwrap_or_default();
@@ -1368,16 +1371,17 @@ fn extract_epg_channels(xml_data: &[u8]) -> Vec<EpgChannelInfo> {
                 }
             }
             Ok(Event::Text(e)) => {
-                if current_element.as_deref() == Some("display-name") {
+                if current_element == Some("display-name") {
                     if let Ok(text) = e.unescape() {
                         current_text.push_str(&text);
                     }
                 }
             }
             Ok(Event::End(e)) => {
-                let name = std::str::from_utf8(e.name().as_ref()).unwrap_or("").to_string();
-                match name.as_str() {
-                    "channel" => {
+                let name = e.local_name();
+                let name = name.as_ref();
+                match name {
+                    b"channel" => {
                         if let (Some(id), Some(display_name)) = (current_channel_id.take(), current_display_name.take()) {
                             channels.push(EpgChannelInfo {
                                 id,
@@ -1386,7 +1390,7 @@ fn extract_epg_channels(xml_data: &[u8]) -> Vec<EpgChannelInfo> {
                             });
                         }
                     }
-                    "display-name" => {
+                    b"display-name" => {
                         let text = current_text.trim().to_string();
                         if !text.is_empty() && current_display_name.is_none() {
                             // Keep only the first display-name per channel
@@ -1394,7 +1398,7 @@ fn extract_epg_channels(xml_data: &[u8]) -> Vec<EpgChannelInfo> {
                         }
                         current_element = None;
                     }
-                    "icon" => {
+                    b"icon" => {
                         current_element = None;
                     }
                     _ => {}
@@ -1402,12 +1406,13 @@ fn extract_epg_channels(xml_data: &[u8]) -> Vec<EpgChannelInfo> {
             }
             Ok(Event::Empty(e)) => {
                 // Handle self-closing <icon src="..."/>
-                let name = std::str::from_utf8(e.name().as_ref()).unwrap_or("").to_string();
-                if name == "icon" && current_channel_id.is_some() && current_icon_url.is_none() {
+                if e.local_name().as_ref() == b"icon"
+                    && current_channel_id.is_some()
+                    && current_icon_url.is_none()
+                {
                     for attr in e.attributes() {
                         if let Ok(attr) = attr {
-                            let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
-                            if key == "src" {
+                            if attr.key.as_ref() == b"src" {
                                 let value = attr
                                     .decode_and_unescape_value(reader.decoder())
                                     .unwrap_or_default();
@@ -1893,7 +1898,7 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
 
     let mut buf = Vec::with_capacity(4096);
     let mut current_program: Option<EpgProgram> = None;
-    let mut current_element: Option<String> = None;
+    let mut current_element: Option<&'static str> = None;
     let mut current_text = String::new();
 
     let mut total_programs = 0usize;
@@ -1916,26 +1921,31 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => {
-                let name = std::str::from_utf8(e.name().as_ref()).unwrap_or("").to_string();
-                match name.as_str() {
-                    "programme" => {
+                let name = e.local_name();
+                let name = name.as_ref();
+                match name {
+                    b"programme" => {
                         let mut program = EpgProgram::default();
                         for attr in e.attributes() {
                             if let Ok(attr) = attr {
-                                let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
+                                let key = attr.key.as_ref();
                                 let value = attr.decode_and_unescape_value(reader.decoder()).unwrap_or_default();
                                 match key {
-                                    "channel" => program.channel_id = value.to_string(),
-                                    "start" => program.start = parse_xmltv_date(&value),
-                                    "stop" => program.stop = parse_xmltv_date(&value),
+                                    b"channel" => program.channel_id = value.to_string(),
+                                    b"start" => program.start = parse_xmltv_date(&value),
+                                    b"stop" => program.stop = parse_xmltv_date(&value),
                                     _ => {}
                                 }
                             }
                         }
                         current_program = Some(program);
                     }
-                    "title" | "desc" | "sub-title" => {
-                        current_element = Some(name);
+                    b"title" | b"desc" | b"sub-title" => {
+                        current_element = Some(match name {
+                            b"title" => "title",
+                            b"desc" => "desc",
+                            _ => "sub-title",
+                        });
                         current_text.clear();
                     }
                     _ => {}
@@ -1949,9 +1959,10 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
                 }
             }
             Ok(Event::End(e)) => {
-                let name = std::str::from_utf8(e.name().as_ref()).unwrap_or("").to_string();
-                match name.as_str() {
-                    "programme" => {
+                let name = e.local_name();
+                let name = name.as_ref();
+                match name {
+                    b"programme" => {
                         if let Some(program) = current_program.take() {
                             total_programs += 1;
 
@@ -1961,11 +1972,27 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
                             if let Some(pairs) = pairs {
                                 global_matched += 1;
 
-                                for (source_id, stream_id) in pairs {
-                                    let mut copy = program.clone();
+                                // Hot path (one target per programme — the
+                                // common case for global EPG gap-filling, where
+                                // a channel belongs to a single source): move
+                                // the programme's own Strings instead of
+                                // cloning all five per programme. The clone is
+                                // only for the rare multi-source case below.
+                                // Also skip normalize_to_utc unless the date
+                                // contains '-': parse_xmltv_date output
+                                // ("20260223010000+00:00") has no '-', so
+                                // neither chrono parser can match it and the
+                                // call would just return an unchanged copy.
+                                if pairs.len() == 1 {
+                                    let (source_id, stream_id) = &pairs[0];
+                                    let mut copy = program; // move, not clone
                                     copy.channel_id = stream_id.clone();
-                                    copy.start = normalize_to_utc(&copy.start);
-                                    copy.stop = normalize_to_utc(&copy.stop);
+                                    if copy.start.contains('-') {
+                                        copy.start = normalize_to_utc(&copy.start);
+                                    }
+                                    if copy.stop.contains('-') {
+                                        copy.stop = normalize_to_utc(&copy.stop);
+                                    }
 
                                     let buffer = batch_buffers.get_mut(source_id).unwrap();
                                     buffer.push(copy);
@@ -1980,10 +2007,38 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
                                         }
                                     }
 
-                                    // Update per-source stats
                                     if let Some(stats) = source_stats.get_mut(source_id) {
                                         stats.matched_programs += 1;
                                         stats.matched_channels.insert(stream_id.clone());
+                                    }
+                                } else {
+                                    for (source_id, stream_id) in pairs {
+                                        let mut copy = program.clone();
+                                        copy.channel_id = stream_id.clone();
+                                        if copy.start.contains('-') {
+                                            copy.start = normalize_to_utc(&copy.start);
+                                        }
+                                        if copy.stop.contains('-') {
+                                            copy.stop = normalize_to_utc(&copy.stop);
+                                        }
+
+                                        let buffer = batch_buffers.get_mut(source_id).unwrap();
+                                        buffer.push(copy);
+
+                                        if buffer.len() >= BATCH_SIZE {
+                                            let batch_to_send = std::mem::take(buffer);
+                                            buffer.reserve(BATCH_SIZE);
+                                            if let Some(sender) = batch_senders.get(source_id) {
+                                                if sender.send(batch_to_send).await.is_err() {
+                                                    warn!("Batch channel closed for source {}, stopping parser", source_id);
+                                                }
+                                            }
+                                        }
+
+                                        if let Some(stats) = source_stats.get_mut(source_id) {
+                                            stats.matched_programs += 1;
+                                            stats.matched_channels.insert(stream_id.clone());
+                                        }
                                     }
                                 }
                             } else {
@@ -2016,21 +2071,21 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
                             }
                         }
                     }
-                    "title" => {
+                    b"title" => {
                         if let Some(ref mut program) = current_program {
-                            program.title = current_text.clone();
+                            program.title = std::mem::take(&mut current_text);
                         }
                         current_element = None;
                     }
-                    "desc" => {
+                    b"desc" => {
                         if let Some(ref mut program) = current_program {
-                            program.description = Some(current_text.clone());
+                            program.description = Some(std::mem::take(&mut current_text));
                         }
                         current_element = None;
                     }
-                    "sub-title" => {
+                    b"sub-title" => {
                         if let Some(ref mut program) = current_program {
-                            program.sub_title = Some(current_text.clone());
+                            program.sub_title = Some(std::mem::take(&mut current_text));
                         }
                         current_element = None;
                     }
