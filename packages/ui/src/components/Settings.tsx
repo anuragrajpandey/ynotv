@@ -128,6 +128,10 @@ interface SettingsProps {
   onEpgMetadataBadgeFpsChange?: (enabled: boolean) => void;
   epgMetadataBadgeFpsSuffix?: boolean;
   onEpgMetadataBadgeFpsSuffixChange?: (enabled: boolean) => void;
+  epgMetadataBadgeFhdLabels?: boolean;
+  onEpgMetadataBadgeFhdLabelsChange?: (enabled: boolean) => void;
+  epgResolutionFilterEnabled?: boolean;
+  onEpgResolutionFilterEnabledChange?: (enabled: boolean) => void;
   epgMetadataBadgeSound?: boolean;
   onEpgMetadataBadgeSoundChange?: (enabled: boolean) => void;
   epgMetadataBadgeBitrate?: boolean;
@@ -266,6 +270,10 @@ export function Settings({
   onEpgMetadataBadgeFpsChange,
   epgMetadataBadgeFpsSuffix: epgMetadataBadgeFpsSuffixProp,
   onEpgMetadataBadgeFpsSuffixChange,
+  epgMetadataBadgeFhdLabels: epgMetadataBadgeFhdLabelsProp,
+  onEpgMetadataBadgeFhdLabelsChange,
+  epgResolutionFilterEnabled: epgResolutionFilterEnabledProp,
+  onEpgResolutionFilterEnabledChange,
   epgMetadataBadgeSound: epgMetadataBadgeSoundProp,
   onEpgMetadataBadgeSoundChange,
   epgMetadataBadgeBitrate: epgMetadataBadgeBitrateProp,
@@ -697,6 +705,8 @@ export function Settings({
   const [epgMetadataBadgeResolution, setEpgMetadataBadgeResolution] = useState(epgMetadataBadgeResolutionProp ?? true);
   const [epgMetadataBadgeFps, setEpgMetadataBadgeFps] = useState(epgMetadataBadgeFpsProp ?? true);
   const [epgMetadataBadgeFpsSuffix, setEpgMetadataBadgeFpsSuffix] = useState(epgMetadataBadgeFpsSuffixProp ?? true);
+  const [epgMetadataBadgeFhdLabels, setEpgMetadataBadgeFhdLabels] = useState(epgMetadataBadgeFhdLabelsProp ?? false);
+  const [epgResolutionFilterEnabled, setEpgResolutionFilterEnabled] = useState(epgResolutionFilterEnabledProp ?? false);
   const [epgMetadataBadgeSound, setEpgMetadataBadgeSound] = useState(epgMetadataBadgeSoundProp ?? true);
   const [epgMetadataBadgeBitrate, setEpgMetadataBadgeBitrate] = useState(epgMetadataBadgeBitrateProp ?? false);
   const [epgMetadataBadgeAudioBitrate, setEpgMetadataBadgeAudioBitrate] = useState(epgMetadataBadgeAudioBitrateProp ?? false);
@@ -776,6 +786,8 @@ export function Settings({
   useEffect(() => { setEpgMetadataBadgeResolution(epgMetadataBadgeResolutionProp ?? true); }, [epgMetadataBadgeResolutionProp]);
   useEffect(() => { setEpgMetadataBadgeFps(epgMetadataBadgeFpsProp ?? true); }, [epgMetadataBadgeFpsProp]);
   useEffect(() => { setEpgMetadataBadgeFpsSuffix(epgMetadataBadgeFpsSuffixProp ?? true); }, [epgMetadataBadgeFpsSuffixProp]);
+  useEffect(() => { setEpgMetadataBadgeFhdLabels(epgMetadataBadgeFhdLabelsProp ?? false); }, [epgMetadataBadgeFhdLabelsProp]);
+  useEffect(() => { setEpgResolutionFilterEnabled(epgResolutionFilterEnabledProp ?? false); }, [epgResolutionFilterEnabledProp]);
   useEffect(() => { setEpgMetadataBadgeSound(epgMetadataBadgeSoundProp ?? true); }, [epgMetadataBadgeSoundProp]);
   useEffect(() => { setEpgMetadataBadgeBitrate(epgMetadataBadgeBitrateProp ?? false); }, [epgMetadataBadgeBitrateProp]);
   useEffect(() => { setEpgMetadataBadgeAudioBitrate(epgMetadataBadgeAudioBitrateProp ?? false); }, [epgMetadataBadgeAudioBitrateProp]);
@@ -1918,6 +1930,26 @@ export function Settings({
     }
   };
 
+  const handleEpgMetadataBadgeFhdLabelsChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeFhdLabels(enabled);
+    if (onEpgMetadataBadgeFhdLabelsChange) {
+      onEpgMetadataBadgeFhdLabelsChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeFhdLabels: enabled });
+    }
+  };
+
+  const handleEpgResolutionFilterEnabledChange = async (enabled: boolean) => {
+    setEpgResolutionFilterEnabled(enabled);
+    if (onEpgResolutionFilterEnabledChange) {
+      onEpgResolutionFilterEnabledChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgResolutionFilterEnabled: enabled });
+    }
+  };
+
   const handleEpgMetadataBadgeSoundChange = async (enabled: boolean) => {
     setEpgMetadataBadgeSound(enabled);
     if (onEpgMetadataBadgeSoundChange) {
@@ -2989,6 +3021,10 @@ export function Settings({
             onEpgMetadataBadgeFpsChange={handleEpgMetadataBadgeFpsChange}
             epgMetadataBadgeFpsSuffix={epgMetadataBadgeFpsSuffix}
             onEpgMetadataBadgeFpsSuffixChange={handleEpgMetadataBadgeFpsSuffixChange}
+            epgMetadataBadgeFhdLabels={epgMetadataBadgeFhdLabels}
+            onEpgMetadataBadgeFhdLabelsChange={handleEpgMetadataBadgeFhdLabelsChange}
+            epgResolutionFilterEnabled={epgResolutionFilterEnabled}
+            onEpgResolutionFilterEnabledChange={handleEpgResolutionFilterEnabledChange}
             epgMetadataBadgeSound={epgMetadataBadgeSound}
             onEpgMetadataBadgeSoundChange={handleEpgMetadataBadgeSoundChange}
             epgMetadataBadgeBitrate={epgMetadataBadgeBitrate}

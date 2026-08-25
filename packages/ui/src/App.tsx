@@ -381,6 +381,10 @@ function App() {
   const setEpgMetadataBadgeFps = useSettingsStore((s) => s.setEpgMetadataBadgeFps);
   const epgMetadataBadgeFpsSuffix = useSettingsStore((s) => s.epgMetadataBadgeFpsSuffix);
   const setEpgMetadataBadgeFpsSuffix = useSettingsStore((s) => s.setEpgMetadataBadgeFpsSuffix);
+  const epgMetadataBadgeFhdLabels = useSettingsStore((s) => s.epgMetadataBadgeFhdLabels);
+  const setEpgMetadataBadgeFhdLabels = useSettingsStore((s) => s.setEpgMetadataBadgeFhdLabels);
+  const epgResolutionFilterEnabled = useSettingsStore((s) => s.epgResolutionFilterEnabled);
+  const setEpgResolutionFilterEnabled = useSettingsStore((s) => s.setEpgResolutionFilterEnabled);
   const epgMetadataBadgeSound = useSettingsStore((s) => s.epgMetadataBadgeSound);
   const setEpgMetadataBadgeSound = useSettingsStore((s) => s.setEpgMetadataBadgeSound);
   const epgMetadataBadgeBitrate = useSettingsStore((s) => s.epgMetadataBadgeBitrate);
@@ -6356,6 +6360,10 @@ function useTmdbPresencePoster(
           onEpgMetadataBadgeFpsChange={setEpgMetadataBadgeFps}
           epgMetadataBadgeFpsSuffix={epgMetadataBadgeFpsSuffix}
           onEpgMetadataBadgeFpsSuffixChange={setEpgMetadataBadgeFpsSuffix}
+          epgMetadataBadgeFhdLabels={epgMetadataBadgeFhdLabels}
+          onEpgMetadataBadgeFhdLabelsChange={setEpgMetadataBadgeFhdLabels}
+          epgResolutionFilterEnabled={epgResolutionFilterEnabled}
+          onEpgResolutionFilterEnabledChange={setEpgResolutionFilterEnabled}
           epgMetadataBadgeSound={epgMetadataBadgeSound}
           onEpgMetadataBadgeSoundChange={setEpgMetadataBadgeSound}
           epgMetadataBadgeBitrate={epgMetadataBadgeBitrate}

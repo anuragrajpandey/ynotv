@@ -40,6 +40,14 @@ function formatSeekTime(seconds: number): string {
 
 const ALPHABET_LETTERS = ['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
+const RESOLUTION_FILTER_OPTIONS: QualityFilter[] = ['all', '4k', 'fhd', 'hd', 'sd'];
+const RESOLUTION_FILTER_LABELS: Record<Exclude<QualityFilter, 'all'>, string> = {
+  '4k': '4K',
+  'fhd': 'FHD',
+  'hd': 'HD',
+  'sd': 'SD',
+};
+
 function getChannelFirstLetter(name: string): string {
   if (!name) return '#';
   const normalized = name.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -56,6 +64,7 @@ import { FailoverOverlay } from './FailoverOverlay';
 import { ChannelLoadingOverlay } from './ChannelLoadingOverlay';
 import type { FailoverState } from '../hooks/usePlayback';
 import { Bridge, type AspectRatioMode, getAspectRatioLabel } from '../services/tauri-bridge';
+import { getChannelMetadataBySource, qualityLabelMatchesFilter, type QualityFilter } from '../services/video-metadata';
 import { MetadataBadge } from './MetadataBadge';
 import { EpgShiftModal } from './EpgShiftModal';
 import { dbEvents } from '../db/sqlite-adapter';
@@ -464,6 +473,7 @@ export function ChannelPanel({
 
   const channelSortOrder = useChannelSortOrder();
   const epgHiddenButtons = useUIStore((s) => s.epgHiddenButtons);
+  const epgResolutionFilterEnabled = useSettingsStore((s) => s.epgResolutionFilterEnabled);
   // Optimization: Skip loading the main channel grid when in Search or Watchlist mode, or when the panel is hidden
   // This prevents loading 40k+ channels in the background which causes UI lag
   const shouldSkipGrid = !visible || isSearchMode || isWatchlistMode;
@@ -477,14 +487,54 @@ export function ChannelPanel({
     setChannelSearchQuery('');
   }, [categoryId]);
 
+  // Resolution filter (Settings -> LiveTV -> Resolution filter)
+  const [resolutionFilter, setResolutionFilter] = useState<QualityFilter>('all');
+  const [showResolutionMenu, setShowResolutionMenu] = useState(false);
+  const [resolutionMetaMap, setResolutionMetaMap] = useState<Map<string, string> | null>(null);
+
+  // Reset the active filter whenever the setting is turned off
+  useEffect(() => {
+    if (!epgResolutionFilterEnabled) setResolutionFilter('all');
+  }, [epgResolutionFilterEnabled]);
+
+  // Load quality labels for the current category's sources when a filter is active.
+  // Uses the indexed source_id lookup so one query covers the whole category.
+  const resolutionSourceIds = useMemo(
+    () => Array.from(new Set(channels.map((ch) => ch.source_id))),
+    [channels]
+  );
+  useEffect(() => {
+    if (resolutionFilter === 'all') {
+      setResolutionMetaMap(null);
+      return;
+    }
+    let cancelled = false;
+    getChannelMetadataBySource(resolutionSourceIds).then((map) => {
+      if (cancelled) return;
+      const labels = new Map<string, string>();
+      for (const [streamId, meta] of map) labels.set(streamId, meta.quality_label);
+      setResolutionMetaMap(labels);
+    });
+    return () => { cancelled = true; };
+  }, [resolutionFilter, resolutionSourceIds]);
+
   const filteredChannels = useMemo(() => {
-    if (!channelSearchQuery.trim()) return channels;
-    return channels.filter((ch) =>
-      matchesSearch(ch.name, channelSearchQuery) ||
-      (ch.alias && matchesSearch(ch.alias, channelSearchQuery)) ||
-      (ch.channel_num != null && matchesSearch(String(ch.channel_num), channelSearchQuery))
-    );
-  }, [channels, channelSearchQuery]);
+    let result = channels;
+    if (channelSearchQuery.trim()) {
+      result = result.filter((ch) =>
+        matchesSearch(ch.name, channelSearchQuery) ||
+        (ch.alias && matchesSearch(ch.alias, channelSearchQuery)) ||
+        (ch.channel_num != null && matchesSearch(String(ch.channel_num), channelSearchQuery))
+      );
+    }
+    if (resolutionFilter !== 'all' && resolutionMetaMap) {
+      result = result.filter((ch) => {
+        const label = resolutionMetaMap.get(ch.stream_id);
+        return !!label && qualityLabelMatchesFilter(label, resolutionFilter);
+      });
+    }
+    return result;
+  }, [channels, channelSearchQuery, resolutionFilter, resolutionMetaMap]);
 
   // Alphabet A-Z Quick Jumper (for Alphabetical Sort Order)
   const [showAlphabetMenu, setShowAlphabetMenu] = useState(false);
@@ -2956,6 +3006,49 @@ export function ChannelPanel({
             )}
           </div>
           <div className="guide-header-right">
+            {/* Resolution Filter Menu (Settings -> LiveTV -> Resolution filter) */}
+            {epgResolutionFilterEnabled && !isSearchMode && !isWatchlistMode && (
+              <div
+                className="epg-resolution-dropdown-container"
+                onMouseEnter={() => setShowResolutionMenu(true)}
+                onMouseLeave={() => setShowResolutionMenu(false)}
+              >
+                <button
+                  className={`guide-nav-btn ${showResolutionMenu || resolutionFilter !== 'all' ? 'active' : ''}`}
+                  onClick={() => setShowResolutionMenu((prev) => !prev)}
+                  title={t('resolutionFilter')}
+                  style={{
+                    padding: '0 8px',
+                    width: 'auto',
+                    marginRight: '8px',
+                  }}
+                >
+                  {resolutionFilter === 'all' ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+                    </svg>
+                  ) : (
+                    <span className="epg-resolution-label">{RESOLUTION_FILTER_LABELS[resolutionFilter]}</span>
+                  )}
+                </button>
+                {showResolutionMenu && (
+                  <div className="epg-resolution-menu">
+                    {RESOLUTION_FILTER_OPTIONS.map((opt) => (
+                      <button
+                        key={opt}
+                        className={`epg-resolution-item ${resolutionFilter === opt ? 'active' : ''}`}
+                        onClick={() => {
+                          setResolutionFilter(opt);
+                          setShowResolutionMenu(false);
+                        }}
+                      >
+                        {opt === 'all' ? t('all') : RESOLUTION_FILTER_LABELS[opt]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {/* A-Z Alphabet Jumper Menu (shown only when channelSortOrder === 'alphabetical') */}
             {channelSortOrder === 'alphabetical' && !isSearchMode && !isWatchlistMode && !epgHiddenButtons.includes('alphabet-jumper') && (
               <div

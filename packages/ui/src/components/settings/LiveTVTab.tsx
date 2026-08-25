@@ -27,6 +27,8 @@ interface LiveTVTabProps {
   onEpgVisibleHoursChange: (hours: 'auto' | number) => void;
   epgClockFormat: '12h' | '24h';
   onEpgClockFormatChange: (format: '12h' | '24h') => void;
+  epgResolutionFilterEnabled: boolean;
+  onEpgResolutionFilterEnabledChange: (enabled: boolean) => void;
   epgShowDate?: boolean;
   onEpgShowDateChange?: (enabled: boolean) => void;
   epgBoldChannelNames: boolean;
@@ -61,6 +63,8 @@ interface LiveTVTabProps {
   onEpgMetadataBadgeFpsChange: (enabled: boolean) => void;
   epgMetadataBadgeFpsSuffix: boolean;
   onEpgMetadataBadgeFpsSuffixChange: (enabled: boolean) => void;
+  epgMetadataBadgeFhdLabels: boolean;
+  onEpgMetadataBadgeFhdLabelsChange: (enabled: boolean) => void;
   epgMetadataBadgeSound: boolean;
   onEpgMetadataBadgeSoundChange: (enabled: boolean) => void;
   epgMetadataBadgeBitrate: boolean;
@@ -177,6 +181,8 @@ export function LiveTVTab({
   onEpgVisibleHoursChange,
   epgClockFormat,
   onEpgClockFormatChange,
+  epgResolutionFilterEnabled,
+  onEpgResolutionFilterEnabledChange,
   epgShowDate = false,
   onEpgShowDateChange,
   epgBoldChannelNames,
@@ -211,6 +217,8 @@ export function LiveTVTab({
   onEpgMetadataBadgeFpsChange,
   epgMetadataBadgeFpsSuffix,
   onEpgMetadataBadgeFpsSuffixChange,
+  epgMetadataBadgeFhdLabels,
+  onEpgMetadataBadgeFhdLabelsChange,
   epgMetadataBadgeSound,
   onEpgMetadataBadgeSoundChange,
   epgMetadataBadgeBitrate,
@@ -409,6 +417,22 @@ export function LiveTVTab({
                   </select>
                 </div>
 
+                {/* Resolution filter */}
+                <div className="timeshift-toggle-row">
+                  <div className="timeshift-toggle-info">
+                    <span className="timeshift-toggle-label">{i18n.t('settings:livetv.epgResolutionFilter')}</span>
+                    <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.epgResolutionFilterSub')}</span>
+                  </div>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={epgResolutionFilterEnabled}
+                      onChange={(e) => onEpgResolutionFilterEnabledChange(e.target.checked)}
+                    />
+                    <span className="toggle-slider" />
+                  </label>
+                </div>
+
                 {/* Show Date in EPG */}
                 <div className="timeshift-toggle-row">
                   <div className="timeshift-toggle-info">
@@ -556,6 +580,21 @@ export function LiveTVTab({
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <div className="timeshift-toggle-row" style={{ marginTop: '12px' }}>
+                <div className="timeshift-toggle-info">
+                  <span className="timeshift-toggle-label">{i18n.t('settings:livetv.fhdLabels')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.fhdLabelsSub')}</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={epgMetadataBadgeFhdLabels}
+                    onChange={(e) => onEpgMetadataBadgeFhdLabelsChange(e.target.checked)}
+                  />
+                  <span className="toggle-slider" />
+                </label>
               </div>
 
               <div className="timeshift-toggle-row" style={{ marginTop: '12px' }}>

@@ -77,6 +77,7 @@ export function MetadataBadge({
     const epgMetadataBadgeResolution = useSettingsStore((s) => s.epgMetadataBadgeResolution) ?? true;
     const epgMetadataBadgeFps = useSettingsStore((s) => s.epgMetadataBadgeFps) ?? true;
     const epgMetadataBadgeFpsSuffix = useSettingsStore((s) => s.epgMetadataBadgeFpsSuffix) ?? true;
+    const epgMetadataBadgeFhdLabels = useSettingsStore((s) => s.epgMetadataBadgeFhdLabels) ?? false;
     const epgMetadataBadgeSound = useSettingsStore((s) => s.epgMetadataBadgeSound) ?? true;
     // Average bitrate badges are configurable per location (EPG, channel info
     // overlay, search results, failover, sports channel linking) so users can
@@ -128,6 +129,10 @@ export function MetadataBadge({
 
     const { quality_label, fps, audio_channels } = metadata;
     const quality = normalizeQualityLabel(quality_label);
+    // Optional consumer-friendly labels: 1080p -> FHD, 720p -> HD (4K/SD unchanged).
+    const displayQuality = epgMetadataBadgeFhdLabels
+      ? (quality === '1080p' ? 'FHD' : quality === '720p' ? 'HD' : quality)
+      : quality;
     const audio = normalizeAudioChannels(audio_channels);
     const videoBitrateVal = metadata.video_bitrate_kbps || metadata.bitrate_kbps;
     const videoBitrate = formatBitrate(videoBitrateVal);
@@ -146,7 +151,7 @@ export function MetadataBadge({
     if (variant === 'compact') {
         return (
             <div className="metadata-badge compact">
-                {hasRes && <span className="quality">{quality}</span>}
+                {hasRes && <span className="quality">{displayQuality}</span>}
             </div>
         );
     }
@@ -155,7 +160,7 @@ export function MetadataBadge({
         return (
             <div className="metadata-badge detailed">
                 <div className="metadata-badge-row">
-                    {hasRes && <span className="quality">{quality}</span>}
+                    {hasRes && <span className="quality">{displayQuality}</span>}
                     {hasFps && <span className="fps">{Math.round(fps)}{epgMetadataBadgeFpsSuffix ? 'fps' : ''}</span>}
                     {hasSound && <span className="audio">{audio}</span>}
                     {hasPrimary && hasBitrate && <span className="bitrate-sep">·</span>}
@@ -181,7 +186,7 @@ export function MetadataBadge({
         <div className={`metadata-badge detailed ${hasPrimary && hasBitrate ? 'two-line' : ''}`}>
             {hasPrimary && (
                 <div className="metadata-badge-row primary">
-                    {hasRes && <span className="quality">{quality}</span>}
+                    {hasRes && <span className="quality">{displayQuality}</span>}
                     {hasFps && <span className="fps">{Math.round(fps)}{epgMetadataBadgeFpsSuffix ? 'fps' : ''}</span>}
                     {hasSound && <span className="audio">{audio}</span>}
                 </div>

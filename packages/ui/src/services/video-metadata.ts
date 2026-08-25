@@ -10,9 +10,14 @@ import { dbEvents } from '../db/sqlite-adapter';
 // In-memory cache to prevent reloading when components remount (e.g., scrolling)
 const metadataCache = new Map<string, ChannelMetadata>();
 
+// Per-source bulk metadata cache (stream_id -> metadata) used by the EPG
+// resolution filter so filtering a whole category is a single indexed query.
+const metadataBySourceCache = new Map<string, Map<string, ChannelMetadata>>();
+
 // Automatically clear the in-memory cache when channelMetadata table updates (e.g. from probe scans or sync)
 dbEvents.subscribe('channelMetadata', () => {
     metadataCache.clear();
+    metadataBySourceCache.clear();
 });
 
 export function clearMetadataCache(streamId?: string) {
@@ -64,6 +69,65 @@ export function getQualityLabel(width: number, height: number): string {
     if (width >= 1920 || height >= 1080) return '1080p';
     if (width >= 1280 || height >= 720) return '720p';
     return 'SD';
+}
+
+/**
+ * Normalize stored quality labels to a consistent short form, handling legacy
+ * values (e.g. "FHD", "1080P", "UHD") alongside current ones.
+ */
+export function normalizeQualityLabel(label: string): string {
+    const value = (label || '').trim();
+    const upper = value.toUpperCase();
+    if (upper === '4K' || upper === 'UHD') return '4K';
+    if (upper === 'FHD' || upper === '1080P' || upper === '1080' || upper === '1920X1080') return '1080p';
+    if (upper === 'HD' || upper === '720P' || upper === '720' || upper === '1280X720') return '720p';
+    if (upper === 'SD') return 'SD';
+    return value;
+}
+
+/** Resolution filter buckets shown in the EPG toolbar. */
+export type QualityFilter = 'all' | '4k' | 'fhd' | 'hd' | 'sd';
+
+/** True when a stored quality label belongs to the given filter bucket. */
+export function qualityLabelMatchesFilter(label: string, filter: Exclude<QualityFilter, 'all'>): boolean {
+    const normalized = normalizeQualityLabel(label);
+    switch (filter) {
+        case '4k': return normalized === '4K';
+        case 'fhd': return normalized === '1080p';
+        case 'hd': return normalized === '720p';
+        case 'sd': return normalized === 'SD';
+    }
+}
+
+/**
+ * Fetch channel metadata for a set of sources in one indexed query per source
+ * (idx_metadata_source), merged into a stream_id -> metadata map. Results are
+ * cached per source and invalidated on channelMetadata table updates.
+ */
+export async function getChannelMetadataBySource(sourceIds: string[]): Promise<Map<string, ChannelMetadata>> {
+    const result = new Map<string, ChannelMetadata>();
+    const missing: string[] = [];
+    for (const sid of sourceIds) {
+        const cached = metadataBySourceCache.get(sid);
+        if (cached) {
+            for (const [streamId, meta] of cached) result.set(streamId, meta);
+        } else {
+            missing.push(sid);
+        }
+    }
+    if (missing.length > 0) {
+        const fresh = await Promise.all(missing.map(async (sid) => {
+            const rows = await db.channelMetadata.where('source_id').equals(sid).toArray();
+            const map = new Map<string, ChannelMetadata>();
+            for (const row of rows) map.set(row.stream_id, row);
+            return [sid, map] as const;
+        }));
+        for (const [sid, map] of fresh) {
+            metadataBySourceCache.set(sid, map);
+            for (const [streamId, meta] of map) result.set(streamId, meta);
+        }
+    }
+    return result;
 }
 
 /**

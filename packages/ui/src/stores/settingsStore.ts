@@ -502,6 +502,10 @@ export interface SettingsState {
   setEpgMetadataBadgeFps: (enabled: boolean) => void;
   epgMetadataBadgeFpsSuffix: boolean;
   setEpgMetadataBadgeFpsSuffix: (enabled: boolean) => void;
+  epgMetadataBadgeFhdLabels: boolean;
+  setEpgMetadataBadgeFhdLabels: (enabled: boolean) => void;
+  epgResolutionFilterEnabled: boolean;
+  setEpgResolutionFilterEnabled: (enabled: boolean) => void;
   epgMetadataBadgeSound: boolean;
   setEpgMetadataBadgeSound: (enabled: boolean) => void;
   epgMetadataBadgeBitrate: boolean;
@@ -1297,6 +1301,16 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setEpgMetadataBadgeFpsSuffix: (enabled) => {
     set({ epgMetadataBadgeFpsSuffix: enabled });
     persistSettings({ epgMetadataBadgeFpsSuffix: enabled });
+  },
+  epgMetadataBadgeFhdLabels: (cachedSettings?.epgMetadataBadgeFhdLabels as boolean) ?? false,
+  setEpgMetadataBadgeFhdLabels: (enabled) => {
+    set({ epgMetadataBadgeFhdLabels: enabled });
+    persistSettings({ epgMetadataBadgeFhdLabels: enabled });
+  },
+  epgResolutionFilterEnabled: (cachedSettings?.epgResolutionFilterEnabled as boolean) ?? false,
+  setEpgResolutionFilterEnabled: (enabled) => {
+    set({ epgResolutionFilterEnabled: enabled });
+    persistSettings({ epgResolutionFilterEnabled: enabled });
   },
   epgMetadataBadgeSound: (cachedSettings?.epgMetadataBadgeSound as boolean) ?? true,
   setEpgMetadataBadgeSound: (enabled) => {

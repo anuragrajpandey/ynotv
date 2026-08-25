@@ -541,6 +541,22 @@
   color: var(--lt-text-inverse, #ffffff) !important;
 }
 
+[data-theme="light"] .epg-resolution-menu {
+  background: var(--lt-bg-surface, #ffffff) !important;
+  border-color: var(--lt-bd-color, #cbd5e1) !important;
+  box-shadow: var(--lt-shadow-lg-15, 0 8px 24px rgba(0, 0, 0, 0.15)) !important;
+}
+
+[data-theme="light"] .epg-resolution-item {
+  background: var(--lt-bg-hover, #f1f5f9) !important;
+  color: var(--lt-text-primary, #0f172a) !important;
+}
+
+[data-theme="light"] .epg-resolution-item:hover {
+  background: var(--accent-primary, #0066cc) !important;
+  color: var(--lt-text-inverse, #ffffff) !important;
+}
+
 [data-theme="light"] .category-item,
 html[data-theme="light"] .category-item,
 html.modern-ui-v3[data-theme="light"] .category-item {

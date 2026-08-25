@@ -969,6 +969,76 @@
   border-color: transparent;
 }
 
+/* EPG Resolution Filter Dropdown Menu */
+.epg-resolution-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.epg-resolution-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.epg-resolution-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: color-mix(in srgb, var(--surface-color, #181824) 92%, #000 8%);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+  border-radius: 10px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 1050;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  min-width: 96px;
+  box-sizing: border-box;
+}
+
+/* Invisible bridge so hovering from button to menu doesn't trigger mouseleave */
+.epg-resolution-menu::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
+}
+
+.epg-resolution-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--surface-color, #242436) 70%, rgba(255, 255, 255, 0.08) 30%);
+  color: var(--text-primary, #ffffff);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.epg-resolution-item:hover {
+  background: var(--accent-primary, #00d4ff);
+  border-color: var(--accent-primary, #00d4ff);
+  color: #000000;
+}
+
+.epg-resolution-item.active {
+  color: var(--accent-primary, #00d4ff);
+  background: color-mix(in srgb, var(--accent-primary, #00d4ff) 15%, transparent);
+  border-color: color-mix(in srgb, var(--accent-primary, #00d4ff) 40%, transparent);
+}
+
 /* Navigation Controls */
 .guide-nav {
   display: flex;
