@@ -1,4 +1,4 @@
-import { useSettingsStore, DEFAULT_SUBTITLE_SETTINGS, DEFAULT_MAX_SEARCH_RESULTS, DEFAULT_CONTROLLER_MAPPINGS, clampMaxSearchResults } from './settingsStore';
+import { useSettingsStore, DEFAULT_SUBTITLE_SETTINGS, DEFAULT_MAX_SEARCH_RESULTS, DEFAULT_CONTROLLER_MAPPINGS, DEFAULT_CONTROLLER_CHORDS, clampMaxSearchResults } from './settingsStore';
 import type { SettingsState } from './settingsStore';
 import type { SavedLayoutState } from '../hooks/useLayoutPersistence';
 import type { ThemeId } from '../types/app';
@@ -364,6 +364,9 @@ async function hydrateSettingsStore(): Promise<void> {
         controllerMappings: data.controllerMappings && typeof data.controllerMappings === 'object'
           ? { ...DEFAULT_CONTROLLER_MAPPINGS, ...data.controllerMappings }
           : { ...DEFAULT_CONTROLLER_MAPPINGS },
+        controllerChords: data.controllerChords && typeof data.controllerChords === 'object'
+          ? { ...DEFAULT_CONTROLLER_CHORDS, ...data.controllerChords }
+          : { ...DEFAULT_CONTROLLER_CHORDS },
         remoteControlEnabled: data.remoteControlEnabled ?? false,
         remoteControlPort: typeof data.remoteControlPort === 'number' ? data.remoteControlPort : 11470,
         enableCustomScrollbarWidth: data.enableCustomScrollbarWidth ?? false,
