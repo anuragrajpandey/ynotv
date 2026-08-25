@@ -937,19 +937,6 @@ export async function syncStalkerShortEpg(
 
 
 
-/**
- * Normalize a channel name for fuzzy EPG matching.
- * Mirrors the Rust normalize_channel_name logic.
- */
-function normalizeChannelName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/^prime:\s*|^il:\s*|^f:\s*|^ss:\s*|^##+\s*/g, '')
-    .replace(/[\[\](){}]/g, '')
-    .replace(/[\u{1d3f}\u{1d2c}\u{1d42}\u{1d34}\u{1d35}\u{2076}\u{2070}\u{1da0}\u{1d56}\u{02e2}]/gu, '')
-    .replace(/[^a-z0-9+]/g, '');
-}
-
 // ─── Additional EPG waterfall helper ─────────────────────────────────────────
 /**
  * Get the set of stream_ids that currently have at least one program for a source.
@@ -1175,8 +1162,6 @@ export async function applyGlobalEpgToSource(
       return 0;
     }
 
-    // Load user-applied EPG channel ID overrides
-    const epgOverrideMap = await loadEpgChannelOverrideMap();
     let totalInserted = 0;
     // Track per-link insertion counts so we can update lastSyncResult in settings
     const linkResultCounts = new Map<string, { programs: number; channels: number; matchedStreamIds: string[] }>();
@@ -1195,182 +1180,56 @@ export async function applyGlobalEpgToSource(
       onProgress?.(`Updating EPG (global ${i + 1}/${linksForSource.length})...`);
 
       try {
-        // Build channel mappings for Rust parser
-        // We only pass channels that STILL need EPGs
-        const channelMappings = channelsNeedingEpg
-          .filter((ch) => epgOverrideMap.has(ch.stream_id) || ch.epg_channel_id || ch.name)
-          .map((ch) => ({
-            epg_channel_id: epgOverrideMap.get(ch.stream_id) || ch.epg_channel_id || ch.name || '',
-            stream_id: ch.stream_id,
-            channel_name: ch.name || '',
-          }));
-
-        if (channelMappings.length === 0) {
-          debugLog(`No channels with EPG IDs remaining for global EPG ${i + 1}`, 'epg');
-          continue;
-        }
-
-        console.log(`[EPG] Global EPG ${i + 1}: Built channel map with ${channelMappings.length} unique mappings`);
-
+        // The needing-EPG channel mappings are computed in Rust for both
+        // branches below (channels minus already-filled stream ids, user
+        // overrides applied), so no mapping payload crosses IPC on this path
+        // either. Sources with nothing needing EPG yield empty results and the
+        // 0-insert `continue` below handles the skip.
         let resultInsertedPrograms = 0;
         let resultMatchedChannels = 0;
 
         if (link.saveEntireEpg) {
-          console.log(`[EPG] Global EPG ${i + 1}: Querying from local SQLite cache...`);
-          onProgress?.(`Querying EPG from local cache...`);
           try {
-            const cacheDbName = `epg_cache_${link.id}`;
-            const Database = (await import('@tauri-apps/plugin-sql')).default;
-            const cacheDb = await Database.load(`sqlite:${cacheDbName}.db`);
-
-            // 1. Fetch EPG channels from cacheDb
-            const epgChannels = await cacheDb.select('SELECT id, display_name FROM epg_channels') as { id: string, display_name: string }[];
-            
-            // 2. Build displayNameToEpgIdMap
-            const displayNameToEpgIdMap = new Map<string, string>();
-            const epgChannelIdsSet = new Set<string>();
-            for (const ec of epgChannels) {
-              const lowerId = ec.id.toLowerCase();
-              displayNameToEpgIdMap.set(lowerId, ec.id);
-              epgChannelIdsSet.add(lowerId);
-              
-              if (ec.display_name) {
-                const lowerName = ec.display_name.toLowerCase();
-                displayNameToEpgIdMap.set(lowerName, ec.id);
-                const normEpg = normalizeChannelName(ec.display_name);
-                if (normEpg) {
-                  displayNameToEpgIdMap.set(normEpg, ec.id);
-                }
-              }
-            }
-
-            // 3. Map M3U channels to EPG channel IDs
-            const epgIdToStreamIdMap = new Map<string, string[]>();
-            const advancedEpgMatching = source.advanced_epg_matching ?? false;
-            const overridesToSave: any[] = [];
-
-            for (const ch of channelsNeedingEpg) {
-              let matchedEpgId: string | undefined = undefined;
-
-              // Override always wins first
-              const overrideId = epgOverrideMap.get(ch.stream_id);
-              if (overrideId) {
-                const lowerOverride = overrideId.toLowerCase();
-                if (epgChannelIdsSet.has(lowerOverride)) {
-                  matchedEpgId = displayNameToEpgIdMap.get(lowerOverride);
-                } else {
-                  matchedEpgId = overrideId; // Pass through override even if not in cache (could be synced later/fallback)
-                }
-              } else {
-                // Try tvg-id (epg_channel_id)
-                const tvgId = ch.epg_channel_id?.trim();
-                if (tvgId) {
-                  const lowerTvg = tvgId.toLowerCase();
-                  if (epgChannelIdsSet.has(lowerTvg)) {
-                    matchedEpgId = displayNameToEpgIdMap.get(lowerTvg);
-                  } else if (advancedEpgMatching) {
-                    const normTvg = normalizeChannelName(tvgId);
-                    matchedEpgId = displayNameToEpgIdMap.get(lowerTvg) || displayNameToEpgIdMap.get(normTvg);
-                  }
-                }
-
-                // Try channel name if tvg-id didn't match
-                if (!matchedEpgId && ch.name?.trim()) {
-                  const name = ch.name.trim();
-                  const lowerName = name.toLowerCase();
-                  if (epgChannelIdsSet.has(lowerName)) {
-                    matchedEpgId = displayNameToEpgIdMap.get(lowerName);
-                  } else if (advancedEpgMatching) {
-                    const normName = normalizeChannelName(name);
-                    matchedEpgId = displayNameToEpgIdMap.get(lowerName) || displayNameToEpgIdMap.get(normName);
-                  }
-                }
-              }
-
-              if (matchedEpgId) {
-                if (!epgIdToStreamIdMap.has(matchedEpgId)) {
-                  epgIdToStreamIdMap.set(matchedEpgId, []);
-                }
-                epgIdToStreamIdMap.get(matchedEpgId)!.push(ch.stream_id);
-
-                if (!epgOverrideMap.has(ch.stream_id)) {
-                  overridesToSave.push({
-                    stream_id: ch.stream_id,
-                    epg_channel_id: matchedEpgId
-                  });
-                }
-              }
-            }
-
-            if (overridesToSave.length > 0) {
-              await db.epgChannelOverrides.bulkPut(overridesToSave);
-            }
-
-            const uniqueEpgIds = Array.from(epgIdToStreamIdMap.keys());
-            const programsToInsert: any[] = [];
-            const matchedStreamIdsSet = new Set<string>();
-
-            const CHUNK_SIZE = 500;
-            for (let idx = 0; idx < uniqueEpgIds.length; idx += CHUNK_SIZE) {
-              const chunk = uniqueEpgIds.slice(idx, idx + CHUNK_SIZE);
-              const placeholders = chunk.map((_, i) => `$${i + 1}`).join(',');
-              
-              const progs = await cacheDb.select(
-                `SELECT * FROM programs WHERE stream_id IN (${placeholders})`,
-                chunk
-              ) as any[];
-
-              for (const p of progs) {
-                const streamIds = epgIdToStreamIdMap.get(p.stream_id);
-                if (streamIds) {
-                  for (const streamId of streamIds) {
-                    if (!matchedStreamIdsSet.has(streamId)) {
-                      matchedStreamIdsSet.add(streamId);
-                      resultMatchedChannels++;
-                    }
-                    programsToInsert.push({
-                      id: `${streamId}_${p.start}`,
-                      stream_id: streamId,
-                      title: p.title,
-                      subtitle: p.subtitle,
-                      description: p.description,
-                      start: p.start,
-                      end: p.end,
-                      source_id: source.id
-                    });
-                  }
-                }
-              }
-            }
-
-            if (programsToInsert.length > 0) {
-              await db.programs.bulkPut(programsToInsert);
-              dbEvents.notify('programs', 'add');
-              resultInsertedPrograms = programsToInsert.length;
-            }
+            // Rust cache pass: computes the needing-EPG mappings for this source
+            // from the main DB, writes the full feed to the local cache, and
+            // inserts matched programmes directly — no JS read-back or bulkPut
+            // in this path anymore.
+            const results = await invoke('cache_entire_epg_db', {
+              epgUrl,
+              epgLinkId: link.id,
+              userAgent: source.user_agent || null,
+              sources: [{
+                sourceId: source.id,
+                sourceName: source.name || source.id,
+                advancedEpgMatching: source.advanced_epg_matching ?? false,
+                timeshiftHours: source.epg_timeshift_hours ?? 0,
+                clearExisting: false,
+              }],
+            }) as { source_id: string; inserted_programs: number; matched_channels?: number }[];
+            const result = results[0];
+            resultInsertedPrograms = result?.inserted_programs ?? 0;
+            resultMatchedChannels = result?.matched_channels ?? 0;
           } catch (e) {
-            console.error(`[EPG] Failed to map from SQLite cache for global EPG ${link.name}:`, e);
+            console.error(`[EPG] Failed to apply EPG from local cache for ${link.name}:`, e);
           }
         } else {
-          // Use streaming EPG parser (with clearExisting = false to preserve waterfall)
-          const result = await epgStreaming.streamParseEpg(
-            source.id,
-            source.name || source.id,
+          // Rust multi-source parser with a single source ref (clearExisting =
+          // false preserves the waterfall) — it computes the needing-EPG
+          // mappings from the main DB and downloads/parses/inserts in one pass.
+          const results = await epgStreaming.streamParseEpgMulti(
             epgUrl,
-            channelMappings,
-            onProgress
-              ? (progress) => {
-                  debugLog(epgStreaming.formatProgress(progress), 'epg');
-                  onProgress(epgStreaming.formatProgress(progress));
-                }
-              : undefined,
-            source.advanced_epg_matching,
-            source.epg_timeshift_hours ?? 0,
-            false, // clearExisting = false
-            source.user_agent
+            [{
+              sourceId: source.id,
+              sourceName: source.name || source.id,
+              advancedEpgMatching: source.advanced_epg_matching ?? false,
+              timeshiftHours: source.epg_timeshift_hours ?? 0,
+              clearExisting: false,
+            }],
+            source.user_agent || undefined
           );
-          resultInsertedPrograms = result.inserted_programs;
-          resultMatchedChannels = result.matched_channels ?? 0;
+          const result = results[0];
+          resultInsertedPrograms = result?.inserted_programs ?? 0;
+          resultMatchedChannels = result?.matched_channels ?? 0;
         }
 
         console.log(`[EPG] Global EPG ${i + 1}: Matched/inserted: ${resultInsertedPrograms} programs`);
@@ -1385,11 +1244,13 @@ export async function applyGlobalEpgToSource(
           continue;
         }
 
+        // Newly-filled channels = stream ids that gained programmes during this
+        // link's pass (after − before). No mapping payload needed in JS.
         const newlyMatched: string[] = [];
         const channelsWithProgramsAfter = await getStreamIdsWithPrograms(source.id);
-        for (const mapping of channelMappings) {
-          if (channelsWithProgramsAfter.has(mapping.stream_id)) {
-            newlyMatched.push(mapping.stream_id);
+        for (const streamId of channelsWithProgramsAfter) {
+          if (!channelsWithPrograms.has(streamId)) {
+            newlyMatched.push(streamId);
           }
         }
 
@@ -1490,10 +1351,14 @@ export async function applyGlobalEpgToSource(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Sync all stale global EPG links.
+ * Sync all global EPG links that need it.
  * Intended as a post-batch-sync step: after all sources have synced their primary EPGs,
- * this downloads each stale global EPG once and applies it to all linked sources.
- * Skips links that were synced recently (within GLOBAL_EPG_FRESH_MS).
+ * this downloads each global EPG once and applies it to all linked sources.
+ * A link is attempted when it's stale (within GLOBAL_EPG_FRESH_MS it's considered
+ * fresh) OR its last sync inserted programs (it can fill gaps again) — the
+ * per-link impl skips the download cheaply when no channels currently need EPG,
+ * and links whose last sync matched nothing are backed off by the freshness
+ * window so a no-match feed isn't re-downloaded every cycle.
  */
 let globalEpgPostSyncInFlight: Promise<number> | null = null;
 const globalEpgLinkSyncsInFlight = new Map<string, Promise<number>>();
@@ -1527,29 +1392,35 @@ async function syncAllStaleGlobalEpgLinksImpl(
   try {
     const globalEpgLinks = useSettingsStore.getState().globalEpgLinks;
     const sourceIdFilter = sourceIds && sourceIds.length > 0 ? new Set(sourceIds) : null;
+    // A link is attempted when it's stale (feed may have new data) OR the last
+    // sync actually inserted programs (it can fill gaps again — e.g. right
+    // after a playlist sync wiped the sources). Links synced recently whose
+    // last attempt matched nothing are backed off by the freshness window so a
+    // no-match feed isn't re-downloaded every cycle. The per-link impl also
+    // skips the download entirely when no channels currently need EPG.
     // Sort by display_order so higher priority EPGs are synced first
-    const staleLinks = globalEpgLinks
+    const linksToSync = globalEpgLinks
       .filter(link => !sourceIdFilter || link.sourceIds.some(sourceId => sourceIdFilter.has(sourceId)))
-      .filter(link => !isGlobalEpgFresh(link))
+      .filter(link => !isGlobalEpgFresh(link) || (link.lastSyncResult?.totalInserted ?? 0) > 0)
       .sort((a, b) => (a.display_order ?? Number.MAX_SAFE_INTEGER) - (b.display_order ?? Number.MAX_SAFE_INTEGER));
 
-    if (staleLinks.length === 0) {
+    if (linksToSync.length === 0) {
       debugLog(
         sourceIdFilter
-          ? 'No stale global EPG links are tied to the synced sources, skipping post-sync'
-          : 'All global EPG links are fresh, skipping post-sync',
+          ? 'No global EPG links tied to the synced sources need sync, skipping post-sync'
+          : 'All global EPG links are fresh with no recent fills, skipping post-sync',
         'epg'
       );
       return 0;
     }
 
-    console.log(`[Global EPG] Post-sync: ${staleLinks.length} stale global EPG link(s)`);
-    debugLog(`Post-syncing ${staleLinks.length} stale global EPG links (waterfall order)`, 'epg');
+    console.log(`[Global EPG] Post-sync: ${linksToSync.length} global EPG link(s) need sync`);
+    debugLog(`Post-syncing ${linksToSync.length} global EPG links (waterfall order)`, 'epg');
 
     let totalInserted = 0;
-    for (let i = 0; i < staleLinks.length; i++) {
-      const link = staleLinks[i];
-      onProgress?.(`Syncing global EPG ${i + 1}/${staleLinks.length}: ${link.name}...`);
+    for (let i = 0; i < linksToSync.length; i++) {
+      const link = linksToSync[i];
+      onProgress?.(`Syncing global EPG ${i + 1}/${linksToSync.length}: ${link.name}...`);
       try {
         const count = await syncGlobalEpgLinkStandalone(link, (msg) => {
           onProgress?.(`[${link.name}] ${msg}`);
@@ -1620,12 +1491,12 @@ async function syncGlobalEpgLinkStandaloneImpl(
   const allSources = sourcesResult.data || [];
   const sourceMap = new Map(allSources.map(s => [s.id, s]));
 
-  // Load user-applied EPG channel ID overrides (shared across all sources)
-  const epgOverrideMap = await loadEpgChannelOverrideMap();
-
-  // Build per-source channel mappings (only channels that still need EPG)
-  const sourceConfigs: import('../services/epg-streaming').SourceEpgConfig[] = [];
-  const channelsNeedingEpgMap = new Map<string, string[]>();
+  // Per-source refs — the needing-EPG channel mappings are computed in Rust
+  // (channels minus already-filled stream ids, user overrides taking priority),
+  // so the renderer no longer fetches every channel or ships ~20k-row mapping
+  // payloads across IPC. Sources with nothing needing EPG are skipped inside
+  // the Rust pass.
+  const sourceRefs: import('../services/epg-streaming').EpgSourceRef[] = [];
 
   for (const sourceId of epgLink.sourceIds) {
     const source = sourceMap.get(sourceId);
@@ -1634,41 +1505,9 @@ async function syncGlobalEpgLinkStandaloneImpl(
       continue;
     }
 
-    const sourceChannels = await db.channels.where('source_id').equals(sourceId).toArray();
-    if (sourceChannels.length === 0) {
-      debugLog(`Source ${sourceId} has no channels, skipping`, 'epg');
-      continue;
-    }
-
-    const channelsWithPrograms = await getStreamIdsWithPrograms(sourceId);
-    const channelsNeedingEpg = sourceChannels.filter(ch => !channelsWithPrograms.has(ch.stream_id));
-
-    if (channelsNeedingEpg.length === 0) {
-      console.log(`[Global EPG] Source ${sourceId}: all channels already have EPG`);
-      debugLog(`Source ${sourceId}: all ${sourceChannels.length} channels already have EPG`, 'epg');
-      continue;
-    }
-
-    const channelMappings = channelsNeedingEpg
-      .filter((ch) => epgOverrideMap.has(ch.stream_id) || ch.epg_channel_id || ch.name)
-      .map((ch) => ({
-        epg_channel_id: epgOverrideMap.get(ch.stream_id) || ch.epg_channel_id || ch.name || '',
-        stream_id: ch.stream_id,
-        channel_name: ch.name || '',
-      }));
-
-    if (channelMappings.length === 0) {
-      debugLog(`Source ${sourceId}: no channels have EPG IDs`, 'epg');
-      continue;
-    }
-
-    console.log(`[Global EPG] Source ${sourceId}: ${channelMappings.length} channel mappings prepared`);
-    channelsNeedingEpgMap.set(sourceId, channelMappings.map(m => m.stream_id));
-
-    sourceConfigs.push({
+    sourceRefs.push({
       sourceId,
       sourceName: source.name || sourceId,
-      channelMappings,
       advancedEpgMatching: source.advanced_epg_matching ?? false,
       timeshiftHours: source.epg_timeshift_hours ?? 0,
       clearExisting: false,
@@ -1696,14 +1535,14 @@ async function syncGlobalEpgLinkStandaloneImpl(
     }
   }
 
-  if (sourceConfigs.length === 0) {
+  if (sourceRefs.length === 0) {
     console.log(`[Global EPG] No sources need EPG from ${epgLink.name}`);
     // Mark as synced so we don't retry every 10 min, but only for 30 min freshness window
     await updateGlobalEpgLastSynced(epgLink.id, 0, {});
     return 0;
   }
 
-  onProgress?.(`Applying EPG to ${sourceConfigs.length} source(s)...`);
+  onProgress?.(`Applying EPG to ${sourceRefs.length} source(s)...`);
 
   let totalInserted = 0;
   const perSourceCounts: Record<string, number> = {};
@@ -1711,185 +1550,54 @@ async function syncGlobalEpgLinkStandaloneImpl(
   const perSourceChannels: Record<string, number> = {};
   let syncSucceeded = false;
 
+  // Snapshot which stream ids already have programmes so newly-filled channels
+  // can be attributed to this link afterwards (lastSyncResult.matchedStreamIds).
+  const beforeSets = new Map<string, Set<string>>();
+  for (const ref of sourceRefs) {
+    beforeSets.set(ref.sourceId, await getStreamIdsWithPrograms(ref.sourceId));
+  }
+
   if (epgLink.saveEntireEpg) {
     onProgress?.(`Caching entire EPG database locally...`);
 
-    // 1. Refresh the local cache DB (best effort). If the remote EPG is
-    // unreachable we still fall back to the last-known-good cached copy below.
+    // Download, cache the ENTIRE feed, and apply matched programmes in ONE
+    // Rust pass (cache_entire_epg_db computes the needing-EPG mappings from
+    // the main DB and matches/inserts with the multi-source parser's exact
+    // routing). There is no JS cache read-back fallback — the cache DB is only
+    // ever written by this pass, so a failed refresh keeps the last-good cache
+    // file intact and syncSucceeded stays false (link retried next cycle).
     try {
-      await invoke('cache_entire_epg_db', {
+      const results = await invoke('cache_entire_epg_db', {
         epgUrl: url,
         epgLinkId: epgLink.id,
-        userAgent
-      });
+        userAgent,
+        sources: sourceRefs
+      }) as { source_id: string; inserted_programs: number; matched_channels?: number }[];
       syncSucceeded = true;
       console.log(`[Global EPG] Entire EPG cached locally for link ${epgLink.id}`);
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.warn(`[Global EPG] Failed to refresh EPG cache for ${epgLink.name}; will try existing cache: ${errMsg}`);
-      debugLog(`Cache refresh failed, will try existing cache: ${errMsg}`, 'epg');
-    }
 
-    // 2. Load the SQLite cache database (freshly written or last-known-good)
-    try {
-      const cacheDbName = `epg_cache_${epgLink.id}`;
-      const Database = (await import('@tauri-apps/plugin-sql')).default;
-      const cacheDb = await Database.load(`sqlite:${cacheDbName}.db`);
-
-      // Fetch EPG channels once
-      const epgChannels = await cacheDb.select('SELECT id, display_name FROM epg_channels') as { id: string, display_name: string }[];
-      const displayNameToEpgIdMap = new Map<string, string>();
-      const epgChannelIdsSet = new Set<string>();
-      for (const ec of epgChannels) {
-        const lowerId = ec.id.toLowerCase();
-        displayNameToEpgIdMap.set(lowerId, ec.id);
-        epgChannelIdsSet.add(lowerId);
-        
-        if (ec.display_name) {
-          const lowerName = ec.display_name.toLowerCase();
-          displayNameToEpgIdMap.set(lowerName, ec.id);
-          const normEpg = normalizeChannelName(ec.display_name);
-          if (normEpg) {
-            displayNameToEpgIdMap.set(normEpg, ec.id);
-          }
-        }
-      }
-
-      // 3. For each source, extract matched programs from the cache DB
-      for (const sourceId of epgLink.sourceIds) {
-        const source = sourceMap.get(sourceId);
-        if (!source) continue;
-
-        const sourceChannels = await db.channels.where('source_id').equals(sourceId).toArray();
-        if (sourceChannels.length === 0) continue;
-
-        const channelsWithPrograms = await getStreamIdsWithPrograms(sourceId);
-        const channelsNeedingEpg = sourceChannels.filter(ch => !channelsWithPrograms.has(ch.stream_id));
-        if (channelsNeedingEpg.length === 0) continue;
-
-        const epgIdToStreamIdMap = new Map<string, string[]>();
-        const advancedEpgMatching = source.advanced_epg_matching ?? false;
-        const overridesToSave: any[] = [];
-
-        for (const ch of channelsNeedingEpg) {
-          let matchedEpgId: string | undefined = undefined;
-
-          // Override always wins first
-          const overrideId = epgOverrideMap.get(ch.stream_id);
-          if (overrideId) {
-            const lowerOverride = overrideId.toLowerCase();
-            if (epgChannelIdsSet.has(lowerOverride)) {
-              matchedEpgId = displayNameToEpgIdMap.get(lowerOverride);
-            } else {
-              matchedEpgId = overrideId;
-            }
-          } else {
-            // Try tvg-id (epg_channel_id)
-            const tvgId = ch.epg_channel_id?.trim();
-            if (tvgId) {
-              const lowerTvg = tvgId.toLowerCase();
-              if (epgChannelIdsSet.has(lowerTvg)) {
-                matchedEpgId = displayNameToEpgIdMap.get(lowerTvg);
-              } else if (advancedEpgMatching) {
-                const normTvg = normalizeChannelName(tvgId);
-                matchedEpgId = displayNameToEpgIdMap.get(lowerTvg) || displayNameToEpgIdMap.get(normTvg);
-              }
-            }
-
-            // Try channel name if tvg-id didn't match
-            if (!matchedEpgId && ch.name?.trim()) {
-              const name = ch.name.trim();
-              const lowerName = name.toLowerCase();
-              if (epgChannelIdsSet.has(lowerName)) {
-                matchedEpgId = displayNameToEpgIdMap.get(lowerName);
-              } else if (advancedEpgMatching) {
-                const normName = normalizeChannelName(name);
-                matchedEpgId = displayNameToEpgIdMap.get(lowerName) || displayNameToEpgIdMap.get(normName);
-              }
-            }
-          }
-
-          if (matchedEpgId) {
-            if (!epgIdToStreamIdMap.has(matchedEpgId)) {
-              epgIdToStreamIdMap.set(matchedEpgId, []);
-            }
-            epgIdToStreamIdMap.get(matchedEpgId)!.push(ch.stream_id);
-
-            if (!epgOverrideMap.has(ch.stream_id)) {
-              overridesToSave.push({
-                stream_id: ch.stream_id,
-                epg_channel_id: matchedEpgId
-              });
-            }
-          }
-        }
-
-        if (overridesToSave.length > 0) {
-          await db.epgChannelOverrides.bulkPut(overridesToSave);
-        }
-
-        const uniqueEpgIds = Array.from(epgIdToStreamIdMap.keys());
-        const programsToInsert: any[] = [];
-        let channelsMatchedCount = 0;
-        const matchedStreamIdsSet = new Set<string>();
-
-        const CHUNK_SIZE = 500;
-        for (let idx = 0; idx < uniqueEpgIds.length; idx += CHUNK_SIZE) {
-          const chunk = uniqueEpgIds.slice(idx, idx + CHUNK_SIZE);
-          const placeholders = chunk.map((_, i) => `$${i + 1}`).join(',');
-          
-          const progs = await cacheDb.select(
-            `SELECT * FROM programs WHERE stream_id IN (${placeholders})`,
-            chunk
-          ) as any[];
-
-          for (const p of progs) {
-            const streamIds = epgIdToStreamIdMap.get(p.stream_id);
-            if (streamIds) {
-              for (const streamId of streamIds) {
-                if (!matchedStreamIdsSet.has(streamId)) {
-                  matchedStreamIdsSet.add(streamId);
-                  channelsMatchedCount++;
-                }
-                programsToInsert.push({
-                  id: `${streamId}_${p.start}`,
-                  stream_id: streamId,
-                  title: p.title,
-                  subtitle: p.subtitle,
-                  description: p.description,
-                  start: p.start,
-                  end: p.end,
-                  source_id: sourceId
-                });
-              }
-            }
-          }
-        }
-
-        if (programsToInsert.length > 0) {
-          await db.programs.bulkPut(programsToInsert);
+      for (const result of results) {
+        totalInserted += result.inserted_programs;
+        perSourceCounts[result.source_id] = result.inserted_programs;
+        const channelsMatched = result.matched_channels ?? 0;
+        perSourceChannels[result.source_id] = channelsMatched;
+        totalChannelsMatched += channelsMatched;
+        console.log(`[Global EPG] Source ${result.source_id}: ${result.inserted_programs} programs inserted, ${channelsMatched} channels matched`);
+        if (result.inserted_programs > 0) {
           dbEvents.notify('programs', 'add');
-          
-          totalInserted += programsToInsert.length;
-          perSourceCounts[sourceId] = programsToInsert.length;
-          perSourceChannels[sourceId] = channelsMatchedCount;
-          totalChannelsMatched += channelsMatchedCount;
         }
       }
-
-      // Applied EPG from the cache (even when the refresh above failed), so mark
-      // the link as synced to avoid re-downloading a down URL every cycle.
-      if (totalInserted > 0) {
-        syncSucceeded = true;
+      if (results.length === 0) {
+        console.log(`[Global EPG] No sources need EPG from ${epgLink.name}`);
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[Global EPG] Failed to read EPG cache: ${errMsg}`);
-      debugLog(`Failed to read EPG cache: ${errMsg}`, 'epg');
+      console.warn(`[Global EPG] Failed to refresh EPG cache for ${epgLink.name}: ${errMsg}`);
+      debugLog(`EPG cache refresh failed: ${errMsg}`, 'epg');
     }
   } else {
     try {
-      const results = await epgStreaming.streamParseEpgMulti(url, sourceConfigs, userAgent);
+      const results = await epgStreaming.streamParseEpgMulti(url, sourceRefs, userAgent);
       syncSucceeded = true;
 
       for (const result of results) {
@@ -1915,14 +1623,17 @@ async function syncGlobalEpgLinkStandaloneImpl(
   if (syncSucceeded) {
     let matchedStreamIds: string[] | undefined = undefined;
     try {
+      // Newly-filled channels = stream ids that gained programmes during this
+      // link's pass (after − before), attributed per source. This no longer
+      // needs the needing-EPG pool (which is computed in Rust now).
       const newlyMatchedStreamIds: string[] = [];
-      for (const sourceId of epgLink.sourceIds) {
-        const neededIds = channelsNeedingEpgMap.get(sourceId) || [];
-        if (neededIds.length === 0) continue;
-        
-        const channelsWithProgramsAfter = await getStreamIdsWithPrograms(sourceId);
-        for (const streamId of neededIds) {
-          if (channelsWithProgramsAfter.has(streamId)) {
+      for (const ref of sourceRefs) {
+        const inserted = perSourceCounts[ref.sourceId] ?? 0;
+        if (inserted <= 0) continue;
+        const before = beforeSets.get(ref.sourceId) || new Set<string>();
+        const channelsWithProgramsAfter = await getStreamIdsWithPrograms(ref.sourceId);
+        for (const streamId of channelsWithProgramsAfter) {
+          if (!before.has(streamId)) {
             newlyMatchedStreamIds.push(streamId);
           }
         }
@@ -1948,7 +1659,7 @@ async function syncGlobalEpgLinkStandaloneImpl(
   }
 
   console.log(`[Global EPG] Standalone sync complete for ${epgLink.name}: ${totalInserted} total programs inserted`);
-  debugLog(`Standalone sync complete: ${totalInserted} programs across ${sourceConfigs.length} sources`, 'epg');
+  debugLog(`Standalone sync complete: ${totalInserted} programs across ${sourceRefs.length} sources`, 'epg');
   return totalInserted;
 }
 

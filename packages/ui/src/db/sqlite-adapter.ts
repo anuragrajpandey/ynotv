@@ -514,6 +514,7 @@ export class SqliteTable<T, TKey> {
         await invoke('bulk_insert', {
             request: {
                 table: this.tableName,
+                primaryKey: this.primaryKey,
                 columns: keys,
                 rows,
                 operation

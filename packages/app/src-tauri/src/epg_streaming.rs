@@ -199,6 +199,160 @@ pub struct SourceEpgConfig {
     pub clear_existing: bool,
 }
 
+/// Lightweight per-source reference passed from the renderer for the
+/// multi-source and cache-path EPG parses. The needing-EPG channel mappings
+/// are computed in Rust from the main database (channels minus already-filled
+/// stream ids, with user overrides taking priority) instead of being built
+/// and shipped across IPC.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpgSourceRef {
+    pub source_id: String,
+    pub source_name: String,
+    pub advanced_epg_matching: bool,
+    pub timeshift_hours: f64,
+    pub clear_existing: bool,
+}
+
+/// Core needing-EPG mapping logic: given a source's channels, the set of
+/// stream ids that already have programmes, and the user override map, produce
+/// the channel mappings the parsers consume (override > epg_channel_id > name,
+/// mirroring the renderer's old JS filter). Pure function so the priority
+/// rules are unit-testable without a database.
+fn build_needing_mappings(
+    channels: Vec<(String, Option<String>, String)>, // stream_id, epg_channel_id, name
+    with_programs: &std::collections::HashSet<String>,
+    overrides: &HashMap<String, String>,
+) -> Vec<ChannelMapping> {
+    let mut mappings = Vec::with_capacity(channels.len());
+    for (stream_id, epg_channel_id, name) in channels {
+        if with_programs.contains(&stream_id) {
+            continue;
+        }
+        // Override wins, then epg_channel_id, then name (empty strings are
+        // falsy, exactly like the JS `a || b || c` chain).
+        let effective = overrides
+            .get(&stream_id)
+            .cloned()
+            .or_else(|| {
+                let id = epg_channel_id.as_deref().unwrap_or("");
+                if id.is_empty() { None } else { Some(id.to_string()) }
+            })
+            .or_else(|| {
+                if name.is_empty() { None } else { Some(name.clone()) }
+            });
+        if let Some(epg_channel_id) = effective {
+            mappings.push(ChannelMapping {
+                epg_channel_id,
+                stream_id,
+                channel_name: name,
+            });
+        }
+    }
+    mappings
+}
+
+/// Load the needing-EPG channel mappings for a set of source refs directly
+/// from the main database. This moves the renderer's per-link prep (fetching
+/// every channel, querying which stream ids already have programmes, applying
+/// user overrides) into Rust, so ~20k-row mapping payloads no longer cross
+/// IPC. Sources with nothing needing EPG are skipped.
+pub fn load_channel_mappings_from_db(
+    db: &DvrDatabase,
+    sources: &[EpgSourceRef],
+) -> Result<Vec<SourceEpgConfig>, String> {
+    let conn = db
+        .get_conn()
+        .map_err(|e| format!("Failed to open DB for EPG mappings: {}", e))?;
+
+    // User overrides are shared across all sources; load once.
+    let mut overrides: HashMap<String, String> = HashMap::new();
+    {
+        let mut stmt = conn
+            .prepare("SELECT stream_id, epg_channel_id FROM epg_channel_overrides")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+        for row in rows {
+            let (stream_id, epg_id) = row.map_err(|e| e.to_string())?;
+            if let Some(id) = epg_id {
+                if !id.trim().is_empty() {
+                    overrides.insert(stream_id, id);
+                }
+            }
+        }
+    }
+
+    let mut configs = Vec::with_capacity(sources.len());
+    for src in sources {
+        let channels: Vec<(String, Option<String>, String)> = {
+            let mut stmt = conn
+                .prepare("SELECT stream_id, epg_channel_id, name FROM channels WHERE source_id = ?")
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map(rusqlite::params![src.source_id], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
+                })
+                .map_err(|e| e.to_string())?;
+            let mut out = Vec::new();
+            for row in rows {
+                let (stream_id, epg_channel_id, name) = row.map_err(|e| e.to_string())?;
+                out.push((stream_id, epg_channel_id, name.unwrap_or_default()));
+            }
+            out
+        };
+
+        let with_programs: std::collections::HashSet<String> = {
+            let mut stmt = conn
+                .prepare("SELECT DISTINCT stream_id FROM programs WHERE source_id = ?")
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map(rusqlite::params![src.source_id], |row| {
+                    row.get::<_, String>(0)
+                })
+                .map_err(|e| e.to_string())?;
+            let mut out = std::collections::HashSet::new();
+            for row in rows {
+                out.insert(row.map_err(|e| e.to_string())?);
+            }
+            out
+        };
+
+        let channel_mappings = build_needing_mappings(channels, &with_programs, &overrides);
+        if channel_mappings.is_empty() {
+            info!(
+                "[EPG] Source {}: no channels need EPG, skipping",
+                src.source_id
+            );
+            continue;
+        }
+        info!(
+            "[EPG] Source {}: {} channel mappings prepared (needing EPG)",
+            src.source_id,
+            channel_mappings.len()
+        );
+        configs.push(SourceEpgConfig {
+            source_id: src.source_id.clone(),
+            source_name: src.source_name.clone(),
+            channel_mappings,
+            advanced_epg_matching: src.advanced_epg_matching,
+            timeshift_hours: src.timeshift_hours,
+            clear_existing: src.clear_existing,
+        });
+    }
+    Ok(configs)
+}
+
 /// Per-source stats accumulated during multi-source parsing
 struct SourceParseStats {
     matched_programs: usize,
@@ -526,10 +680,16 @@ pub async fn stream_parse_epg_multi<R: tauri::Runtime>(
     app_handle: tauri::AppHandle<R>,
     db: &DvrDatabase,
     epg_url: String,
-    source_configs: Vec<SourceEpgConfig>,
+    sources: Vec<EpgSourceRef>,
     user_agent: Option<String>,
 ) -> Result<Vec<EpgParseResult>> {
     let start_time = std::time::Instant::now();
+
+    // The needing-EPG channel mappings are computed here, from the main DB
+    // (channels minus already-filled stream ids, overrides applied) — the
+    // renderer no longer builds or ships the ~20k-row mapping payloads.
+    let source_configs = load_channel_mappings_from_db(db, &sources)
+        .map_err(|e| anyhow::anyhow!(e))?;
     let source_count = source_configs.len();
 
     if source_configs.is_empty() {
@@ -543,6 +703,24 @@ pub async fn stream_parse_epg_multi<R: tauri::Runtime>(
 
     // Check if URL is gzipped
     let is_gzipped = epg_url.ends_with(".gz");
+
+    // Build per-source channel lookups BEFORE the download (they depend only on
+    // the channel mappings). Display-name merging for advanced matching happens
+    // inside the single pass, once the <channel> elements have been seen.
+    let mut per_source_lookups: Vec<(String, HashMap<String, Vec<String>>, bool)> =
+        Vec::with_capacity(source_configs.len());
+    for config in &source_configs {
+        let lookup = build_channel_lookup(config.channel_mappings.clone());
+        info!(
+            "[EPG] Source {} channel lookup has {} entries",
+            config.source_id, lookup.len()
+        );
+        per_source_lookups.push((
+            config.source_id.clone(),
+            lookup,
+            config.advanced_epg_matching,
+        ));
+    }
 
     // Create HTTP client
     let ua = match user_agent {
@@ -582,141 +760,18 @@ pub async fn stream_parse_epg_multi<R: tauri::Runtime>(
     let total_bytes = response.content_length();
     info!("EPG download started, total size: {:?} bytes", total_bytes);
 
-    let is_response_gzipped = response.headers()
+    // Read Content-Encoding before the body is consumed by the bridge (used
+    // only for logging — the gzip magic bytes are the authoritative signal).
+    let content_encoding = response
+        .headers()
         .get("content-encoding")
         .and_then(|v| v.to_str().ok())
-        .map(|v| v.to_lowercase().contains("gzip"))
-        .unwrap_or(false);
-    let should_decompress = is_gzipped || is_response_gzipped;
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "none".to_string());
 
-    // Download chunks into memory
-    let download_start = std::time::Instant::now();
-    let mut chunks: Vec<bytes::Bytes> = Vec::new();
-    let mut total_bytes_downloaded: u64 = 0;
-    let mut stream = response.bytes_stream();
-
-    while let Some(chunk_result) = stream.next().await {
-        match chunk_result {
-            Ok(chunk) => {
-                total_bytes_downloaded += chunk.len() as u64;
-                chunks.push(chunk);
-            }
-            Err(e) => {
-                warn!("Download error: {}", e);
-                return Err(anyhow::anyhow!("Download interrupted: {}", e));
-            }
-        }
-    }
-
-    let download_ms = download_start.elapsed().as_millis() as u64;
-
-    if let Some(expected) = total_bytes {
-        if total_bytes_downloaded < expected {
-            return Err(anyhow::anyhow!(
-                "Incomplete EPG download: expected {} bytes but got {}",
-                expected, total_bytes_downloaded
-            ));
-        }
-    }
-
-    info!("[EPG] EPG Download verified successful.");
-
-    // Combine chunks
-    let total_size = chunks.iter().map(|c| c.len()).sum::<usize>();
-    let mut compressed_data = Vec::with_capacity(total_size);
-    for chunk in chunks {
-        compressed_data.extend_from_slice(&chunk);
-    }
-
-    let has_gzip_magic = compressed_data.len() >= 2
-        && compressed_data[0] == 0x1f && compressed_data[1] == 0x8b;
-    let should_decompress = should_decompress || has_gzip_magic;
-
-    // Decompress
-    let decompress_start = std::time::Instant::now();
-    let xml_data: Vec<u8> = if should_decompress {
-        use flate2::read::MultiGzDecoder;
-        use std::io::Read;
-        // MultiGzDecoder: handles concatenated gzip members (plain GzDecoder
-        // silently truncates at the first member boundary) — parity with the
-        // single-source parser.
-        let mut decoder = MultiGzDecoder::new(&compressed_data[..]);
-        let mut decompressed = Vec::new();
-        decoder.read_to_end(&mut decompressed)
-            .context("Failed to decompress gzipped EPG")?;
-        info!("[EPG] Decompressed {} bytes to {} bytes", compressed_data.len(), decompressed.len());
-        decompressed
-    } else {
-        compressed_data
-    };
-    let decompress_ms = decompress_start.elapsed().as_millis() as u64;
-
-    // Extract EPG channel metadata once, insert for all sources
-    let epg_channels = extract_epg_channels(&xml_data);
-
-    // Guard against applying an empty/garbage response (e.g. an HTTP error page
-    // served with status 200) which would otherwise wipe per-source epg_channels
-    // and report a bogus success. Keep existing EPG data intact instead.
-    let has_programmes = xml_data
-        .windows(b"<programme".len())
-        .any(|w| w == b"<programme");
-    if epg_channels.is_empty() && !has_programmes {
-        return Err(anyhow::anyhow!(
-            "EPG response from {} contained no channels or programmes; keeping existing EPG data",
-            epg_url
-        ));
-    }
-
-    for config in &source_configs {
-        if let Err(e) = insert_epg_channels(db, &config.source_id, &epg_channels) {
-            warn!("[EPG] Failed to insert epg_channels for source {}: {}", config.source_id, e);
-        }
-    }
-
-    // Delete old programs for sources that request it (after verified download)
-    for config in &source_configs {
-        if config.clear_existing {
-            let deleted = delete_programs_for_source(db, &config.source_id)?;
-            info!("[EPG] Deleted {} old programs for source {}", deleted, config.source_id);
-        }
-    }
-
-    // Build the display-name mapping ONCE (a full XML scan) if any source needs
-    // advanced matching, then reuse it for all sources — previously this ran a
-    // full re-scan of the document once per source.
-    let display_mapping: Option<HashMap<String, String>> =
-        if source_configs.iter().any(|c| c.advanced_epg_matching) {
-            info!("[EPG] Advanced EPG matching enabled - building display name mappings once");
-            Some(build_display_name_mapping(&xml_data))
-        } else {
-            None
-        };
-
-    // Build master channel lookup: epg_channel_id -> Vec<(source_id, stream_id)>
-    let mut master_lookup: HashMap<String, Vec<(String, String)>> = HashMap::new();
-
-    for config in &source_configs {
-        let mut source_lookup = build_channel_lookup(config.channel_mappings.clone());
-
-        // If advanced matching enabled for this source, merge display names
-        // using the shared (hoisted) mapping.
-        if config.advanced_epg_matching {
-            if let Some(ref dm) = display_mapping {
-                source_lookup = merge_with_display_names(source_lookup, dm);
-            }
-        }
-
-        for (epg_id, stream_ids) in source_lookup {
-            let entry = master_lookup.entry(epg_id).or_default();
-            for stream_id in stream_ids {
-                entry.push((config.source_id.clone(), stream_id));
-            }
-        }
-    }
-
-    info!("[EPG] Master lookup has {} entries for {} sources", master_lookup.len(), source_count);
-
-    // Create per-source batch channels and inserter tasks
+    // Create per-source batch channels and inserter tasks. They wait on their
+    // channels — batches are only sent after the download is verified, so no
+    // inserts can happen before the swap point.
     let mut batch_senders: HashMap<String, mpsc::Sender<Vec<EpgProgram>>> = HashMap::new();
     let mut inserter_handles: Vec<tokio::task::JoinHandle<anyhow::Result<InserterResult>>> = Vec::new();
 
@@ -734,18 +789,249 @@ pub async fn stream_parse_epg_multi<R: tauri::Runtime>(
         inserter_handles.push(handle);
     }
 
-    // Parse once, route programmes to per-source batches
+    // Bridge the async download into a synchronous byte stream so the parse
+    // (a sync, CPU-bound single pass on a blocking thread) consumes chunks as
+    // they arrive — download and parse now OVERLAP instead of running serially.
+    // Safety is unchanged from the single-source path: nothing is deleted or
+    // inserted until the download finishes cleanly (no network error,
+    // content-length satisfied) AND the payload head is confirmed XMLTV.
+    // Parsed batches are spooled per source in memory and only drained to the
+    // inserters after that swap point.
+    let (mut bridge, downloaded_total, download_finished, download_errored, download_finished_ms) =
+        spawn_streaming_download(response);
+
+    emit_progress(
+        &app_handle,
+        "multi",
+        EpgParseProgress {
+            source_id: "multi".to_string(),
+            phase: "parsing".to_string(),
+            bytes_downloaded: 0,
+            total_bytes,
+            programs_parsed: 0,
+            programs_matched: 0,
+            programs_inserted: 0,
+            estimated_remaining_seconds: None,
+        },
+    );
+
+    // Run the probe + single-pass parse on a blocking thread while the
+    // download task keeps feeding the bridge. Everything that reads from
+    // `bridge` must stay in this spawn_blocking task (blocking_recv parks the
+    // thread; blocking a tokio worker here deadlocks once enough concurrent
+    // sources park their workers).
+    let app_handle_clone = app_handle.clone();
+    let dl_progress = downloaded_total.clone();
+    let epg_url_for_err = epg_url.clone();
     let parse_start = std::time::Instant::now();
-    let parse_result = parse_and_stream_batches_multi(
-        &xml_data,
-        master_lookup,
-        batch_senders,
-        app_handle.clone(),
-        total_bytes,
-        total_bytes_downloaded,
-        start_time,
-    ).await?;
+
+    let blocking = tokio::task::spawn_blocking(move || -> Result<MultiSpooledParse> {
+        use std::io::Read;
+
+        // Peek the first two bytes for the gzip magic, then hand the stream to
+        // the (de)compression layer. Magic bytes are the authoritative gzip
+        // signal: reqwest auto-decompresses Content-Encoding: gzip and strips
+        // the header, so neither the URL suffix nor the header alone means the
+        // body is still compressed.
+        let mut first_two = [0u8; 2];
+        let mut filled = 0usize;
+        while filled < 2 {
+            let n = bridge.read(&mut first_two[filled..])?;
+            if n == 0 {
+                break; // empty body
+            }
+            filled += n;
+        }
+        let has_gzip_magic = filled == 2 && first_two[0] == 0x1f && first_two[1] == 0x8b;
+        if has_gzip_magic {
+            info!(
+                "[EPG] Decompressing multi-source response (URL gzipped: {}, Content-Encoding: {})",
+                is_gzipped, content_encoding
+            );
+        }
+
+        // Decoder over the bridge: decompressed stream for gzip, passthrough
+        // otherwise.
+        let prefix = std::io::Cursor::new(first_two.to_vec());
+        let mut dec: Box<dyn Read + Send> = if has_gzip_magic {
+            let inner = std::io::BufReader::with_capacity(256 * 1024, prefix.chain(bridge));
+            // MultiGzDecoder: handles concatenated gzip members (plain
+            // GzDecoder silently truncates at the first member boundary).
+            Box::new(flate2::bufread::MultiGzDecoder::new(inner))
+        } else {
+            Box::new(prefix.chain(bridge))
+        };
+
+        // Guard: verify the payload actually looks like XMLTV BEFORE any swap
+        // (protects against HTTP error pages / garbage served with status 200
+        // wiping the guide). Consumes up to 256KB from the stream; the bytes
+        // are replayed below so nothing is lost.
+        let mut head = Vec::with_capacity(256 * 1024);
+        let _ = (&mut dec).take(256 * 1024).read_to_end(&mut head);
+        let head_is_xmltv = {
+            let s = String::from_utf8_lossy(&head);
+            s.contains("<programme") || s.contains("<tv")
+        };
+        if !head_is_xmltv {
+            return Err(anyhow::anyhow!(
+                "EPG response from {} contained no XMLTV data (channels/programmes); keeping existing EPG data",
+                epg_url_for_err
+            ));
+        }
+
+        let reader = std::io::BufReader::with_capacity(
+            256 * 1024,
+            std::io::Cursor::new(head).chain(dec),
+        );
+
+        let mut last_progress_update = std::time::Instant::now();
+        let mut on_progress = |parsed: usize, matched: usize| {
+            if last_progress_update.elapsed().as_millis() > 100 {
+                emit_progress(
+                    &app_handle_clone,
+                    "multi",
+                    EpgParseProgress {
+                        source_id: "multi".to_string(),
+                        phase: "parsing".to_string(),
+                        bytes_downloaded: dl_progress
+                            .load(std::sync::atomic::Ordering::Relaxed),
+                        total_bytes,
+                        programs_parsed: parsed,
+                        programs_matched: matched,
+                        programs_inserted: 0,
+                        estimated_remaining_seconds: estimate_remaining(
+                            dl_progress.load(std::sync::atomic::Ordering::Relaxed),
+                            total_bytes,
+                            start_time.elapsed().as_secs(),
+                        ),
+                    },
+                );
+                last_progress_update = std::time::Instant::now();
+            }
+        };
+
+        // Single pass. Per-source batches are spooled in memory until the
+        // download has been verified and the swap point below is reached.
+        let mut spools: HashMap<String, Vec<Vec<EpgProgram>>> = HashMap::new();
+        let mut sink = |source_id: &str, batch: Vec<EpgProgram>| {
+            spools.entry(source_id.to_string()).or_default().push(batch);
+            true
+        };
+
+        let (channels, result) = parse_and_stream_multi_once(
+            reader,
+            per_source_lookups,
+            &mut sink,
+            &mut on_progress,
+            None,
+            None,
+        )?;
+
+        Ok(MultiSpooledParse {
+            spools,
+            channels,
+            result,
+        })
+    });
+
+    let spooled = blocking.await.context("EPG parse task panicked")??;
     let parse_ms = parse_start.elapsed().as_millis() as u64;
+
+    // The parser reads to EOF, which only happens once the download task has
+    // ended, so the download wall is complete by now. Prefer the network-side
+    // stamp (pure download duration); fall back to elapsed as a safety net.
+    let download_ms = {
+        let stamped = download_finished_ms.load(std::sync::atomic::Ordering::Relaxed);
+        if stamped == 0 {
+            start_time.elapsed().as_millis() as u64
+        } else {
+            stamped
+        }
+    };
+    let total_bytes_downloaded = downloaded_total.load(std::sync::atomic::Ordering::Relaxed);
+    let decompress_ms = 0; // overlapped with parsing in the streaming pass
+
+    // Verify the download before swapping anything.
+    if download_errored.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(anyhow::anyhow!(
+            "EPG download for {} was interrupted by a network error; keeping existing EPG data",
+            epg_url
+        ));
+    }
+    if !download_finished.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(anyhow::anyhow!(
+            "EPG download for {} did not complete; keeping existing EPG data",
+            epg_url
+        ));
+    }
+    if let Some(expected_len) = total_bytes {
+        if total_bytes_downloaded < expected_len {
+            return Err(anyhow::anyhow!(
+                "Incomplete EPG download: expected {} bytes but got {}; keeping existing EPG data",
+                expected_len, total_bytes_downloaded
+            ));
+        }
+    }
+
+    // Swap point: download verified AND payload is XMLTV (probe passed inside
+    // the blocking task). Safe to touch the DB now.
+    info!(
+        "[EPG] EPG Download verified successful ({} bytes).",
+        total_bytes_downloaded
+    );
+
+    let MultiSpooledParse {
+        spools,
+        channels,
+        result: mut parse_result,
+    } = spooled;
+    parse_result.bytes_processed = total_bytes_downloaded;
+
+    // Insert channel metadata for all sources, then delete old programs for
+    // sources that request it (after verified download).
+    for config in &source_configs {
+        if let Err(e) = insert_epg_channels(db, &config.source_id, &channels) {
+            warn!("[EPG] Failed to insert epg_channels for source {}: {}", config.source_id, e);
+        }
+    }
+    for config in &source_configs {
+        if config.clear_existing {
+            let deleted = delete_programs_for_source(db, &config.source_id)?;
+            info!("[EPG] Deleted {} old programs for source {}", deleted, config.source_id);
+        }
+    }
+
+    // Hand the spooled batches to the per-source inserter pipelines (async
+    // try_send so a busy inserter never blocks a tokio worker), then drop each
+    // sender to signal EOF.
+    for (source_id, spool) in spools {
+        if let Some(batch_tx) = batch_senders.remove(&source_id) {
+            for batch in spool {
+                let mut pending = Some(batch);
+                loop {
+                    match batch_tx.try_send(pending.take().expect("batch present")) {
+                        Ok(()) => break,
+                        Err(tokio::sync::mpsc::error::TrySendError::Full(b)) => {
+                            pending = Some(b);
+                            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+                        }
+                        Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                            warn!(
+                                "[EPG] Inserter channel closed while draining spool for source {}",
+                                source_id
+                            );
+                            break;
+                        }
+                    }
+                }
+            }
+            drop(batch_tx);
+        }
+    }
+    // Sources with no spooled batches: drop the sender to signal EOF.
+    for (_, batch_tx) in batch_senders {
+        drop(batch_tx);
+    }
 
     // Wait for all inserters to finish
     let mut per_source_inserted: HashMap<String, usize> = HashMap::new();
@@ -858,6 +1144,125 @@ struct SpooledParse {
     result: StreamingParserResult,
 }
 
+/// Result of the spooled multi-source parse: per-source parsed batches held in
+/// memory until the download has been verified (clean end + XMLTV head), then
+/// drained to the per-source inserters.
+struct MultiSpooledParse {
+    spools: HashMap<String, Vec<Vec<EpgProgram>>>,
+    channels: Vec<EpgChannelInfo>,
+    result: MultiSourceParserResult,
+}
+
+/// Sync reader over an async download channel. Blocks only a blocking thread,
+/// never a tokio worker: `blocking_recv` parks the calling (spawn_blocking)
+/// thread until the download task delivers the next chunk, so a worker can
+/// never deadlock waiting on a chunk that only another worker's download task
+/// can deliver.
+struct ChunkBridge {
+    rx: tokio::sync::mpsc::Receiver<bytes::Bytes>,
+    current: std::io::Cursor<bytes::Bytes>,
+    eof: bool,
+}
+
+impl std::io::Read for ChunkBridge {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.current.position() >= self.current.get_ref().len() as u64 {
+            if self.eof {
+                return Ok(0);
+            }
+            match self.rx.blocking_recv() {
+                Some(bytes) => {
+                    self.current = std::io::Cursor::new(bytes);
+                }
+                None => {
+                    // Channel closed = the download task ended.
+                    self.eof = true;
+                    return Ok(0);
+                }
+            }
+        }
+        self.current.read(buf)
+    }
+}
+
+/// Spawn the async download task that feeds a `ChunkBridge`, plus shared
+/// download-state flags for the caller to verify the download before any swap.
+///
+/// tokio mpsc: the download task awaits `send` when the channel is full (true
+/// async backpressure — no busy-polling that would throttle the download to
+/// ~one chunk per ms), and the reader side uses `blocking_recv` on the
+/// blocking thread pool. The spawned task's JoinHandle is deliberately
+/// dropped: the task ends itself when the stream does.
+#[allow(clippy::type_complexity)]
+fn spawn_streaming_download(
+    response: reqwest::Response,
+) -> (
+    ChunkBridge,
+    std::sync::Arc<std::sync::atomic::AtomicU64>,  // downloaded_total
+    std::sync::Arc<std::sync::atomic::AtomicBool>, // download_finished
+    std::sync::Arc<std::sync::atomic::AtomicBool>, // download_errored
+    std::sync::Arc<std::sync::atomic::AtomicU64>,  // download_finished_ms
+) {
+    let (chunk_tx, chunk_rx) = tokio::sync::mpsc::channel::<bytes::Bytes>(16);
+
+    let downloaded_total = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let download_finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let download_errored = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let download_finished_ms = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+
+    let dl_total = downloaded_total.clone();
+    let dl_finished = download_finished.clone();
+    let dl_errored = download_errored.clone();
+    let dl_finished_ms = download_finished_ms.clone();
+    let dl_start = std::time::Instant::now();
+
+    let _download_task = tokio::spawn(async move {
+        let mut stream = response.bytes_stream();
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(chunk) => {
+                    dl_total.fetch_add(
+                        chunk.len() as u64,
+                        std::sync::atomic::Ordering::Relaxed,
+                    );
+                    // send().await yields the worker while the channel is full
+                    // (the parser on the blocking pool drains it) — proper
+                    // backpressure without blocking a worker or throttling.
+                    if chunk_tx.send(chunk).await.is_err() {
+                        // Parser is gone — stop downloading.
+                        return;
+                    }
+                }
+                Err(e) => {
+                    warn!("Download error: {}", e);
+                    dl_errored.store(true, std::sync::atomic::Ordering::Relaxed);
+                    // Dropping chunk_tx makes the parser see a clean EOF; the
+                    // errored flag below prevents any swap.
+                    return;
+                }
+            }
+        }
+        dl_finished.store(true, std::sync::atomic::Ordering::Relaxed);
+        dl_finished_ms.store(
+            dl_start.elapsed().as_millis() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+        // chunk_tx dropped here -> clean EOF for the parser
+    });
+
+    (
+        ChunkBridge {
+            rx: chunk_rx,
+            current: std::io::Cursor::new(bytes::Bytes::new()),
+            eof: false,
+        },
+        downloaded_total,
+        download_finished,
+        download_errored,
+        download_finished_ms,
+    )
+}
+
 /// Parse EPG by downloading chunks and parsing incrementally
 /// Handles both plain XML and gzipped XML (.xml.gz)
 async fn parse_download_stream<R: tauri::Runtime>(
@@ -893,92 +1298,8 @@ async fn parse_download_stream<R: tauri::Runtime>(
     // payload is confirmed to be XMLTV. Parsed batches are spooled in memory
     // during the download and only handed to the inserter after that swap
     // point, so a bad/partial download never replaces existing programs.
-    // tokio mpsc: the download task awaits `send` when the channel is full
-    // (true async backpressure — no busy-polling that would throttle the
-    // download to ~one chunk per ms), and the reader side uses
-    // `blocking_recv` on the blocking thread pool.
-    let (chunk_tx, chunk_rx) = tokio::sync::mpsc::channel::<bytes::Bytes>(16);
-
-    let downloaded_total = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let download_finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let download_errored = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let download_finished_ms = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-
-    let dl_total = downloaded_total.clone();
-    let dl_finished = download_finished.clone();
-    let dl_errored = download_errored.clone();
-    let dl_finished_ms = download_finished_ms.clone();
-    let dl_start = start_time;
-
-    // Handle deliberately dropped: the task ends itself when the stream does.
-    let _download_task = tokio::spawn(async move {
-        let mut stream = response.bytes_stream();
-        while let Some(chunk_result) = stream.next().await {
-            match chunk_result {
-                Ok(chunk) => {
-                    dl_total.fetch_add(
-                        chunk.len() as u64,
-                        std::sync::atomic::Ordering::Relaxed,
-                    );
-                    // send().await yields the worker while the channel is full
-                    // (the parser on the blocking pool drains it) — proper
-                    // backpressure without blocking a worker or throttling.
-                    if chunk_tx.send(chunk).await.is_err() {
-                        // Parser is gone — stop downloading.
-                        return;
-                    }
-                }
-                Err(e) => {
-                    warn!("Download error: {}", e);
-                    dl_errored.store(true, std::sync::atomic::Ordering::Relaxed);
-                    // Dropping chunk_tx makes the parser see a clean EOF; the
-                    // errored flag below prevents any swap.
-                    return;
-                }
-            }
-        }
-        dl_finished.store(true, std::sync::atomic::Ordering::Relaxed);
-        dl_finished_ms.store(
-            dl_start.elapsed().as_millis() as u64,
-            std::sync::atomic::Ordering::Relaxed,
-        );
-        // chunk_tx dropped here -> clean EOF for the parser
-    });
-
-    // Sync reader over the channel (blocks only a blocking thread, never a
-    // tokio worker).
-    struct ChunkBridge {
-        rx: tokio::sync::mpsc::Receiver<bytes::Bytes>,
-        current: std::io::Cursor<bytes::Bytes>,
-        eof: bool,
-    }
-
-    impl std::io::Read for ChunkBridge {
-        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-            if self.current.position() >= self.current.get_ref().len() as u64 {
-                if self.eof {
-                    return Ok(0);
-                }
-                match self.rx.blocking_recv() {
-                    Some(bytes) => {
-                        self.current = std::io::Cursor::new(bytes);
-                    }
-                    None => {
-                        // Channel closed = the download task ended.
-                        self.eof = true;
-                        return Ok(0);
-                    }
-                }
-            }
-            self.current.read(buf)
-        }
-    }
-
-    let mut bridge = ChunkBridge {
-        rx: chunk_rx,
-        current: std::io::Cursor::new(bytes::Bytes::new()),
-        eof: false,
-    };
+    let (mut bridge, downloaded_total, download_finished, download_errored, download_finished_ms) =
+        spawn_streaming_download(response);
 
     // NOTE: everything that reads from `bridge` (the gzip-magic peek, the
     // XMLTV head probe, the parse) happens inside the spawn_blocking task
@@ -1221,6 +1542,10 @@ async fn parse_download_stream<R: tauri::Runtime>(
 
 /// Build a mapping from display names to channel IDs by parsing <channel> elements
 /// This allows matching M3U channel names like "US: BET" to EPG channel id "bet.us"
+///
+/// Test-only since the multi-source path merged this into the single streaming
+/// pass (`parse_and_stream_multi_once`); kept for the pipeline-parity tests.
+#[cfg(test)]
 fn build_display_name_mapping(xml_data: &[u8]) -> HashMap<String, String> {
     let mut mapping: HashMap<String, String> = HashMap::new();
     let mut reader = Reader::from_reader(xml_data);
@@ -1310,131 +1635,6 @@ struct EpgChannelInfo {
     id: String,
     display_name: String,
     icon_url: Option<String>,
-}
-
-/// Extract all <channel> elements from XMLTV data.
-/// Collects id, first <display-name>, and first <icon src="..."> for each channel.
-fn extract_epg_channels(xml_data: &[u8]) -> Vec<EpgChannelInfo> {
-    let mut channels: Vec<EpgChannelInfo> = Vec::new();
-    let mut reader = Reader::from_reader(xml_data);
-    reader.config_mut().trim_text(true);
-
-    let mut buf = Vec::with_capacity(4096);
-    let mut current_channel_id: Option<String> = None;
-    let mut current_display_name: Option<String> = None;
-    let mut current_icon_url: Option<String> = None;
-    let mut current_element: Option<&'static str> = None;
-    let mut current_text = String::new();
-
-    loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(e)) => {
-                let name = e.local_name();
-                let name = name.as_ref();
-                match name {
-                    b"channel" => {
-                        current_channel_id = None;
-                        current_display_name = None;
-                        current_icon_url = None;
-                        for attr in e.attributes() {
-                            if let Ok(attr) = attr {
-                                if attr.key.as_ref() == b"id" {
-                                    let value = attr
-                                        .decode_and_unescape_value(reader.decoder())
-                                        .unwrap_or_default();
-                                    current_channel_id = Some(value.to_string());
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    b"display-name" | b"icon" => {
-                        current_element = Some(if name == b"display-name" { "display-name" } else { "icon" });
-                        current_text.clear();
-
-                        // For <icon>, also try to read src attribute immediately
-                        if name == b"icon" {
-                            for attr in e.attributes() {
-                                if let Ok(attr) = attr {
-                                    if attr.key.as_ref() == b"src" {
-                                        let value = attr
-                                            .decode_and_unescape_value(reader.decoder())
-                                            .unwrap_or_default();
-                                        current_icon_url = Some(value.to_string());
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            Ok(Event::Text(e)) => {
-                if current_element == Some("display-name") {
-                    if let Ok(text) = e.unescape() {
-                        current_text.push_str(&text);
-                    }
-                }
-            }
-            Ok(Event::End(e)) => {
-                let name = e.local_name();
-                let name = name.as_ref();
-                match name {
-                    b"channel" => {
-                        if let (Some(id), Some(display_name)) = (current_channel_id.take(), current_display_name.take()) {
-                            channels.push(EpgChannelInfo {
-                                id,
-                                display_name,
-                                icon_url: current_icon_url.take(),
-                            });
-                        }
-                    }
-                    b"display-name" => {
-                        let text = current_text.trim().to_string();
-                        if !text.is_empty() && current_display_name.is_none() {
-                            // Keep only the first display-name per channel
-                            current_display_name = Some(text);
-                        }
-                        current_element = None;
-                    }
-                    b"icon" => {
-                        current_element = None;
-                    }
-                    _ => {}
-                }
-            }
-            Ok(Event::Empty(e)) => {
-                // Handle self-closing <icon src="..."/>
-                if e.local_name().as_ref() == b"icon"
-                    && current_channel_id.is_some()
-                    && current_icon_url.is_none()
-                {
-                    for attr in e.attributes() {
-                        if let Ok(attr) = attr {
-                            if attr.key.as_ref() == b"src" {
-                                let value = attr
-                                    .decode_and_unescape_value(reader.decoder())
-                                    .unwrap_or_default();
-                                current_icon_url = Some(value.to_string());
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(Event::Eof) => break,
-            Err(e) => {
-                warn!("XML parse error during EPG channel extraction: {}", e);
-                break;
-            }
-            _ => {}
-        }
-        buf.clear();
-    }
-
-    info!("[EPG] Extracted {} channels from XMLTV", channels.len());
-    channels
 }
 
 /// Bulk insert/replace EPG channels into the epg_channels table
@@ -1881,35 +2081,71 @@ fn parse_and_stream_epg_once<R: std::io::BufRead>(
     ))
 }
 
-/// Parse XMLTV and route matched programmes to per-source batch channels.
-/// A single download is shared across all sources — each source only gets
+/// Parse XMLTV and route matched programmes to per-source batch spools in a
+/// SINGLE pass over the (possibly decompressed) stream — the multi-source
+/// counterpart of `parse_and_stream_epg_once`.
+///
+/// A single download is shared across all sources; each source only gets
 /// programmes for channels in its own channel mapping (waterfill behaviour).
-async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
-    xml_data: &[u8],
-    master_lookup: HashMap<String, Vec<(String, String)>>,
-    mut batch_senders: HashMap<String, mpsc::Sender<Vec<EpgProgram>>>,
-    app_handle: tauri::AppHandle<R>,
-    total_bytes: Option<u64>,
-    bytes_downloaded: u64,
-    start_time: std::time::Instant,
-) -> Result<MultiSourceParserResult> {
-    let mut reader = Reader::from_reader(xml_data);
-    reader.config_mut().trim_text(true);
+/// Channels are collected during the pass, and display-name entries for
+/// advanced matching are merged lazily at the first <programme> (XMLTV places
+/// all <channel> elements before <programme>), then folded into a master
+/// (epg_channel_id -> [(source_id, stream_id)]) lookup so routing is O(1) per
+/// programme. Runs on a blocking thread while the async download feeds the
+/// reader, so download and parse overlap.
+fn parse_and_stream_multi_once<R: std::io::BufRead>(
+    reader: R,
+    mut per_source_lookups: Vec<(String, HashMap<String, Vec<String>>, bool)>,
+    // Per-source batch sink: receives each 25k-program batch as it fills,
+    // tagged with the target source. Return false to stop parsing early.
+    batch_sink: &mut dyn FnMut(&str, Vec<EpgProgram>) -> bool,
+    on_progress: &mut (dyn FnMut(usize, usize) + Send),
+    // Optional: receives every parsed programme (matched or not) BEFORE
+    // routing — used by the cache path to write the full feed to its cache DB
+    // in the same pass, so download/parse/cache-write all overlap.
+    mut on_program: Option<&mut dyn FnMut(&EpgProgram)>,
+    // Optional: receives (stream_id, feed channel id) for every routed copy —
+    // used by the cache path to persist channel overrides.
+    mut on_match: Option<&mut dyn FnMut(&str, &str)>,
+) -> Result<(Vec<EpgChannelInfo>, MultiSourceParserResult)> {
+    let any_advanced = per_source_lookups.iter().any(|(_, _, adv)| *adv);
+
+    let mut xml = Reader::from_reader(reader);
+    xml.config_mut().trim_text(true);
 
     let mut buf = Vec::with_capacity(4096);
+
+    // <channel id="..."><display-name>..</display-name><icon src=".."/></channel>
+    let mut in_channel = false;
+    let mut channel_id: Option<String> = None;
+    let mut channel_display_name: Option<String> = None;
+    let mut channel_icon: Option<String> = None;
+    let mut channel_element: Option<&'static str> = None;
+    let mut channel_text = String::new();
+    // Advanced matching: display name -> channel id, collected from <channel>
+    // elements during the pass (same keys/conditions as
+    // build_display_name_mapping).
+    let mut display_map: HashMap<String, String> = HashMap::new();
+
+    // <programme> element state
     let mut current_program: Option<EpgProgram> = None;
     let mut current_element: Option<&'static str> = None;
     let mut current_text = String::new();
 
+    let mut channels: Vec<EpgChannelInfo> = Vec::new();
+    // Master lookup, folded from the per-source lookups (with display names
+    // merged) lazily at the first <programme>.
+    let mut master_lookup: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    let mut lookup_merged = false;
+
     let mut total_programs = 0usize;
     let mut global_matched = 0usize;
-    let mut last_progress_update = std::time::Instant::now();
 
     // Per-source batch buffers and stats
     let mut batch_buffers: HashMap<String, Vec<EpgProgram>> = HashMap::new();
     let mut source_stats: HashMap<String, SourceParseStats> = HashMap::new();
 
-    for sid in batch_senders.keys() {
+    for (sid, _, _) in &per_source_lookups {
         batch_buffers.insert(sid.clone(), Vec::with_capacity(BATCH_SIZE));
         source_stats.insert(sid.clone(), SourceParseStats {
             matched_programs: 0,
@@ -1919,101 +2155,222 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
     }
 
     loop {
-        match reader.read_event_into(&mut buf) {
+        match xml.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => {
                 let name = e.local_name();
                 let name = name.as_ref();
-                match name {
-                    b"programme" => {
-                        let mut program = EpgProgram::default();
-                        for attr in e.attributes() {
-                            if let Ok(attr) = attr {
-                                let key = attr.key.as_ref();
-                                let value = attr.decode_and_unescape_value(reader.decoder()).unwrap_or_default();
-                                match key {
-                                    b"channel" => program.channel_id = value.to_string(),
-                                    b"start" => program.start = parse_xmltv_date(&value),
-                                    b"stop" => program.stop = parse_xmltv_date(&value),
-                                    _ => {}
+                if in_channel {
+                    match name {
+                        b"display-name" => {
+                            channel_element = Some("display-name");
+                            channel_text.clear();
+                        }
+                        b"icon" => {
+                            channel_element = Some("icon");
+                            if channel_icon.is_none() {
+                                for attr in e.attributes() {
+                                    if let Ok(a) = attr {
+                                        if a.key.as_ref() == b"src" {
+                                            channel_icon = a
+                                                .decode_and_unescape_value(xml.decoder())
+                                                .ok()
+                                                .map(|v| v.to_string());
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }
-                        current_program = Some(program);
+                        _ => {}
                     }
-                    b"title" | b"desc" | b"sub-title" => {
-                        current_element = Some(match name {
-                            b"title" => "title",
-                            b"desc" => "desc",
-                            _ => "sub-title",
-                        });
-                        current_text.clear();
+                } else {
+                    match name {
+                        b"channel" => {
+                            in_channel = true;
+                            channel_id = None;
+                            channel_display_name = None;
+                            channel_icon = None;
+                            for attr in e.attributes() {
+                                if let Ok(a) = attr {
+                                    if a.key.as_ref() == b"id" {
+                                        channel_id = a
+                                            .decode_and_unescape_value(xml.decoder())
+                                            .ok()
+                                            .map(|v| v.to_string());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        b"programme" => {
+                            let mut program = EpgProgram::default();
+                            for attr in e.attributes() {
+                                if let Ok(a) = attr {
+                                    let key = a.key.as_ref();
+                                    let value = a
+                                        .decode_and_unescape_value(xml.decoder())
+                                        .unwrap_or_default();
+                                    match key {
+                                        b"channel" => program.channel_id = value.to_string(),
+                                        b"start" => program.start = parse_xmltv_date(&value),
+                                        b"stop" => program.stop = parse_xmltv_date(&value),
+                                        _ => {}
+                                    }
+                                }
+                            }
+                            current_program = Some(program);
+                        }
+                        b"title" | b"desc" | b"sub-title" => {
+                            current_element = match name {
+                                b"title" => Some("title"),
+                                b"desc" => Some("desc"),
+                                _ => Some("sub-title"),
+                            };
+                            current_text.clear();
+                        }
+                        _ => {}
                     }
-                    _ => {}
+                }
+            }
+            Ok(Event::Empty(e)) => {
+                // Self-closing <icon src="..."/> inside a channel
+                if in_channel && channel_icon.is_none() && e.local_name().as_ref() == b"icon" {
+                    for attr in e.attributes() {
+                        if let Ok(a) = attr {
+                            if a.key.as_ref() == b"src" {
+                                channel_icon = a
+                                    .decode_and_unescape_value(xml.decoder())
+                                    .ok()
+                                    .map(|v| v.to_string());
+                                break;
+                            }
+                        }
+                    }
                 }
             }
             Ok(Event::Text(e)) => {
-                if let Some(ref _element) = current_element {
-                    if let Ok(text) = e.unescape() {
+                if let Ok(text) = e.unescape() {
+                    if in_channel && channel_element == Some("display-name") {
+                        channel_text.push_str(&text);
+                    } else if current_element.is_some() {
                         current_text.push_str(&text);
                     }
+                }
+            }
+            Ok(Event::CData(e)) => {
+                // CDATA-wrapped titles/descriptions: treat like text.
+                if current_element.is_some() {
+                    current_text.push_str(&String::from_utf8_lossy(&e));
+                } else if in_channel && channel_element == Some("display-name") {
+                    channel_text.push_str(&String::from_utf8_lossy(&e));
                 }
             }
             Ok(Event::End(e)) => {
                 let name = e.local_name();
                 let name = name.as_ref();
-                match name {
-                    b"programme" => {
-                        if let Some(program) = current_program.take() {
-                            total_programs += 1;
+                if in_channel {
+                    match name {
+                        b"display-name" => {
+                            let text = channel_text.trim().to_string();
+                            if !text.is_empty() && channel_display_name.is_none() {
+                                channel_display_name = Some(text);
+                            }
+                            channel_element = None;
+                        }
+                        b"icon" => {
+                            channel_element = None;
+                        }
+                        b"channel" => {
+                            in_channel = false;
+                            if let (Some(id), Some(display_name)) =
+                                (channel_id.take(), channel_display_name.take())
+                            {
+                                channels.push(EpgChannelInfo {
+                                    id: id.clone(),
+                                    display_name: display_name.clone(),
+                                    icon_url: channel_icon.take(),
+                                });
 
-                            let pairs = master_lookup.get(&program.channel_id)
-                                .or_else(|| master_lookup.get(&normalize_channel_name(&program.channel_id)));
-
-                            if let Some(pairs) = pairs {
-                                global_matched += 1;
-
-                                // Hot path (one target per programme — the
-                                // common case for global EPG gap-filling, where
-                                // a channel belongs to a single source): move
-                                // the programme's own Strings instead of
-                                // cloning all five per programme. The clone is
-                                // only for the rare multi-source case below.
-                                // Also skip normalize_to_utc unless the date
-                                // contains '-': parse_xmltv_date output
-                                // ("20260223010000+00:00") has no '-', so
-                                // neither chrono parser can match it and the
-                                // call would just return an unchanged copy.
-                                if pairs.len() == 1 {
-                                    let (source_id, stream_id) = &pairs[0];
-                                    let mut copy = program; // move, not clone
-                                    copy.channel_id = stream_id.clone();
-                                    if copy.start.contains('-') {
-                                        copy.start = normalize_to_utc(&copy.start);
+                                // Collect display-name -> channel-id entries for
+                                // advanced matching (same keys/conditions as
+                                // build_display_name_mapping).
+                                if any_advanced {
+                                    display_map.insert(display_name.clone(), id.clone());
+                                    let norm = normalize_channel_name(&display_name);
+                                    if !norm.is_empty() && norm != display_name.to_lowercase() {
+                                        display_map.insert(norm, id.clone());
                                     }
-                                    if copy.stop.contains('-') {
-                                        copy.stop = normalize_to_utc(&copy.stop);
-                                    }
+                                }
+                            } else {
+                                channel_icon.take();
+                            }
+                        }
+                        _ => {}
+                    }
+                } else {
+                    match name {
+                        b"programme" => {
+                            if let Some(program) = current_program.take() {
+                                total_programs += 1;
 
-                                    let buffer = batch_buffers.get_mut(source_id).unwrap();
-                                    buffer.push(copy);
+                                // Let the caller (e.g. the cache path) write
+                                // the full feed while it's in hand — before
+                                // routing, so unmatched programmes are seen too.
+                                if let Some(cb) = on_program.as_deref_mut() {
+                                    cb(&program);
+                                }
 
-                                    if buffer.len() >= BATCH_SIZE {
-                                        let batch_to_send = std::mem::take(buffer);
-                                        buffer.reserve(BATCH_SIZE);
-                                        if let Some(sender) = batch_senders.get(source_id) {
-                                            if sender.send(batch_to_send).await.is_err() {
-                                                warn!("Batch channel closed for source {}, stopping parser", source_id);
+                                // Lazy per-source display-name merge + master
+                                // fold: channels precede programmes in XMLTV,
+                                // so by the first programme the display map is
+                                // complete.
+                                if !lookup_merged {
+                                    let lookups =
+                                        std::mem::take(&mut per_source_lookups);
+                                    for (sid, lookup, advanced) in lookups {
+                                        let lookup = if advanced {
+                                            merge_with_display_names(lookup, &display_map)
+                                        } else {
+                                            lookup
+                                        };
+                                        for (epg_id, stream_ids) in lookup {
+                                            let entry = master_lookup.entry(epg_id).or_default();
+                                            for stream_id in stream_ids {
+                                                entry.push((sid.clone(), stream_id));
                                             }
                                         }
                                     }
+                                    lookup_merged = true;
+                                }
 
-                                    if let Some(stats) = source_stats.get_mut(source_id) {
-                                        stats.matched_programs += 1;
-                                        stats.matched_channels.insert(stream_id.clone());
-                                    }
-                                } else {
-                                    for (source_id, stream_id) in pairs {
-                                        let mut copy = program.clone();
+                                // Lookup: EPG channel IDs, M3U names, and
+                                // normalized versions (fast O(1) lookups).
+                                let pairs = master_lookup
+                                    .get(&program.channel_id)
+                                    .or_else(|| {
+                                        master_lookup.get(&normalize_channel_name(
+                                            &program.channel_id,
+                                        ))
+                                    });
+
+                                if let Some(pairs) = pairs {
+                                    global_matched += 1;
+                                    let feed_channel_id = program.channel_id.clone();
+
+                                    // Hot path (one target per programme — the
+                                    // common case for global EPG gap-filling,
+                                    // where a channel belongs to a single
+                                    // source): move the programme's own Strings
+                                    // instead of cloning all five per
+                                    // programme. Also skip normalize_to_utc
+                                    // unless the date contains '-':
+                                    // parse_xmltv_date output has no '-', so
+                                    // neither chrono parser can match it and
+                                    // the call would just return an unchanged
+                                    // copy.
+                                    if pairs.len() == 1 {
+                                        let (source_id, stream_id) = &pairs[0];
+                                        let mut copy = program; // move, not clone
                                         copy.channel_id = stream_id.clone();
                                         if copy.start.contains('-') {
                                             copy.start = normalize_to_utc(&copy.start);
@@ -2022,16 +2379,15 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
                                             copy.stop = normalize_to_utc(&copy.stop);
                                         }
 
-                                        let buffer = batch_buffers.get_mut(source_id).unwrap();
+                                        let buffer =
+                                            batch_buffers.get_mut(source_id).unwrap();
                                         buffer.push(copy);
 
                                         if buffer.len() >= BATCH_SIZE {
                                             let batch_to_send = std::mem::take(buffer);
                                             buffer.reserve(BATCH_SIZE);
-                                            if let Some(sender) = batch_senders.get(source_id) {
-                                                if sender.send(batch_to_send).await.is_err() {
-                                                    warn!("Batch channel closed for source {}, stopping parser", source_id);
-                                                }
+                                            if !batch_sink(source_id, batch_to_send) {
+                                                warn!("Batch sink stopped for source {}, stopping parser", source_id);
                                             }
                                         }
 
@@ -2039,57 +2395,72 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
                                             stats.matched_programs += 1;
                                             stats.matched_channels.insert(stream_id.clone());
                                         }
+                                        if let Some(cb) = on_match.as_deref_mut() {
+                                            cb(stream_id, &feed_channel_id);
+                                        }
+                                    } else {
+                                        for (source_id, stream_id) in pairs {
+                                            let mut copy = program.clone();
+                                            copy.channel_id = stream_id.clone();
+                                            if copy.start.contains('-') {
+                                                copy.start = normalize_to_utc(&copy.start);
+                                            }
+                                            if copy.stop.contains('-') {
+                                                copy.stop = normalize_to_utc(&copy.stop);
+                                            }
+
+                                            let buffer =
+                                                batch_buffers.get_mut(source_id).unwrap();
+                                            buffer.push(copy);
+
+                                            if buffer.len() >= BATCH_SIZE {
+                                                let batch_to_send = std::mem::take(buffer);
+                                                buffer.reserve(BATCH_SIZE);
+                                                if !batch_sink(source_id, batch_to_send) {
+                                                    warn!("Batch sink stopped for source {}, stopping parser", source_id);
+                                                }
+                                            }
+
+                                            if let Some(stats) = source_stats.get_mut(source_id) {
+                                                stats.matched_programs += 1;
+                                                stats.matched_channels.insert(stream_id.clone());
+                                            }
+                                            if let Some(cb) = on_match.as_deref_mut() {
+                                                cb(stream_id, &feed_channel_id);
+                                            }
+                                        }
                                     }
                                 }
-                            } else {
-                                // Track unmatched per source... but we don't know which source
-                                // expected this channel. Skip for now.
-                            }
+                                // Unmatched programmes are dropped: a global
+                                // EPG channel may map to zero of the enabled
+                                // sources, and we don't know which source
+                                // expected it.
 
-                            // Progress update
-                            if total_programs % (BATCH_SIZE * PROGRESS_INTERVAL) == 0 {
-                                if last_progress_update.elapsed().as_millis() > 100 {
-                                    emit_progress(
-                                        &app_handle,
-                                        "multi",
-                                        EpgParseProgress {
-                                            source_id: "multi".to_string(),
-                                            phase: "parsing".to_string(),
-                                            bytes_downloaded,
-                                            total_bytes,
-                                            programs_parsed: total_programs,
-                                            programs_matched: global_matched,
-                                            programs_inserted: 0,
-                                            estimated_remaining_seconds: estimate_remaining(
-                                                bytes_downloaded, total_bytes,
-                                                start_time.elapsed().as_secs(),
-                                            ),
-                                        },
-                                    );
-                                    last_progress_update = std::time::Instant::now();
+                                if total_programs % (BATCH_SIZE * PROGRESS_INTERVAL) == 0 {
+                                    on_progress(total_programs, global_matched);
                                 }
                             }
                         }
-                    }
-                    b"title" => {
-                        if let Some(ref mut program) = current_program {
-                            program.title = std::mem::take(&mut current_text);
+                        b"title" => {
+                            if let Some(ref mut program) = current_program {
+                                program.title = std::mem::take(&mut current_text);
+                            }
+                            current_element = None;
                         }
-                        current_element = None;
-                    }
-                    b"desc" => {
-                        if let Some(ref mut program) = current_program {
-                            program.description = Some(std::mem::take(&mut current_text));
+                        b"desc" => {
+                            if let Some(ref mut program) = current_program {
+                                program.description = Some(std::mem::take(&mut current_text));
+                            }
+                            current_element = None;
                         }
-                        current_element = None;
-                    }
-                    b"sub-title" => {
-                        if let Some(ref mut program) = current_program {
-                            program.sub_title = Some(std::mem::take(&mut current_text));
+                        b"sub-title" => {
+                            if let Some(ref mut program) = current_program {
+                                program.sub_title = Some(std::mem::take(&mut current_text));
+                            }
+                            current_element = None;
                         }
-                        current_element = None;
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
             Ok(Event::Eof) => break,
@@ -2102,14 +2473,10 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
         buf.clear();
     }
 
-    // Send remaining batches for all sources and drop senders to signal completion
+    // Flush remaining per-source buffers through the sink.
     for (source_id, buffer) in batch_buffers {
         if !buffer.is_empty() {
-            if let Some(sender) = batch_senders.remove(&source_id) {
-                let _ = sender.send(buffer).await;
-            }
-        } else if let Some(sender) = batch_senders.remove(&source_id) {
-            drop(sender);
+            let _ = batch_sink(&source_id, buffer);
         }
     }
 
@@ -2118,11 +2485,14 @@ async fn parse_and_stream_batches_multi<R: tauri::Runtime>(
         total_programs, global_matched
     );
 
-    Ok(MultiSourceParserResult {
-        total_programs,
-        bytes_processed: bytes_downloaded,
-        source_stats,
-    })
+    Ok((
+        channels,
+        MultiSourceParserResult {
+            total_programs,
+            bytes_processed: 0, // filled by the caller
+            source_stats,
+        },
+    ))
 }
 
 /// Inserter pipeline - receives batches and inserts them concurrently
@@ -2873,20 +3243,109 @@ pub async fn parse_epg_file<R: tauri::Runtime>(
     Ok(result)
 }
 
-/// Sync and save all EPG channels and programs to a separate database cache file
+/// Result of the spooled cache parse: the full feed was committed to the cache
+/// DB after download verification; matched programmes are spooled per source
+/// for the main-DB gap-fill, and first-match overrides are ready to persist.
+struct CacheSpooledParse {
+    spools: HashMap<String, Vec<EpgProgram>>,
+    source_stats: HashMap<String, SourceParseStats>,
+    /// stream_id -> first matched EPG channel id (for epg_channel_overrides).
+    overrides: HashMap<String, String>,
+    total_programs: usize,
+    cache_channels: usize,
+    cache_programs: usize,
+}
+
+/// Persist matched EPG channel ids as overrides (INSERT OR IGNORE — never
+/// overwrites an existing override). Mirrors the renderer's previous
+/// behaviour of saving the first successful match per stream.
+fn save_epg_channel_overrides(
+    db: &DvrDatabase,
+    overrides: &HashMap<String, String>,
+) -> Result<usize> {
+    if overrides.is_empty() {
+        return Ok(0);
+    }
+    let mut conn = db.get_conn()?;
+    save_epg_channel_overrides_conn(&mut conn, overrides)
+}
+
+fn save_epg_channel_overrides_conn(
+    conn: &mut rusqlite::Connection,
+    overrides: &HashMap<String, String>,
+) -> Result<usize> {
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let mut stmt = tx.prepare(
+        "INSERT OR IGNORE INTO epg_channel_overrides (stream_id, epg_channel_id) VALUES (?1, ?2)",
+    )?;
+    let mut saved = 0usize;
+    for (stream_id, epg_channel_id) in overrides {
+        match stmt.execute(rusqlite::params![stream_id, epg_channel_id]) {
+            Ok(1) => saved += 1,
+            Ok(_) => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    stmt.finalize()?;
+    tx.commit()?;
+    Ok(saved)
+}
+
+/// Sync and save all EPG channels and programs to a separate database cache file.
+///
+/// Downloads the feed once and, in a single streaming pass, writes the FULL
+/// feed to the per-link cache DB (`epg_cache_<id>.db`, kept for offline use)
+/// while routing matched programmes to per-source spools using the exact same
+/// matching as `stream_parse_epg_multi`. After the download is verified, the
+/// spools are inserted into the MAIN database (gap-fill only — nothing is
+/// deleted) and matched channel overrides are persisted, so the renderer no
+/// longer has to read the cache DB back and bulkPut the matches itself.
 pub async fn cache_entire_epg_db<R: tauri::Runtime>(
     app_handle: tauri::AppHandle<R>,
+    db: &DvrDatabase,
     epg_url: String,
     epg_link_id: String,
     user_agent: Option<String>,
-) -> Result<(), String> {
+    sources: Vec<EpgSourceRef>,
+) -> Result<Vec<EpgParseResult>, String> {
     use tauri::Manager;
+    let start_time = std::time::Instant::now();
+
+    // The needing-EPG channel mappings are computed here, from the main DB
+    // (channels minus already-filled stream ids, overrides applied). When
+    // nothing needs filling we skip the download entirely — the existing cache
+    // file stays untouched and the caller marks the link as synced (the JS
+    // side used to gate on this before calling; now Rust does it).
+    let sources = load_channel_mappings_from_db(db, &sources)?;
+    if sources.is_empty() {
+        info!(
+            "[EPG Cache] No sources need EPG from {}; skipping download and cache refresh",
+            epg_url
+        );
+        return Ok(Vec::new());
+    }
+
     let app_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     let db_path = app_dir.join(format!("epg_cache_{}.db", epg_link_id));
-    
+
     info!("[EPG Cache] Downloading and caching entire EPG from {} to {:?}", epg_url, db_path);
 
-    // 1. Download EPG XML data
+    // Per-source channel lookups BEFORE the download (they depend only on the
+    // mappings) — identical to the multi-source parser, so both global-EPG
+    // paths match channels the same way. Display-name merging for advanced
+    // matching happens inside the shared single pass.
+    let mut per_source_lookups: Vec<(String, HashMap<String, Vec<String>>, bool)> =
+        Vec::with_capacity(sources.len());
+    for config in &sources {
+        let lookup = build_channel_lookup(config.channel_mappings.clone());
+        info!(
+            "[EPG Cache] Source {} channel lookup has {} entries",
+            config.source_id,
+            lookup.len()
+        );
+        per_source_lookups.push((config.source_id.clone(), lookup, config.advanced_epg_matching));
+    }
+
     let ua = match user_agent {
         Some(ref u) if !u.trim().is_empty() => u.clone(),
         _ => "VLC/3.0.18 LibVLC/3.0.18".to_string(),
@@ -2908,198 +3367,355 @@ pub async fn cache_entire_epg_db<R: tauri::Runtime>(
     let response = response
         .error_for_status()
         .map_err(|e| format!("HTTP error from EPG URL {}: {}", epg_url, e))?;
-    let is_response_gzipped = response.headers()
+    let total_bytes = response.content_length();
+    info!("EPG download started, total size: {:?} bytes", total_bytes);
+
+    // Read Content-Encoding before the body is consumed by the bridge (used
+    // only for logging — the gzip magic bytes are the authoritative signal).
+    let content_encoding = response
+        .headers()
         .get("content-encoding")
         .and_then(|v| v.to_str().ok())
-        .map(|v| v.to_lowercase().contains("gzip"))
-        .unwrap_or(false);
-    let should_decompress = epg_url.ends_with(".gz") || is_response_gzipped;
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "none".to_string());
 
-    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-    let data = bytes.to_vec();
+    // Bridge the async download into a synchronous byte stream. The probe +
+    // single-pass parse + cache-DB writes + matched-program routing run on a
+    // blocking thread as chunks arrive, so download, decompress, cache write
+    // and matching all OVERLAP instead of running serially.
+    //
+    // Safety is unchanged: the cache DROP/CREATE + inserts happen inside a
+    // SQLite transaction that is only committed after the download is verified
+    // (no network error, content-length satisfied) AND the payload head is
+    // confirmed XMLTV. Any failure rolls the cache transaction back AND
+    // discards the matched spools, so neither the cache nor the main DB is
+    // touched with a bad or partial download.
+    let (mut bridge, downloaded_total, download_finished, download_errored, download_finished_ms) =
+        spawn_streaming_download(response);
 
-    let has_gzip_magic = data.len() >= 2 && data[0] == 0x1f && data[1] == 0x8b;
-    let should_decompress = should_decompress || has_gzip_magic;
-
-    let xml_data = if should_decompress {
-        use flate2::read::GzDecoder;
+    let parse_start = std::time::Instant::now();
+    // Clones so the blocking task can reference the URL and byte counter in
+    // errors/logs without moving them away from the async side (both are used
+    // again for timing records below).
+    let epg_url_for_task = epg_url.clone();
+    let downloaded_total_for_task = downloaded_total.clone();
+    let blocking = tokio::task::spawn_blocking(move || -> Result<CacheSpooledParse, String> {
         use std::io::Read;
-        let mut decoder = GzDecoder::new(&data[..]);
-        let mut decompressed = Vec::new();
-        decoder.read_to_end(&mut decompressed)
-            .map_err(|e| format!("Failed to decompress gzipped EPG: {}", e))?;
-        decompressed
-    } else {
-        data
+        let epg_url = epg_url_for_task;
+
+        // Peek the first two bytes for the gzip magic (authoritative signal;
+        // see the streaming parsers), then hand the stream to the
+        // (de)compression layer.
+        let mut first_two = [0u8; 2];
+        let mut filled = 0usize;
+        while filled < 2 {
+            let n = bridge.read(&mut first_two[filled..]).map_err(|e| e.to_string())?;
+            if n == 0 {
+                break; // empty body
+            }
+            filled += n;
+        }
+        let has_gzip_magic = filled == 2 && first_two[0] == 0x1f && first_two[1] == 0x8b;
+        if has_gzip_magic {
+            info!(
+                "[EPG Cache] Decompressing response (URL gzipped: {}, Content-Encoding: {})",
+                epg_url.ends_with(".gz"),
+                content_encoding
+            );
+        }
+
+        let prefix = std::io::Cursor::new(first_two.to_vec());
+        let mut dec: Box<dyn Read + Send> = if has_gzip_magic {
+            let inner = std::io::BufReader::with_capacity(256 * 1024, prefix.chain(bridge));
+            // MultiGzDecoder: handles concatenated gzip members (plain
+            // GzDecoder silently truncates at the first member boundary).
+            Box::new(flate2::bufread::MultiGzDecoder::new(inner))
+        } else {
+            Box::new(prefix.chain(bridge))
+        };
+
+        // Guard: verify the payload actually looks like XMLTV BEFORE any DB
+        // write (protects against HTTP error pages / garbage served with
+        // status 200 replacing the cache). Consumes up to 256KB; the bytes are
+        // replayed below so nothing is lost.
+        let mut head = Vec::with_capacity(256 * 1024);
+        let _ = (&mut dec)
+            .take(256 * 1024)
+            .read_to_end(&mut head)
+            .map_err(|e| e.to_string())?;
+        let head_is_xmltv = {
+            let s = String::from_utf8_lossy(&head);
+            s.contains("<programme") || s.contains("<tv")
+        };
+        if !head_is_xmltv {
+            return Err(format!(
+                "EPG response from {} contained no XMLTV data; preserving existing cache",
+                epg_url
+            ));
+        }
+
+        // 2. Open separate SQLite database connection + transaction. All
+        // writes stay in the transaction until the download is verified below.
+        let mut conn = rusqlite::Connection::open(&db_path).map_err(|e| e.to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+        // Drop and recreate tables
+        tx.execute("DROP TABLE IF EXISTS epg_channels", []).map_err(|e| e.to_string())?;
+        tx.execute("DROP TABLE IF EXISTS programs", []).map_err(|e| e.to_string())?;
+
+        tx.execute(
+            "CREATE TABLE epg_channels (
+                id TEXT PRIMARY KEY,
+                display_name TEXT,
+                icon_url TEXT
+            )",
+            [],
+        ).map_err(|e| e.to_string())?;
+
+        tx.execute(
+            "CREATE TABLE programs (
+                id TEXT PRIMARY KEY,
+                stream_id TEXT,
+                title TEXT,
+                subtitle TEXT,
+                description TEXT,
+                start TEXT,
+                end TEXT
+            )",
+            [],
+        ).map_err(|e| e.to_string())?;
+
+        let mut chan_stmt = tx.prepare(
+            "INSERT OR REPLACE INTO epg_channels (id, display_name, icon_url)
+             VALUES (?1, ?2, ?3)",
+        ).map_err(|e| e.to_string())?;
+
+        let mut prog_stmt = tx.prepare(
+            "INSERT OR REPLACE INTO programs (
+                id, stream_id, title, subtitle, description, start, end
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        ).map_err(|e| e.to_string())?;
+
+        // Single pass REUSING the multi-source parser's exact routing
+        // (parse_and_stream_multi_once) — this is what guarantees both
+        // global-EPG paths match channels identically. Three callbacks wire
+        // the cache DB into the same pass:
+        //   - on_program:  write EVERY programme (matched or not) to the cache DB
+        //   - batch sink:  spool matched programmes per source for the main-DB
+        //                  gap-fill after the download is verified
+        //   - on_match:    collect (stream_id, feed channel id) for overrides
+        let reader = std::io::BufReader::with_capacity(
+            256 * 1024,
+            std::io::Cursor::new(head).chain(dec),
+        );
+
+        let mut spools: HashMap<String, Vec<EpgProgram>> = HashMap::new();
+        let mut overrides: HashMap<String, String> = HashMap::new();
+        let mut program_count: usize = 0;
+
+        let mut on_program = |p: &EpgProgram| {
+            program_count += 1;
+            let id = format!("{}_{}", p.channel_id, p.start);
+            let title = &p.title;
+            let sub = p.sub_title.as_deref().unwrap_or("");
+            let desc = p.description.as_deref().unwrap_or("");
+            if let Err(e) = prog_stmt.execute(rusqlite::params![
+                id,
+                p.channel_id,
+                title,
+                sub,
+                desc,
+                p.start,
+                p.stop,
+            ]) {
+                if !e.to_string().contains("UNIQUE constraint failed") {
+                    warn!("Failed to insert EPG program in cache: {}", e);
+                }
+            }
+        };
+        let mut sink = |source_id: &str, batch: Vec<EpgProgram>| {
+            spools.entry(source_id.to_string()).or_default().extend(batch);
+            true
+        };
+        let mut on_match = |stream_id: &str, feed_id: &str| {
+            overrides
+                .entry(stream_id.to_string())
+                .or_insert_with(|| feed_id.to_string());
+        };
+
+        let (channels, parse_result) = parse_and_stream_multi_once(
+            reader,
+            per_source_lookups,
+            &mut sink,
+            &mut |_, _| {}, // progress is surfaced by the renderer's own status text
+            Some(&mut on_program),
+            Some(&mut on_match),
+        )
+        .map_err(|e| format!("Failed to parse EPG for cache: {}", e))?;
+        // Release on_program's borrow of prog_stmt so it can be finalized below.
+        drop(on_program);
+
+        let channel_count = channels.len();
+        for ch in &channels {
+            let icon_ref = ch.icon_url.as_deref().unwrap_or("");
+            if let Err(e) = chan_stmt.execute(rusqlite::params![ch.id, ch.display_name, icon_ref]) {
+                warn!("Failed to insert EPG channel in cache: {}", e);
+            }
+        }
+
+        chan_stmt.finalize().map_err(|e| e.to_string())?;
+        prog_stmt.finalize().map_err(|e| e.to_string())?;
+
+        // The parser reads to EOF, which only happens once the download task
+        // has ended, so the download outcome is final here. Verify before
+        // committing anything.
+        let total_bytes_downloaded = downloaded_total_for_task.load(std::sync::atomic::Ordering::Relaxed);
+        if download_errored.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(format!(
+                "EPG download for {} was interrupted by a network error; preserving existing cache",
+                epg_url
+            ));
+        }
+        if !download_finished.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(format!(
+                "EPG download for {} did not complete; preserving existing cache",
+                epg_url
+            ));
+        }
+        if let Some(expected_len) = total_bytes {
+            if total_bytes_downloaded < expected_len {
+                return Err(format!(
+                    "Incomplete EPG download: expected {} bytes but got {}; preserving existing cache",
+                    expected_len, total_bytes_downloaded
+                ));
+            }
+        }
+
+        // Guard against replacing a good cache with an empty/garbage parse
+        // (e.g. an HTTP error page served with status 200). Returning Err drops
+        // the transaction, rolling back the DROP/CREATE above so the existing
+        // cache survives intact.
+        if channel_count == 0 && program_count == 0 {
+            return Err(format!(
+                "EPG response from {} contained no channels or programmes; preserving existing cache",
+                epg_url
+            ));
+        }
+
+        // Swap point: download verified AND payload is XMLTV (probe above).
+        // Commit the transaction and compact the database file.
+        tx.commit().map_err(|e| e.to_string())?;
+        conn.execute("VACUUM", []).map_err(|e| e.to_string())?;
+
+        info!(
+            "[EPG Cache] Cached {} channels and {} programs from {}",
+            channel_count, program_count, epg_url
+        );
+        Ok(CacheSpooledParse {
+            spools,
+            source_stats: parse_result.source_stats,
+            overrides,
+            total_programs: parse_result.total_programs,
+            cache_channels: channel_count,
+            cache_programs: program_count,
+        })
+    });
+
+    let spooled = blocking.await.map_err(|e| format!("EPG cache parse task panicked: {}", e))??;
+    let parse_ms = parse_start.elapsed().as_millis() as u64;
+    let download_ms = {
+        let stamped = download_finished_ms.load(std::sync::atomic::Ordering::Relaxed);
+        if stamped == 0 {
+            start_time.elapsed().as_millis() as u64
+        } else {
+            stamped
+        }
     };
-
-    // 2. Open separate SQLite database connection
-    let mut conn = rusqlite::Connection::open(&db_path).map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-
-    // Drop and recreate tables
-    tx.execute("DROP TABLE IF EXISTS epg_channels", []).map_err(|e| e.to_string())?;
-    tx.execute("DROP TABLE IF EXISTS programs", []).map_err(|e| e.to_string())?;
-    
-    tx.execute(
-        "CREATE TABLE epg_channels (
-            id TEXT PRIMARY KEY,
-            display_name TEXT,
-            icon_url TEXT
-        )",
-        [],
-    ).map_err(|e| e.to_string())?;
-
-    tx.execute(
-        "CREATE TABLE programs (
-            id TEXT PRIMARY KEY,
-            stream_id TEXT,
-            title TEXT,
-            subtitle TEXT,
-            description TEXT,
-            start TEXT,
-            end TEXT
-        )",
-        [],
-    ).map_err(|e| e.to_string())?;
-
-    // Extract and insert EPG channels
-    let epg_channels = extract_epg_channels(&xml_data);
-    let mut chan_stmt = tx.prepare(
-        "INSERT OR REPLACE INTO epg_channels (id, display_name, icon_url)
-         VALUES (?1, ?2, ?3)",
-    ).map_err(|e| e.to_string())?;
-
-    for ch in &epg_channels {
-        let icon = ch.icon_url.as_deref().unwrap_or("");
-        if let Err(e) = chan_stmt.execute(rusqlite::params![ch.id, ch.display_name, icon]) {
-            warn!("Failed to insert EPG channel in cache {}: {}", ch.id, e);
-        }
-    }
-    chan_stmt.finalize().map_err(|e| e.to_string())?;
-
-    // Extract and insert programs
-    let mut prog_stmt = tx.prepare(
-        "INSERT OR REPLACE INTO programs (
-            id, stream_id, title, subtitle, description, start, end
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-    ).map_err(|e| e.to_string())?;
-
-    let mut reader = Reader::from_reader(&xml_data[..]);
-    reader.config_mut().trim_text(true);
-
-    let mut buf = Vec::with_capacity(4096);
-    let mut current_program: Option<EpgProgram> = None;
-    let mut current_element: Option<String> = None;
-    let mut current_text = String::new();
-    let mut program_count: usize = 0;
-
-    loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(ref e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                if name == "programme" {
-                    let mut program = EpgProgram {
-                        channel_id: String::new(),
-                        title: String::new(),
-                        sub_title: None,
-                        description: None,
-                        start: String::new(),
-                        stop: String::new(),
-                    };
-                    for attr in e.attributes() {
-                        if let Ok(a) = attr {
-                            let key = String::from_utf8_lossy(a.key.as_ref()).to_string();
-                            let value = a.decode_and_unescape_value(reader.decoder()).unwrap_or_default().to_string();
-                            match key.as_str() {
-                                "channel" => program.channel_id = value,
-                                "start" => program.start = parse_xmltv_date(&value),
-                                "stop" => program.stop = parse_xmltv_date(&value),
-                                _ => {}
-                            }
-                        }
-                    }
-                    current_program = Some(program);
-                } else if current_program.is_some() {
-                    current_element = Some(name);
-                    current_text.clear();
-                }
-            }
-            Ok(Event::Text(e)) => {
-                if current_element.is_some() {
-                    if let Ok(t) = e.unescape() {
-                        current_text.push_str(&t);
-                    }
-                }
-            }
-            Ok(Event::End(ref e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                if name == "programme" {
-                    if let Some(program) = current_program.take() {
-                        program_count += 1;
-                        let id = format!("{}_{}", program.channel_id, program.start);
-                        let title = &program.title;
-                        let sub = program.sub_title.as_deref().unwrap_or("");
-                        let desc = program.description.as_deref().unwrap_or("");
-                        
-                        if let Err(e) = prog_stmt.execute(rusqlite::params![
-                            id,
-                            program.channel_id,
-                            title,
-                            sub,
-                            desc,
-                            program.start,
-                            program.stop,
-                        ]) {
-                            if !e.to_string().contains("UNIQUE constraint failed") {
-                                warn!("Failed to insert EPG program in cache: {}", e);
-                            }
-                        }
-                    }
-                } else if current_program.is_some() {
-                    if let Some(ref elem) = current_element {
-                        if let Some(ref mut program) = current_program {
-                            match elem.as_str() {
-                                "title" => program.title = current_text.trim().to_string(),
-                                "sub-title" => program.sub_title = Some(current_text.trim().to_string()),
-                                "desc" => program.description = Some(current_text.trim().to_string()),
-                                _ => {}
-                            }
-                        }
-                    }
-                    current_element = None;
-                }
-            }
-            Ok(Event::Eof) => break,
-            Err(e) => {
-                warn!("XML parse error: {}", e);
-                break;
-            }
-            _ => {}
-        }
-        buf.clear();
-    }
-
-    prog_stmt.finalize().map_err(|e| e.to_string())?;
-
-    // Guard against replacing a good cache with an empty/garbage parse (e.g. an
-    // HTTP error page served with status 200). Returning Err drops the
-    // transaction, rolling back the DROP/CREATE above so the existing cache
-    // survives intact.
-    if epg_channels.is_empty() && program_count == 0 {
-        return Err(format!(
-            "EPG response from {} contained no channels or programmes; preserving existing cache",
-            epg_url
-        ));
-    }
-
-    tx.commit().map_err(|e| e.to_string())?;
-
-    // Compact database file size
-    conn.execute("VACUUM", []).map_err(|e| e.to_string())?;
+    let bytes_processed = downloaded_total.load(std::sync::atomic::Ordering::Relaxed);
 
     info!("[EPG Cache] Entire EPG cached successfully for link {}", epg_link_id);
-    Ok(())
+
+    let CacheSpooledParse {
+        spools,
+        source_stats,
+        overrides,
+        total_programs,
+        cache_channels,
+        cache_programs,
+    } = spooled;
+
+    // Drain matched programmes into the MAIN database (gap-fill only — never
+    // deletes) through the same serialized, retried insert path the streaming
+    // parsers use, so cache-path writes play by the same lock rules.
+    let mut per_source_inserted: HashMap<String, usize> = HashMap::new();
+    let mut per_source_insert_ms: HashMap<String, u64> = HashMap::new();
+    let mut per_source_lock_wait_ms: HashMap<String, u64> = HashMap::new();
+    for (source_id, spool) in &spools {
+        let ins_start = std::time::Instant::now();
+        match insert_programs_batch_timed(db, source_id, spool).await {
+            Ok((inserted, lock_wait_ms)) => {
+                per_source_inserted.insert(source_id.clone(), inserted);
+                per_source_lock_wait_ms.insert(source_id.clone(), lock_wait_ms);
+            }
+            Err(e) => warn!(
+                "[EPG Cache] Failed to insert matched programs for source {}: {}",
+                source_id, e
+            ),
+        }
+        per_source_insert_ms.insert(source_id.clone(), ins_start.elapsed().as_millis() as u64);
+    }
+
+    // Persist the first successful match per stream as a channel override
+    // (INSERT OR IGNORE — never overwrites an existing override), mirroring
+    // the renderer's previous behaviour.
+    let saved_overrides = save_epg_channel_overrides(db, &overrides)
+        .map_err(|e| format!("Failed to save EPG channel overrides: {}", e))?;
+    if saved_overrides > 0 {
+        info!("[EPG Cache] Saved {} channel override(s)", saved_overrides);
+    }
+
+    // Per-source results + timing records, shaped exactly like the multi
+    // parser's so the renderer aggregates them identically (and the cache
+    // fills now show up in epg_timings.jsonl / the run summary).
+    let duration_ms = start_time.elapsed().as_millis() as u64;
+    let mut results = Vec::with_capacity(sources.len());
+    for config in &sources {
+        let sid = &config.source_id;
+        let stats = source_stats.get(sid);
+        let matched = stats.map(|s| s.matched_programs).unwrap_or(0);
+        let unmatched = stats.map(|s| s.unmatched_channels.len()).unwrap_or(0);
+        let matched_ch = stats.map(|s| s.matched_channels.len()).unwrap_or(0);
+
+        let result = EpgParseResult {
+            source_id: sid.clone(),
+            total_programs,
+            matched_programs: matched,
+            inserted_programs: per_source_inserted.get(sid).copied().unwrap_or(0),
+            unmatched_channels: unmatched,
+            matched_channels: matched_ch,
+            duration_ms,
+            bytes_processed,
+            download_ms,
+            decompress_ms: 0,
+            parse_ms,
+            insert_ms: per_source_insert_ms.get(sid).copied().unwrap_or(0),
+            lock_wait_ms: per_source_lock_wait_ms.get(sid).copied().unwrap_or(0),
+        };
+
+        append_epg_timing_record(&app_handle, sid, &config.source_name, &epg_url, &result);
+        results.push(result);
+    }
+
+    info!(
+        "[EPG Cache] Applied {} programmes for {} source(s) from {} ({} channels / {} programmes cached)",
+        results.iter().map(|r| r.inserted_programs).sum::<usize>(),
+        results.len(),
+        epg_url,
+        cache_channels,
+        cache_programs
+    );
+
+    Ok(results)
 }
 
 #[cfg(test)]
@@ -3238,6 +3854,76 @@ mod tests {
             "matched programmes must be identical to the old pipeline"
         );
         assert_eq!(flowed, expected_copies, "stream copies must match the old pipeline");
+    }
+
+    #[tokio::test]
+    async fn multi_source_single_pass_routes_and_matches_old_pipeline() {
+        let xml = sample_xml();
+        let mappings = sample_mappings();
+        let (expected_programs, expected_copies) = old_pipeline_counts(&xml, &mappings);
+        assert_eq!(
+            (expected_programs, expected_copies),
+            (4, 4),
+            "sanity: source A matches the old pipeline counts"
+        );
+
+        // Source B: no advanced matching, a direct epg_channel_id match for
+        // CH1 only — the shared CH1 programme must route to BOTH sources.
+        let b_mappings = vec![ChannelMapping {
+            epg_channel_id: "CH1".into(),
+            stream_id: "b1".into(),
+            channel_name: "B Channel".into(),
+        }];
+
+        let per_source = vec![
+            ("src-a".to_string(), build_channel_lookup(mappings), true),
+            ("src-b".to_string(), build_channel_lookup(b_mappings), false),
+        ];
+
+        let mut spools: HashMap<String, Vec<EpgProgram>> = HashMap::new();
+        let mut sink = |source_id: &str, batch: Vec<EpgProgram>| {
+            spools.entry(source_id.to_string()).or_default().extend(batch);
+            true
+        };
+
+        let (channels, result) = parse_and_stream_multi_once(
+            xml.as_bytes(),
+            per_source,
+            &mut sink,
+            &mut |_, _| {},
+            None,
+            None,
+        )
+        .expect("multi-source single-pass parse");
+
+        assert_eq!(channels.len(), 4, "all channels extracted");
+        assert_eq!(result.total_programs, 4, "each programme counted exactly once");
+
+        // Source A (advanced) must be identical to the old pipeline: 4
+        // programmes matched, one copy per stream_id, 4 matched channels.
+        let a = result.source_stats.get("src-a").unwrap();
+        assert_eq!(a.matched_programs, expected_programs);
+        assert_eq!(
+            spools.get("src-a").map(Vec::len).unwrap_or(0),
+            expected_copies,
+            "source A stream copies must match the old pipeline"
+        );
+        assert_eq!(a.matched_channels.len(), 4, "source A matched channels");
+
+        // Source B (plain) gets only CH1's programme, routed to its own stream.
+        let b = result.source_stats.get("src-b").unwrap();
+        assert_eq!(b.matched_programs, 1, "source B matched programmes");
+        let b_copies = spools.get("src-b").map(Vec::len).unwrap_or(0);
+        assert_eq!(b_copies, 1, "source B copies");
+        assert_eq!(
+            spools.get("src-b").unwrap()[0].channel_id, "b1",
+            "CH1 routed to source B's stream id"
+        );
+        assert_eq!(b.matched_channels.len(), 1, "source B matched channels");
+
+        // No per-source stats missing.
+        assert!(result.source_stats.contains_key("src-a"));
+        assert!(result.source_stats.contains_key("src-b"));
     }
 
     #[test]
@@ -3408,5 +4094,40 @@ mod tests {
             "truncated gzip must error, not silently succeed (got {})",
             out
         );
+    }
+
+    #[test]
+    fn needing_mappings_apply_override_then_id_then_name() {
+        use std::collections::HashSet;
+
+        let channels = vec![
+            ("s1".to_string(), Some("ID1".to_string()), "Name One".to_string()),
+            ("s2".to_string(), Some("ID2".to_string()), "Name Two".to_string()),
+            ("s3".to_string(), Some("".to_string()), "Name Three".to_string()),
+            ("s4".to_string(), None, "Name Four".to_string()),
+            ("s5".to_string(), Some("ID5".to_string()), "".to_string()),
+            ("s6".to_string(), None, "".to_string()),
+            ("s7".to_string(), Some("ID7".to_string()), "Name Seven".to_string()),
+        ];
+        // s2 already has programmes -> excluded. s7 has an override -> override wins.
+        let with_programs: HashSet<String> = ["s2".to_string()].into_iter().collect();
+        let overrides: HashMap<String, String> =
+            [("s7".to_string(), "OVERRIDE".to_string())].into_iter().collect();
+
+        let mappings = build_needing_mappings(channels, &with_programs, &overrides);
+
+        // s2 skipped (already filled); s6 skipped (no usable id); others kept.
+        let ids: Vec<&str> = mappings.iter().map(|m| m.stream_id.as_str()).collect();
+        assert_eq!(ids, vec!["s1", "s3", "s4", "s5", "s7"]);
+
+        let by_id: HashMap<&str, &str> = mappings
+            .iter()
+            .map(|m| (m.stream_id.as_str(), m.epg_channel_id.as_str()))
+            .collect();
+        assert_eq!(by_id["s1"], "ID1", "epg_channel_id used directly");
+        assert_eq!(by_id["s3"], "Name Three", "empty epg_channel_id falls back to name");
+        assert_eq!(by_id["s4"], "Name Four", "name used when no epg_channel_id");
+        assert_eq!(by_id["s5"], "ID5", "name empty but id present");
+        assert_eq!(by_id["s7"], "OVERRIDE", "override beats epg_channel_id");
     }
 }

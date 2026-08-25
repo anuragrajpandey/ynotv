@@ -57,10 +57,15 @@ export interface EpgParseResult {
   lock_wait_ms: number;
 }
 
-export interface SourceEpgConfig {
+/**
+ * Lightweight per-source reference for multi-source/cache parses. The
+ * needing-EPG channel mappings are computed in Rust from the main database
+ * (channels minus already-filled stream ids, overrides applied), so the
+ * renderer no longer builds or ships ~20k-row mapping payloads across IPC.
+ */
+export interface EpgSourceRef {
   sourceId: string;
   sourceName: string;
-  channelMappings: ChannelMapping[];
   advancedEpgMatching?: boolean;
   timeshiftHours?: number;
   clearExisting?: boolean;
@@ -348,7 +353,7 @@ export async function parseEpgFile(
  */
 export async function streamParseEpgMulti(
   epgUrl: string,
-  sourceConfigs: SourceEpgConfig[],
+  sourceRefs: EpgSourceRef[],
   userAgent?: string,
   candidateUrls?: string[]
 ): Promise<EpgParseResult[]> {
@@ -367,10 +372,9 @@ export async function streamParseEpgMulti(
 
       const results = await invoke<EpgParseResult[]>('stream_parse_epg_multi', {
         epgUrl: currentUrl,
-        sourceConfigs: sourceConfigs.map((c) => ({
+        sources: sourceRefs.map((c) => ({
           sourceId: c.sourceId,
           sourceName: c.sourceName,
-          channelMappings: c.channelMappings,
           advancedEpgMatching: c.advancedEpgMatching ?? false,
           timeshiftHours: c.timeshiftHours ?? 0,
           clearExisting: c.clearExisting ?? false,

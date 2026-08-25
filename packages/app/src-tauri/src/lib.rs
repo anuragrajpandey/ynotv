@@ -2387,6 +2387,18 @@ async fn bulk_delete_categories(
         .map_err(|e| format!("Bulk delete categories failed: {}", e))
 }
 
+/// Generic bulk insert/upsert for the renderer's SqliteAdapter (bulkPut /
+/// bulkAdd on any table). Native path replaces the JS plugin fallback, which
+/// previously re-sent every batch as a separate SQL statement round-trip.
+#[tauri::command]
+async fn bulk_insert(
+    state: tauri::State<'_, DvrState>,
+    request: db_bulk_ops::BulkInsertRequest,
+) -> Result<db_bulk_ops::BulkResult, String> {
+    db_bulk_ops::bulk_insert_generic(&state.db, request)
+        .map_err(|e| format!("Bulk insert failed: {}", e))
+}
+
 /// Update source metadata
 #[tauri::command]
 async fn update_source_meta(
@@ -2460,10 +2472,10 @@ async fn stream_parse_epg_multi(
     app: AppHandle,
     state: tauri::State<'_, DvrState>,
     epg_url: String,
-    source_configs: Vec<epg_streaming::SourceEpgConfig>,
+    sources: Vec<epg_streaming::EpgSourceRef>,
     user_agent: Option<String>,
 ) -> Result<Vec<epg_streaming::EpgParseResult>, String> {
-    epg_streaming::stream_parse_epg_multi(app, &state.db, epg_url, source_configs, user_agent)
+    epg_streaming::stream_parse_epg_multi(app, &state.db, epg_url, sources, user_agent)
         .await
         .map_err(|e| format!("Stream parse EPG multi failed: {}", e))
 }
@@ -2515,15 +2527,18 @@ async fn epg_timing_run_end(
         .map_err(|e| format!("EPG timing run end failed: {}", e))
 }
 
-/// Sync and save all EPG channels and programs to a separate database cache file
+/// Sync and save all EPG channels and programs to a separate database cache file,
+/// applying matched programmes to the linked sources in the same pass.
 #[tauri::command]
 async fn cache_entire_epg_db(
     app: AppHandle,
+    state: tauri::State<'_, DvrState>,
     epg_url: String,
     epg_link_id: String,
     user_agent: Option<String>,
-) -> Result<(), String> {
-    epg_streaming::cache_entire_epg_db(app, epg_url, epg_link_id, user_agent)
+    sources: Vec<epg_streaming::EpgSourceRef>,
+) -> Result<Vec<epg_streaming::EpgParseResult>, String> {
+    epg_streaming::cache_entire_epg_db(app, &state.db, epg_url, epg_link_id, user_agent, sources)
         .await
         .map_err(|e| format!("Cache entire EPG failed: {}", e))
 }
@@ -5190,6 +5205,7 @@ pub fn run() {
             bulk_upsert_channels,
             bulk_upsert_categories,
             bulk_replace_programs,
+            bulk_insert,
             bulk_upsert_movies,
             bulk_upsert_series,
             bulk_delete_channels,
