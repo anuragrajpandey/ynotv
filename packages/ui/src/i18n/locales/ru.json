@@ -1767,7 +1767,16 @@
       "updatesTitle": "Обновления",
       "updatesDescription": "Проверяйте наличие новых версий ynoTV. Обновления включают исправления ошибок, улучшения производительности и новые функции.",
       "checkForUpdates": "Проверить обновления",
-      "changelog": "История изменений"
+      "changelog": "История изменений",
+      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
+      "ytdlpPath": "Path:",
+      "ytdlpNotInstalled": "Not found",
+      "ytdlpUpdate": "Update yt-dlp",
+      "ytdlpChecking": "Updating...",
+      "ytdlpUpToDate": "Up to date ({{version}})",
+      "ytdlpUpdated": "Updated to {{version}}",
+      "ytdlpError": "Update failed: {{message}}",
+      "ytdlpNotSupported": "Updates are not supported on this platform."
     },
     "tmdb": {
       "title": "Интеграция TMDB",

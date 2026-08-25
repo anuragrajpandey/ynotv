@@ -135,14 +135,23 @@ export interface VirtualGridProps<T> {
     return () => window.removeEventListener('ynotv:spatial-scroll-to-index', handleSpatialIndexRequest);
   }, [surfaceName, cols, rowVirtualizer]);
 
-  // Notify range changes when virtual items update
+  // Notify range changes when virtual items update. Guard against reporting
+  // the same range repeatedly: getVirtualItems() can hand back a fresh array
+  // reference on every render, and consumers call setState in onRangeChange,
+  // so an unconditional call would re-render -> new reference -> infinite
+  // loop ("Maximum update depth exceeded"). Only fire when the range values
+  // actually changed.
   const virtualRows = rowVirtualizer.getVirtualItems();
+  const lastReportedRangeRef = useRef<{ startIndex: number; endIndex: number } | null>(null);
   useEffect(() => {
     if (!onRangeChange || virtualRows.length === 0) return;
     const firstRow = virtualRows[0];
     const lastRow = virtualRows[virtualRows.length - 1];
     const startIndex = firstRow ? firstRow.index * cols : 0;
     const endIndex = lastRow ? Math.min(items.length - 1, (lastRow.index + 1) * cols - 1) : 0;
+    const prev = lastReportedRangeRef.current;
+    if (prev && prev.startIndex === startIndex && prev.endIndex === endIndex) return;
+    lastReportedRangeRef.current = { startIndex, endIndex };
     onRangeChange({ startIndex, endIndex });
   }, [virtualRows, cols, items.length, onRangeChange]);
 

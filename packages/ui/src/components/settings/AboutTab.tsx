@@ -9,16 +9,58 @@ import './PlaybackTab.css'; // Reuse existing tab styles
 import './AboutTab.css';
 import changelogContent from '@root/CHANGELOG.md?raw';
 
+interface YtdlpInfo {
+  found: boolean;
+  path: string | null;
+  version: string | null;
+}
+
+interface YtdlpUpdateResult {
+  status: string;
+  path: string | null;
+  version: string | null;
+  latestVersion: string | null;
+  message: string | null;
+}
+
 export function AboutTab() {
   useTranslation();
   const [version, setVersion] = useState<string>('');
+  const [ytdlp, setYtdlp] = useState<YtdlpInfo | null>(null);
+  const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
+  const [ytdlpResult, setYtdlpResult] = useState<string | null>(null);
 
   useEffect(() => {
     getVersion().then(setVersion).catch(() => setVersion(''));
+    invoke<YtdlpInfo>('ytdlp_info')
+      .then(setYtdlp)
+      .catch(() => setYtdlp({ found: false, path: null, version: null }));
   }, []);
 
   const handleCheckForUpdates = () => {
     checkForUpdates();
+  };
+
+  const handleUpdateYtdlp = async () => {
+    setUpdatingYtdlp(true);
+    setYtdlpResult(null);
+    try {
+      const res = await invoke<YtdlpUpdateResult>('update_ytdlp');
+      if (res.status === 'upToDate') {
+        setYtdlpResult(i18n.t('settings:about.ytdlpUpToDate', { version: res.version || '' }));
+      } else if (res.status === 'updated') {
+        setYtdlp({ found: true, path: res.path, version: res.version });
+        setYtdlpResult(i18n.t('settings:about.ytdlpUpdated', { version: res.version || '' }));
+      } else if (res.status === 'notSupported') {
+        setYtdlpResult(i18n.t('settings:about.ytdlpNotSupported'));
+      } else {
+        setYtdlpResult(i18n.t('settings:about.ytdlpError', { message: res.message || res.status }));
+      }
+    } catch (e) {
+      setYtdlpResult(i18n.t('settings:about.ytdlpError', { message: String(e) }));
+    } finally {
+      setUpdatingYtdlp(false);
+    }
   };
 
   const openLink = async (url: string) => {
@@ -66,6 +108,49 @@ export function AboutTab() {
             >
               Discord
             </button>
+          </div>
+
+          <div className="about-section" style={{ marginTop: '24px', borderTop: '1px solid var(--surface-border)', paddingTop: '24px' }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem' }}>yt-dlp</h4>
+            <p style={{ margin: '0 0 16px 0', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+              {i18n.t('settings:about.ytdlpDescription')}
+            </p>
+
+            <div className="about-row" style={{ marginBottom: '8px' }}>
+              <span className="about-label">{i18n.t('settings:about.ytdlpPath')}</span>
+              <span
+                className="about-value"
+                style={{ wordBreak: 'break-all', fontSize: '0.8125rem' }}
+              >
+                {ytdlp === null
+                  ? i18n.t('settings:about.loading')
+                  : (ytdlp.path || i18n.t('settings:about.ytdlpNotInstalled'))}
+              </span>
+            </div>
+
+            <div className="about-row" style={{ marginBottom: '16px' }}>
+              <span className="about-label">{i18n.t('settings:about.version')}</span>
+              <span className="about-value">
+                {ytdlp === null
+                  ? i18n.t('settings:about.loading')
+                  : (ytdlp.version || i18n.t('settings:about.ytdlpNotInstalled'))}
+              </span>
+            </div>
+
+            <button
+              className="sync-btn"
+              onClick={handleUpdateYtdlp}
+              disabled={updatingYtdlp}
+              style={{ maxWidth: '200px' }}
+            >
+              {updatingYtdlp ? i18n.t('settings:about.ytdlpChecking') : i18n.t('settings:about.ytdlpUpdate')}
+            </button>
+
+            {ytdlpResult && (
+              <p style={{ margin: '12px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
+                {ytdlpResult}
+              </p>
+            )}
           </div>
 
           <div className="about-section" style={{ marginTop: '24px', borderTop: '1px solid var(--surface-border)', paddingTop: '24px' }}>

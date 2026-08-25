@@ -1767,7 +1767,16 @@
       "updatesTitle": "Mises à jour",
       "updatesDescription": "Rechercher de nouvelles versions de ynoTV. Les mises à jour incluent des correctifs, des améliorations de performances et de nouvelles fonctionnalités.",
       "checkForUpdates": "Rechercher des mises à jour",
-      "changelog": "Journal des modifications"
+      "changelog": "Journal des modifications",
+      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
+      "ytdlpPath": "Path:",
+      "ytdlpNotInstalled": "Not found",
+      "ytdlpUpdate": "Update yt-dlp",
+      "ytdlpChecking": "Updating...",
+      "ytdlpUpToDate": "Up to date ({{version}})",
+      "ytdlpUpdated": "Updated to {{version}}",
+      "ytdlpError": "Update failed: {{message}}",
+      "ytdlpNotSupported": "Updates are not supported on this platform."
     },
     "tmdb": {
       "title": "Intégration TMDB",

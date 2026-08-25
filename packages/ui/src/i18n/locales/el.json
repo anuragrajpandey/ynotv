@@ -1767,7 +1767,16 @@
       "updatesTitle": "Ενημερώσεις",
       "updatesDescription": "Ελέγξτε για νέες εκδόσεις του ynoTV. Οι ενημερώσεις περιλαμβάνουν διορθώσεις σφαλμάτων, βελτιώσεις απόδοσης και νέες δυνατότητες.",
       "checkForUpdates": "Έλεγχος για Ενημερώσεις",
-      "changelog": "Αρχείο αλλαγών"
+      "changelog": "Αρχείο αλλαγών",
+      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
+      "ytdlpPath": "Path:",
+      "ytdlpNotInstalled": "Not found",
+      "ytdlpUpdate": "Update yt-dlp",
+      "ytdlpChecking": "Updating...",
+      "ytdlpUpToDate": "Up to date ({{version}})",
+      "ytdlpUpdated": "Updated to {{version}}",
+      "ytdlpError": "Update failed: {{message}}",
+      "ytdlpNotSupported": "Updates are not supported on this platform."
     },
     "tmdb": {
       "title": "Ενσωμάτωση TMDB",

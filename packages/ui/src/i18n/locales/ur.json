@@ -1767,7 +1767,16 @@
       "updatesTitle": "اپڈیٹس",
       "updatesDescription": "ynoTV کے نئے ورژن چیک کریں۔ اپڈیٹس میں بگ فکسز، کارکردگی میں بہتری اور نئی خصوصیات شامل ہیں۔",
       "checkForUpdates": "اپڈیٹس چیک کریں",
-      "changelog": "تبدیلی لاگ"
+      "changelog": "تبدیلی لاگ",
+      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
+      "ytdlpPath": "Path:",
+      "ytdlpNotInstalled": "Not found",
+      "ytdlpUpdate": "Update yt-dlp",
+      "ytdlpChecking": "Updating...",
+      "ytdlpUpToDate": "Up to date ({{version}})",
+      "ytdlpUpdated": "Updated to {{version}}",
+      "ytdlpError": "Update failed: {{message}}",
+      "ytdlpNotSupported": "Updates are not supported on this platform."
     },
     "tmdb": {
       "title": "ٹی ایم ڈی بی انٹیگریشن",

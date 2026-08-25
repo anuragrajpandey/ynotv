@@ -3608,7 +3608,7 @@ function useTmdbPresencePoster(
       return;
     }
 
-    if (vodInfo?.type === 'recording') {
+    if (vodInfo?.type === 'recording' || vodInfo?.source_id === 'trailer') {
       if (scrobblingMediaRef.current) {
         const finalPercent = lastKnownProgressPercentRef.current;
         console.log('[Scrobbler] Playback ended, stopping scrobble at percent:', finalPercent);

@@ -1767,7 +1767,16 @@
       "updatesTitle": "更新",
       "updatesDescription": "检查 ynoTV 的新版本。更新包括错误修复、性能改进和新功能。",
       "checkForUpdates": "检查更新",
-      "changelog": "更新日志"
+      "changelog": "更新日志",
+      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
+      "ytdlpPath": "Path:",
+      "ytdlpNotInstalled": "Not found",
+      "ytdlpUpdate": "Update yt-dlp",
+      "ytdlpChecking": "Updating...",
+      "ytdlpUpToDate": "Up to date ({{version}})",
+      "ytdlpUpdated": "Updated to {{version}}",
+      "ytdlpError": "Update failed: {{message}}",
+      "ytdlpNotSupported": "Updates are not supported on this platform."
     },
     "tmdb": {
       "title": "TMDB 集成",

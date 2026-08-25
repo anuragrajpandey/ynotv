@@ -100,11 +100,20 @@ function isLocalUrl(urlString: string): boolean {
 }
 
 /**
+ * Checks if a URL is a YouTube video URL (trailers, streams).
+ */
+function isYouTubeUrl(urlString?: string | null): boolean {
+  if (!urlString) return false;
+  return /^(https?:\/\/)?(www\.|m\.)?(youtube\.com|youtu\.be)\//i.test(urlString);
+}
+
+/**
  * Generate fallback stream URLs when primary fails.
  * Live TV: .ts → .m3u8 → .m3u
  * VOD: provider extension → .m3u8 → .ts
  */
 function getStreamFallbacks(url: string, isLive: boolean): string[] {
+  if (isYouTubeUrl(url)) return [];
   try {
     const urlObj = new URL(url);
     const pathname = urlObj.pathname;
@@ -158,6 +167,13 @@ function mpvObject(value: any): Record<string, any> | null {
 
 /**
  * Try loading a stream URL with fallbacks on failure.
+ *
+ * Note: we deliberately do NOT steer mpv's ytdl-format here. Modern YouTube
+ * uploads (trailers included) often have no progressive 22/18 formats at all,
+ * so overriding to a progressive format makes the load fail outright with
+ * "Requested format is not available". yt-dlp's default (bestvideo*+bestaudio)
+ * resolves and plays those correctly; transient 403s are handled by
+ * yt-dlp/mpv internally and the trailer retry in maybeRetryTrailerStream.
  */
 async function tryLoadWithFallbacks(
   primaryUrl: string,
@@ -385,6 +401,13 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
   const pendingResumeSeekRef = useRef<number | null>(null);
   const isInitialSeekPendingRef = useRef(false);
   const cancelPendingSeekRef = useRef<(() => void) | null>(null);
+
+  // Trailer playback recovery: YouTube streams can die a few seconds in when
+  // the CDN 403s the media segments. Track load time + retry count so an
+  // unexpected early end can be retried (fresh yt-dlp resolve) while a genuine
+  // natural end never is.
+  const trailerLoadStartTimeRef = useRef(0);
+  const trailerRetryCountRef = useRef(0);
 
   const seekWithRetry = useCallback((targetSeek: number, description: string, onSuccess?: () => void) => {
     cancelPendingSeekRef.current?.();
@@ -800,7 +823,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
   // Periodic progress saving for VOD playback + save on app close
   useEffect(() => {
-    if (!vodInfo || !playing || duration <= 0) {
+    if (!vodInfo || !playing || duration <= 0 || vodInfo.source_id === 'trailer' || isYouTubeUrl(vodInfo.url)) {
       return;
     }
 
@@ -988,7 +1011,8 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
       const isStalker = sourceData?.type === 'stalker';
       const isLocal = isLocalUrl(resolved.url);
-      setIgnoreHttpErrors(isStalker || isLocal);
+      const isTrailer = channel.source_id === 'trailer' || isYouTubeUrl(resolved.url) || isYouTubeUrl(channel.direct_url);
+      setIgnoreHttpErrors(isStalker || isLocal || isTrailer);
 
       if (Bridge.getIsCasting?.()) {
         Bridge.setCastMetadata(channel.name, 'Live TV');
@@ -1385,6 +1409,55 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
     }
   }, [handleFailover, startRetryCountdown, clearWatchdog, setError]);
 
+  // Trailers can die a few seconds in when YouTube 403s the media segments
+  // (bot detection / transient). handleStreamDied ignores VOD entirely, so
+  // without this the trailer just stops. Re-resolve + reload up to 2 times;
+  // a genuine natural end (played roughly the full duration) is never retried.
+  const maybeRetryTrailerStream = useCallback(async (): Promise<boolean> => {
+    const info = vodInfoRef.current;
+    if (!info || (info.source_id !== 'trailer' && !isYouTubeUrl(info.url))) return false;
+    if (intentionallyStoppedRef.current || userPausedRef.current) return false;
+    if (Bridge.getIsCasting?.()) return false;
+
+    const dur = durationRef.current;
+    const elapsed = (Date.now() - trailerLoadStartTimeRef.current) / 1000;
+    const threshold = dur > 0 ? Math.max(10, dur - 5) : 45;
+    if (elapsed >= threshold) {
+      logInfo(`[Trailer] Stream ended after ${elapsed.toFixed(1)}s (>= ${threshold.toFixed(1)}s threshold), treating as natural end`);
+      return false;
+    }
+    if (trailerRetryCountRef.current >= 2) {
+      logWarn('[Trailer] Stream ended early; max retries reached, giving up');
+      return false;
+    }
+
+    trailerRetryCountRef.current += 1;
+    logInfo(`[Trailer] Stream ended early (elapsed=${elapsed.toFixed(1)}s of ${dur}s), retrying ${trailerRetryCountRef.current}/2`);
+    try {
+      const resolved = await resolvePlayUrl(info.source_id, info.url);
+      if (resolved.url.startsWith('infoHash:')) return false;
+      setIgnoreHttpErrors(true);
+      setPosition(0);
+      setDuration(0);
+      // Start the retry from 0 — never re-apply a stale resume seek.
+      pendingResumeSeekRef.current = null;
+      isInitialSeekPendingRef.current = false;
+      const result = await tryLoadWithFallbacks(resolved.url, false, resolved.userAgent);
+      if (!result.success) {
+        logWarn('[Trailer] Retry failed to load:', result.error);
+        return false;
+      }
+      setPlaying(true);
+      if (!Bridge.getIsCasting?.()) {
+        Bridge.play().catch((e) => console.warn('[usePlayback] play() after trailer retry failed:', e));
+      }
+      return true;
+    } catch (err) {
+      logWarn('[Trailer] Retry threw:', err);
+      return false;
+    }
+  }, [setIgnoreHttpErrors, setPosition, setDuration, setPlaying]);
+
   // ── mpv-stream-ended / mpv-end-file-error / mpv-http-error listeners ───────
   // All three failure signals route through handleStreamDied so failover runs.
   useEffect(() => {
@@ -1397,12 +1470,15 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
     let disposed = false;
 
     import('@tauri-apps/api/event').then(({ listen }) => {
-      listen('mpv-stream-ended', () => {
+      listen('mpv-stream-ended', async () => {
         if (!useEventBasedReconnectRef.current) {
           logInfo('[Retry] Ignoring mpv-stream-ended event (event-based reconnect disabled)');
           return;
         }
         logInfo('[Retry] Received mpv-stream-ended event');
+        if (await maybeRetryTrailerStream()) {
+          return;
+        }
         handleStreamDied();
       }).then((fn) => {
         if (disposed) fn();
@@ -1457,7 +1533,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
       unlistenHttpError?.();
       unlistenMpvError?.();
     };
-  }, [handleStreamDied, isIgnoringHttpErrors]);
+  }, [handleStreamDied, isIgnoringHttpErrors, maybeRetryTrailerStream]);
 
   // ── Live recording duration updater ────────────────────────────────────────
   // When playing a recording that's still being recorded, dynamically update
@@ -2222,10 +2298,16 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
     // Stalker/MAC sources require session headers that MPV doesn't send,
     // so they always trigger a 401/403 HTTP error — but the stream plays fine.
-    // Suppress these false positives. We also suppress local URLs.
+    // Suppress these false positives. We also suppress local and YouTube/trailer URLs
+    // where mpv/yt-dlp handles format negotiation and transient 403s internally.
     const isStalker = sourceData?.type === 'stalker';
     const isLocal = isLocalUrl(resolved.url);
-    setIgnoreHttpErrors(isStalker || isLocal);
+    const isTrailer = info.source_id === 'trailer' || isYouTubeUrl(resolved.url) || isYouTubeUrl(info.url);
+    setIgnoreHttpErrors(isStalker || isLocal || isTrailer);
+    if (isTrailer) {
+      trailerLoadStartTimeRef.current = Date.now();
+      trailerRetryCountRef.current = 0;
+    }
     // Track whether this is a stalker portal VOD playing an HLS stream (m3u8).
     // CEA-608 CC + WebVTT tracks in these streams can duplicate on seek.
     const resolvedUrlLower = resolved.url.toLowerCase();
@@ -2248,10 +2330,11 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
         ? `${info.source_id}_${info.url}`
         : null);
       
-      // Check for saved progress
+      // Check for saved progress (never for trailers — they're short previews
+      // and stale resume positions make a 30s clip jump straight to the end)
       let resumePosition = 0;
       console.log('[Playback] Checking for progress. mediaId:', mediaId, 'type:', info.type);
-      if (mediaId && info.type !== 'recording') {
+      if (mediaId && info.type !== 'recording' && info.source_id !== 'trailer' && !isYouTubeUrl(info.url)) {
         // For series episodes, check episode-level progress first
         if (info.type === 'series' && mediaId.includes('_ep_')) {
           const parts = mediaId.split('_ep_');
@@ -2503,7 +2586,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
     // Save progress before stopping if playing VOD and initial seek is not pending
     if (isInitialSeekPendingRef.current) {
       console.log('[Playback] Initial seek was still pending on stop, skipping progress save');
-    } else if (vodInfo && position > 0 && duration > 0) {
+    } else if (vodInfo && position > 0 && duration > 0 && vodInfo.source_id !== 'trailer' && !isYouTubeUrl(vodInfo.url)) {
       if (vodInfo.type === 'recording') {
         console.log('[Playback] Saving progress for recording on stop:', position, '/', duration);
         if (vodInfo.recordingId) {

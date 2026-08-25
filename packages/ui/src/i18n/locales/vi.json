@@ -3216,7 +3216,16 @@
       "updatesTitle": "Cập Nhật",
       "updatesDescription": "Kiểm tra các phiên bản mới của ynoTV. Các bản cập nhật bao gồm sửa lỗi, cải thiện hiệu suất và tính năng mới.",
       "checkForUpdates": "Kiểm Tra Cập Nhật",
-      "changelog": "Nhật Ký Thay Đổi"
+      "changelog": "Nhật Ký Thay Đổi",
+      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
+      "ytdlpPath": "Path:",
+      "ytdlpNotInstalled": "Not found",
+      "ytdlpUpdate": "Update yt-dlp",
+      "ytdlpChecking": "Updating...",
+      "ytdlpUpToDate": "Up to date ({{version}})",
+      "ytdlpUpdated": "Updated to {{version}}",
+      "ytdlpError": "Update failed: {{message}}",
+      "ytdlpNotSupported": "Updates are not supported on this platform."
     },
     "tmdb": {
       "title": "Tích Hợp TMDB",

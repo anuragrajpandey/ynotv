@@ -314,6 +314,7 @@ const SETTINGS_SEARCH_INDEX: SettingsSearchResult[] = [
   // --- About ---
   { id: 'about-tab', label: 'About ynoTV', tabId: 'about', tabLabel: 'About', section: 'About' },
   { id: 'about-version', label: 'Version', tabId: 'about', tabLabel: 'About', section: 'About ynoTV' },
+  { id: 'about-ytdlp', label: 'yt-dlp', description: 'Bundled YouTube downloader version and one-click update to the latest release.', tabId: 'about', tabLabel: 'About', section: 'yt-dlp' },
   { id: 'about-updates', label: 'Updates', description: 'Check for new versions of ynoTV.', tabId: 'about', tabLabel: 'About', section: 'Updates' },
   { id: 'about-changelog', label: 'Changelog', tabId: 'about', tabLabel: 'About', section: 'Changelog' },
 ];

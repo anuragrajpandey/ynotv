@@ -102,6 +102,7 @@ export interface StoredMovie extends Omit<Movie, 'category_ids'> {
   match_attempted?: Date | string; // When TMDB matching was last attempted (even if no match found)
   category_ids?: string; // stored as JSON/string in SQLite
   category_id?: string; // Singular category ID (Xtream mainly)
+  youtube_trailer?: string;
 }
 
 // VOD Series with TMDB enrichment
@@ -611,7 +612,7 @@ class YnotvDatabase extends SqliteDatabase {
     // Each version block runs exactly ONCE. To add new columns in the future,
     // increment DB_VERSION and add a new case (do NOT modify existing cases).
     // ─────────────────────────────────────────────────────────────────────────
-    const DB_VERSION = 26;
+    const DB_VERSION = 27;
     const versionResult = await db.select('PRAGMA user_version') as Array<{ user_version: number }>;
     const currentVersion = versionResult[0]?.user_version ?? 0;
 
@@ -1031,6 +1032,18 @@ class YnotvDatabase extends SqliteDatabase {
         await addColumn('channelMetadata', 'bitrate_kbps', 'INTEGER');
       }
 
+      // v27: Purge stale trailer entries from watch history. Trailers are
+      // previews, not watch history; the recordVodWatch gate + query filters
+      // prevent new ones, this removes the rows written before that existed.
+      if (currentVersion < 27) {
+        console.log('[DB] v27 migration: Removing trailer entries from watch history');
+        try {
+          await db.execute("DELETE FROM vod_history WHERE source_id = 'trailer'");
+        } catch (e) {
+          console.error('[DB] v27 migration failed:', e);
+        }
+      }
+
       // Bump the stored version so these migrations never run again
       await db.execute(`PRAGMA user_version = ${DB_VERSION}`);
       console.log(`[DB] Migration to v${DB_VERSION} complete`);
@@ -1204,7 +1217,8 @@ class YnotvDatabase extends SqliteDatabase {
         stream_icon TEXT,
         direct_url TEXT,
         release_date TEXT,
-        title TEXT
+        title TEXT,
+        youtube_trailer TEXT
       )`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_vodMovies_source ON vodMovies(source_id)`);
     // Add index on category_ids for faster category filtering (LIKE queries benefit from index)
@@ -1471,6 +1485,7 @@ class YnotvDatabase extends SqliteDatabase {
     try { await db.execute(`ALTER TABLE vodMovies ADD COLUMN genre TEXT`); } catch (e) {}
     try { await db.execute(`ALTER TABLE vodMovies ADD COLUMN release_date TEXT`); } catch (e) {}
     try { await db.execute(`ALTER TABLE vodMovies ADD COLUMN title TEXT`); } catch (e) {}
+    try { await db.execute(`ALTER TABLE vodMovies ADD COLUMN youtube_trailer TEXT`); } catch (e) {}
 
     try { await db.execute(`ALTER TABLE vodSeries ADD COLUMN year TEXT`); } catch (e) {}
     try { await db.execute(`ALTER TABLE vodSeries ADD COLUMN stream_icon TEXT`); } catch (e) {}
@@ -2949,6 +2964,8 @@ export async function recordVodWatch(
   episodeNum?: number,
   episodeTitle?: string
 ): Promise<void> {
+  // Trailers are short previews, not watch history — never record them.
+  if (sourceId === 'trailer') return;
   try {
     const watchedAt = Date.now();
 
@@ -3009,7 +3026,7 @@ export async function getRecentlyWatched(limit = 20): Promise<VodWatchHistory[]>
   try {
     const dbInstance = await (db as any).dbPromise;
     const result = await dbInstance.select(
-      `SELECT * FROM vod_history ORDER BY watched_at DESC LIMIT ?`,
+      `SELECT * FROM vod_history WHERE source_id != 'trailer' ORDER BY watched_at DESC LIMIT ?`,
       [limit]
     );
     return result || [];
@@ -3030,7 +3047,7 @@ export async function getRecentlyWatchedByType(
     console.log('[VOD History] getRecentlyWatchedByType called:', { mediaType, limit });
     const dbInstance = await (db as any).dbPromise;
     const result = await dbInstance.select(
-      `SELECT * FROM vod_history WHERE media_type = ? ORDER BY watched_at DESC LIMIT ?`,
+      `SELECT * FROM vod_history WHERE media_type = ? AND source_id != 'trailer' ORDER BY watched_at DESC LIMIT ?`,
       [mediaType, limit]
     );
     return result || [];

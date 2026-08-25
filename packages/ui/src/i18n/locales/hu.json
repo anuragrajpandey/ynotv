@@ -1767,7 +1767,16 @@
       "updatesTitle": "Frissítések",
       "updatesDescription": "Új ynoTV-verziók keresése. A frissítések hibajavításokat, teljesítményjavításokat és új funkciókat tartalmaznak.",
       "checkForUpdates": "Frissítések keresése",
-      "changelog": "Változásnapló"
+      "changelog": "Változásnapló",
+      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
+      "ytdlpPath": "Path:",
+      "ytdlpNotInstalled": "Not found",
+      "ytdlpUpdate": "Update yt-dlp",
+      "ytdlpChecking": "Updating...",
+      "ytdlpUpToDate": "Up to date ({{version}})",
+      "ytdlpUpdated": "Updated to {{version}}",
+      "ytdlpError": "Update failed: {{message}}",
+      "ytdlpNotSupported": "Updates are not supported on this platform."
     },
     "tmdb": {
       "title": "TMDB-integráció",

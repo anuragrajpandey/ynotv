@@ -915,23 +915,20 @@ pub fn args_contains_ytdl_path(args: &[String]) -> bool {
     })
 }
 
-/// Detect bundled yt-dlp sidecar next to the current executable.
-/// Tauri places sidecars in the same directory as the app binary.
-fn find_bundled_ytdl() -> Option<String> {
-    let exe = std::env::current_exe().ok()?;
-    let dir = exe.parent()?;
-
-    // Platform-specific sidecar names (Tauri externalBin naming convention)
+/// Platform-specific bundled yt-dlp sidecar names (Tauri externalBin naming
+/// convention). The first entry is the canonical Tauri sidecar name; the
+/// second is the plain fallback name.
+fn bundled_ytdl_names() -> &'static [&'static str] {
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    let names = ["yt-dlp-x86_64-pc-windows-msvc.exe", "yt-dlp.exe"];
+    return &["yt-dlp-x86_64-pc-windows-msvc.exe", "yt-dlp.exe"];
     #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-    let names = ["yt-dlp-aarch64-pc-windows-msvc.exe", "yt-dlp.exe"];
+    return &["yt-dlp-aarch64-pc-windows-msvc.exe", "yt-dlp.exe"];
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    let names = ["yt-dlp-aarch64-apple-darwin", "yt-dlp"];
+    return &["yt-dlp-aarch64-apple-darwin", "yt-dlp"];
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    let names = ["yt-dlp-x86_64-apple-darwin", "yt-dlp"];
+    return &["yt-dlp-x86_64-apple-darwin", "yt-dlp"];
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    let names = ["yt-dlp-x86_64-unknown-linux-gnu", "yt-dlp"];
+    return &["yt-dlp-x86_64-unknown-linux-gnu", "yt-dlp"];
     #[cfg(not(any(
         all(target_os = "windows", target_arch = "x86_64"),
         all(target_os = "windows", target_arch = "aarch64"),
@@ -939,9 +936,15 @@ fn find_bundled_ytdl() -> Option<String> {
         all(target_os = "macos", target_arch = "x86_64"),
         all(target_os = "linux", target_arch = "x86_64")
     )))]
-    let names = ["yt-dlp"];
+    return &["yt-dlp"];
+}
 
-    for name in names {
+/// Detect bundled yt-dlp sidecar next to the current executable.
+/// Tauri places sidecars in the same directory as the app binary.
+fn find_bundled_ytdl() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    for name in bundled_ytdl_names() {
         let path = dir.join(name);
         if path.exists() {
             return Some(path.to_string_lossy().into_owned());
@@ -1025,6 +1028,196 @@ pub fn find_ytdl_path() -> Option<String> {
         }
     }
     None
+}
+
+// ── yt-dlp diagnostic & update (Settings → About) ──────────────────────────
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YtdlpInfo {
+    pub found: bool,
+    pub path: Option<String>,
+    pub version: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YtdlpUpdateResult {
+    /// "updated" | "upToDate" | "notFound" | "notSupported" | "error"
+    pub status: String,
+    pub path: Option<String>,
+    pub version: Option<String>,
+    pub latest_version: Option<String>,
+    pub message: Option<String>,
+}
+
+/// Run `<yt-dlp> --version` and return the trimmed version string.
+async fn ytdlp_version(path: &str) -> Option<String> {
+    let output = tokio::process::Command::new(path)
+        .arg("--version")
+        .output()
+        .await
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if version.is_empty() { None } else { Some(version) }
+}
+
+/// Best-effort lookup of the latest stable yt-dlp release tag (e.g. 2026.08.19).
+async fn fetch_latest_ytdlp_version() -> Option<String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest")
+        .header("User-Agent", "ynotv")
+        .send()
+        .await
+        .ok()?;
+    let json: serde_json::Value = resp.json().await.ok()?;
+    json.get("tag_name")
+        .and_then(|t| t.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Latest yt-dlp release binary URL, mirroring scripts/download-mpv-tauri.sh.
+fn ytdlp_download_url() -> Option<&'static str> {
+    #[cfg(target_os = "windows")]
+    return Some("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe");
+    #[cfg(target_os = "macos")]
+    return Some("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos");
+    #[cfg(target_os = "linux")]
+    return Some("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp");
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    None
+}
+
+/// Report which yt-dlp the app resolves and its version.
+#[tauri::command]
+async fn ytdlp_info() -> Result<YtdlpInfo, String> {
+    match find_ytdl_path() {
+        Some(path) => {
+            let version = ytdlp_version(&path).await;
+            Ok(YtdlpInfo { found: true, path: Some(path), version })
+        }
+        None => Ok(YtdlpInfo { found: false, path: None, version: None }),
+    }
+}
+
+/// Download the latest yt-dlp release over the bundled sidecar next to the app
+/// executable, verifying the new binary runs before swapping it in (so a bad
+/// download never replaces a working copy). In a dev checkout it also refreshes
+/// the src-tauri/bin source sidecar, so the next `tauri dev`/build doesn't
+/// resurrect the stale version.
+#[tauri::command]
+async fn update_ytdlp() -> Result<YtdlpUpdateResult, String> {
+    let url = match ytdlp_download_url() {
+        Some(u) => u,
+        None => {
+            return Ok(YtdlpUpdateResult {
+                status: "notSupported".into(),
+                path: None,
+                version: None,
+                latest_version: None,
+                message: None,
+            });
+        }
+    };
+
+    let exe = std::env::current_exe()
+        .map_err(|e| format!("Failed to locate app executable: {e}"))?;
+    let dir = exe
+        .parent()
+        .ok_or_else(|| "Failed to resolve app directory".to_string())?;
+
+    let names = bundled_ytdl_names();
+    let existing = names.iter().find(|n| dir.join(n).exists());
+    let dest_name = existing.unwrap_or(&names[0]);
+    let dest = dir.join(dest_name);
+    let dest_tmp = dir.join(format!("{}.tmp", dest_name));
+
+    // Best-effort latest tag; used only for the "up to date" shortcut.
+    let latest_version = fetch_latest_ytdlp_version().await;
+
+    let current_version = if dest.exists() {
+        ytdlp_version(&dest.to_string_lossy()).await
+    } else {
+        None
+    };
+
+    if let (Some(latest), Some(current)) = (&latest_version, &current_version) {
+        if latest.trim() == current.trim() {
+            return Ok(YtdlpUpdateResult {
+                status: "upToDate".into(),
+                path: Some(dest.to_string_lossy().into_owned()),
+                version: current_version,
+                latest_version,
+                message: None,
+            });
+        }
+    }
+
+    log::info!("[yt-dlp] Downloading latest release from {}", url);
+    let client = reqwest::Client::builder()
+        .user_agent("ynotv")
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download yt-dlp: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("Download failed with HTTP {}", resp.status()));
+    }
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read download: {e}"))?;
+    if bytes.is_empty() {
+        return Err("Downloaded file is empty".to_string());
+    }
+
+    // Write + verify the new binary before touching the live one.
+    tokio::fs::write(&dest_tmp, &bytes)
+        .await
+        .map_err(|e| format!("Failed to write update: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = tokio::fs::set_permissions(&dest_tmp, std::fs::Permissions::from_mode(0o755)).await;
+    }
+
+    let new_version = match ytdlp_version(&dest_tmp.to_string_lossy()).await {
+        Some(v) => v,
+        None => {
+            let _ = tokio::fs::remove_file(&dest_tmp).await;
+            return Err("Downloaded yt-dlp failed to run; keeping the current version".to_string());
+        }
+    };
+
+    if dest.exists() {
+        let _ = tokio::fs::remove_file(&dest).await;
+    }
+    tokio::fs::rename(&dest_tmp, &dest)
+        .await
+        .map_err(|e| format!("Failed to install yt-dlp: {e}"))?;
+
+    // Dev checkout: also refresh the src-tauri/bin source sidecar so a rebuild
+    // copies the updated binary instead of the stale one.
+    let source_bin = dir.join("../../bin").join(dest_name);
+    if source_bin.exists() {
+        let _ = tokio::fs::copy(&dest, &source_bin).await;
+    }
+
+    log::info!("[yt-dlp] Updated to {}", new_version);
+    Ok(YtdlpUpdateResult {
+        status: "updated".into(),
+        path: Some(dest.to_string_lossy().into_owned()),
+        version: Some(new_version),
+        latest_version,
+        message: None,
+    })
 }
 
 // ============================================================================
@@ -5265,6 +5458,8 @@ pub fn run() {
             clear_show_watchlist_tracking,
             // Utility commands
             open_external_url,
+            ytdlp_info,
+            update_ytdlp,
             spawn_external_player,
             spawn_external_player_reuse,
             kill_external_player,
