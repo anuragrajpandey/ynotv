@@ -37,23 +37,78 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// Background prefetch queue: runs 1 game search at a time with 60ms polite yielding
-let isPrefetching = false;
-const prefetchQueue: Array<{ eventId: string; query: string | string[]; leagueId: string; limit: number }> = [];
+// Background prefetch queue: runs 1 game search at a time with 60ms polite yielding.
+// Priority items (e.g. phone-remote requests) are served ahead of background prefetches,
+// and callers can await their item's completion instead of firing-and-forgetting.
+interface PrefetchItem {
+  eventId: string;
+  query: string | string[];
+  leagueId: string;
+  limit: number;
+  priority: boolean;
+  resolve: (channels: StoredChannel[]) => void;
+}
 
+let isPrefetching = false;
+const prefetchQueue: PrefetchItem[] = [];
+const queuedSearches = new Map<string, Promise<StoredChannel[]>>();
+
+const prefetchKey = (eventId: string, query: string | string[], leagueId: string) =>
+  `${eventId}_${Array.isArray(query) ? query.join('||') : query}_${leagueId}`;
+
+// Fire-and-forget background prefetch (desktop sports sidebar).
 export function queuePrefetchGameStreams(
   eventId: string,
   query: string | string[],
   leagueId: string,
   limit = 15
 ): void {
-  const qKey = Array.isArray(query) ? query.join('||') : query;
-  const cacheKey = `${eventId}_${qKey}_${leagueId}`;
-  if (getCachedGameStreams(cacheKey)) return;
-  if (prefetchQueue.some((item) => item.eventId === eventId)) return;
+  const key = prefetchKey(eventId, query, leagueId);
+  if (getCachedGameStreams(key) || queuedSearches.has(key)) return;
+  enqueueGameStreamSearch(eventId, query, leagueId, limit, false);
+}
 
-  prefetchQueue.push({ eventId, query, leagueId, limit });
+/**
+ * Returns streams for a single game, running the search through the serialized prefetch
+ * queue so concurrent callers (e.g. the phone remote's sports list) never flood the
+ * database with parallel full-EPG scans. Searches always run at the shared limit (15)
+ * so cache keys align across callers; the result is sliced to `limit` for this caller.
+ */
+export function getGameStreamsForEvent(
+  eventId: string,
+  query: string | string[],
+  leagueId: string,
+  opts?: { limit?: number; priority?: boolean }
+): Promise<StoredChannel[]> {
+  const limit = opts?.limit ?? 15;
+  const priority = opts?.priority ?? false;
+  const key = prefetchKey(eventId, query, leagueId);
+
+  const cached = getCachedGameStreams(key);
+  if (cached) return Promise.resolve(cached.slice(0, limit));
+
+  const existing = queuedSearches.get(key);
+  if (existing) return existing.then((channels) => channels.slice(0, limit));
+
+  return enqueueGameStreamSearch(eventId, query, leagueId, 15, priority).then((channels) =>
+    channels.slice(0, limit)
+  );
+}
+
+function enqueueGameStreamSearch(
+  eventId: string,
+  query: string | string[],
+  leagueId: string,
+  limit: number,
+  priority: boolean
+): Promise<StoredChannel[]> {
+  const key = prefetchKey(eventId, query, leagueId);
+  const promise = new Promise<StoredChannel[]>((resolve) => {
+    prefetchQueue.push({ eventId, query, leagueId, limit, priority, resolve });
+  });
+  queuedSearches.set(key, promise);
   processPrefetchQueue();
+  return promise;
 }
 
 async function processPrefetchQueue(): Promise<void> {
@@ -67,19 +122,24 @@ async function processPrefetchQueue(): Promise<void> {
       continue;
     }
 
-    const item = prefetchQueue.shift();
+    // Serve priority (e.g. phone-remote) requests before background prefetches
+    const priorityIndex = prefetchQueue.findIndex((item) => item.priority);
+    const item = prefetchQueue.splice(priorityIndex === -1 ? 0 : priorityIndex, 1)[0];
     if (!item) break;
 
-    const qKey = Array.isArray(item.query) ? item.query.join('||') : item.query;
-    const cacheKey = `${item.eventId}_${qKey}_${item.leagueId}`;
-    if (!getCachedGameStreams(cacheKey)) {
+    const cacheKey = prefetchKey(item.eventId, item.query, item.leagueId);
+    let results = getCachedGameStreams(cacheKey);
+    if (!results) {
       try {
-        const results = await searchGameStreams(item.query, item.leagueId, item.limit);
+        results = await searchGameStreams(item.query, item.leagueId, item.limit);
         setCachedGameStreams(cacheKey, results);
       } catch (err) {
         console.error('[gameStreamSearcher] Background prefetch failed for', item.eventId, err);
+        results = [];
       }
     }
+    item.resolve(results);
+    queuedSearches.delete(cacheKey);
 
     // Yield 60ms between game searches so database and UI thread remain silky smooth
     await new Promise((resolve) => setTimeout(resolve, 60));

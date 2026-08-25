@@ -11,42 +11,6 @@ import { useCategorySortOrder } from '../stores/uiStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { Source } from '@ynotv/core';
 import { buildSearchQueryClauses, getSearchVariants } from '../utils/searchNormalization';
-import { dbEvents } from '../db/sqlite-adapter';
-
-// Reverse index: category_id -> stream_ids in table scan (rowid) order.
-// Built once per channels-table change so category swaps use indexed IN
-// queries instead of scanning every channel with `category_ids LIKE '%"x"%'`,
-// which is slow on large databases.
-let categoryStreamIndex = new Map<string, string[]>();
-let categoryStreamIndexPromise: Promise<Map<string, string[]>> | null = null;
-let categoryIndexBuiltFor = -1;
-let channelsVersion = 0;
-dbEvents.subscribe('channels', () => { channelsVersion++; });
-
-export async function ensureCategoryStreamIndex(): Promise<Map<string, string[]>> {
-  if (categoryIndexBuiltFor === channelsVersion) {
-    return categoryStreamIndex;
-  }
-  if (!categoryStreamIndexPromise) {
-    categoryStreamIndexPromise = (async () => {
-      const rows = await db.channels.toCollection().select(['stream_id', 'category_ids']).toArray();
-      const index = new Map<string, string[]>();
-      for (const ch of rows) {
-        for (const id of parseCategoryIds(ch.category_ids)) {
-          const list = index.get(id);
-          if (list) list.push(ch.stream_id);
-          else index.set(id, [ch.stream_id]);
-        }
-      }
-      categoryStreamIndex = index;
-      categoryIndexBuiltFor = channelsVersion;
-      categoryStreamIndexPromise = null;
-      return categoryStreamIndex;
-    })();
-  }
-  return categoryStreamIndexPromise;
-}
-
 // Hook to get enabled source IDs (for filtering data from disabled sources)
 // Returns null during loading to avoid hiding all data
 export function useEnabledSources(): Set<string> | null {
@@ -667,13 +631,13 @@ export function useChannels(categoryId: string | null, sortOrder: 'alphabetical'
           if (category) {
             // Fetch this category's channels with a single indexed SQL query
             // (idx_channels_source + json_each match + enabled filter). This
-            // avoids the once-per-session full-table scan that
-            // ensureCategoryStreamIndex() performs over every channel row, and
-            // pushes the enabled filter into SQL so disabled rows for this
-            // category aren't transferred into JS at all. Same query shape as
-            // the playlist-category branches below.
+            // avoids the old once-per-session full-table scan over every
+            // channel row, and pushes the enabled filter into SQL so disabled
+            // rows for this category aren't transferred into JS at all. Same
+            // query shape as the playlist-category branches below. ORDER BY
+            // rowid keeps table (insertion) order for the provider sort.
             results = await db.channels.whereRaw(
-              `source_id = ? AND EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false'))`,
+              `source_id = ? AND EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false')) ORDER BY rowid`,
               [category.source_id, category.category_id]
             ).toArray();
             if (enabledSourceIds) {
@@ -903,15 +867,6 @@ export function useChannels(categoryId: string | null, sortOrder: 'alphabetical'
 // Hook to get total channel count
 export function useChannelCount() {
   const count = useLiveQuery(() => db.channels.count());
-  return count ?? 0;
-}
-
-// Hook to get channel count for a category
-export function useCategoryChannelCount(categoryId: string) {
-  const count = useLiveQuery(async () => {
-    const index = await ensureCategoryStreamIndex();
-    return (index.get(categoryId) || []).length;
-  }, [categoryId]);
   return count ?? 0;
 }
 

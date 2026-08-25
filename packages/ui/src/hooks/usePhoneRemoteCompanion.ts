@@ -22,6 +22,7 @@ import type {
   CustomGroup,
   CustomPlaylist,
   PlaylistCategoryLink,
+  PlaylistIndividualChannel,
 } from '../db';
 import {
   comparePlaylistCategory,
@@ -30,16 +31,156 @@ import {
   readStoredKeys,
 } from '../utils/categorySortRules';
 import { useTeamChannelLinksStore, getTeamLinks } from '../stores/teamChannelLinksStore';
-import { searchGameStreams, getCachedGameStreams, setCachedGameStreams } from '../services/sports/gameStreamSearcher';
+import { getGameStreamsForEvent } from '../services/sports/gameStreamSearcher';
 import { buildTeamSearchQuery, buildTeamSearchQueries } from '../services/sports/teamChannelMatcher';
 import { getStatusDisplay } from '../services/sports/utils';
 import { isEventLiveOrPastStart } from '../services/sports';
 import { getRecentChannels } from '../utils/recentChannels';
 import { getCustomizedCategorySortOrders } from '../utils/categorySortOverrides';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useUIStore } from '../stores/uiStore';
+import { applyFilterWordsDetailed } from './useFilterWords';
+import { parseCategoryIds } from './useChannels';
 import type { LayoutMode, ViewerSlot } from './useMultiview';
-import { ensureCategoryStreamIndex } from './useChannels';
 import { getSportsCacheEvents, isSportsCacheFresh, subscribeSportsCache } from './useSportsPolling';
+
+// Mirror the app guide's channel ordering (the final sort in useChannels.ts)
+// so the remote shows the same order as the desktop for standard categories
+// and playlist category links. The remote renders channels in received order,
+// so this must match the app's sortOrder comparator exactly.
+function guideSortComparator(sortOrder: 'alphabetical' | 'number' | 'provider') {
+  return (a: StoredChannel, b: StoredChannel): number => {
+    if (sortOrder === 'provider') {
+      const aOrder = a.provider_order;
+      const bOrder = b.provider_order;
+      if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder;
+      if (aOrder !== undefined) return -1;
+      if (bOrder !== undefined) return 1;
+      return 0;
+    }
+    if (sortOrder === 'number') {
+      const aNum = a.channel_num;
+      const bNum = b.channel_num;
+      if (aNum !== undefined && bNum !== undefined) return aNum - bNum;
+      if (aNum !== undefined) return -1;
+      if (bNum !== undefined) return 1;
+      return (a.alias || a.name).localeCompare(b.alias || b.name);
+    }
+    return (a.alias || a.name).localeCompare(b.alias || b.name);
+  };
+}
+
+function applyGuideSortOrder(
+  channels: StoredChannel[],
+  sortOrder: 'alphabetical' | 'number' | 'provider'
+): StoredChannel[] {
+  return channels.sort(guideSortComparator(sortOrder));
+}
+
+/**
+ * Apply a category's filter words to a channel's alias/name, mirroring the
+ * desktop guide (useChannels.ts) so the remote shows the same cleaned names.
+ */
+function applyFilterWordsToChannel(ch: StoredChannel, filterWords: string[]): StoredChannel {
+  const next: StoredChannel = { ...ch };
+  if (ch.alias) {
+    next.alias = applyFilterWordsDetailed(ch.alias, filterWords).text;
+  }
+  next.name = applyFilterWordsDetailed(ch.name, filterWords).text;
+  return next;
+}
+
+/**
+ * Apply each channel's home-category filter words, mirroring the desktop's
+ * applyHomeCategoryFilterWords — used by the virtual Favorites and Recently
+ * Viewed views, which span many categories with no single filter_words list.
+ */
+async function applyHomeCategoryFilterWords(results: StoredChannel[]): Promise<StoredChannel[]> {
+  if (results.length === 0) return results;
+  const categoryIds = new Set<string>();
+  for (const ch of results) {
+    for (const id of parseCategoryIds(ch.category_ids)) {
+      categoryIds.add(id);
+    }
+  }
+  if (categoryIds.size === 0) return results;
+  const cats = await db.categories.where('category_id').anyOf(Array.from(categoryIds)).toArray();
+  const wordsByCategory = new Map<string, string[]>();
+  for (const cat of cats) {
+    if (cat.filter_words && cat.filter_words.length > 0) {
+      wordsByCategory.set(cat.category_id, cat.filter_words);
+    }
+  }
+  if (wordsByCategory.size === 0) return results;
+  return results.map(ch => {
+    const words = new Set<string>();
+    for (const id of parseCategoryIds(ch.category_ids)) {
+      const fw = wordsByCategory.get(id);
+      if (fw) {
+        for (const w of fw) {
+          if (w && w.trim()) words.add(w.trim());
+        }
+      }
+    }
+    if (words.size === 0) return ch;
+    return applyFilterWordsToChannel(ch, Array.from(words));
+  });
+}
+
+/**
+ * Build the final ordered channel list for a standard category or playlist
+ * category link, mirroring the desktop guide's pipeline:
+ *   1. manual individual-channel additions are prepended in display_order
+ *      (the desktop sets orderingIsFixed and skips the sortOrder sort);
+ *   2. otherwise channels with a manual display_order sort first, with the
+ *      remaining channels falling back to the user's sortOrder;
+ *   3. otherwise the plain sortOrder sort.
+ * Filter words are applied to names before any sort, exactly like the desktop.
+ */
+async function buildOrderedCategoryChannels(
+  channels: StoredChannel[],
+  manualMappings: PlaylistIndividualChannel[],
+  sortOrder: 'alphabetical' | 'number' | 'provider',
+  filterWords: string[]
+): Promise<StoredChannel[]> {
+  let base: StoredChannel[];
+  if (manualMappings.length > 0) {
+    const streamIds = manualMappings.map(m => m.stream_id);
+    const manualChannels = await db.channels.where('stream_id').anyOf(streamIds).toArray();
+    const manualMap = new Map(manualChannels.map(ch => [ch.stream_id, ch]));
+    const orderedManual = manualMappings
+      .sort((a, b) => a.display_order - b.display_order)
+      .map(m => manualMap.get(m.stream_id))
+      .filter((ch): ch is StoredChannel => ch !== undefined);
+    const manualStreamIds = new Set(streamIds);
+    base = [...orderedManual, ...channels.filter(ch => !manualStreamIds.has(ch.stream_id))];
+  } else {
+    base = channels;
+  }
+
+  // The desktop applies the enabled filter, then filter words, before ordering.
+  base = base.filter(ch => ch.enabled !== false);
+  if (filterWords.length > 0) {
+    base = base.map(ch => applyFilterWordsToChannel(ch, filterWords));
+  }
+
+  if (manualMappings.length > 0) {
+    return base; // orderingIsFixed on the desktop — no sortOrder sort
+  }
+  const hasAnyManualOrder = base.some(ch => ch.display_order != null);
+  if (hasAnyManualOrder) {
+    const cmp = guideSortComparator(sortOrder);
+    return base.sort((a, b) => {
+      const aHas = a.display_order != null;
+      const bHas = b.display_order != null;
+      if (aHas && bHas) return a.display_order! - b.display_order!;
+      if (aHas) return -1;
+      if (bHas) return 1;
+      return cmp(a, b);
+    });
+  }
+  return applyGuideSortOrder(base, sortOrder);
+}
 
 export interface UsePhoneRemoteCompanionOptions {
   currentChannel: StoredChannel | null;
@@ -758,6 +899,9 @@ export function usePhoneRemoteCompanion({
   const handleGetGuide = async (categoryId?: string, search?: string) => {
     try {
       const targetCatId = categoryId || '__favorites__';
+      // Live sortOrder preference from the app's UI store (default 'provider'),
+      // so standard categories and playlist links match the desktop guide.
+      const sortOrder = useUIStore.getState().channelSortOrder;
 
       // 1. Fast Indexed Search
       if (search && search.trim().length > 0) {
@@ -775,13 +919,16 @@ export function usePhoneRemoteCompanion({
         const favs = await db.channels.whereRaw(
           `(is_favorite = 1 OR is_favorite = true) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false'))`
         ).toArray();
-        favs.sort((a, b) => {
+        // Apply home-category filter words before sorting (the desktop does the
+        // same) so names and order match the app.
+        const cleaned = await applyHomeCategoryFilterWords(favs);
+        cleaned.sort((a, b) => {
           if (a.fav_order != null && b.fav_order != null) return a.fav_order - b.fav_order;
           if (a.fav_order != null) return -1;
           if (b.fav_order != null) return 1;
           return (a.alias || a.name).localeCompare(b.alias || b.name);
         });
-        await sendGuideChannels(favs.slice(0, 100), targetCatId);
+        await sendGuideChannels(cleaned, targetCatId);
         return;
       }
 
@@ -795,7 +942,9 @@ export function usePhoneRemoteCompanion({
           const ordered = recentEntries
             .map((entry) => channelMap.get(entry.streamId))
             .filter((ch): ch is StoredChannel => ch !== undefined);
-          await sendGuideChannels(ordered.slice(0, 100), targetCatId);
+          // Apply home-category filter words so names match the app's view.
+          const cleaned = await applyHomeCategoryFilterWords(ordered);
+          await sendGuideChannels(cleaned, targetCatId);
           return;
         }
         await sendGuideChannels([], targetCatId);
@@ -808,13 +957,23 @@ export function usePhoneRemoteCompanion({
         if (!isNaN(linkId)) {
           const link = await db.playlistCategoryLinks.get(linkId);
           if (link) {
-            const index = await ensureCategoryStreamIndex();
-            const streamIds = index.get(link.category_id) || [];
-            if (streamIds.length > 0) {
-              const channels = await db.channels.where('stream_id').anyOf(streamIds.slice(0, 100)).toArray();
-              await sendGuideChannels(channels, targetCatId);
-              return;
+            const channels = await db.channels.whereRaw(
+              `source_id = ? AND EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false'))`,
+              [link.source_id, link.category_id]
+            ).toArray();
+            // Manual additions to this playlist link (desktop uses the link's
+            // own id first, then falls back to the linked source category).
+            let manualMappings = await db.playlistIndividualChannels
+              .whereRaw('playlist_id = ? AND parent_category_id = ?', [link.playlist_id, `link:${link.id}`])
+              .toArray();
+            if (manualMappings.length === 0) {
+              manualMappings = await db.playlistIndividualChannels
+                .whereRaw('playlist_id = ? AND parent_category_id = ?', [link.source_id, link.category_id])
+                .toArray();
             }
+            const ordered = await buildOrderedCategoryChannels(channels, manualMappings, sortOrder, []);
+            await sendGuideChannels(ordered, targetCatId);
+            return;
           }
         }
         await sendGuideChannels([], targetCatId);
@@ -835,28 +994,37 @@ export function usePhoneRemoteCompanion({
           const ordered = groupChannels
             .map((gc) => channelMap.get(gc.stream_id))
             .filter((ch): ch is StoredChannel => ch !== undefined);
-          await sendGuideChannels(ordered.slice(0, 100), targetCatId);
+          await sendGuideChannels(ordered, targetCatId);
           return;
         }
         await sendGuideChannels([], targetCatId);
         return;
       }
 
-      // 6. Fast Standard Category via In-Memory Stream Index
-      const index = await ensureCategoryStreamIndex();
-      const streamIds = index.get(targetCatId) || [];
-      if (streamIds.length > 0) {
-        const channels = await db.channels.where('stream_id').anyOf(streamIds.slice(0, 100)).toArray();
-        // Restore table order
-        const pos = new Map(streamIds.map((id, i) => [id, i]));
-        channels.sort((a, b) => (pos.get(a.stream_id) ?? 0) - (pos.get(b.stream_id) ?? 0));
-        await sendGuideChannels(channels, targetCatId);
+      // 6. Standard Category via indexed SQL query (same shape as the LiveTV
+      // guide: idx_channels_source + json_each match + enabled filter, ordered
+      // by rowid to preserve table/insertion order). Sends the full channel
+      // list so the remote shows every channel in the category.
+      const category = await db.categories.get(targetCatId);
+      if (category) {
+        const channels = await db.channels.whereRaw(
+          `source_id = ? AND EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false')) ORDER BY rowid`,
+          [category.source_id, category.category_id]
+        ).toArray();
+        // Manual additions: channels individually added to this category
+        // (the desktop prepends them in display_order and skips the sortOrder
+        // sort). Apply the category's filter words so names match the app.
+        const manualMappings = await db.playlistIndividualChannels
+          .whereRaw('playlist_id = ? AND parent_category_id = ?', [category.source_id, targetCatId])
+          .toArray();
+        const ordered = await buildOrderedCategoryChannels(channels, manualMappings, sortOrder, category.filter_words || []);
+        await sendGuideChannels(ordered, targetCatId);
         return;
       }
 
-      // Fallback SQL query
+      // Fallback: category row missing (stale reference) — match by id alone
       const sqlChannels = await db.channels.whereRaw(
-        `EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false')) LIMIT 100`,
+        `EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false'))`,
         [targetCatId]
       ).toArray();
 
@@ -887,13 +1055,21 @@ export function usePhoneRemoteCompanion({
 
     try {
       const dbInstance = await (db as any).dbPromise;
-      const placeholders = streamIds.map(() => '?').join(',');
-      const rows = (await dbInstance.select(
-        `SELECT stream_id, title, start, end, description FROM programs_effective
-         WHERE stream_id IN (${placeholders}) AND end > ?
-         ORDER BY start ASC`,
-        [...streamIds, nowIso]
-      )) as StoredProgram[];
+      // Chunk the IN query: with full-size categories the stream-id list can
+      // exceed SQLite's variable limit, which would silently drop program info.
+      const PROGRAM_CHUNK = 500;
+      const rows: StoredProgram[] = [];
+      for (let i = 0; i < streamIds.length; i += PROGRAM_CHUNK) {
+        const chunkIds = streamIds.slice(i, i + PROGRAM_CHUNK);
+        const placeholders = chunkIds.map(() => '?').join(',');
+        const chunkRows = (await dbInstance.select(
+          `SELECT stream_id, title, start, end, description FROM programs_effective
+           WHERE stream_id IN (${placeholders}) AND end > ?
+           ORDER BY start ASC`,
+          [...chunkIds, nowIso]
+        )) as StoredProgram[];
+        rows.push(...chunkRows);
+      }
 
       for (const row of rows) {
         const startMs = new Date(row.start).getTime();
@@ -976,16 +1152,14 @@ export function usePhoneRemoteCompanion({
           let availableStreams: Array<{ stream_id: string; channel_name: string; logo?: string }> = [];
           try {
             const queries = buildTeamSearchQueries(event.homeTeam.name, event.awayTeam.name, event.league?.id, event.title);
-            const cacheKey = `${event.id}_${queries.join('||')}_${event.league.id}`;
-            let cached = getCachedGameStreams(cacheKey) || getCachedGameStreams(`${queries.join('||')}_${event.league.id}_8`);
-
-            if (!cached) {
-              cached = await searchGameStreams(queries, event.league.id, 8);
-              setCachedGameStreams(cacheKey, cached);
-            }
-
-            if (cached && cached.length > 0) {
-              availableStreams = cached.map((c) => ({
+            // Route through the serialized prefetch queue (priority) so concurrent game
+            // searches never flood the database; slices the shared 15-result cache to 8.
+            const streams = await getGameStreamsForEvent(event.id, queries, event.league.id, {
+              limit: 8,
+              priority: true,
+            });
+            if (streams.length > 0) {
+              availableStreams = streams.map((c) => ({
                 stream_id: c.stream_id,
                 channel_name: c.alias || c.name,
                 logo: c.stream_icon,
