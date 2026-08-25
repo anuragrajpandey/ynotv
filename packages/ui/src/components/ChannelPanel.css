@@ -2748,6 +2748,14 @@ html.epg-disable-channel-fade .guide-channels {
   box-shadow: 0 0 10px rgba(220, 53, 69, 0.6);
 }
 
+/* When the top header is visible its own ✕ already closes the guide, so hide
+   the duplicate ✕ in the time bar (the transparent-guide-hide-header class is
+   toggled on <html> only when the header is hidden). When the header is hidden
+   this button remains the only close affordance and stays visible. */
+html:not(.transparent-guide-hide-header) .guide-transparent-close-btn {
+  display: none !important;
+}
+
 [data-theme] .guide-panel.guide-transparent-mode .guide-channel-row {
   background: transparent !important;
 }
