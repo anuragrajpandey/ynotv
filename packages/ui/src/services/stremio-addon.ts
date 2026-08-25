@@ -156,6 +156,20 @@ export async function fetchCatalog(
   return promise;
 }
 
+/**
+ * Detect error-placeholder names some addons (e.g. AIOStreams) emit as if they
+ * were valid meta when they fail to resolve an id — for example
+ * "[❌] AIOStreams - Error - Trailer" or "AIO Streams - Error". Trusting such
+ * meta would render the error string as the poster/title (e.g. in Nuvio
+ * Continue Watching). Only exact AIOStreams failure naming is treated as an
+ * error, so real titles containing the word "Error" are unaffected.
+ */
+export function isErrorMetaName(name: string | null | undefined): boolean {
+  if (!name) return true;
+  if (name.includes('❌')) return true;
+  return /aio\s*streams?\s*[-–—]\s*error/i.test(name);
+}
+
 export async function fetchMeta(
   addons: InstalledAddon[],
   type: string,
@@ -178,7 +192,7 @@ export async function fetchMeta(
         const parsed = parseAddonUrl(addon.baseUrl);
         const url = `${parsed.baseUrl}/meta/${encodeAddonPathSegment(type)}/${encodeAddonPathSegment(id)}.json${parsed.query}`;
         const data = await fetchJson(url) as { meta: StremioMeta };
-        if (data?.meta) {
+        if (data?.meta && !isErrorMetaName(data.meta.name)) {
           META_RESPONSE_CACHE.set(cacheKey, data.meta);
           return data.meta;
         }

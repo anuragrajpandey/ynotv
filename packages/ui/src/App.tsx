@@ -139,7 +139,6 @@ import { useUIStore } from './stores/uiStore';
 import { fetchSubtitles } from './services/stremio-addon';
 import { toSubSourceLang, fromSubSourceLang } from './services/subsource';
 import { scrobbler } from './services/scrobbler';
-import { pushNuvioWatchProgress } from './services/nuvio-api';
 import { SkipIntroButton } from './components/SkipIntroButton';
 import { useSkipIntro } from './hooks/useSkipIntro';
 import { BackButtonOverlay } from './components/BackButtonOverlay';
@@ -156,7 +155,7 @@ initUiDesign();
 
 // NEW: Extracted hooks
 import { useSettingsStore } from './stores/settingsStore';
-import { usePlayback } from './hooks/usePlayback';
+import { usePlayback, pushNuvioPlaybackProgress } from './hooks/usePlayback';
 import { useNavigation } from './hooks/useNavigation';
 import { useWatchlist } from './hooks/useWatchlist';
 import { useWindowManager } from './hooks/useWindowManager';
@@ -1812,25 +1811,8 @@ function useTmdbPresencePoster(
               ).catch(() => {});
             }
           } else if (isNuvio) {
-            // Sync to Nuvio cloud
-            const nuvioAuth = useNuvioAuthStore.getState();
-            const nuvioToken = nuvioAuth.token;
-            const nuvioProfile = nuvioAuth.activeProfile;
-            if (nuvioToken && nuvioProfile) {
-              pushNuvioWatchProgress(nuvioToken, nuvioProfile.profile_index, [{
-                content_id: epInfo.metaId,
-                content_type: 'series',
-                video_id: epInfo.videoId,
-                season: epInfo.season,
-                episode: epInfo.episode,
-                position: Math.floor(pos * 1000),
-                duration: Math.floor(dur * 1000),
-                last_watched: Date.now(),
-                progress_key: `${epInfo.metaId}_s${epInfo.season}e${epInfo.episode}`,
-              }]).then(() => {
-                window.dispatchEvent(new CustomEvent('ynotv:nuvio-sync-required'));
-              }).catch((err) => console.error('[NuvioProgress] Failed to sync progress:', err));
-            }
+            // Sync final progress to Nuvio cloud (stop event)
+            void pushNuvioPlaybackProgress(vodInfo, pos, dur);
           }
         } else if (movieInfo) {
           if (!isNuvio) {
@@ -1852,25 +1834,8 @@ function useTmdbPresencePoster(
               ).catch(() => {});
             }
           } else if (isNuvio) {
-            // Sync to Nuvio cloud
-            const nuvioAuth = useNuvioAuthStore.getState();
-            const nuvioToken = nuvioAuth.token;
-            const nuvioProfile = nuvioAuth.activeProfile;
-            if (nuvioToken && nuvioProfile) {
-              pushNuvioWatchProgress(nuvioToken, nuvioProfile.profile_index, [{
-                content_id: movieInfo.metaId,
-                content_type: 'movie',
-                video_id: movieInfo.metaId,
-                season: null,
-                episode: null,
-                position: Math.floor(pos * 1000),
-                duration: Math.floor(dur * 1000),
-                last_watched: Date.now(),
-                progress_key: `${movieInfo.metaId}`,
-              }]).then(() => {
-                window.dispatchEvent(new CustomEvent('ynotv:nuvio-sync-required'));
-              }).catch((err) => console.error('[NuvioProgress] Failed to sync progress:', err));
-            }
+            // Sync final progress to Nuvio cloud (stop event)
+            void pushNuvioPlaybackProgress(vodInfo, pos, dur);
           }
         }
       }
@@ -3235,26 +3200,6 @@ function useTmdbPresencePoster(
               epInfo.poster
             ).catch(() => {});
           }
-        } else if (isNuvio) {
-          // Sync to Nuvio Cloud
-          const nuvioAuth = useNuvioAuthStore.getState();
-          const nuvioToken = nuvioAuth.token;
-          const nuvioProfile = nuvioAuth.activeProfile;
-          if (nuvioToken && nuvioProfile) {
-            pushNuvioWatchProgress(nuvioToken, nuvioProfile.profile_index, [{
-              content_id: epInfo.metaId,
-              content_type: 'series',
-              video_id: epInfo.videoId,
-              season: epInfo.season,
-              episode: epInfo.episode,
-              position: Math.floor(pos * 1000),
-              duration: Math.floor(dur * 1000),
-              last_watched: Date.now(),
-              progress_key: `${epInfo.metaId}_s${epInfo.season}e${epInfo.episode}`,
-            }]).then(() => {
-              window.dispatchEvent(new CustomEvent('ynotv:nuvio-sync-required'));
-            }).catch(() => {});
-          }
         }
       } else if (movieInfo) {
         if (!isNuvio) {
@@ -3274,26 +3219,6 @@ function useTmdbPresencePoster(
               movieInfo.name,
               movieInfo.poster
             ).catch(() => {});
-          }
-        } else if (isNuvio) {
-          // Sync to Nuvio Cloud
-          const nuvioAuth = useNuvioAuthStore.getState();
-          const nuvioToken = nuvioAuth.token;
-          const nuvioProfile = nuvioAuth.activeProfile;
-          if (nuvioToken && nuvioProfile) {
-            pushNuvioWatchProgress(nuvioToken, nuvioProfile.profile_index, [{
-              content_id: movieInfo.metaId,
-              content_type: 'movie',
-              video_id: movieInfo.metaId,
-              season: null,
-              episode: null,
-              position: Math.floor(pos * 1000),
-              duration: Math.floor(dur * 1000),
-              last_watched: Date.now(),
-              progress_key: `${movieInfo.metaId}`,
-            }]).then(() => {
-              window.dispatchEvent(new CustomEvent('ynotv:nuvio-sync-required'));
-            }).catch(() => {});
           }
         }
       }
@@ -3348,6 +3273,15 @@ function useTmdbPresencePoster(
 
     // A user-initiated pause must never be treated as the episode ending.
     if (userPausedRef.current) return;
+
+    // Nuvio: push the final position on natural end so the cloud Continue
+    // Watching row reflects the completed item (NuvioDesktop flushes on player
+    // end too). endPos can read 0 on EOF (mpv resets position at unload), so
+    // fall back to the duration. No-op for non-Nuvio.
+    if (vodInfo?.source_id === 'nuvio') {
+      const finalPos = endPos > 1 ? endPos : (endDur > 0 ? endDur : 0);
+      void pushNuvioPlaybackProgress(vodInfo, finalPos, endDur);
+    }
 
     // Consume the signal so a re-render can't re-trigger auto-play.
     if (vodEndFileSignal) setVodEndFileSignal(null);

@@ -41,6 +41,8 @@ import {
   type NuvioCollection
 } from '../../services/nuvio-api';
 import { fetchCatalog, fetchMeta, parseAddonUrl, openAddonConfigureUrl } from '../../services/stremio-addon';
+import { useActiveTmdbToken } from '../../hooks/useTmdbLists';
+import { getTmdb, getMovieDetails, getTvShowDetails, getTmdbImageUrl } from '../../services/tmdb';
 import { NuvioHeroBanner } from './NuvioHeroBanner';
 import { StremioCatalogRow } from '../stremio/StremioCatalogRow';
 import { StremioHoverProvider, useStremioHover } from '../../contexts/StremioHoverContext';
@@ -299,6 +301,66 @@ const getSourceLabel = (
   return `${catalogName} (${typeLabel})${genreSuffix}`;
 };
 
+/**
+ * TMDB fallback for Continue Watching entries whose addons return no usable
+ * meta (or only error placeholders). Mirrors Nuvio's own tryFetchTmdbFallbackMeta:
+ * resolves `tmdb:<id>`, bare numeric ids, and IMDb `tt…` ids, filling in a real
+ * title/poster so the card never shows an error string or a bare content id.
+ * Results (including failures) are cached per content id to avoid re-hitting
+ * TMDB on every retry pass.
+ */
+const nuvioCwTmdbFallbackCache = new Map<string, { name: string; poster?: string; background?: string } | null>();
+
+async function fetchNuvioCwTmdbFallback(
+  token: string | null,
+  type: 'movie' | 'series',
+  contentId: string
+): Promise<{ name: string; poster?: string; background?: string } | null> {
+  if (!token) return null;
+  const cacheKey = `${type}:${contentId}`;
+  if (nuvioCwTmdbFallbackCache.has(cacheKey)) {
+    return nuvioCwTmdbFallbackCache.get(cacheKey)!;
+  }
+  try {
+    const raw = String(contentId);
+    let tmdbId: number | null = null;
+    const tmdbPrefix = raw.match(/^tmdb:(\d+)$/i);
+    if (tmdbPrefix) {
+      tmdbId = Number(tmdbPrefix[1]);
+    } else if (/^\d+$/.test(raw)) {
+      tmdbId = Number(raw);
+    } else if (raw.startsWith('tt')) {
+      const tmdb = getTmdb(token);
+      const findResult = await tmdb.find.byExternalId(raw, { external_source: 'imdb_id' });
+      const idNum = type === 'series' ? findResult.tv_results?.[0]?.id : findResult.movie_results?.[0]?.id;
+      if (idNum) tmdbId = idNum;
+    }
+    if (!tmdbId) {
+      nuvioCwTmdbFallbackCache.set(cacheKey, null);
+      return null;
+    }
+    const details = type === 'series'
+      ? await getTvShowDetails(token, tmdbId)
+      : await getMovieDetails(token, tmdbId);
+    const anyDetails = details as any;
+    const name: string | null = anyDetails?.name || anyDetails?.title || null;
+    if (!name) {
+      nuvioCwTmdbFallbackCache.set(cacheKey, null);
+      return null;
+    }
+    const result = {
+      name,
+      poster: getTmdbImageUrl(anyDetails?.poster_path, 'w500') || undefined,
+      background: getTmdbImageUrl(anyDetails?.backdrop_path, 'original') || undefined,
+    };
+    nuvioCwTmdbFallbackCache.set(cacheKey, result);
+    return result;
+  } catch {
+    nuvioCwTmdbFallbackCache.set(cacheKey, null);
+    return null;
+  }
+}
+
 export function NuvioPage(props: NuvioPageProps) {
   const addonsStore = useNuvioAddonStore();
   const addons = addonsStore.enabledAddons;
@@ -383,6 +445,13 @@ function NuvioPageContent({
   const [resolvedWatchProgress, setResolvedWatchProgress] = useState<(NuvioWatchProgressSyncEntry & { poster?: string; name?: string; background?: string; episodeTitle?: string; episodeThumbnail?: string })[]>([]);
   const [rawWatchProgress, setRawWatchProgress] = useState<NuvioWatchProgressSyncEntry[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // TMDB token for the Continue Watching metadata fallback, plus bounded
+  // re-resolution so a transient addon failure self-heals while the page is
+  // open (mirrors Nuvio's retry-with-backoff enrichment).
+  const tmdbToken = useActiveTmdbToken();
+  const cwMetaRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cwMetaRetryCountRef = useRef(0);
 
   const nuvioView = useNuvioView();
   const setNuvioView = useSetNuvioView();
@@ -1194,6 +1263,20 @@ function NuvioPageContent({
               episodeThumbnail,
             };
           }
+
+          // Addons returned nothing usable (fetchMeta already filters error
+          // placeholders like "AIO Streams - Error"). Fall back to TMDB so the
+          // poster shows a real title instead of the error string or a bare
+          // content id — same fallback Nuvio's own app uses.
+          const tmdbFallback = await fetchNuvioCwTmdbFallback(tmdbToken, type, entry.content_id);
+          if (tmdbFallback) {
+            return {
+              ...entry,
+              name: tmdbFallback.name,
+              poster: tmdbFallback.poster,
+              background: tmdbFallback.background,
+            };
+          }
         } catch (e) {
           // Ignore
         }
@@ -1208,7 +1291,30 @@ function NuvioPageContent({
     finalFiltered.sort((a, b) => b.last_watched - a.last_watched);
 
     setResolvedWatchProgress(finalFiltered as any);
+
+    // Retry unresolved entries a few times (8s apart) so a transient addon
+    // failure heals without requiring a page reload or addon toggle.
+    const unresolved = (finalFiltered as any[]).filter((e: any) => !e.name);
+    if (unresolved.length === 0) {
+      cwMetaRetryCountRef.current = 0;
+    } else if (cwMetaRetryCountRef.current < 3 && !cwMetaRetryTimerRef.current) {
+      cwMetaRetryCountRef.current += 1;
+      cwMetaRetryTimerRef.current = setTimeout(() => {
+        cwMetaRetryTimerRef.current = null;
+        resolveProgressMetadata(progressItems);
+      }, 8000);
+    }
   };
+
+  // Cancel any pending Continue Watching metadata retry on unmount.
+  useEffect(() => {
+    return () => {
+      if (cwMetaRetryTimerRef.current) {
+        clearTimeout(cwMetaRetryTimerRef.current);
+        cwMetaRetryTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     loadSyncedData();
@@ -1302,6 +1408,22 @@ function NuvioPageContent({
     };
     window.addEventListener('ynotv:nuvio-sync-required', syncHandler);
     return () => window.removeEventListener('ynotv:nuvio-sync-required', syncHandler);
+  }, [token, profile?.profile_index]);
+
+  // Periodic background delta pull while the Nuvio home page is open so
+  // Continue Watching / library pick up changes made on other devices without
+  // user interaction (NuvioDesktop polls every 4 min; we use 3 min).
+  // loadSyncedData(true) is already throttled and cursor-based after the first
+  // snapshot, and the pull is skipped while the window is hidden to avoid
+  // pointless API calls in the background.
+  useEffect(() => {
+    if (!token || !profile) return;
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      loadSyncedData(true);
+    }, 3 * 60 * 1000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, profile?.profile_index]);
 
   const handleAddToLibrary = async (item: { id: string; type: string; name: string; poster?: string | null; background?: string | null }) => {
