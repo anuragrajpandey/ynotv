@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,7 +18,10 @@
 }
 
 .osk-input-modal {
-  background: var(--glass-modal-bg, var(--surface-color, #1e1e2e));
+  /* Opaque background (not the translucent glass variable) so the letters stay
+     readable when the keyboard is shown over video with a controller.
+     --bg-primary is fully opaque in every theme. */
+  background: var(--osk-bg, var(--bg-primary, #1b1b24));
   border: var(--glass-modal-border, none);
   border-radius: 12px;
   width: 94%;
