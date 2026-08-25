@@ -411,9 +411,14 @@ export function EpgEditorModal({ channel: initialChannel, sourceId, sourceName, 
     db.channels.where('source_id').equals(resolvedSourceId).toArray().then(async chans => {
       const sorted = chans.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       setSourceChannels(sorted);
-      // Load overridden stream ids for dot indicators
-      const overrides = await db.epgChannelOverrides.toArray();
-      const ids = new Set(overrides.map(o => o.stream_id));
+      // Load overridden stream ids for dot indicators — source-scoped indexed join
+      // instead of pulling the entire overrides table into memory.
+      const dbInstance = await (db as any).dbPromise;
+      const overrideRows = await dbInstance.select(
+        `SELECT o.stream_id FROM epg_channel_overrides o JOIN channels c ON c.stream_id = o.stream_id WHERE c.source_id = $1`,
+        [resolvedSourceId]
+      ) as { stream_id: string }[];
+      const ids = new Set(overrideRows.map(r => r.stream_id));
       setOverriddenIds(ids);
       setSourceLoading(false);
     });

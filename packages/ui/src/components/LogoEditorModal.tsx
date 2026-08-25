@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { createPortal } from 'react-dom';
@@ -33,6 +33,14 @@ export function LogoEditorModal({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  // Virtualized grid: only cards near the scroll viewport are rendered. Selection and
+  // bulk actions always operate on the full `filteredChannels` array, never the window.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const measureCardRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
+  const [gridWidth, setGridWidth] = useState(0);
+  const [rowHeight, setRowHeight] = useState(0);
 
   // Close on Escape
   useEffect(() => {
@@ -161,6 +169,21 @@ export function LogoEditorModal({
     return () => { isMounted = false; };
   }, [categoryId, sourceId]);
 
+  // Track the grid viewport size + scroll so only visible cards are rendered
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const update = () => setViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, []);
+
   // Filter channels based on search and status filter
   const filteredChannels = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -178,6 +201,52 @@ export function LogoEditorModal({
       return matchesSearch && matchesFilter;
     });
   }, [channels, searchQuery, filterMode, logoBgMap, logoPaddingMap]);
+
+  // Virtualized grid window: compute which rows are visible and slice the full
+  // filtered array accordingly. The CSS grid re-flows the visible slice correctly
+  // because it always starts at a row boundary (startIndex is a multiple of columns).
+  const CARD_MIN_WIDTH = 210;
+  const CARD_GAP = 14;
+  const ROW_OVERSCAN = 2;
+
+  const columns = Math.max(1, Math.floor((gridWidth + CARD_GAP) / (CARD_MIN_WIDTH + CARD_GAP)));
+  const totalRows = Math.ceil(filteredChannels.length / columns);
+  const rowH = rowHeight;
+  const firstVisibleRow = rowH > 0 ? Math.max(0, Math.floor(viewport.scrollTop / rowH)) : 0;
+  const visibleRows = rowH > 0 ? Math.ceil(viewport.height / rowH) + ROW_OVERSCAN : 0;
+  const startRow = rowH > 0 ? Math.max(0, firstVisibleRow - ROW_OVERSCAN) : 0;
+  const endRow = rowH > 0 ? Math.min(totalRows, firstVisibleRow + visibleRows + ROW_OVERSCAN) : Math.min(totalRows, 1);
+  const startIndex = Math.min(filteredChannels.length, startRow * columns);
+  const endIndex = Math.min(filteredChannels.length, endRow * columns);
+  const visibleChannels = filteredChannels.slice(startIndex, endIndex);
+
+  // Measure the GRID's width (not the padded scroll container) so the column
+  // count matches the CSS auto-fill layout exactly — otherwise the virtual
+  // window misaligns with the real card rows.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const update = () => setGridWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [filteredChannels]);
+
+  // Reset scroll when the search/filter inputs change (not on bg/pad edits, which
+  // also recreate filteredChannels) so the user isn't left in empty space after a filter change
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0 });
+  }, [searchQuery, filterMode, channels]);
+
+  // Measure the real card height from the first rendered card so the row math stays correct
+  useLayoutEffect(() => {
+    const el = measureCardRef.current;
+    if (el && el.offsetHeight > 0) {
+      const next = el.offsetHeight + CARD_GAP;
+      setRowHeight(prev => (prev === next ? prev : next));
+    }
+  });
 
   // Count summary by background type & padding mode
   const counts = useMemo(() => {
@@ -454,7 +523,7 @@ export function LogoEditorModal({
         </div>
 
         {/* Channel Grid */}
-        <div className="logo-editor-content">
+        <div className="logo-editor-content" ref={contentRef}>
           {loading ? (
             <div className="logo-editor-loading">
               <div className="spinner" />
@@ -465,8 +534,14 @@ export function LogoEditorModal({
               {channels.length === 0 ? t('noChannelsCategory') : t('noChannelsFilter')}
             </div>
           ) : (
-            <div className="logo-editor-grid">
-              {filteredChannels.map(channel => {
+            <div className="logo-editor-grid" ref={gridRef}>
+              {startIndex > 0 && (
+                <div
+                  className="logo-editor-virtual-spacer"
+                  style={{ gridColumn: '1 / -1', height: startRow * rowH }}
+                />
+              )}
+              {visibleChannels.map((channel, i) => {
                 const isSelected = selectedIds.has(channel.stream_id);
                 const bg = logoBgMap[channel.stream_id] || 'auto';
                 const pad = logoPaddingMap[channel.stream_id] || 'default';
@@ -474,6 +549,7 @@ export function LogoEditorModal({
                 return (
                   <div
                     key={channel.stream_id}
+                    ref={i === 0 ? measureCardRef : undefined}
                     className={`logo-editor-card ${isSelected ? 'is-selected' : ''}`}
                     onClick={(e) => {
                       // Prevent toggling checkbox when clicking interactive pill buttons
@@ -556,6 +632,12 @@ export function LogoEditorModal({
                   </div>
                 );
               })}
+              {endIndex < filteredChannels.length && (
+                <div
+                  className="logo-editor-virtual-spacer"
+                  style={{ gridColumn: '1 / -1', height: (totalRows - endRow) * rowH }}
+                />
+              )}
             </div>
           )}
         </div>
