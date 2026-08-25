@@ -506,7 +506,7 @@ export function LogoEditorModal({
                         />
                       </div>
                       <div className={`status-badge status-${bg}`}>
-                        {bg === 'light' ? '☀️ Light' : bg === 'dark' ? '🌙 Dark' : 'Auto'}
+                        {bg === 'light' ? '☀️ Light' : bg === 'dark' ? '🌙 Dark' : 'Default'}
                         {pad === 'none' ? ' • No Pad' : ''}
                       </div>
                     </div>
@@ -516,9 +516,9 @@ export function LogoEditorModal({
                       <button
                         className={`segmented-btn ${bg === 'auto' ? 'active' : ''}`}
                         onClick={(e) => { e.stopPropagation(); setChannelBg(channel.stream_id, 'auto'); }}
-                        title={i18n.t('epg:autoBgTitle')}
+                        title={i18n.t('epg:defaultBgTitle')}
                       >
-                        Auto
+                        Default
                       </button>
                       <button
                         className={`segmented-btn ${bg === 'light' ? 'active' : ''}`}

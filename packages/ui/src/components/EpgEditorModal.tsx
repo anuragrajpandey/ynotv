@@ -218,8 +218,16 @@ export function EpgEditorModal({ channel: initialChannel, sourceId, sourceName, 
 
   const epgLogoDisplay = useSettingsStore((s) => s.epgLogoDisplay);
   const sourceLogoDisplayOverrides = useSettingsStore((s) => s.sourceLogoDisplayOverrides);
+  const sourceLogoBackgroundOverrides = useSettingsStore((s) => s.sourceLogoBackgroundOverrides);
+  const logoDefaultBackground = useSettingsStore((s) => s.logoDefaultBackground);
   const sourceDisplayOverride = channel?.source_id ? sourceLogoDisplayOverrides?.[channel.source_id] : undefined;
   const logoShape = (sourceDisplayOverride || epgLogoDisplay) as 'square' | 'rectangle';
+  // What 'Default' resolves to for THIS channel: the source-level override
+  // (may force 'auto' = luminance detection) beats the global default.
+  const resolvedDefaultBg: 'auto' | 'light' | 'dark' =
+    channel?.source_id
+      ? (sourceLogoBackgroundOverrides[channel.source_id] ?? logoDefaultBackground)
+      : logoDefaultBackground;
 
 
   // ── Channel tab state ──
@@ -834,6 +842,7 @@ export function EpgEditorModal({ channel: initialChannel, sourceId, sourceName, 
                       src={logoUrl || undefined}
                       name={channel?.name || ''}
                       background={logoBackground}
+                      defaultBackground={channel?.source_id ? sourceLogoBackgroundOverrides[channel.source_id] : undefined}
                       padding={logoPadding}
                       shape={logoShape}
                       lazy={false}
@@ -849,9 +858,10 @@ export function EpgEditorModal({ channel: initialChannel, sourceId, sourceName, 
                     type="button"
                     className={`segmented-btn ${logoBackground === 'auto' ? 'active' : ''}`}
                     onClick={() => setLogoBackground('auto')}
-                    title={t('autoBgTitle')}
+                    title={t('defaultBgTitle')}
                   >
-                    ✨ {t('autoBg')}
+                    ✨ {t('defaultBg')}
+                    {resolvedDefaultBg !== 'auto' ? ` (${t(resolvedDefaultBg === 'light' ? 'lightBg' : 'darkBg')})` : ''}
                   </button>
                   <button
                     type="button"

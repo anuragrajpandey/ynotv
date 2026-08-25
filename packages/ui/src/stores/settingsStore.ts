@@ -490,8 +490,12 @@ export interface SettingsState {
   setLogoSmartTrim: (enabled: boolean) => void;
   logoLightBackgroundDetection: boolean;
   setLogoLightBackgroundDetection: (enabled: boolean) => void;
+  logoDefaultBackground: 'auto' | 'light' | 'dark';
+  setLogoDefaultBackground: (background: 'auto' | 'light' | 'dark') => void;
   sourceLogoDisplayOverrides: Record<string, 'square' | 'rectangle'>;
   setSourceLogoDisplayOverride: (sourceId: string, display: 'square' | 'rectangle' | 'default') => void;
+  sourceLogoBackgroundOverrides: Record<string, 'auto' | 'light' | 'dark'>;
+  setSourceLogoBackgroundOverride: (sourceId: string, background: 'auto' | 'light' | 'dark' | 'default') => void;
   epgMetadataBadgeResolution: boolean;
   setEpgMetadataBadgeResolution: (enabled: boolean) => void;
   epgMetadataBadgeFps: boolean;
@@ -1252,6 +1256,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ logoLightBackgroundDetection: enabled });
     persistSettings({ logoLightBackgroundDetection: enabled });
   },
+  logoDefaultBackground: (cachedSettings?.logoDefaultBackground as 'auto' | 'light' | 'dark') ?? 'auto',
+  setLogoDefaultBackground: (background) => {
+    set({ logoDefaultBackground: background });
+    persistSettings({ logoDefaultBackground: background });
+  },
   sourceLogoDisplayOverrides: (cachedSettings?.sourceLogoDisplayOverrides as Record<string, 'square' | 'rectangle'>) ?? {},
   setSourceLogoDisplayOverride: (sourceId, display) => {
     const next = { ...get().sourceLogoDisplayOverrides };
@@ -1262,6 +1271,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     }
     set({ sourceLogoDisplayOverrides: next });
     persistSettings({ sourceLogoDisplayOverrides: next });
+  },
+  sourceLogoBackgroundOverrides: (cachedSettings?.sourceLogoBackgroundOverrides as Record<string, 'auto' | 'light' | 'dark'>) ?? {},
+  setSourceLogoBackgroundOverride: (sourceId, background) => {
+    const next = { ...get().sourceLogoBackgroundOverrides };
+    if (background === 'default') {
+      delete next[sourceId];
+    } else {
+      next[sourceId] = background;
+    }
+    set({ sourceLogoBackgroundOverrides: next });
+    persistSettings({ sourceLogoBackgroundOverrides: next });
   },
   epgMetadataBadgeResolution: (cachedSettings?.epgMetadataBadgeResolution as boolean) ?? true,
   setEpgMetadataBadgeResolution: (enabled) => {

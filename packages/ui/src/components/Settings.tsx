@@ -653,6 +653,8 @@ export function Settings({
   const setLogoCacheTtlDays = useSettingsStore((s) => s.setLogoCacheTtlDays);
   const sourceLogoDisplayOverrides = useSettingsStore((s) => s.sourceLogoDisplayOverrides);
   const setSourceLogoDisplayOverride = useSettingsStore((s) => s.setSourceLogoDisplayOverride);
+  const sourceLogoBackgroundOverrides = useSettingsStore((s) => s.sourceLogoBackgroundOverrides);
+  const setSourceLogoBackgroundOverride = useSettingsStore((s) => s.setSourceLogoBackgroundOverride);
   const channelLogoSize = useSettingsStore((s) => s.channelLogoSize);
   const setChannelLogoSize = useSettingsStore((s) => s.setChannelLogoSize);
   const channelLogoRoundEdges = useSettingsStore((s) => s.channelLogoRoundEdges);
@@ -663,6 +665,12 @@ export function Settings({
   const setLogoSmartTrim = useSettingsStore((s) => s.setLogoSmartTrim);
   const logoLightBackgroundDetection = useSettingsStore((s) => s.logoLightBackgroundDetection);
   const setLogoLightBackgroundDetection = useSettingsStore((s) => s.setLogoLightBackgroundDetection);
+  const logoDefaultBackground = useSettingsStore((s) => s.logoDefaultBackground);
+  const setLogoDefaultBackground = useSettingsStore((s) => s.setLogoDefaultBackground);
+  const epgPreferEpgLogos = useSettingsStore((s) => s.epgPreferEpgLogos);
+  const setEpgPreferEpgLogos = useSettingsStore((s) => s.setEpgPreferEpgLogos);
+  const epgLogoDisplay = useSettingsStore((s) => s.epgLogoDisplay);
+  const setEpgLogoDisplay = useSettingsStore((s) => s.setEpgLogoDisplay);
   const oledBlack = useSettingsStore((s) => s.oledBlack);
   const setOledBlack = useSettingsStore((s) => s.setOledBlack);
 
@@ -686,8 +694,6 @@ export function Settings({
   const [epgBoldChannelNames, setEpgBoldChannelNames] = useState(false);
   const [epgBoldTopCategories, setEpgBoldTopCategories] = useState(false);
   const [epgBoldSourceCategories, setEpgBoldSourceCategories] = useState(false);
-  const [epgPreferEpgLogos, setEpgPreferEpgLogos] = useState(false);
-  const [epgLogoDisplay, setEpgLogoDisplay] = useState<'square' | 'rectangle'>('square');
   const [epgMetadataBadgeResolution, setEpgMetadataBadgeResolution] = useState(epgMetadataBadgeResolutionProp ?? true);
   const [epgMetadataBadgeFps, setEpgMetadataBadgeFps] = useState(epgMetadataBadgeFpsProp ?? true);
   const [epgMetadataBadgeFpsSuffix, setEpgMetadataBadgeFpsSuffix] = useState(epgMetadataBadgeFpsSuffixProp ?? true);
@@ -1266,8 +1272,6 @@ export function Settings({
       setEpgBoldChannelNames(settings.epgBoldChannelNames ?? false);
       setEpgBoldTopCategories(settings.epgBoldTopCategories ?? false);
       setEpgBoldSourceCategories(settings.epgBoldSourceCategories ?? false);
-      setEpgPreferEpgLogos(settings.epgPreferEpgLogos ?? false);
-      setEpgLogoDisplay(settings.epgLogoDisplay ?? 'square');
 
       // Load EPG visible hours setting
       const rawEpgVisibleHours = settings.epgVisibleHours ?? 'auto';
@@ -1881,25 +1885,6 @@ export function Settings({
     }
     if (window.storage) {
       await window.storage.updateSettings({ epgHighlightBorderCurrent: enabled });
-    }
-  };
-
-  const handleEpgPreferEpgLogosChange = async (enabled: boolean) => {
-    setEpgPreferEpgLogos(enabled);
-    if (window.storage) {
-      await window.storage.updateSettings({ epgPreferEpgLogos: enabled });
-    }
-  };
-
-  const handleEpgLogoDisplayChange = async (display: 'square' | 'rectangle') => {
-    setEpgLogoDisplay(display);
-    if (display === 'rectangle') {
-      document.documentElement.classList.add('epg-rectangle-logos');
-    } else {
-      document.documentElement.classList.remove('epg-rectangle-logos');
-    }
-    if (window.storage) {
-      await window.storage.updateSettings({ epgLogoDisplay: display });
     }
   };
 
@@ -2979,9 +2964,9 @@ export function Settings({
             epgBoldSourceCategories={epgBoldSourceCategories}
             onEpgBoldSourceCategoriesChange={handleEpgBoldSourceCategoriesChange}
             epgPreferEpgLogos={epgPreferEpgLogos}
-            onEpgPreferEpgLogosChange={handleEpgPreferEpgLogosChange}
+            onEpgPreferEpgLogosChange={setEpgPreferEpgLogos}
             epgLogoDisplay={epgLogoDisplay}
-            onEpgLogoDisplayChange={handleEpgLogoDisplayChange}
+            onEpgLogoDisplayChange={setEpgLogoDisplay}
             channelLogoSize={channelLogoSize}
             onChannelLogoSizeChange={setChannelLogoSize}
             channelLogoRoundEdges={channelLogoRoundEdges}
@@ -2992,8 +2977,12 @@ export function Settings({
             onLogoSmartTrimChange={setLogoSmartTrim}
             logoLightBackgroundDetection={logoLightBackgroundDetection}
             onLogoLightBackgroundDetectionChange={setLogoLightBackgroundDetection}
+            logoDefaultBackground={logoDefaultBackground}
+            onLogoDefaultBackgroundChange={setLogoDefaultBackground}
             sourceLogoDisplayOverrides={sourceLogoDisplayOverrides}
             onSetSourceLogoDisplayOverride={setSourceLogoDisplayOverride}
+            sourceLogoBackgroundOverrides={sourceLogoBackgroundOverrides}
+            onSetSourceLogoBackgroundOverride={setSourceLogoBackgroundOverride}
             epgMetadataBadgeResolution={epgMetadataBadgeResolution}
             onEpgMetadataBadgeResolutionChange={handleEpgMetadataBadgeResolutionChange}
             epgMetadataBadgeFps={epgMetadataBadgeFps}

@@ -57,8 +57,6 @@ export interface StoredChannel extends Omit<Channel, 'stream_icon' | 'epg_channe
   logo_background?: string;
   // Manual logo padding override ('default' | 'none') applied from epg_channel_overrides
   logo_padding?: string;
-  // Per-source logo display override ('square' | 'rectangle') applied from sourceLogoDisplayOverrides
-  logo_display?: 'square' | 'rectangle';
   // Filter words that were applied to this channel's name/alias for the current
   // view (used to explain trimmed names on hover).
   applied_filter_words?: string[];

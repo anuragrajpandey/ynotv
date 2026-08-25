@@ -145,11 +145,13 @@ export interface AppSettings {
     epgPreferEpgLogos?: boolean;
     epgLogoDisplay?: 'square' | 'rectangle';
     sourceLogoDisplayOverrides?: Record<string, 'square' | 'rectangle'>;
+    sourceLogoBackgroundOverrides?: Record<string, 'auto' | 'light' | 'dark'>;
     channelLogoSize?: number;
     channelLogoRoundEdges?: boolean;
     channelLogoPadding?: 'none' | 'padded';
     logoSmartTrim?: boolean;
     logoLightBackgroundDetection?: boolean;
+    logoDefaultBackground?: 'auto' | 'light' | 'dark';
     epgMetadataBadgeResolution?: boolean;
     epgMetadataBadgeFps?: boolean;
     epgMetadataBadgeFpsSuffix?: boolean;

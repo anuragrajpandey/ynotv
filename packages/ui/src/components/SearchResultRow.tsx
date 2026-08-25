@@ -7,6 +7,7 @@ import { addToRecentChannels } from '../utils/recentChannels';
 import { ChannelLogo } from './ChannelLogo';
 import type { StoredChannel, StoredProgram } from '../db';
 import { normalizeBoolean } from '../utils/db-helpers';
+import { useSettingsStore } from '../stores/settingsStore';
 import type { RecordingInfo } from '../hooks/useActiveRecordings';
 import { useEpgClockFormat } from '../stores/uiStore';
 import { formatTime, formatDate } from '../utils/dateTime';
@@ -86,6 +87,10 @@ export const SearchResultRow = memo(function SearchResultRow({
   currentChannel,
 }: SearchResultRowProps) {
   useTranslation();
+  // Per-source logo overrides are read straight from the store so changes
+  // apply live without re-running the channel query.
+  const sourceLogoDisplayOverrides = useSettingsStore((s) => s.sourceLogoDisplayOverrides);
+  const sourceLogoBackgroundOverrides = useSettingsStore((s) => s.sourceLogoBackgroundOverrides);
   const now = new Date();
   const isCurrentlyPlaying = currentChannel?.stream_id === channel.stream_id;
 
@@ -245,8 +250,9 @@ export const SearchResultRow = memo(function SearchResultRow({
           name={channel.alias || channel.name}
           className="guide-channel-logo"
           background={channel.logo_background as 'auto' | 'light' | 'dark' | undefined}
+          defaultBackground={sourceLogoBackgroundOverrides[channel.source_id]}
           padding={channel.logo_padding as 'default' | 'none' | undefined}
-          shape={channel.logo_display as 'square' | 'rectangle' | undefined}
+          shape={sourceLogoDisplayOverrides[channel.source_id]}
         />
         <div className="guide-channel-name-container">
           <span className="guide-channel-name" title={channel.alias || channel.name}>

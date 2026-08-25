@@ -10,6 +10,7 @@ import { addToRecentChannels } from '../utils/recentChannels';
 import { ChannelLogo } from './ChannelLogo';
 import type { StoredChannel, StoredProgram } from '../db';
 import { normalizeBoolean } from '../utils/db-helpers';
+import { useSettingsStore } from '../stores/settingsStore';
 import type { RecordingInfo } from '../hooks/useActiveRecordings';
 
 // Channel column width is controlled via CSS custom property for resizability
@@ -69,6 +70,10 @@ export const ChannelRow = memo(function ChannelRow({
   epgMetadataBadgeBitrate,
   epgMetadataBadgeAudioBitrate,
 }: ChannelRowProps) {
+  // Per-source logo overrides are read straight from the store so changes
+  // apply live without re-running the channel query.
+  const sourceLogoDisplayOverrides = useSettingsStore((s) => s.sourceLogoDisplayOverrides);
+  const sourceLogoBackgroundOverrides = useSettingsStore((s) => s.sourceLogoBackgroundOverrides);
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ program: StoredProgram; x: number; y: number } | null>(null);
   const [channelContextMenu, setChannelContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -217,8 +222,9 @@ export const ChannelRow = memo(function ChannelRow({
           name={channelDisplayName}
           className="guide-channel-logo"
           background={channel.logo_background as 'auto' | 'light' | 'dark' | undefined}
+          defaultBackground={sourceLogoBackgroundOverrides[channel.source_id]}
           padding={channel.logo_padding as 'default' | 'none' | undefined}
-          shape={channel.logo_display as 'square' | 'rectangle' | undefined}
+          shape={sourceLogoDisplayOverrides[channel.source_id]}
         />
         <div className="guide-channel-name-container">
           <span className="guide-channel-name" title={channelTitle}>

@@ -49,8 +49,12 @@ interface LiveTVTabProps {
   onLogoSmartTrimChange?: (enabled: boolean) => void;
   logoLightBackgroundDetection?: boolean;
   onLogoLightBackgroundDetectionChange?: (enabled: boolean) => void;
+  logoDefaultBackground?: 'auto' | 'light' | 'dark';
+  onLogoDefaultBackgroundChange?: (background: 'auto' | 'light' | 'dark') => void;
   sourceLogoDisplayOverrides: Record<string, 'square' | 'rectangle'>;
   onSetSourceLogoDisplayOverride: (sourceId: string, display: 'square' | 'rectangle' | 'default') => void;
+  sourceLogoBackgroundOverrides: Record<string, 'auto' | 'light' | 'dark'>;
+  onSetSourceLogoBackgroundOverride: (sourceId: string, background: 'auto' | 'light' | 'dark' | 'default') => void;
   epgMetadataBadgeResolution: boolean;
   onEpgMetadataBadgeResolutionChange: (enabled: boolean) => void;
   epgMetadataBadgeFps: boolean;
@@ -195,8 +199,12 @@ export function LiveTVTab({
   onLogoSmartTrimChange = () => {},
   logoLightBackgroundDetection = true,
   onLogoLightBackgroundDetectionChange = () => {},
+  logoDefaultBackground = 'auto',
+  onLogoDefaultBackgroundChange = () => {},
   sourceLogoDisplayOverrides,
   onSetSourceLogoDisplayOverride,
+  sourceLogoBackgroundOverrides,
+  onSetSourceLogoBackgroundOverride,
   epgMetadataBadgeResolution,
   onEpgMetadataBadgeResolutionChange,
   epgMetadataBadgeFps,
@@ -1080,8 +1088,12 @@ export function LiveTVTab({
             onLogoSmartTrimChange={onLogoSmartTrimChange}
             logoLightBackgroundDetection={logoLightBackgroundDetection}
             onLogoLightBackgroundDetectionChange={onLogoLightBackgroundDetectionChange}
+            logoDefaultBackground={logoDefaultBackground}
+            onLogoDefaultBackgroundChange={onLogoDefaultBackgroundChange}
             sourceLogoDisplayOverrides={sourceLogoDisplayOverrides}
             onSetSourceLogoDisplayOverride={onSetSourceLogoDisplayOverride}
+            sourceLogoBackgroundOverrides={sourceLogoBackgroundOverrides}
+            onSetSourceLogoBackgroundOverride={onSetSourceLogoBackgroundOverride}
             logoCacheEnabled={logoCacheEnabled}
             onLogoCacheEnabledChange={onLogoCacheEnabledChange}
             logoCacheMaxMb={logoCacheMaxMb}
