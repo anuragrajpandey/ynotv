@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import i18n, { translateNativeError } from '../../i18n';
 import { useStremioAddonStore } from '../../stores/stremioAddonStore';
 import { useStremioAuthStore } from '../../stores/stremioAuthStore';
 import type { InstalledAddon } from '../../types/stremio';
-import { parseAddonUrl } from '../../services/stremio-addon';
+import { openAddonConfigureUrl } from '../../services/stremio-addon';
 import './AddonManagerPanel.css';
 
 interface AddonManagerPanelProps {
@@ -29,17 +28,6 @@ export function AddonManagerPanel({ onClose }: AddonManagerPanelProps) {
   const [error, setError] = useState('');
   const [installing, setInstalling] = useState<string | boolean>(false);
   const [syncingPositions, setSyncingPositions] = useState(false);
-
-  const openConfigureUrl = async (baseUrl: string) => {
-    const parsed = parseAddonUrl(baseUrl);
-    const url = `${parsed.baseUrl}/configure${parsed.query}`;
-    try {
-      await invoke('open_external_url', { url });
-    } catch (e) {
-      console.error('[AddonManager] Failed to open configure URL:', e);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-  };
 
   const handleInstall = async (url: string) => {
     if (!url.trim()) return;
@@ -164,12 +152,11 @@ export function AddonManagerPanel({ onClose }: AddonManagerPanelProps) {
                           onClick={() => toggleAddon(addon.id)}
                         >
                           {addon.enabled === false ? i18n.t('stremio:enable') : i18n.t('stremio:disable')}
-                        </button>
-                        {!addon.isDefault && (
+                        </button>                          {!addon.isDefault && (
                           <button
                             className="stremio-addon-configure-btn"
                             title={i18n.t('stremio:configureAddon')}
-                            onClick={() => openConfigureUrl(addon.baseUrl)}
+                            onClick={() => openAddonConfigureUrl(addon.baseUrl)}
                           >
                             ⚙
                           </button>

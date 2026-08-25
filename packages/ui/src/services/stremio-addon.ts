@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import type { InstalledAddon, StremioManifest, StremioCatalogResponse, StremioMeta, StremioStream, StremioSubtitle } from '../types/stremio';
 import i18n, { translateNativeError } from '../i18n';
 
@@ -51,6 +52,22 @@ export function cleanAddonUrl(url: string): string {
 export function getManifestUrl(baseUrl: string): string {
   const parsed = parseAddonUrl(baseUrl);
   return `${parsed.baseUrl}/manifest.json${parsed.query}`;
+}
+
+/**
+ * Open an addon's configuration page ({baseUrl}/configure) so users can
+ * customise it, mirroring the Stremio addon manager's configure button. Falls
+ * back to a new browser tab if the native opener is unavailable.
+ */
+export async function openAddonConfigureUrl(baseUrl: string): Promise<void> {
+  const parsed = parseAddonUrl(baseUrl);
+  const url = `${parsed.baseUrl}/configure${parsed.query}`;
+  try {
+    await invoke('open_external_url', { url });
+  } catch (e) {
+    console.error('[Addon] Failed to open configure URL:', e);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 }
 
 function normalizeBaseUrl(url: string): string {
