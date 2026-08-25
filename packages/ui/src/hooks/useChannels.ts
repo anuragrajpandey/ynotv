@@ -665,19 +665,17 @@ export function useChannels(categoryId: string | null, sortOrder: 'alphabetical'
           // Channels in this category
           const category = await db.categories.get(categoryId);
           if (category) {
-            const index = await ensureCategoryStreamIndex();
-            const orderedIds = index.get(categoryId) || [];
-            const fetched: StoredChannel[] = [];
-            const FETCH_CHUNK = 500;
-            for (let i = 0; i < orderedIds.length; i += FETCH_CHUNK) {
-              const chunk = orderedIds.slice(i, i + FETCH_CHUNK);
-              const rows = await db.channels.where('stream_id').anyOf(chunk).toArray();
-              fetched.push(...rows);
-            }
-            // anyOf returns PK order; restore table scan (insertion) order
-            const pos = new Map(orderedIds.map((id, i) => [id, i]));
-            fetched.sort((a, b) => (pos.get(a.stream_id) ?? 0) - (pos.get(b.stream_id) ?? 0));
-            results = fetched;
+            // Fetch this category's channels with a single indexed SQL query
+            // (idx_channels_source + json_each match + enabled filter). This
+            // avoids the once-per-session full-table scan that
+            // ensureCategoryStreamIndex() performs over every channel row, and
+            // pushes the enabled filter into SQL so disabled rows for this
+            // category aren't transferred into JS at all. Same query shape as
+            // the playlist-category branches below.
+            results = await db.channels.whereRaw(
+              `source_id = ? AND EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false'))`,
+              [category.source_id, category.category_id]
+            ).toArray();
             if (enabledSourceIds) {
               results = results.filter(ch => enabledSourceIds.has(ch.source_id));
             }
