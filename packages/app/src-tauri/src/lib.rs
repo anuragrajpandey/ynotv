@@ -5378,6 +5378,7 @@ pub fn run() {
             mpv_canvas::multiview_canvas_resize,
             mpv_canvas::multiview_canvas_set_property,
             mpv_canvas::multiview_canvas_stop_all,
+            mpv_canvas::multiview_canvas_ack,
             // Popout MPV commands
             popout_open,
             popout_load,

@@ -26,6 +26,13 @@ pub struct CanvasSlot {
     pub running: Arc<AtomicBool>,
     pub target_width: Arc<RwLock<u32>>,
     pub target_height: Arc<RwLock<u32>>,
+    /// Backpressure flag: true when the JS canvas has consumed the last frame
+    /// and another frame may be sent. The render loop only sends while this is
+    /// set, so the IPC channel can never queue more than one frame per slot —
+    /// large-cell layouts (2x2) previously pushed full RGBA frames at 60Hz into
+    /// an unbounded channel, growing memory to multiple GB when the JS main
+    /// thread fell behind.
+    pub acked: Arc<AtomicBool>,
     pub thread_handle: Option<thread::JoinHandle<()>>,
 }
 
@@ -126,9 +133,13 @@ pub async fn multiview_canvas_start(
         }
     }
 
-    // Ensure even dimensions aligned for SIMD
-    let width = if width == 0 { 640 } else { ((width.min(1920) + 1) & !1).max(64) };
-    let height = if height == 0 { 360 } else { ((height.min(1080) + 1) & !1).max(64) };
+    // Ensure even dimensions aligned for SIMD. The slots are secondary views
+    // (small cells in a grid), so cap the offscreen render resolution at 720p —
+    // rendering them any larger multiplies per-frame IPC bytes without visible
+    // benefit and is what pushes 2x2 multiview (large cells) into unbounded
+    // channel buffering / multi-GB memory growth.
+    let width = if width == 0 { 640 } else { ((width.min(1280) + 1) & !1).max(64) };
+    let height = if height == 0 { 360 } else { ((height.min(720) + 1) & !1).max(64) };
 
     let (mpv_instance, render_ctx) = create_canvas_mpv_instance(slot_id)?;
     let mpv = Arc::new(mpv_instance);
@@ -140,10 +151,12 @@ pub async fn multiview_canvas_start(
     let running = Arc::new(AtomicBool::new(true));
     let target_width = Arc::new(RwLock::new(width));
     let target_height = Arc::new(RwLock::new(height));
+    let acked = Arc::new(AtomicBool::new(true));
 
     let run_flag = running.clone();
     let tw = target_width.clone();
     let th = target_height.clone();
+    let ack_flag = acked.clone();
     let r_ctx_usize = render_ctx as usize;
 
     // Background render worker thread
@@ -175,49 +188,62 @@ pub async fn multiview_canvas_start(
             }
 
             if cur_w > 0 && cur_h > 0 && !r_ctx.is_null() {
-                let flags = unsafe { mpv_render_context_update(r_ctx) };
-                if (flags & RENDER_UPDATE_FRAME) != 0 {
-                    let mut sw_size: [i32; 2] = [cur_w as i32, cur_h as i32];
-                    let mut sw_stride: usize = stride;
+                // Backpressure: only render+send while the JS canvas has consumed
+                // the previous frame (ack_flag). Frames that arrive while a send is
+                // in flight are dropped on the floor — the newest one wins — so the
+                // channel stays bounded to a single in-flight frame and the slot
+                // auto-throttles to whatever rate the main thread can actually
+                // consume (60 FPS when idle, lower when React is busy).
+                if ack_flag.swap(false, Ordering::AcqRel) {
+                    let flags = unsafe { mpv_render_context_update(r_ctx) };
+                    if (flags & RENDER_UPDATE_FRAME) != 0 {
+                        let mut sw_size: [i32; 2] = [cur_w as i32, cur_h as i32];
+                        let mut sw_stride: usize = stride;
 
-                    let mut render_params = [
-                        mpv_render_param {
-                            type_: mpv_render_param_type_MPV_RENDER_PARAM_SW_SIZE,
-                            data: sw_size.as_mut_ptr() as *mut c_void,
-                        },
-                        mpv_render_param {
-                            type_: mpv_render_param_type_MPV_RENDER_PARAM_SW_FORMAT,
-                            data: sw_format.as_ptr() as *mut c_void,
-                        },
-                        mpv_render_param {
-                            type_: mpv_render_param_type_MPV_RENDER_PARAM_SW_STRIDE,
-                            data: &mut sw_stride as *mut _ as *mut c_void,
-                        },
-                        mpv_render_param {
-                            type_: mpv_render_param_type_MPV_RENDER_PARAM_SW_POINTER,
-                            data: pixel_buf.as_mut_ptr() as *mut c_void,
-                        },
-                        mpv_render_param {
-                            type_: mpv_render_param_type_MPV_RENDER_PARAM_INVALID,
-                            data: ptr::null_mut(),
-                        },
-                    ];
+                        let mut render_params = [
+                            mpv_render_param {
+                                type_: mpv_render_param_type_MPV_RENDER_PARAM_SW_SIZE,
+                                data: sw_size.as_mut_ptr() as *mut c_void,
+                            },
+                            mpv_render_param {
+                                type_: mpv_render_param_type_MPV_RENDER_PARAM_SW_FORMAT,
+                                data: sw_format.as_ptr() as *mut c_void,
+                            },
+                            mpv_render_param {
+                                type_: mpv_render_param_type_MPV_RENDER_PARAM_SW_STRIDE,
+                                data: &mut sw_stride as *mut _ as *mut c_void,
+                            },
+                            mpv_render_param {
+                                type_: mpv_render_param_type_MPV_RENDER_PARAM_SW_POINTER,
+                                data: pixel_buf.as_mut_ptr() as *mut c_void,
+                            },
+                            mpv_render_param {
+                                type_: mpv_render_param_type_MPV_RENDER_PARAM_INVALID,
+                                data: ptr::null_mut(),
+                            },
+                        ];
 
-                    let render_res = unsafe { mpv_render_context_render(r_ctx, render_params.as_mut_ptr()) };
-                    if render_res >= 0 {
-                        let num_pixels = (cur_w * cur_h) as usize;
-                        let src = &pixel_buf[..num_pixels * 4];
-                        let dst = &mut payload_buf[8..8 + num_pixels * 4];
-                        dst.copy_from_slice(src);
-                        // Force Alpha = 255 so HTML5 canvas ImageData renders fully opaque
-                        for chunk in dst.chunks_exact_mut(4) {
-                            chunk[3] = 255;
+                        let render_res = unsafe { mpv_render_context_render(r_ctx, render_params.as_mut_ptr()) };
+                        if render_res >= 0 {
+                            let num_pixels = (cur_w * cur_h) as usize;
+                            let src = &pixel_buf[..num_pixels * 4];
+                            let dst = &mut payload_buf[8..8 + num_pixels * 4];
+                            dst.copy_from_slice(src);
+                            // Force Alpha = 255 so HTML5 canvas ImageData renders fully opaque
+                            for chunk in dst.chunks_exact_mut(4) {
+                                chunk[3] = 255;
+                            }
+
+                            if let Err(e) = channel.send(InvokeResponseBody::Raw(payload_buf.clone())) {
+                                log::debug!("[CanvasMultiview] Channel closed: {}", e);
+                                break;
+                            }
                         }
-
-                        if let Err(e) = channel.send(InvokeResponseBody::Raw(payload_buf.clone())) {
-                            log::debug!("[CanvasMultiview] Channel closed: {}", e);
-                            break;
-                        }
+                    } else {
+                        // No new frame this poll — restore the send permission so a
+                        // frame arriving on the next poll isn't gated behind the ack
+                        // of a frame that was never sent.
+                        ack_flag.store(true, Ordering::Release);
                     }
                 }
             }
@@ -235,10 +261,25 @@ pub async fn multiview_canvas_start(
             running,
             target_width,
             target_height,
+            acked,
             thread_handle: Some(thread_handle),
         },
     );
 
+    Ok(())
+}
+
+/// Called by the JS canvas after it has drawn a frame; releases the backpressure
+/// gate so the render loop can send the next one.
+#[tauri::command]
+pub async fn multiview_canvas_ack(
+    slot_id: u8,
+    state: State<'_, CanvasMultiviewState>,
+) -> Result<(), String> {
+    let lock = state.slots.lock().unwrap();
+    if let Some(slot) = lock.get(&slot_id) {
+        slot.acked.store(true, Ordering::Release);
+    }
     Ok(())
 }
 
@@ -279,8 +320,10 @@ pub async fn multiview_canvas_resize(
 ) -> Result<(), String> {
     let lock = state.slots.lock().unwrap();
     if let Some(slot) = lock.get(&slot_id) {
-        let w = ((width.min(1920) + 1) & !1).max(64);
-        let h = ((height.min(1080) + 1) & !1).max(64);
+        // Keep the same 720p cap as multiview_canvas_start so a resize can never
+        // balloon the slot back into the multi-GB channel-buffering territory.
+        let w = ((width.min(1280) + 1) & !1).max(64);
+        let h = ((height.min(720) + 1) & !1).max(64);
         *slot.target_width.write() = w;
         *slot.target_height.write() = h;
     }

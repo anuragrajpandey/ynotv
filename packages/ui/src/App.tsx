@@ -5969,7 +5969,7 @@ function useTmdbPresencePoster(
         }}
       />
 
-      {/* V3 Liquid Glass Background */}
+      {/* V3 Liquid Glass Background (and v1/v2 solid cover for the multiview grid) */}
       {(() => {
         const isPreviewView = activeView === 'guide' || activeView === 'sports';
         const isPageOverlayView = activeView !== 'guide' && activeView !== 'sports' && activeView !== 'none';
@@ -5985,11 +5985,26 @@ function useTmdbPresencePoster(
           (activeView === 'none' && !currentChannel)
         );
 
-        if (!shouldRenderGlassBg) return null;
+        // v1/v2 have no liquid-glass backdrop. They keep the guide opaque via
+        // solid `--guide-solid-bg` covers on .guide-grid-section and
+        // .guide-info-pane only. When a multiview grid (2x2/bigbottom) is
+        // active the top section becomes the 1x4 preview grid with no info
+        // pane, so nothing solid would sit behind it and the desktop bleeds
+        // through as transparency. Render an opaque cover here (with the same
+        // main-preview hole, so the primary native video still shows) to close
+        // that gap. Split layouts still render .guide-info-pane, so they stay
+        // covered by the existing CSS rule and don't need this.
+        const isGridMultiview = multiviewLayout === '2x2' || multiviewLayout === 'bigbottom';
+        const shouldRenderSolidCover = liveTvDesign !== 'v3' &&
+          activeView === 'guide' && !guideTransparent && isGridMultiview;
+
+        if (!shouldRenderGlassBg && !shouldRenderSolidCover) return null;
+
+        const isGlass = shouldRenderGlassBg;
 
         return (
           <div 
-            className={`livetv-liquid-glass-bg ${randomScheme}`}
+            className={`${isGlass ? `livetv-liquid-glass-bg ${randomScheme}` : 'livetv-multiview-solid-cover'}`}
             style={
               previewVideoRect && currentChannel
                 ? (() => {

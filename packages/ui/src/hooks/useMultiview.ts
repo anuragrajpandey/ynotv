@@ -221,7 +221,54 @@ export function useMultiview() {
                 s.id === slotId ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s
             ));
         }
-    }, []);
+
+        // The primary MPV window is a child HWND that's physically resized to its
+        // cell via SetWindowPos. When mpv loads the swapped stream it re-fits that
+        // child window to the new video's natural size (it doesn't know the window
+        // was resized externally), so the video ends up fullscreen-sized and the
+        // grid's black backdrop only exposes its top-left corner inside cell 1.
+        // Every other load path re-applies geometry afterward (the guide re-syncs
+        // via ChannelPanel's own effect on multiviewSlots change; returning to the
+        // hero re-syncs via App.tsx), but the swap does not — so re-apply here.
+        // Delayed passes outlast mpv's async window re-fit, which happens once the
+        // new stream's first frame lands (network-dependent). Idempotent, so extra
+        // passes are harmless.
+        const reapplyGeometry = () => {
+            const d = window.devicePixelRatio || 1;
+
+            // Hero page: the layout placeholder only exists with a real rect while
+            // activeView === 'none'. syncMpvGeometry also re-asserts the video
+            // properties (keepaspect/video-zoom) for the layout, so prefer it.
+            const placeholder = document.querySelector<HTMLElement>('.layout-mpv-placeholder');
+            if (placeholder) {
+                const r = placeholder.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0) {
+                    void syncMpvGeometry(layoutRef.current);
+                    return;
+                }
+            }
+
+            // Sports preview: main cell for 2x2/sbs, or the whole pane for pip.
+            const sportsTarget = document.querySelector<HTMLElement>('.sports-mv-main')
+                ?? document.querySelector<HTMLElement>('.sports-preview-pane');
+            if (sportsTarget) {
+                const r = sportsTarget.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0) {
+                    void invoke('mpv_set_geometry', {
+                        x: Math.round(r.left * d),
+                        y: Math.round(r.top * d),
+                        width: Math.round(r.width * d),
+                        height: Math.round(r.height * d),
+                    }).catch(() => { });
+                }
+            }
+        };
+        reapplyGeometry();
+        setTimeout(reapplyGeometry, 300);
+        setTimeout(reapplyGeometry, 900);
+        setTimeout(reapplyGeometry, 1800);
+        setTimeout(reapplyGeometry, 3000);
+    }, [syncMpvGeometry]);
 
     const stopSlot = useCallback(async (slotId: 2 | 3 | 4) => {
         // Only canvas engine keeps native streams in the backend; HLS cells stop on unmount

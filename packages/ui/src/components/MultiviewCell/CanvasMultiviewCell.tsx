@@ -135,6 +135,12 @@ export function CanvasMultiviewCell({
                 ctx.putImageData(imgData, 0, 0);
             } catch (e) {
                 // Ignore transient frame draw error
+            } finally {
+                // Release the backpressure gate so the Rust render loop can send
+                // the next frame. Without this ack, frames pile up in the (unbounded)
+                // IPC channel faster than the main thread can draw them — large-cell
+                // layouts like 2x2 multiview ballooned to multi-GB memory.
+                invoke('multiview_canvas_ack', { slotId }).catch(() => {});
             }
         };
 
