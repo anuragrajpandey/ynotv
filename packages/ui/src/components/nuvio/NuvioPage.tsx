@@ -55,6 +55,7 @@ import { useModal } from '../Modal';
 import type { StremioStream, StremioVideo, StremioMeta, BadgeSource, StreamAutoPlayMode, StreamAutoPlaySourceScope } from '../../types/stremio';
 import type { StremioMetaPreview, InstalledAddon } from '../../types/stremio';
 import { scrobbler, TRAKT_CATALOG_DEFINITIONS } from '../../services/scrobbler';
+import { resolveSourceItems } from '../../services/collectionSourceResolver';
 import { SERVICES, type StreamingService } from '../../constants/streamingProviders';
 import { StreamingServiceView } from '../stremio/StreamingServiceView';
 import { compileBadgeSources } from '../../utils/streamBadges';
@@ -1622,7 +1623,18 @@ function NuvioPageContent({
       if (!source) {
         setFolderError(t('folderNoSource'));
       } else if (source.provider === 'tmdb' || source.provider === 'trakt') {
-        setFolderError(t('unsupportedProvider', { provider: source.provider }));
+        const activeAddons = useNuvioAddonStore.getState().enabledAddons;
+        const skip = append ? folderSkipRef.current : 0;
+        const metas = await resolveSourceItems(source, activeAddons, { limit: 100, skip });
+        if (append) {
+          setFolderItems(prev => [...prev, ...metas]);
+          setFolderSkip(skip + metas.length);
+          if (metas.length === 0) setHasMoreFolderItems(false);
+        } else {
+          setFolderItems(metas);
+          setFolderSkip(metas.length);
+          if (metas.length === 0) setHasMoreFolderItems(false);
+        }
       } else if (source.provider && source.provider !== 'addon') {
         setFolderError(i18n.t('nuvio:providerNotRecognized', { provider: source.provider }));
       } else {

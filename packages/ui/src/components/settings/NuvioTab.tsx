@@ -1421,10 +1421,12 @@ color: current === style ? 'var(--accent-primary)' : 'var(--text-secondary)',
                   {(() => {
                   // Normalize: handle old string[] format too
                   const raw: any[] = JSON.parse(localStorage.getItem('nuvio_hero_catalogs') || '[]');
-                  const heroEntries: { key: string; baseUrl: string }[] = raw.map((e: any) =>
+                  const heroEntries: { key: string; baseUrl?: string; isCollection?: boolean; collectionId?: string }[] = raw.map((e: any) =>
                     typeof e === 'string' ? { key: e, baseUrl: '' } : e
                   );
                   const selectedKeys = heroEntries.map(e => e.key);
+                  const allHeroSources = [...catalogsList, ...collectionsList];
+
                   return (
                     <>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -1451,21 +1453,21 @@ color: current === style ? 'var(--accent-primary)' : 'var(--text-secondary)',
                           {i18n.t('settings:nuvio.resetSelection')}
                         </button>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
-                        {catalogsList.map((cat) => {
-                          const isSelected = selectedKeys.includes(cat.key);
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+                        {allHeroSources.map((sourceItem) => {
+                          const isSelected = selectedKeys.includes(sourceItem.key);
                           const atLimit = selectedKeys.length >= 2;
                           return (
                             <label
-                              key={cat.key}
+                              key={sourceItem.key}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '10px',
                                 padding: '6px 10px',
                                 borderRadius: '6px',
-background: isSelected ? 'var(--surface-glow)' : 'var(--surface-color)',
-border: isSelected ? '1px solid var(--accent-glow)' : '1px solid var(--surface-border)',
+                                background: isSelected ? 'var(--surface-glow)' : 'var(--surface-color)',
+                                border: isSelected ? '1px solid var(--accent-glow)' : '1px solid var(--surface-border)',
                                 cursor: atLimit && !isSelected ? 'not-allowed' : 'pointer',
                                 opacity: atLimit && !isSelected ? 0.4 : 1,
                                 transition: 'all 0.15s ease',
@@ -1477,32 +1479,43 @@ border: isSelected ? '1px solid var(--accent-glow)' : '1px solid var(--surface-b
                                 disabled={atLimit && !isSelected}
                                 onChange={() => {
                                   const raw: any[] = JSON.parse(localStorage.getItem('nuvio_hero_catalogs') || '[]');
-                                  const current: { key: string; baseUrl: string }[] = raw.map((e: any) =>
+                                  const current: any[] = raw.map((e: any) =>
                                     typeof e === 'string' ? { key: e, baseUrl: '' } : e
                                   );
                                   if (isSelected) {
-                                    localStorage.setItem('nuvio_hero_catalogs', JSON.stringify(current.filter((e) => e.key !== cat.key)));
+                                    localStorage.setItem('nuvio_hero_catalogs', JSON.stringify(current.filter((e) => e.key !== sourceItem.key)));
                                   } else if (current.length < 2) {
-                                    // Find the addon's baseUrl
-                                    const addon = activeAddons.find(a => (a.manifest?.id || a.id) === cat.addonId);
-                                    const baseUrl = addon?.baseUrl || cat.addonId;
-                                    localStorage.setItem('nuvio_hero_catalogs', JSON.stringify([...current, { key: cat.key, baseUrl }]));
+                                    if (sourceItem.isCollection) {
+                                      localStorage.setItem(
+                                        'nuvio_hero_catalogs',
+                                        JSON.stringify([...current, { key: sourceItem.key, isCollection: true, collectionId: sourceItem.collectionId, title: sourceItem.title }])
+                                      );
+                                    } else {
+                                      const addon = activeAddons.find(a => (a.manifest?.id || a.id) === sourceItem.addonId);
+                                      const baseUrl = addon?.baseUrl || sourceItem.addonId;
+                                      localStorage.setItem(
+                                        'nuvio_hero_catalogs',
+                                        JSON.stringify([...current, { key: sourceItem.key, baseUrl }])
+                                      );
+                                    }
                                   }
                                   window.dispatchEvent(new Event('nuvioHeroCatalogsChanged'));
                                 }}
                               />
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: '0.8rem', fontWeight: 500, color: isSelected ? 'var(--text-primary)' : 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {cat.title || cat.catalogId}
+                                  {sourceItem.title || sourceItem.catalogId}
                                 </div>
                                 <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                                  {cat.addonName} · {cat.type}
+                                  {sourceItem.isCollection
+                                    ? `Collection · ${sourceItem.subtitle}`
+                                    : `${sourceItem.addonName} · ${sourceItem.type}`}
                                 </div>
                               </div>
                             </label>
                           );
                         })}
-                        {catalogsList.length === 0 && (
+                        {allHeroSources.length === 0 && (
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', padding: '10px 0' }}>
                             {i18n.t('settings:nuvio.noCatalogs')}
                           </div>
