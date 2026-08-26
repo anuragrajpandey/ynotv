@@ -1032,151 +1032,86 @@ async fn serve_remote_html() -> impl IntoResponse {
       gap: 12px;
     }
     
-    /* Open Destinations Action Bar Button */
-    .open-sections-bar-btn {
-      width: 100%;
-      max-width: 350px;
-      height: 38px;
-      padding: 0 14px;
-      background: linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(37, 99, 235, 0.08) 100%);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      border-radius: 12px;
-      color: #f1f5f9;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.15);
-      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    .open-sections-bar-btn .btn-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .open-sections-bar-btn svg.icon-main {
-      width: 16px;
-      height: 16px;
-      color: var(--accent-cyan);
-      filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.6));
-    }
-    .open-sections-bar-btn svg.icon-chev {
-      width: 14px;
-      height: 14px;
-      color: var(--text-dim);
-    }
-    .open-sections-bar-btn:active {
-      background: linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(37, 99, 235, 0.2) 100%);
-      border-color: var(--accent-cyan);
-      transform: scale(0.97);
-      box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
-    }
-
-    /* Remote Navigation Cluster (Vol Pillar, D-Pad, Ch Pillar) */
-    .remote-cluster {
+    /* D-Pad Section with 4 Corner Satellite Controls */
+    .dpad-wrapper {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 14px;
       width: 100%;
-      max-width: 350px;
+      max-width: 320px;
+      margin: 4px 0;
     }
-
-    .remote-pillar {
-      width: 48px;
-      height: 210px;
-      background: radial-gradient(circle at 50% 30%, #1a2032 0%, #0e121e 100%);
-      border: 2px solid rgba(255, 255, 255, 0.1);
-      border-radius: 26px;
+    .dpad-corner-btn {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-glass);
+      color: var(--text-secondary);
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: space-between;
-      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55), inset 0 2px 5px rgba(255, 255, 255, 0.12);
-      padding: 4px;
-      position: relative;
-      flex-shrink: 0;
-      box-sizing: border-box;
-    }
-
-    .pillar-btn {
-      width: 100%;
-      flex: 1;
-      background: transparent;
-      border: none;
-      color: #94a3b8;
-      display: flex;
-      align-items: center;
       justify-content: center;
+      gap: 1px;
       cursor: pointer;
-      border-radius: 20px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
       transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
       -webkit-user-select: none;
+      z-index: 5;
     }
-    .pillar-btn svg {
-      width: 20px;
-      height: 20px;
-      transition: transform 0.12s ease;
+    .dpad-corner-btn svg {
+      width: 17px;
+      height: 17px;
     }
-    .pillar-btn:active {
-      color: var(--accent-cyan);
-      background: radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, transparent 80%);
+    .dpad-corner-btn .corner-btn-sub {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-dim);
+      letter-spacing: 0.2px;
+      line-height: 1;
+    }
+    .dpad-corner-btn:active {
+      background: rgba(56, 189, 248, 0.22);
+      border-color: var(--accent-cyan);
+      color: #fff;
       transform: scale(0.92);
     }
-    .pillar-btn:active svg {
-      transform: scale(1.18);
-      filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.8));
+    .dpad-corner-btn:active .corner-btn-sub {
+      color: var(--accent-cyan);
     }
-    .pillar-btn-mute {
-      flex: 0 0 44px;
-      height: 44px;
-      border-radius: 50%;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    .dpad-corner-top-left {
+      top: 2px;
+      left: 6px;
     }
-    .pillar-btn-mute.active {
-      color: #ef4444;
+    .dpad-corner-top-right {
+      top: 2px;
+      right: 6px;
     }
-    .pillar-btn-mute:active {
-      color: #ef4444;
-      background: radial-gradient(circle, rgba(239, 68, 68, 0.3) 0%, transparent 80%);
+    .dpad-corner-bottom-left {
+      bottom: 2px;
+      left: 6px;
     }
-    .pillar-label {
-      flex: 0 0 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 800;
-      color: var(--text-dim);
-      letter-spacing: 0.8px;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      width: 100%;
-      pointer-events: none;
-      user-select: none;
+    .dpad-corner-bottom-right {
+      bottom: 2px;
+      right: 6px;
     }
 
-    /* Futuristic D-Pad Dial */
+    /* Futuristic Extra-Large D-Pad Dial */
     .dpad {
-      width: 210px;
-      height: 210px;
+      width: 236px;
+      height: 236px;
+      max-width: 76vw;
+      max-height: 76vw;
       border-radius: 50%;
       background: radial-gradient(circle at 50% 50%, #1a2032 0%, #0e121e 100%);
-      border: 2px solid rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.12);
       position: relative;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), inset 0 2px 6px rgba(255, 255, 255, 0.12);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), inset 0 2px 6px rgba(255, 255, 255, 0.15);
       flex-shrink: 0;
     }
     .dpad-btn {
@@ -1195,36 +1130,36 @@ async fn serve_remote_html() -> impl IntoResponse {
       -webkit-user-select: none;
     }
     .dpad-btn svg {
-      width: 22px;
-      height: 22px;
+      width: 26px;
+      height: 26px;
       transition: transform 0.12s ease;
     }
     .dpad-btn:active { 
       color: var(--accent-cyan); 
-      background: radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, transparent 80%);
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.28) 0%, transparent 80%);
     }
-    .dpad-btn:active svg { transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.8)); }
-    .dpad-up { top: 0; left: 60px; width: 90px; height: 60px; border-radius: 105px 105px 0 0; }
-    .dpad-down { bottom: 0; left: 60px; width: 90px; height: 60px; border-radius: 0 0 105px 105px; }
-    .dpad-left { left: 0; top: 60px; width: 60px; height: 90px; border-radius: 105px 0 0 105px; }
-    .dpad-right { right: 0; top: 60px; width: 60px; height: 90px; border-radius: 0 105px 105px 0; }
+    .dpad-btn:active svg { transform: scale(1.15); filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.9)); }
+    .dpad-up { top: 0; left: 68px; width: 100px; height: 68px; border-radius: 118px 118px 0 0; }
+    .dpad-down { bottom: 0; left: 68px; width: 100px; height: 68px; border-radius: 0 0 118px 118px; }
+    .dpad-left { left: 0; top: 68px; width: 68px; height: 100px; border-radius: 118px 0 0 118px; }
+    .dpad-right { right: 0; top: 68px; width: 68px; height: 100px; border-radius: 0 118px 118px 0; }
     
     .dpad-center {
       position: absolute;
-      top: 60px; left: 60px;
-      width: 90px; height: 90px;
+      top: 68px; left: 68px;
+      width: 100px; height: 100px;
       border-radius: 50%;
-      background: radial-gradient(circle at 50% 30%, #28334e 0%, #151b2c 100%);
-      border: 2px solid rgba(255, 255, 255, 0.16);
+      background: radial-gradient(circle at 50% 30%, #2a3652 0%, #151b2c 100%);
+      border: 2px solid rgba(255, 255, 255, 0.18);
       color: #fff;
       font-weight: 800;
-      font-size: 15px;
-      letter-spacing: 0.5px;
+      font-size: 17px;
+      letter-spacing: 0.6px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255, 255, 255, 0.25);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.45), inset 0 1px 3px rgba(255, 255, 255, 0.3);
       transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
@@ -1235,51 +1170,156 @@ async fn serve_remote_html() -> impl IntoResponse {
       background: var(--accent-gradient); 
       color: #04101c; 
       border-color: #7dd3fc;
-      box-shadow: 0 0 24px rgba(56, 189, 248, 0.6);
+      box-shadow: 0 0 24px rgba(56, 189, 248, 0.7);
       transform: scale(0.94);
     }
 
-    .action-row {
+    /* Middle 3-Column Cluster (Volume, [Back & Play/Pause], Channel) */
+    .middle-cluster {
       display: flex;
-      justify-content: space-around;
+      align-items: stretch;
+      justify-content: space-between;
       width: 100%;
-      max-width: 340px;
-      gap: 8px;
+      max-width: 320px;
+      gap: 12px;
+      height: 136px;
     }
-    .action-btn {
+    .cluster-pillar {
+      width: 52px;
+      height: 100%;
+      background: radial-gradient(circle at 50% 30%, #1a2032 0%, #0e121e 100%);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.12);
+      padding: 3px;
+      box-sizing: border-box;
+      flex-shrink: 0;
+    }
+    .cluster-center-stack {
       flex: 1;
-      height: 42px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+    }
+    .center-action-btn {
+      width: 100%;
+      flex: 1;
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border-glass);
-      border-radius: 12px;
-      color: var(--text-secondary);
-      font-weight: 600;
-      font-size: 12px;
+      border-radius: 16px;
+      color: var(--text-primary);
+      font-weight: 700;
+      font-size: 13px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 5px;
+      gap: 7px;
       cursor: pointer;
       box-shadow: var(--glass-card-shadow);
       transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
     }
-    .action-btn svg { width: 15px; height: 15px; }
-    .action-btn:active { 
-      background: rgba(56, 189, 248, 0.15); 
-      border-color: var(--accent-cyan);
-      color: #fff; 
-      transform: scale(0.94);
-    }
-    .action-btn.back-btn:active { 
-      background: rgba(239, 68, 68, 0.2); 
+    .center-action-btn svg { width: 17px; height: 17px; }
+    .center-action-btn.back-btn:active {
+      background: rgba(239, 68, 68, 0.2);
       border-color: var(--live-red);
-      color: #fff; 
+      color: #fff;
+      transform: scale(0.95);
     }
+    .center-action-btn.play-btn {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(37, 99, 235, 0.1) 100%);
+      border-color: rgba(56, 189, 248, 0.35);
+      color: #f8fafc;
+    }
+    .center-action-btn.play-btn svg {
+      color: var(--accent-cyan);
+    }
+    .center-action-btn.play-btn:active {
+      background: var(--accent-cyan);
+      color: #04101c;
+      border-color: #7dd3fc;
+      transform: scale(0.95);
+    }
+    .center-action-btn.play-btn:active svg {
+      color: #04101c;
+    }
+
+    .rocker-btn {
+      width: 100%;
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border-radius: 18px;
+      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .rocker-btn svg {
+      width: 20px;
+      height: 20px;
+      transition: transform 0.12s ease;
+    }
+    .rocker-btn:active {
+      color: var(--accent-cyan);
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, transparent 80%);
+      transform: scale(0.92);
+    }
+    .rocker-btn:active svg {
+      transform: scale(1.18);
+      filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.8));
+    }
+    .rocker-btn-mute {
+      flex: 0 0 38px;
+      height: 38px;
+      border-radius: 50%;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .rocker-btn-mute.active {
+      color: #ef4444;
+    }
+    .rocker-btn-mute:active {
+      color: #ef4444;
+      background: radial-gradient(circle, rgba(239, 68, 68, 0.3) 0%, transparent 80%);
+    }
+    .rocker-label {
+      flex: 0 0 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-dim);
+      letter-spacing: 0.8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      width: 100%;
+      pointer-events: none;
+      user-select: none;
+    }
+
 
     .remote-search {
       display: flex;
       width: 100%;
-      max-width: 340px;
+      max-width: 320px;
       gap: 8px;
     }
     .remote-search-input-wrap {
@@ -1289,14 +1329,14 @@ async fn serve_remote_html() -> impl IntoResponse {
     }
     .remote-search-input {
       width: 100%;
-      height: 42px;
+      height: 36px;
       min-width: 0;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid var(--border-glass);
-      border-radius: 12px;
+      border-radius: 10px;
       color: var(--text-primary);
-      padding: 0 40px 0 12px;
-      font-size: 15px;
+      padding: 0 36px 0 10px;
+      font-size: 13.5px;
       outline: none;
       transition: border-color 0.15s ease;
     }
@@ -1309,7 +1349,7 @@ async fn serve_remote_html() -> impl IntoResponse {
       top: 50%;
       transform: translateY(-50%);
       color: var(--accent-cyan);
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       pointer-events: none;
       display: none;
@@ -1324,8 +1364,8 @@ async fn serve_remote_html() -> impl IntoResponse {
       right: 6px;
       top: 50%;
       transform: translateY(-50%);
-      width: 28px;
-      height: 28px;
+      width: 24px;
+      height: 24px;
       display: none;
       align-items: center;
       justify-content: center;
@@ -1333,7 +1373,7 @@ async fn serve_remote_html() -> impl IntoResponse {
       background: rgba(255, 255, 255, 0.08);
       color: var(--text-secondary);
       border-radius: 50%;
-      font-size: 12px;
+      font-size: 11px;
       cursor: pointer;
       transition: background 0.15s ease;
     }
@@ -1414,12 +1454,12 @@ async fn serve_remote_html() -> impl IntoResponse {
       transform: scale(0.96);
     }
     .remote-search-go {
-      width: 46px;
-      height: 42px;
+      width: 40px;
+      height: 36px;
       flex-shrink: 0;
       background: rgba(56, 189, 248, 0.12);
       border: 1px solid var(--border-glass);
-      border-radius: 12px;
+      border-radius: 10px;
       color: var(--accent-cyan);
       display: flex;
       align-items: center;
@@ -1427,68 +1467,10 @@ async fn serve_remote_html() -> impl IntoResponse {
       cursor: pointer;
       transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .remote-search-go svg { width: 16px; height: 16px; }
+    .remote-search-go svg { width: 15px; height: 15px; }
     .remote-search-go:active {
       background: rgba(56, 189, 248, 0.25);
       transform: scale(0.94);
-    }
-
-    .media-footer {
-      background: rgba(11, 14, 23, 0.8);
-      backdrop-filter: var(--glass-filter);
-      -webkit-backdrop-filter: var(--glass-filter);
-      border-top: 1px solid var(--border-glass);
-      padding: 8px 12px 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .media-row { display: flex; gap: 6px; }
-    .media-btn {
-      height: 38px;
-      flex: 1;
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border-glass);
-      color: #e2e8f0;
-      font-size: 12px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-      cursor: pointer;
-      box-shadow: var(--glass-card-shadow);
-      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .media-btn svg { width: 15px; height: 15px; }
-    .media-btn:active { 
-      background: rgba(56, 189, 248, 0.15); 
-      border-color: var(--accent-cyan);
-      color: #fff;
-      transform: scale(0.95);
-    }
-    .media-btn.btn-sm {
-      flex: 0.75;
-      height: 34px;
-      font-size: 11px;
-      padding: 0 6px;
-      gap: 3px;
-      color: #94a3b8;
-    }
-    .media-btn.btn-sm svg { width: 13px; height: 13px; }
-    .media-btn.play-btn { 
-      background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); 
-      color: #fff; 
-      border-color: rgba(255, 255, 255, 0.2); 
-      flex: 1.5; 
-      height: 38px;
-      font-size: 12.5px;
-      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
-    }
-    .media-btn.play-btn:active { 
-      background: linear-gradient(135deg, #1d4ed8 0%, #6d28d9 100%); 
-      transform: scale(0.95);
     }
 
     /* ================= TAB 2: LIVE GUIDE 2-PANE ================= */
@@ -2346,47 +2328,49 @@ async fn serve_remote_html() -> impl IntoResponse {
       <!-- 1. REMOTE TAB -->
       <div id="tab-remote" class="tab-pane active" style="overflow-y:auto;">
         <div class="pad-container">
-          <!-- Open App Destinations Button -->
-          <button id="open-sections-btn" class="open-sections-bar-btn" onpointerdown="toggleSectionsMenu(event)" title="App Destinations">
-            <div class="btn-left">
-              <svg class="icon-main" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <!-- D-Pad Dial with 4 Corner Satellite Controls -->
+          <div class="dpad-wrapper">
+            <!-- Top-Left Corner: Open Destinations -->
+            <button id="open-sections-btn" class="dpad-corner-btn dpad-corner-top-left" onclick="toggleSectionsMenu(event)" title="App Destinations" aria-label="Open">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="7" height="7"></rect>
                 <rect x="14" y="3" width="7" height="7"></rect>
                 <rect x="14" y="14" width="7" height="7"></rect>
                 <rect x="3" y="14" width="7" height="7"></rect>
               </svg>
-              <span>Open...</span>
-            </div>
-            <svg class="icon-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
+              <span class="corner-btn-sub">Open</span>
+            </button>
 
-          <!-- Main Remote Cluster (Volume Pillar, D-Pad, Channel Pillar) -->
-          <div class="remote-cluster">
-            <!-- Left Pillar: Volume Up, Mute, Volume Down -->
-            <div class="remote-pillar">
-              <button class="pillar-btn" onpointerdown="sendVolumeStep(5, event)" title="Volume Up" aria-label="Volume Up">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-              </button>
-              <button class="pillar-btn pillar-btn-mute" id="mute-btn" onpointerdown="sendAction('toggle_mute', event)" title="Mute" aria-label="Mute">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                  <line x1="23" y1="9" x2="17" y2="15"></line>
-                  <line x1="17" y1="9" x2="23" y2="15"></line>
-                </svg>
-              </button>
-              <button class="pillar-btn" onpointerdown="sendVolumeStep(-5, event)" title="Volume Down" aria-label="Volume Down">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-              </button>
-            </div>
+            <!-- Top-Right Corner: Toggle Fullscreen -->
+            <button class="dpad-corner-btn dpad-corner-top-right" onpointerdown="sendAction('toggle_fullscreen', event)" title="Toggle Fullscreen" aria-label="Fullscreen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="14" y2="10"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+              <span class="corner-btn-sub">Screen</span>
+            </button>
 
-            <!-- D-Pad Dial (Center) -->
+            <!-- Bottom-Left Corner: Rewind 10s -->
+            <button class="dpad-corner-btn dpad-corner-bottom-left" onpointerdown="sendAction('seek_backward', event)" title="Rewind 10s" aria-label="Rewind 10s">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 19 2 12 11 5 11 19"></polygon>
+                <polygon points="22 19 13 12 22 5 22 19"></polygon>
+              </svg>
+              <span class="corner-btn-sub">10s</span>
+            </button>
+
+            <!-- Bottom-Right Corner: Fast Forward 10s -->
+            <button class="dpad-corner-btn dpad-corner-bottom-right" onpointerdown="sendAction('seek_forward', event)" title="Forward 10s" aria-label="Forward 10s">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 19 22 12 13 5 13 19"></polygon>
+                <polygon points="2 19 11 12 2 5 2 19"></polygon>
+              </svg>
+              <span class="corner-btn-sub">10s</span>
+            </button>
+
+            <!-- Center Large D-Pad -->
             <div class="dpad">
               <button class="dpad-btn dpad-up" onpointerdown="startNavRepeat('up', event)" onpointerup="stopNavRepeat()" onpointerleave="stopNavRepeat()" onpointercancel="stopNavRepeat()" oncontextmenu="return false">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
@@ -2410,16 +2394,58 @@ async fn serve_remote_html() -> impl IntoResponse {
               </button>
               <button class="dpad-center" onpointerdown="sendNav('select', event)">OK</button>
             </div>
+          </div>
+
+          <!-- Middle Cluster (Vol Rocker, [Back & Play/Pause], Channel Rocker) -->
+          <div class="middle-cluster">
+            <!-- Left Pillar: Volume Up, Mute, Volume Down -->
+            <div class="cluster-pillar">
+              <button class="rocker-btn" onpointerdown="sendVolumeStep(5, event)" title="Volume Up" aria-label="Volume Up">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </button>
+              <button class="rocker-btn rocker-btn-mute" id="mute-btn" onpointerdown="sendAction('toggle_mute', event)" title="Mute" aria-label="Mute">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <line x1="23" y1="9" x2="17" y2="15"></line>
+                  <line x1="17" y1="9" x2="23" y2="15"></line>
+                </svg>
+              </button>
+              <button class="rocker-btn" onpointerdown="sendVolumeStep(-5, event)" title="Volume Down" aria-label="Volume Down">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Middle Column: Back & Play/Pause Stack -->
+            <div class="cluster-center-stack">
+              <button class="center-action-btn back-btn" onpointerdown="sendNav('back', event)" title="Back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 14 4 9 9 4"></polyline>
+                  <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+                </svg>
+                <span>Back</span>
+              </button>
+              <button class="center-action-btn play-btn" onpointerdown="sendAction('play_pause', event)" title="Play / Pause">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>Play / Pause</span>
+              </button>
+            </div>
 
             <!-- Right Pillar: Channel Up, CH Label, Channel Down -->
-            <div class="remote-pillar">
-              <button class="pillar-btn" onpointerdown="sendAction('next_channel', event)" title="Channel Up" aria-label="Channel Up">
+            <div class="cluster-pillar">
+              <button class="rocker-btn" onpointerdown="sendAction('next_channel', event)" title="Channel Up" aria-label="Channel Up">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="18 15 12 9 6 15"></polyline>
                 </svg>
               </button>
-              <div class="pillar-label">CH</div>
-              <button class="pillar-btn" onpointerdown="sendAction('prev_channel', event)" title="Channel Down" aria-label="Channel Down">
+              <div class="rocker-label">CH</div>
+              <button class="rocker-btn" onpointerdown="sendAction('prev_channel', event)" title="Channel Down" aria-label="Channel Down">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
@@ -2458,67 +2484,6 @@ async fn serve_remote_html() -> impl IntoResponse {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-            </button>
-          </div>
-
-          <!-- Quick Actions -->
-          <div class="action-row">
-            <button class="action-btn back-btn" onpointerdown="sendNav('back', event)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 14 4 9 9 4"></polyline>
-                <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
-              </svg>
-              Back
-            </button>
-            <button class="action-btn" onpointerdown="sendAction('search', event)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-              Search
-            </button>
-            <button class="action-btn" onpointerdown="sendAction('subtitles', event)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-                <path d="M7 15h4M15 15h2M7 11h2M13 11h4"></path>
-              </svg>
-              Subs
-            </button>
-            <button class="action-btn" onpointerdown="sendAction('toggle_fullscreen', event)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <polyline points="9 21 3 21 3 15"></polyline>
-                <line x1="21" y1="3" x2="14" y2="10"></line>
-                <line x1="3" y1="21" x2="10" y2="14"></line>
-              </svg>
-              Screen
-            </button>
-          </div>
-        </div>
-
-        <!-- Playback Footer Strip -->
-        <div class="media-footer">
-          <!-- Seek & Play/Pause -->
-          <div class="media-row">
-            <button class="media-btn btn-sm" onpointerdown="sendAction('seek_backward', event)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="11 19 2 12 11 5 11 19"></polygon>
-                <polygon points="22 19 13 12 22 5 22 19"></polygon>
-              </svg>
-              &lt;&lt; 10s
-            </button>
-            <button class="media-btn play-btn" onpointerdown="sendAction('play_pause', event)">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-              </svg>
-              Play / Pause
-            </button>
-            <button class="media-btn btn-sm" onpointerdown="sendAction('seek_forward', event)">
-              10s &gt;&gt;
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="13 19 22 12 13 5 13 19"></polygon>
-                <polygon points="2 19 11 12 2 5 2 19"></polygon>
               </svg>
             </button>
           </div>
@@ -2665,7 +2630,7 @@ async fn serve_remote_html() -> impl IntoResponse {
 
       <div class="destinations-grid">
         <!-- 1. Live TV -->
-        <div class="dest-card" data-view="livetv" onpointerdown="selectDestination('livetv', event)">
+        <div class="dest-card" data-view="livetv" onclick="selectDestination('livetv', event)">
           <div class="dest-icon-box" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="2" y="7" width="20" height="15" rx="3"></rect>
@@ -2679,7 +2644,7 @@ async fn serve_remote_html() -> impl IntoResponse {
         </div>
 
         <!-- 2. Movies -->
-        <div class="dest-card" data-view="movies" onpointerdown="selectDestination('movies', event)">
+        <div class="dest-card" data-view="movies" onclick="selectDestination('movies', event)">
           <div class="dest-icon-box" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
@@ -2699,7 +2664,7 @@ async fn serve_remote_html() -> impl IntoResponse {
         </div>
 
         <!-- 3. Series -->
-        <div class="dest-card" data-view="series" onpointerdown="selectDestination('series', event)">
+        <div class="dest-card" data-view="series" onclick="selectDestination('series', event)">
           <div class="dest-icon-box" style="background: rgba(236, 72, 153, 0.12); color: #ec4899;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -2712,7 +2677,7 @@ async fn serve_remote_html() -> impl IntoResponse {
         </div>
 
         <!-- 4. Sports -->
-        <div class="dest-card" data-view="sports" onpointerdown="selectDestination('sports', event)">
+        <div class="dest-card" data-view="sports" onclick="selectDestination('sports', event)">
           <div class="dest-icon-box" style="background: rgba(34, 197, 94, 0.12); color: #22c55e;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
@@ -2727,7 +2692,7 @@ async fn serve_remote_html() -> impl IntoResponse {
         </div>
 
         <!-- 5. Stremio -->
-        <div class="dest-card" data-view="stremio" onpointerdown="selectDestination('stremio', event)">
+        <div class="dest-card" data-view="stremio" onclick="selectDestination('stremio', event)">
           <div class="dest-icon-box" style="background: rgba(99, 102, 241, 0.12); color: #818cf8;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
@@ -2741,7 +2706,7 @@ async fn serve_remote_html() -> impl IntoResponse {
         </div>
 
         <!-- 6. Nuvio -->
-        <div class="dest-card" data-view="nuvio" onpointerdown="selectDestination('nuvio', event)">
+        <div class="dest-card" data-view="nuvio" onclick="selectDestination('nuvio', event)">
           <div class="dest-icon-box" style="background: rgba(14, 165, 233, 0.12); color: #38bdf8;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
@@ -2754,7 +2719,7 @@ async fn serve_remote_html() -> impl IntoResponse {
         </div>
 
         <!-- 7. DVR -->
-        <div class="dest-card" data-view="dvr" onpointerdown="selectDestination('dvr', event)">
+        <div class="dest-card" data-view="dvr" onclick="selectDestination('dvr', event)">
           <div class="dest-icon-box" style="background: rgba(245, 158, 11, 0.12); color: #f59e0b;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
@@ -2768,7 +2733,7 @@ async fn serve_remote_html() -> impl IntoResponse {
         </div>
 
         <!-- 8. Settings -->
-        <div class="dest-card" data-view="settings" onpointerdown="selectDestination('settings', event)">
+        <div class="dest-card" data-view="settings" onclick="selectDestination('settings', event)">
           <div class="dest-icon-box" style="background: rgba(148, 163, 184, 0.12); color: #cbd5e1;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"></circle>
@@ -3151,8 +3116,13 @@ async fn serve_remote_html() -> impl IntoResponse {
       send({ action: 'volumeStep', delta });
     }
 
+    let lastSectionsOpenTime = 0;
+
     function toggleSectionsMenu(e) {
-      if (e && e.cancelable) e.preventDefault();
+      if (e) {
+        e.stopPropagation();
+        if (e.cancelable) e.preventDefault();
+      }
       const overlay = document.getElementById('sections-overlay');
       if (!overlay) return;
       if (overlay.classList.contains('open')) {
@@ -3163,6 +3133,7 @@ async fn serve_remote_html() -> impl IntoResponse {
     }
 
     function openSectionsMenu() {
+      lastSectionsOpenTime = Date.now();
       if (navigator.vibrate) navigator.vibrate(10);
       const overlay = document.getElementById('sections-overlay');
       if (overlay) overlay.classList.add('open');
@@ -3174,13 +3145,17 @@ async fn serve_remote_html() -> impl IntoResponse {
     }
 
     function onOverlayClick(e) {
+      if (Date.now() - lastSectionsOpenTime < 250) return;
       if (e.target && e.target.id === 'sections-overlay') {
         closeSectionsMenu();
       }
     }
 
     function selectDestination(view, e) {
-      if (e && e.cancelable) e.preventDefault();
+      if (e) {
+        e.stopPropagation();
+        if (e.cancelable) e.preventDefault();
+      }
       sendView(view, e);
       closeSectionsMenu();
     }
@@ -3451,7 +3426,6 @@ async fn serve_remote_html() -> impl IntoResponse {
             <div class="guide-card-content">
               <div class="guide-card-header">
                 <span class="guide-card-ch-name">${esc(name)}</span>
-                ${c.channel_num ? `<span style="font-size:10px; font-weight:700; color:#64748b; background:rgba(255,255,255,0.05); padding:1px 5px; border-radius:4px;">#${c.channel_num}</span>` : ''}
               </div>
               <span class="guide-card-prog-title">${esc(progTitle)}</span>
               ${progressPct > 0 ? `
