@@ -78,6 +78,11 @@ export function ChannelProbeModal({
   // / sports-team-link tables, so the source & category filters don't apply.
   const isMembershipMode = scopeFilter === 'failover' || scopeFilter === 'sports-linked';
 
+  // Failover sub-filter (only applies to the 'failover' scope): 'all' probes
+  // every failover member, 'missing-badges' narrows to members that have no
+  // channelMetadata row (i.e. no quality badges yet).
+  const [failoverScope, setFailoverScope] = useState<'all' | 'missing-badges'>('all');
+
   // Sports league sub-filter (only applies to the 'sports-linked' scope):
   // 'all' probes every league with linked channels, a league id narrows to it.
   const [sportsLeagueId, setSportsLeagueId] = useState<string>('all');
@@ -270,7 +275,15 @@ export function ChannelProbeModal({
               : allLinks.filter((l) => l.league_id === sportsLeagueId);
           memberIds = scopedLinks.map((l) => l.stream_id);
         } else {
-          memberIds = (await db.failoverGroupMembers.toArray()).map((m) => m.stream_id);
+          let members = await db.failoverGroupMembers.toArray();
+          if (failoverScope === 'missing-badges') {
+            // Same badge check as the regular 'missing-badges' scope: a channel
+            // is missing badges when it has no channelMetadata row.
+            const metadataItems = await db.channelMetadata.toArray();
+            const existingIds = new Set(metadataItems.map((m) => m.stream_id));
+            members = members.filter((m) => !existingIds.has(m.stream_id));
+          }
+          memberIds = members.map((m) => m.stream_id);
         }
         chList =
           memberIds.length > 0
@@ -327,7 +340,7 @@ export function ChannelProbeModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, selectedSourceIds, selectedCategoryIds, scopeFilter, sportsLeagueId, sportsEnabledLeagues, initialChannels, sources]);
+  }, [isOpen, selectedSourceIds, selectedCategoryIds, scopeFilter, failoverScope, sportsLeagueId, sportsEnabledLeagues, initialChannels, sources]);
 
   // Compute live health score
   const healthMetrics = useMemo(() => {
@@ -1549,6 +1562,22 @@ export function ChannelProbeModal({
                       {o.name}
                     </option>
                   ))}
+                </select>
+              </div>
+            )}
+
+            {/* Failover sub-filter — only for the failover scope */}
+            {scopeFilter === 'failover' && (
+              <div className="cpm-select-group">
+                <label>{t('failoverScopeFilter')}</label>
+                <select
+                  className="cpm-select"
+                  value={failoverScope}
+                  disabled={isScanning}
+                  onChange={(e) => setFailoverScope(e.target.value as 'all' | 'missing-badges')}
+                >
+                  <option value="all">{t('failoverAll')}</option>
+                  <option value="missing-badges">{t('failoverMissingBadges')}</option>
                 </select>
               </div>
             )}
