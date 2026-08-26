@@ -3419,6 +3419,7 @@ async fn serve_remote_html() -> impl IntoResponse {
         const progTime = c.current_program?.time_remaining ? ` • ${esc(c.current_program.time_remaining)}` : '';
         const progressPct = c.current_program?.progress_percent || 0;
         const nextTitle = c.next_program ? `Next: ${esc(c.next_program.title)}` : '';
+        const timeRange = formatTimeRange(c.current_program?.start, c.current_program?.end);
 
         html += `
           <div class="guide-card" onclick="channelTap('${escAttr(c.stream_id)}', '${escAttr(name)}', '${escAttr(tapCat)}')">
@@ -3433,7 +3434,7 @@ async fn serve_remote_html() -> impl IntoResponse {
                   <div class="np-progress-fill" style="width:${progressPct}%;"></div>
                 </div>
               ` : ''}
-              <span class="guide-prog-time">${c.current_program?.start ? formatTime(c.current_program.start) : ''}${progTime}</span>
+              <span class="guide-prog-time">${timeRange}${progTime}</span>
               ${nextTitle ? `<span class="guide-card-next">${nextTitle}</span>` : ''}
             </div>
           </div>
@@ -3447,6 +3448,13 @@ async fn serve_remote_html() -> impl IntoResponse {
         const d = new Date(iso);
         return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       } catch (e) { return ''; }
+    }
+
+    function formatTimeRange(startIso, endIso) {
+      const s = startIso ? formatTime(startIso) : '';
+      const e = endIso ? formatTime(endIso) : '';
+      if (s && e) return `${s} - ${e}`;
+      return s || e || '';
     }
 
     function playChannel(channelId, name, catId) {
