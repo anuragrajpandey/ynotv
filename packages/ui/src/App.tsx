@@ -2141,7 +2141,8 @@ function useTmdbPresencePoster(
       const schemes = ['scheme-apple', 'scheme-sunset', 'scheme-aurora', 'scheme-forest'];
       const chosen = schemes[Math.floor(Math.random() * schemes.length)];
       setRandomScheme(chosen);
-    } else {
+    }
+    if (activeView !== 'guide' && activeView !== 'sports') {
       setPreviewVideoRect(null);
     }
   }, [activeView]);
@@ -5972,15 +5973,15 @@ function useTmdbPresencePoster(
       {(() => {
         const isPreviewView = activeView === 'guide' || activeView === 'sports';
         const isPageOverlayView = activeView !== 'guide' && activeView !== 'sports' && activeView !== 'none';
-        const hasPreviewRect = !!previewVideoRect;
-        // The Sports hub is a frosted-glass surface in v3 (and fully transparent
-        // in OLED), so it needs the liquid-glass backdrop behind it to stay
-        // opaque. Without `activeView === 'sports'` here, disabling the video
-        // preview while a channel is playing left nothing painted behind the
-        // hub and the fullscreen MPV video showed straight through the page.
+        // The guide and Sports hub are frosted-glass surfaces in v3 (fully
+        // transparent in OLED), so they need the liquid-glass backdrop behind
+        // them to stay opaque. The guide previously only got the backdrop when
+        // no channel was playing or a preview rect had been reported — coming
+        // here from Sports while a channel played left nothing painted behind
+        // the hub and the fullscreen MPV video showed straight through the page.
         const shouldRenderGlassBg = liveTvDesign === 'v3' && (
           isPageOverlayView ||
-          (isPreviewView && !guideTransparent && (!currentChannel || hasPreviewRect || activeView === 'sports')) ||
+          (isPreviewView && !guideTransparent) ||
           (activeView === 'none' && !currentChannel)
         );
 

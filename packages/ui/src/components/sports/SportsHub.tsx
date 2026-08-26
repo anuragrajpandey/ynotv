@@ -228,6 +228,11 @@ export function SportsHub({
     const isReady = visible === undefined ? true : (visible && transitionCompleted);
 
     const updateVideoPosition = async () => {
+      // When the hub is hidden (view switched away), the next view owns the
+      // preview rect — never clobber it here, or the new view's backdrop/cutout
+      // disappears. Only null the rect while we're the visible owner (e.g.
+      // preview disabled or the pane isn't laid out yet).
+      if (!visible) return;
       if (!previewRef.current || !previewEnabled || !isReady) {
         onPreviewVideoRectChange?.(null);
         return;
@@ -332,8 +337,8 @@ export function SportsHub({
 
     if (previewRef.current) {
       observer.observe(previewRef.current);
-      updateVideoPosition();
     }
+    updateVideoPosition();
 
     // Listen for window resize events to keep the MPV window aligned when layout shifts
     const handleWindowResize = () => {
@@ -390,7 +395,9 @@ export function SportsHub({
       if (dragSettleTimer !== null) clearTimeout(dragSettleTimer);
       if (rafId !== null) cancelAnimationFrame(rafId);
       cancelAnimationFrame(animationFrameId);
-      onPreviewVideoRectChange?.(null);
+      // Note: no onPreviewVideoRectChange(null) here — App.tsx clears the rect
+      // itself when leaving the preview views, and nulling it on every effect
+      // re-run races the next view's own rect reporting.
     };
   }, [previewEnabled, aspectRatio, visible, transitionCompleted, multiviewLayout]);
 
