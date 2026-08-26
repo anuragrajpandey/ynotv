@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} धाराएँ",
       "streamCount_many": "{{count}} धाराएँ",
       "streamCount_two": "{{count}} धाराएँ",
-      "streamCount_zero": "{{count}} धाराएँ"
+      "streamCount_zero": "{{count}} धाराएँ",
+      "alwaysPlayPrimary": "हमेशा प्राथमिक चलाएं",
+      "alwaysPlayPrimaryTooltip": "जब किसी फ़ेलओवर समूह के चैनल को चुना जाता है, तो स्वचालित रूप से प्राथमिक स्ट्रीम पहले चलती है, जब तक कि इसे सीधे फ़ेलओवर विजेट से न चुना जाए या फ़ेलओवर के दौरान स्विच न किया जाए।"
     },
     "movies": {
       "genreCarousels": "मूवी शैली कैरोसेल",

@@ -125,6 +125,16 @@ function TvSvg({ size = 14 }: { size?: number }) {
     );
 }
 
+function InfoSvg({ size = 13 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6, flexShrink: 0 }}>
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
+    );
+}
+
 function SettingsSvg({ size = 14 }: { size?: number }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -213,11 +223,13 @@ export function FailoverGroupListModal({ onClose }: FailoverGroupListModalProps)
     const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
     const [groupMembersMap, setGroupMembersMap] = useState<Map<string, MemberDetail[]>>(new Map());
 
-    // Settings for Overlays
+    // Settings for Overlays & Playback
     const showFailoverLiveTvWidget = useSettingsStore((s) => s.showFailoverLiveTvWidget);
     const setShowFailoverLiveTvWidget = useSettingsStore((s) => s.setShowFailoverLiveTvWidget);
     const showFailoverMediaBarWidget = useSettingsStore((s) => s.showFailoverMediaBarWidget);
     const setShowFailoverMediaBarWidget = useSettingsStore((s) => s.setShowFailoverMediaBarWidget);
+    const failoverAlwaysPlayPrimary = useSettingsStore((s) => s.failoverAlwaysPlayPrimary);
+    const setFailoverAlwaysPlayPrimary = useSettingsStore((s) => s.setFailoverAlwaysPlayPrimary);
 
     // Creating & Editing State
     const [creating, setCreating] = useState(false);
@@ -507,6 +519,19 @@ export function FailoverGroupListModal({ onClose }: FailoverGroupListModalProps)
                                     <span>{t('failover.widgetOverlayVisibility', { defaultValue: 'Widget Overlay Visibility:' })}</span>
                                 </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                                    <label
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
+                                        title={t('failover.alwaysPlayPrimaryTooltip', { defaultValue: 'When tuning any channel that belongs to a failover group, automatically start with the primary stream first unless selected directly from the failover widget or switched during failover.' })}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={failoverAlwaysPlayPrimary}
+                                            onChange={(e) => setFailoverAlwaysPlayPrimary(e.target.checked)}
+                                            style={{ accentColor: 'var(--accent-primary, #00d4ff)', cursor: 'pointer' }}
+                                        />
+                                        <span>{t('failover.alwaysPlayPrimary', { defaultValue: 'Always Play Primary' })}</span>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.7 }}><InfoSvg size={12} /></span>
+                                    </label>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
                                         <input
                                             type="checkbox"

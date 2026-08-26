@@ -2066,7 +2066,9 @@
       "catsCount_two": "{{count}} кошки",
       "catsCount_zero": "{{count}} кошки",
       "streamCount_two": "{{count}} потока",
-      "streamCount_zero": "{{count}} потока"
+      "streamCount_zero": "{{count}} потока",
+      "alwaysPlayPrimary": "Всегда воспроизводить основной",
+      "alwaysPlayPrimaryTooltip": "При включении любого канала из группы отказоустойчивости автоматически запускается основной поток, если канал не выбран вручную из виджета отказоустойчивости или не переключен при сбое."
     },
     "movies": {
       "genreCarousels": "Карусели жанров фильмов",

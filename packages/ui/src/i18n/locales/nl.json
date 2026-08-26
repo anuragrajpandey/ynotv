@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}}-streams",
       "streamCount_many": "{{count}}-streams",
       "streamCount_two": "{{count}}-streams",
-      "streamCount_zero": "{{count}}-streams"
+      "streamCount_zero": "{{count}}-streams",
+      "alwaysPlayPrimary": "Altijd primair afspelen",
+      "alwaysPlayPrimaryTooltip": "Bij het afstemmen op een kanaal dat tot een failovergroep behoort, wordt automatisch eerst de primaire stream gestart, tenzij rechtstreeks geselecteerd vanuit de failoverwidget of geschakeld tijdens failover."
     },
     "movies": {
       "genreCarousels": "Filmgenrecarrousels",

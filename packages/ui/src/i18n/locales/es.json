@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} transmisiones",
       "streamCount_many": "{{count}} transmisiones",
       "streamCount_two": "{{count}} transmisiones",
-      "streamCount_zero": "{{count}} transmisiones"
+      "streamCount_zero": "{{count}} transmisiones",
+      "alwaysPlayPrimary": "Reproducir siempre el principal",
+      "alwaysPlayPrimaryTooltip": "Al sintonizar cualquier canal que pertenezca a un grupo de conmutación por error, comienza automáticamente con la transmisión principal primero, a menos que se seleccione directamente desde el widget de conmutación o cambie durante la conmutación."
     },
     "movies": {
       "genreCarousels": "Carruseles de géneros de películas",

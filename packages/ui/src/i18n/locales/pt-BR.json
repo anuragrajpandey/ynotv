@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} fluxos",
       "streamCount_many": "{{count}} fluxos",
       "streamCount_two": "{{count}} fluxos",
-      "streamCount_zero": "{{count}} fluxos"
+      "streamCount_zero": "{{count}} fluxos",
+      "alwaysPlayPrimary": "Sempre reproduzir o principal",
+      "alwaysPlayPrimaryTooltip": "Ao sintonizar qualquer canal que pertença a um grupo de failover, inicia automaticamente com o fluxo principal primeiro, a menos que seja selecionado diretamente no widget de failover ou alternado durante o failover."
     },
     "movies": {
       "genreCarousels": "Carrosséis de gêneros de filmes",

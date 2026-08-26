@@ -226,6 +226,7 @@ export interface AppSettings {
     useScrollwheelSeek?: boolean;
     useScrollwheelSeekInvert?: boolean;
     failoverGroupShowSource?: boolean;
+    failoverAlwaysPlayPrimary?: boolean;
     [key: string]: any;
 }
 

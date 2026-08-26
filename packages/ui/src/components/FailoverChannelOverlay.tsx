@@ -28,7 +28,7 @@ import { CSS } from '@dnd-kit/utilities';
 
 interface FailoverChannelOverlayProps {
   currentChannel: StoredChannel | null;
-  onChannelClick: (channel: StoredChannel) => void;
+  onChannelClick: (channel: StoredChannel, autoSwitched?: boolean, categoryOverride?: string, directPlay?: boolean) => void;
   isCleanDesign?: boolean;
   showSource?: boolean;
   showLabel?: boolean;
@@ -371,7 +371,7 @@ export function FailoverChannelOverlay({
       .first()
       .then((ch) => {
         if (ch) {
-          onChannelClick(ch);
+          onChannelClick(ch, false, undefined, true);
           setIsOpen(false);
         } else {
           // Synthetic fallback
@@ -385,7 +385,7 @@ export function FailoverChannelOverlay({
             direct_url: '',
             stream_type: 'live',
           };
-          onChannelClick(fallbackChannel);
+          onChannelClick(fallbackChannel, false, undefined, true);
           setIsOpen(false);
         }
       });

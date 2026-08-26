@@ -375,7 +375,7 @@ export interface PlaybackState {
   setPosition: (position: number) => void;
   setVolume: (volume: number) => void;
   setCurrentChannel: (channel: StoredChannel | null) => void;
-  handlePlayChannel: (channel: StoredChannel, autoSwitched?: boolean) => void;
+  handlePlayChannel: (channel: StoredChannel, autoSwitched?: boolean, directPlay?: boolean) => void | Promise<void>;
   handlePlayCatchup: (channel: StoredChannel, programTitle: string, startTimeMs: number, durationMinutes: number, programDesc?: string) => Promise<void>;
   handleCatchupSeek: (channel: StoredChannel, programTitle: string, startTimeMs: number, durationMinutes: number, seekSeconds: number, programDesc?: string) => Promise<void>;
   handlePlayVod: (info: VodPlayInfo, onCloseView?: () => void) => Promise<void>;
@@ -1815,7 +1815,11 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentChannel?.stream_id, !!vodInfo, !!catchupInfo, resetHealthTracking]);
 
-  const handlePlayChannel = useCallback((channel: StoredChannel, autoSwitched: boolean = false) => {
+  const handlePlayChannel = useCallback(async (
+    channel: StoredChannel,
+    autoSwitched: boolean = false,
+    directPlay: boolean = false
+  ) => {
     // Cancel any in-progress retry when the user switches channels
     if (autoSelectTimerRef.current) {
       clearInterval(autoSelectTimerRef.current);
@@ -1911,10 +1915,23 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
     }
     setVodInfo(null);
     setCatchupInfo(null);
-    if (!autoSwitched) {
-      addToRecentChannels(channel);
+
+    let channelToPlay = channel;
+    if (!autoSwitched && !directPlay && useSettingsStore.getState().failoverAlwaysPlayPrimary) {
+      try {
+        const primary = await getPrimaryChannelForGroup(channel.stream_id);
+        if (primary) {
+          channelToPlay = primary;
+        }
+      } catch (err) {
+        console.error('[Playback] Failed to lookup primary failover channel:', err);
+      }
     }
-    handleLoadStream(channel);
+
+    if (!autoSwitched) {
+      addToRecentChannels(channelToPlay);
+    }
+    handleLoadStream(channelToPlay);
   }, [handleLoadStream, resetHealthTracking, vodInfo, position, duration]);
 
   const autoSelectSubtitle = useCallback(async (providedSubTracks?: any[]) => {

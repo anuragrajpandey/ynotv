@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} 流",
       "streamCount_many": "{{count}} 流",
       "streamCount_two": "{{count}} 流",
-      "streamCount_zero": "{{count}} 流"
+      "streamCount_zero": "{{count}} 流",
+      "alwaysPlayPrimary": "一律播放主要串流",
+      "alwaysPlayPrimaryTooltip": "當選擇屬於故障轉移群組的任何頻道時，自動首先播放主要串流，除非直接從故障轉移小工具中選取或在故障轉移期間切換。"
     },
     "movies": {
       "genreCarousels": "電影類型輪播",

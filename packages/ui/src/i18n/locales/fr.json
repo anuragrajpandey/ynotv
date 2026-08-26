@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} flux",
       "streamCount_many": "{{count}} flux",
       "streamCount_two": "{{count}} flux",
-      "streamCount_zero": "{{count}} flux"
+      "streamCount_zero": "{{count}} flux",
+      "alwaysPlayPrimary": "Toujours lire le canal principal",
+      "alwaysPlayPrimaryTooltip": "Lors de la sélection d'une chaîne appartenant à un groupe de basculement, démarre automatiquement avec le flux principal en premier, sauf si sélectionné directement depuis le widget de basculement ou basculé pendant la récupération."
     },
     "movies": {
       "genreCarousels": "Carrousels de genres de films",

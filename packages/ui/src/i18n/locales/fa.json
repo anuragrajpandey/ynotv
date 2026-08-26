@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} جریان",
       "streamCount_many": "{{count}} جریان",
       "streamCount_two": "{{count}} جریان",
-      "streamCount_zero": "{{count}} جریان"
+      "streamCount_zero": "{{count}} جریان",
+      "alwaysPlayPrimary": "همیشه پخش اولیه",
+      "alwaysPlayPrimaryTooltip": "هنگام پخش هر کانالی که به یک گروه جایگزین تعلق دارد، همیشه ابتدا پخش اصلی را شروع می‌کند مگر اینکه مستقیماً از ویجت جایگزین انتخاب شود یا در حین جابجایی تغییر کند."
     },
     "movies": {
       "genreCarousels": "چرخ‌فلکی ژانر فیلم",

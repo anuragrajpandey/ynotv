@@ -250,6 +250,9 @@ const SETTINGS_SEARCH_INDEX: SettingsSearchResult[] = [
   { id: 'allow-lan-sources', label: 'Allow LAN sources', description: 'Enable if your IPTV provider runs on your local network.', tabId: 'security', tabLabel: 'Security', section: 'Network Security' },
   { id: 'network-security', label: 'Network Security', tabId: 'security', tabLabel: 'Security', section: 'Network Security' },
 
+  // --- Failover ---
+  { id: 'failover-always-play-primary', label: 'Always Play Primary', description: 'When tuning any channel in a failover group, automatically start with the primary stream first unless selected directly from the failover widget or switched during failover.', tabId: 'livetv', tabLabel: 'LiveTV', subTabId: 'live-view', section: 'Failover' },
+
   // --- Proxy ---
   { id: 'proxy-tab', label: 'Proxy Settings', tabId: 'proxy', tabLabel: 'Proxy', section: 'Proxy' },
   { id: 'proxy-socks5-server', label: 'SOCKS5 Proxy Server', description: 'Configure a SOCKS5 proxy server to route network traffic through.', tabId: 'proxy', tabLabel: 'Proxy', section: 'SOCKS5 Proxy Settings' },

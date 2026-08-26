@@ -3504,7 +3504,9 @@
       "streamCount_few": "{{count}} luồng",
       "streamCount_many": "{{count}} luồng",
       "streamCount_two": "{{count}} luồng",
-      "streamCount_zero": "{{count}} luồng"
+      "streamCount_zero": "{{count}} luồng",
+      "alwaysPlayPrimary": "Luôn phát luồng chính",
+      "alwaysPlayPrimaryTooltip": "Khi chọn bất kỳ kênh nào thuộc nhóm chuyển đổi dự phòng, luôn tự động phát luồng chính trước, trừ khi được chọn trực tiếp từ tiện ích chuyển đổi dự phòng hoặc chuyển đổi khi xảy ra sự cố."
     }
   },
   "sports": {

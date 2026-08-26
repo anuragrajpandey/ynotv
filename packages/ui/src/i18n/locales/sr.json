@@ -2066,7 +2066,9 @@
       "catsCount_zero": "{{count}} мачке",
       "streamCount_many": "{{count}} тока",
       "streamCount_two": "{{count}} тока",
-      "streamCount_zero": "{{count}} тока"
+      "streamCount_zero": "{{count}} тока",
+      "alwaysPlayPrimary": "Увек покрени примарни",
+      "alwaysPlayPrimaryTooltip": "Приликом покретања канала из фејловер групе, аутоматски покреће примарни стрим осим ако није ручно изабран из фејловер менија или пребачен током квара."
     },
     "movies": {
       "genreCarousels": "Карузеле жанрова филмова",

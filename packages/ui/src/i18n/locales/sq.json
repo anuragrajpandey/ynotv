@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} transmetime",
       "streamCount_many": "{{count}} transmetime",
       "streamCount_two": "{{count}} transmetime",
-      "streamCount_zero": "{{count}} transmetime"
+      "streamCount_zero": "{{count}} transmetime",
+      "alwaysPlayPrimary": "Luaj gjithmonë kryesoren",
+      "alwaysPlayPrimaryTooltip": "Kur hapni një kanal që i përket një grupi failover, fillon automatikisht me transmetimin kryesor, përveç nëse zgjidhet direkt nga widget-i i failover ose ndërrohet gjatë dështimit."
     },
     "movies": {
       "genreCarousels": "Karuselët e zhanreve të filmave",

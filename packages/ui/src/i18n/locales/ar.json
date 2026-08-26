@@ -2066,7 +2066,9 @@
       "streamCount_two": "{{count}} تيارات",
       "streamCount_few": "{{count}} تيارات",
       "streamCount_many": "{{count}} تيارات",
-      "streamCount_zero": "{{count}} تيارات"
+      "streamCount_zero": "{{count}} تيارات",
+      "alwaysPlayPrimary": "تشغيل القناة الرئيسية دائمًا",
+      "alwaysPlayPrimaryTooltip": "عند تشغيل أي قناة تنتمي إلى مجموعة تجاوز الفشل، يبدأ تلقائيًا بالبث الرئيسي أولاً ما لم يتم تحديده مباشرة من أداة تجاوز الفشل أو التبديل أثناء تجاوز الفشل."
     },
     "movies": {
       "genreCarousels": "دوّارات أنواع الأفلام",

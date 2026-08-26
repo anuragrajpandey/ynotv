@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} adatfolyamok",
       "streamCount_many": "{{count}} adatfolyamok",
       "streamCount_two": "{{count}} adatfolyamok",
-      "streamCount_zero": "{{count}} adatfolyamok"
+      "streamCount_zero": "{{count}} adatfolyamok",
+      "alwaysPlayPrimary": "Mindig az elsődleges lejátszása",
+      "alwaysPlayPrimaryTooltip": "Ha a kiválasztott csatorna egy feladatátvételi csoporthoz tartozik, automatikusan az elsődleges stream indul el, kivéve ha közvetlenül a feladatátvételi widgetből választja ki vagy hiba esetén átkapcsol."
     },
     "movies": {
       "genreCarousels": "Film műfaji körhinták",

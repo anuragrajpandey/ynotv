@@ -556,6 +556,8 @@ export interface SettingsState {
   setUseScrollwheelSeekInvert: (enabled: boolean) => void;
   failoverGroupShowSource: boolean;
   setFailoverGroupShowSource: (enabled: boolean) => void;
+  failoverAlwaysPlayPrimary: boolean;
+  setFailoverAlwaysPlayPrimary: (enabled: boolean) => void;
   showFailoverLiveTvWidget: boolean;
   setShowFailoverLiveTvWidget: (enabled: boolean) => void;
   showFailoverMediaBarWidget: boolean;
@@ -1448,6 +1450,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ failoverGroupShowSource: enabled });
     persistSettings({ failoverGroupShowSource: enabled });
     dispatchAppEvent('ynotv:livetv-settings-changed', { failoverGroupShowSource: enabled });
+  },
+  failoverAlwaysPlayPrimary: false,
+  setFailoverAlwaysPlayPrimary: (enabled) => {
+    set({ failoverAlwaysPlayPrimary: enabled });
+    persistSettings({ failoverAlwaysPlayPrimary: enabled });
+    dispatchAppEvent('ynotv:livetv-settings-changed', { failoverAlwaysPlayPrimary: enabled });
   },
   showFailoverLiveTvWidget: true,
   setShowFailoverLiveTvWidget: (enabled) => {

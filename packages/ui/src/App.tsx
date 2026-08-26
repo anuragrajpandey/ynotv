@@ -58,6 +58,7 @@ import { Logo } from './components/Logo';
 import { useSelectedCategory, useChannelSearch, useProgramSearch, useChannels, useCategories, useCurrentProgram, useSourceNameMap, parseCategoryIds } from './hooks/useChannels';
 import { epgTimeMs } from './utils/epgTime';
 import { usePhoneRemoteCompanion } from './hooks/usePhoneRemoteCompanion';
+import { getPrimaryChannelForGroup } from './services/failover-groups';
 import { useSportsSettingsStore } from './stores/sportsSettingsStore';
 import { useSportsPolling, isSportsCacheFresh } from './hooks/useSportsPolling';
 import { useActiveTmdbToken } from './hooks/useTmdbLists';
@@ -856,8 +857,8 @@ function App() {
 
   // Refs for multiview (used by keyboard shortcuts)
   const multiviewLayoutRef = useRef<LayoutMode>('main');
-  const handlePlayChannelRef = useRef<((channel: StoredChannel, autoSwitched?: boolean) => void) | null>(null);
-  const handlePlayChannelWrapperRef = useRef<((channel: StoredChannel, autoSwitched?: boolean, categoryOverride?: string) => Promise<void>) | null>(null);
+  const handlePlayChannelRef = useRef<((channel: StoredChannel, autoSwitched?: boolean, directPlay?: boolean) => void | Promise<void>) | null>(null);
+  const handlePlayChannelWrapperRef = useRef<((channel: StoredChannel, autoSwitched?: boolean, categoryOverride?: string, directPlay?: boolean) => Promise<void>) | null>(null);
   const lastPlayedChannelRef = useRef<StoredChannel | null>(null);
   useEffect(() => { multiviewLayoutRef.current = multiviewLayout; }, [multiviewLayout]);
 
@@ -2729,20 +2730,36 @@ function useTmdbPresencePoster(
     }
   }, []);
 
-  const handlePlayChannelWrapper = useCallback(async (channel: StoredChannel, autoSwitched?: boolean, categoryOverride?: string) => {
+  const handlePlayChannelWrapper = useCallback(async (
+    channel: StoredChannel,
+    autoSwitched?: boolean,
+    categoryOverride?: string,
+    directPlay?: boolean
+  ) => {
     setPlaybackSourceView(null);
-    const catIds = parseCategoryIds(channel?.category_ids);
+    let targetChannel = channel;
+    if (!autoSwitched && !directPlay && useSettingsStore.getState().failoverAlwaysPlayPrimary) {
+      try {
+        const primary = await getPrimaryChannelForGroup(channel.stream_id);
+        if (primary) {
+          targetChannel = primary;
+        }
+      } catch (err) {
+        console.error('[App] Failed to lookup primary failover channel:', err);
+      }
+    }
+    const catIds = parseCategoryIds(targetChannel?.category_ids);
     const targetCat = categoryOverride ?? catIds[0];
     if (targetCat && targetCat !== categoryId) {
       setCategoryId(targetCat);
     }
     const currentMode = popoutModeRef.current;
     if (currentMode === 'external') {
-      await handlePlayInExternal(channel);
+      await handlePlayInExternal(targetChannel);
     } else if (currentMode === 'popout') {
-      popoutSwapChannel(channel);
+      popoutSwapChannel(targetChannel);
     } else {
-      handlePlayChannel(channel, autoSwitched);
+      handlePlayChannel(targetChannel, autoSwitched, true);
     }
   }, [handlePlayChannel, popoutSwapChannel, handlePlayInExternal, categoryId, setCategoryId]);
 

@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} ροές",
       "streamCount_many": "{{count}} ροές",
       "streamCount_two": "{{count}} ροές",
-      "streamCount_zero": "{{count}} ροές"
+      "streamCount_zero": "{{count}} ροές",
+      "alwaysPlayPrimary": "Πάντα αναπαραγωγή κύριου",
+      "alwaysPlayPrimaryTooltip": "Κατά το συντονισμό οποιουδήποτε καναλιού που ανήκει σε ομάδα ανακατεύθυνσης, ξεκινά αυτόματα πρώτα με την κύρια ροή, εκτός εάν επιλεγεί απευθείας από το γραφικό στοιχείο ή αλλάξει κατά την ανακατεύθυνση."
     },
     "movies": {
       "genreCarousels": "Καρουζέλ Ειδών Ταινιών",

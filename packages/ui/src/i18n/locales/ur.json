@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} سلسلے",
       "streamCount_many": "{{count}} سلسلے",
       "streamCount_two": "{{count}} سلسلے",
-      "streamCount_zero": "{{count}} سلسلے"
+      "streamCount_zero": "{{count}} سلسلے",
+      "alwaysPlayPrimary": "ہمیشہ پرائمری چلائیں",
+      "alwaysPlayPrimaryTooltip": "جب کسی فیلوور گروپ کے چینل کو ٹیون کیا جاتا ہے، تو خودکار طور پر پرائمری سلسلہ پہلے چلتا ہے، الا یہ کہ اسے براہ راست فیلوور ویجیٹ سے منتخب کیا گیا ہو یا فیلوور کے دوران تبدیل کیا گیا ہو۔"
     },
     "movies": {
       "genreCarousels": "مووی صنف کیروسلز",

@@ -2066,7 +2066,9 @@
       "catsCount_zero": "{{count}} mačke",
       "streamCount_many": "{{count}} toka",
       "streamCount_two": "{{count}} toka",
-      "streamCount_zero": "{{count}} toka"
+      "streamCount_zero": "{{count}} toka",
+      "alwaysPlayPrimary": "Uvijek pokreni primarni",
+      "alwaysPlayPrimaryTooltip": "Prilikom pokretanja kanala iz failover grupe, automatski pokreće primarni stream osim ako nije ručno odabran iz failover menija ili prebačen tokom kvara."
     },
     "movies": {
       "genreCarousels": "Karuzele žanrova filmova",

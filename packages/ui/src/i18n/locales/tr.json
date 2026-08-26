@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} akışları",
       "streamCount_many": "{{count}} akışları",
       "streamCount_two": "{{count}} akışları",
-      "streamCount_zero": "{{count}} akışları"
+      "streamCount_zero": "{{count}} akışları",
+      "alwaysPlayPrimary": "Her zaman birincili oynat",
+      "alwaysPlayPrimaryTooltip": "Yedekleme grubundaki bir kanalı açarken, doğrudan yedekleme widget'ından seçilmedikçe veya yük devretme sırasında geçiş yapılmadıkça her zaman önce birincil yayını başlatır."
     },
     "movies": {
       "genreCarousels": "Film Türü Karuselleri",

@@ -2066,7 +2066,9 @@
       "streamCount_few": "{{count}} Streams",
       "streamCount_many": "{{count}} Streams",
       "streamCount_two": "{{count}} Streams",
-      "streamCount_zero": "{{count}} Streams"
+      "streamCount_zero": "{{count}} Streams",
+      "alwaysPlayPrimary": "Immer primären Kanal abspielen",
+      "alwaysPlayPrimaryTooltip": "Beim Einstellen eines Kanals, der zu einer Failover-Gruppe gehört, wird automatisch zuerst der primäre Stream abgespielt, es sei denn, er wird direkt aus dem Failover-Widget ausgewählt oder während des Failovers umgeschaltet."
     },
     "movies": {
       "genreCarousels": "Genre-Karussells für Filme",

@@ -2066,7 +2066,9 @@
       "catsCount_two": "{{count}} koty",
       "catsCount_zero": "{{count}} koty",
       "streamCount_two": "{{count}} strumienie",
-      "streamCount_zero": "{{count}} strumienie"
+      "streamCount_zero": "{{count}} strumienie",
+      "alwaysPlayPrimary": "Zawsze odtwarzaj główny",
+      "alwaysPlayPrimaryTooltip": "Podczas przełączania na dowolny kanał należący do grupy failover automatycznie uruchamiaj najpierw strumień główny, chyba że wybrano go bezpośrednio z widżetu failover lub przełączono podczas awarii."
     },
     "movies": {
       "genreCarousels": "Karuzele gatunków filmów",
