@@ -252,6 +252,7 @@ const SETTINGS_SEARCH_INDEX: SettingsSearchResult[] = [
 
   // --- Failover ---
   { id: 'failover-always-play-primary', label: 'Always Play Primary', description: 'When tuning any channel in a failover group, automatically start with the primary stream first unless selected directly from the failover widget or switched during failover.', tabId: 'livetv', tabLabel: 'LiveTV', subTabId: 'live-view', section: 'Failover' },
+  { id: 'failover-keep-view', label: 'Keep View on Selected Channel', description: 'When Always Play Primary redirects a tuned channel to the group primary, keep the guide/category on the channel you picked so channel up/down keeps navigating the category you were browsing.', tabId: 'livetv', tabLabel: 'LiveTV', subTabId: 'live-view', section: 'Failover' },
 
   // --- Proxy ---
   { id: 'proxy-tab', label: 'Proxy Settings', tabId: 'proxy', tabLabel: 'Proxy', section: 'Proxy' },

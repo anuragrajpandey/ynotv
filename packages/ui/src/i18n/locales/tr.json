@@ -2068,7 +2068,10 @@
       "streamCount_two": "{{count}} akışları",
       "streamCount_zero": "{{count}} akışları",
       "alwaysPlayPrimary": "Her zaman birincili oynat",
-      "alwaysPlayPrimaryTooltip": "Yedekleme grubundaki bir kanalı açarken, doğrudan yedekleme widget'ından seçilmedikçe veya yük devretme sırasında geçiş yapılmadıkça her zaman önce birincil yayını başlatır."
+      "alwaysPlayPrimaryTooltip": "Yedekleme grubundaki bir kanalı açarken, doğrudan yedekleme widget'ından seçilmedikçe veya yük devretme sırasında geçiş yapılmadıkça her zaman önce birincil yayını başlatır.",
+      "playbackBehavior": "Oynatma:",
+      "keepView": "Görünümü seçili kanalda tut",
+      "keepViewTooltip": "Yedekleme grubundaki bir kanal açılırken birincil yayın oynatılır, ancak rehber/kategori seçtiğiniz kanalda kalır; böylece yukarı/aşağı kanal değiştirme, gezdiğiniz kategoride gezinmeye devam eder."
     },
     "movies": {
       "genreCarousels": "Film Türü Karuselleri",

@@ -2068,7 +2068,10 @@
       "streamCount_two": "{{count}} toka",
       "streamCount_zero": "{{count}} toka",
       "alwaysPlayPrimary": "Uvijek pokreni primarni",
-      "alwaysPlayPrimaryTooltip": "Prilikom pokretanja kanala iz failover grupe, automatski pokreće primarni stream osim ako nije ručno odabran iz failover menija ili prebačen tokom kvara."
+      "alwaysPlayPrimaryTooltip": "Prilikom pokretanja kanala iz failover grupe, automatski pokreće primarni stream osim ako nije ručno odabran iz failover menija ili prebačen tokom kvara.",
+      "playbackBehavior": "Reprodukcija:",
+      "keepView": "Zadrži prikaz na odabranom kanalu",
+      "keepViewTooltip": "Prilikom pokretanja kanala iz failover grupe, reproduciraj primarni stream, ali zadrži vodič/kategoriju na kanalu koji si odabrao, tako da prebacivanje kanala gore/dolje nastavi navigaciju kroz kategoriju koju si pregledavao."
     },
     "movies": {
       "genreCarousels": "Karuzele žanrova filmova",

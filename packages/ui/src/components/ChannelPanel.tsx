@@ -95,6 +95,7 @@ interface ChannelRowData {
   onPlayInPopout?: (channel: StoredChannel) => void;
   onPlayInExternal?: (channel: StoredChannel) => void;
   currentChannel?: StoredChannel | null;
+  highlightChannel?: StoredChannel | null;
   showPlaylistName: boolean;
   sourceNames: Map<string, string>;
   epgMetadataBadgeResolution: boolean;
@@ -113,7 +114,7 @@ const ChannelRowVirtuoso = memo(function ChannelRowVirtuoso({
   channel: StoredChannel;
   data: ChannelRowData;
 }) {
-  const isCurrentlyPlaying = data.currentChannel?.stream_id === channel.stream_id;
+  const isCurrentlyPlaying = (data.highlightChannel ?? data.currentChannel)?.stream_id === channel.stream_id;
   const handlePlay = useCallback(() => {
     data.handleChannelClick(channel);
   }, [channel, data.handleChannelClick]);
@@ -175,6 +176,7 @@ const ChannelRowVirtuoso = memo(function ChannelRowVirtuoso({
          prevProps.channel.source_id === nextProps.channel.source_id &&
          prevData.channelSortOrder === nextData.channelSortOrder &&
          prevData.currentChannel?.stream_id === nextData.currentChannel?.stream_id &&
+         prevData.highlightChannel?.stream_id === nextData.highlightChannel?.stream_id &&
          prevData.windowStart.getTime() === nextData.windowStart.getTime() &&
          prevData.windowEnd.getTime() === nextData.windowEnd.getTime() &&
          prevData.pixelsPerHour === nextData.pixelsPerHour &&
@@ -206,6 +208,7 @@ interface SearchProgramRowData {
   onPlayInExternal?: (channel: StoredChannel) => void;
   includeSourceInSearch?: boolean;
   currentChannel?: StoredChannel | null;
+  highlightChannel?: StoredChannel | null;
 }
 
 // Memoized Virtuoso row for Live Now / Upcoming EPG search tabs
@@ -238,7 +241,7 @@ const SearchResultRowVirtuoso = memo(function SearchResultRowVirtuoso({
       onPlayInPopout={data.onPlayInPopout}
       onPlayInExternal={data.onPlayInExternal}
       includeSourceInSearch={data.includeSourceInSearch}
-      currentChannel={data.currentChannel}
+      currentChannel={data.highlightChannel ?? data.currentChannel}
     />
   );
 }, (prevProps, nextProps) => {
@@ -268,6 +271,7 @@ const SearchResultRowVirtuoso = memo(function SearchResultRowVirtuoso({
          prevData.currentLayout === nextData.currentLayout &&
          prevData.includeSourceInSearch === nextData.includeSourceInSearch &&
          prevData.currentChannel?.stream_id === nextData.currentChannel?.stream_id &&
+         prevData.highlightChannel?.stream_id === nextData.highlightChannel?.stream_id &&
          prevProgs === nextProgs &&
          !recordingsChanged;
 });
@@ -308,6 +312,10 @@ interface ChannelPanelProps {
   epgMetadataBadgeAudioBitrate?: boolean;
   // Current playing channel for syncing preview
   currentChannel?: StoredChannel | null;
+  // Channel the guide grid should highlight/scroll to (the keep-view anchor
+  // when failover redirects tuning to a group primary; falls back to
+  // currentChannel when unset or identical).
+  highlightChannel?: StoredChannel | null;
   onTogglePlay?: () => void;
   isPlaying?: boolean;
   onChannelUp?: () => void;
@@ -409,6 +417,7 @@ export function ChannelPanel({
   epgMetadataBadgeBitrate = false,
   epgMetadataBadgeAudioBitrate = false,
   currentChannel,
+  highlightChannel,
   onTogglePlay,
   isPlaying,
   onChannelUp,
@@ -1563,19 +1572,22 @@ export function ChannelPanel({
     };
   }, [channels, visible, visibleIndices, categoryId, shouldFetchShortEpgForVisibleRange]);
 
-  // Sync selectedChannel with currentChannel when it changes externally
-  // (watchlist notification, autoswitch, calendar, multiview swap)
-  // Also re-sync when becoming visible to ensure preview matches current channel
+  // Sync selectedChannel with the view channel when it changes externally
+  // (watchlist notification, autoswitch, calendar, multiview swap). The view
+  // channel is the keep-view anchor when failover redirects tuning to a group
+  // primary, so the preview info bar (name/logo/program) matches the highlighted
+  // grid row even though the primary is the stream playing.
   useEffect(() => {
-    if (currentChannel?.stream_id) {
+    const syncChannel = highlightChannel ?? currentChannel;
+    if (syncChannel?.stream_id) {
       setSelectedChannel((prev) => {
-        if (prev?.stream_id !== currentChannel.stream_id) {
-          return currentChannel;
+        if (prev?.stream_id !== syncChannel.stream_id) {
+          return syncChannel;
         }
         return prev;
       });
     }
-  }, [currentChannel, visible]);
+  }, [highlightChannel?.stream_id, currentChannel, visible]);
 
   // Track if we have a channel to show
   const hasSelectedChannel = selectedChannel !== null;
@@ -2084,7 +2096,9 @@ export function ChannelPanel({
     return () => window.removeEventListener('ynotv:gamepad-epg-shift', handleEpgShift);
   }, [currentEpgOffset, handleEpgShiftChange]);
 
-  // Handle auto-scrolling to keep the selected channel near the middle/visible
+  // Handle auto-scrolling to keep the selected channel near the middle/visible.
+  // The highlight channel (keep-view anchor) takes priority so the row the user
+  // picked stays in view even when failover plays the group primary instead.
   useEffect(() => {
     if (!visible) return;
     if (!selectedChannel || !filteredChannels.length || !virtuosoRef.current) return;
@@ -2095,7 +2109,8 @@ export function ChannelPanel({
       return;
     }
 
-    const index = filteredChannels.findIndex((c) => c.stream_id === selectedChannel.stream_id);
+    const scrollChannel = highlightChannel ?? selectedChannel;
+    const index = filteredChannels.findIndex((c) => c.stream_id === scrollChannel.stream_id);
     if (index === -1) return;
 
     const { startIndex, endIndex } = visibleRangeRef.current;
@@ -2121,7 +2136,7 @@ export function ChannelPanel({
         behavior: 'smooth',
       });
     }
-  }, [selectedChannel?.stream_id, filteredChannels.length, isSearchMode, isWatchlistMode, visible]);
+  }, [selectedChannel?.stream_id, highlightChannel?.stream_id, filteredChannels.length, isSearchMode, isWatchlistMode, visible]);
 
   // Update last channel ID when selected channel changes
   useEffect(() => {
@@ -2349,6 +2364,7 @@ export function ChannelPanel({
     onPlayInPopout,
     onPlayInExternal,
     currentChannel,
+    highlightChannel,
     showPlaylistName: includeSourceInSearch ?? false,
     sourceNames,
     epgMetadataBadgeResolution,
@@ -2359,7 +2375,7 @@ export function ChannelPanel({
   }), [
     channelSortOrder, searchChannelPrograms, windowStart, windowEnd, pixelsPerHour, visibleHours,
     handleSearchChannelClick, onPlayCatchup, refreshSearchResults, categoryId, activeRecordings,
-    currentLayout, onSendToSlot, onPlayInPopout, onPlayInExternal, currentChannel,
+    currentLayout, onSendToSlot, onPlayInPopout, onPlayInExternal, currentChannel, highlightChannel,
     includeSourceInSearch, sourceNames, epgMetadataBadgeResolution, epgMetadataBadgeFps, epgMetadataBadgeSound, epgMetadataBadgeBitrate, epgMetadataBadgeAudioBitrate,
   ]);
 
@@ -3479,6 +3495,7 @@ export function ChannelPanel({
                         onPlayInPopout,
                         onPlayInExternal,
                         currentChannel,
+                        highlightChannel,
                         showPlaylistName: categoryId === '__recent__' ? showRecentPlaylistName : categoryId === '__favorites__' ? showFavPlaylistName : isCustomCategory ? showCustomPlaylistName : false,
                         sourceNames,
                         epgMetadataBadgeResolution,

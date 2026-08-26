@@ -22,7 +22,10 @@ export function PhoneRemoteCustomizer({ isOpen, onClose }: PhoneRemoteCustomizer
   const setPhoneRemoteConfig = useSettingsStore((s) => s.setPhoneRemoteConfig);
   const resetPhoneRemoteConfig = useSettingsStore((s) => s.resetPhoneRemoteConfig);
 
-  const [newActionToAdd, setNewActionToAdd] = useState<string>('aspect_ratio');
+  // Start the quick-action add-select on the first real action, not a placeholder
+  // id that isn't in the catalog ('aspect_ratio' would render a dead button on
+  // the phone that does nothing).
+  const [newActionToAdd, setNewActionToAdd] = useState<string>(PHONE_REMOTE_AVAILABLE_ACTIONS[0]?.id || '');
   const [showResetModal, setShowResetModal] = useState<boolean>(false);
 
   if (!isOpen) return null;
@@ -126,7 +129,10 @@ export function PhoneRemoteCustomizer({ isOpen, onClose }: PhoneRemoteCustomizer
   };
 
   const handleAddQuickAction = () => {
-    if (!newActionToAdd || quickActions.includes(newActionToAdd)) return;
+    // Guard against stale/dead ids: only add actions that exist in the catalog.
+    if (!newActionToAdd) return;
+    if (!PHONE_REMOTE_AVAILABLE_ACTIONS.some((a) => a.id === newActionToAdd)) return;
+    if (quickActions.includes(newActionToAdd)) return;
     setPhoneRemoteConfig({
       quickActions: [...quickActions, newActionToAdd],
     });

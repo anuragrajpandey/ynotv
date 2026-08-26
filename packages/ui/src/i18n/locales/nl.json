@@ -2068,7 +2068,10 @@
       "streamCount_two": "{{count}}-streams",
       "streamCount_zero": "{{count}}-streams",
       "alwaysPlayPrimary": "Altijd primair afspelen",
-      "alwaysPlayPrimaryTooltip": "Bij het afstemmen op een kanaal dat tot een failovergroep behoort, wordt automatisch eerst de primaire stream gestart, tenzij rechtstreeks geselecteerd vanuit de failoverwidget of geschakeld tijdens failover."
+      "alwaysPlayPrimaryTooltip": "Bij het afstemmen op een kanaal dat tot een failovergroep behoort, wordt automatisch eerst de primaire stream gestart, tenzij rechtstreeks geselecteerd vanuit de failoverwidget of geschakeld tijdens failover.",
+      "playbackBehavior": "Afspelen:",
+      "keepView": "Weergave op geselecteerd kanaal behouden",
+      "keepViewTooltip": "Bij het afstemmen op een kanaal uit een failovergroep wordt de primaire stream afgespeeld, maar de gids/categorie blijft op het kanaal dat je hebt gekozen, zodat omhoog/omlaag zappen verder navigeert door de categorie die je aan het bekijken was."
     },
     "movies": {
       "genreCarousels": "Filmgenrecarrousels",

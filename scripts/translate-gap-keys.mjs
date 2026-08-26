@@ -9,6 +9,9 @@ const en = JSON.parse(fs.readFileSync(path.join(DIR, 'en.json'), 'utf8'));
 const KEYS = [
   'stremio.local',
   'settings.failover.autoClusterTitle',
+  'settings.failover.playbackBehavior',
+  'settings.failover.keepView',
+  'settings.failover.keepViewTooltip',
   'settings.strem.badgePastePlaceholder',
   'vod.batchReview',
   'stremio.profileNotFound',

@@ -2068,7 +2068,10 @@
       "streamCount_two": "{{count}} flussi",
       "streamCount_zero": "{{count}} flussi",
       "alwaysPlayPrimary": "Riproduci sempre il primario",
-      "alwaysPlayPrimaryTooltip": "Quando sintonizzi qualsiasi canale che appartiene a un gruppo di failover, avvia automaticamente prima lo stream primario a meno che non sia selezionato direttamente dal widget di failover o cambiato durante il failover."
+      "alwaysPlayPrimaryTooltip": "Quando sintonizzi qualsiasi canale che appartiene a un gruppo di failover, avvia automaticamente prima lo stream primario a meno che non sia selezionato direttamente dal widget di failover o cambiato durante il failover.",
+      "playbackBehavior": "Riproduzione:",
+      "keepView": "Mantieni la vista sul canale selezionato",
+      "keepViewTooltip": "Quando sintonizzi un canale che appartiene a un gruppo di failover, riproduce lo stream primario ma mantiene la guida/categoria sul canale che hai scelto, così il cambio canale su/giù continua a navigare nella categoria che stavi sfogliando."
     },
     "movies": {
       "genreCarousels": "Caroselli generi film",

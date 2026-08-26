@@ -230,6 +230,8 @@ export function FailoverGroupListModal({ onClose }: FailoverGroupListModalProps)
     const setShowFailoverMediaBarWidget = useSettingsStore((s) => s.setShowFailoverMediaBarWidget);
     const failoverAlwaysPlayPrimary = useSettingsStore((s) => s.failoverAlwaysPlayPrimary);
     const setFailoverAlwaysPlayPrimary = useSettingsStore((s) => s.setFailoverAlwaysPlayPrimary);
+    const failoverKeepView = useSettingsStore((s) => s.failoverKeepView);
+    const setFailoverKeepView = useSettingsStore((s) => s.setFailoverKeepView);
 
     // Creating & Editing State
     const [creating, setCreating] = useState(false);
@@ -519,19 +521,6 @@ export function FailoverGroupListModal({ onClose }: FailoverGroupListModalProps)
                                     <span>{t('failover.widgetOverlayVisibility', { defaultValue: 'Widget Overlay Visibility:' })}</span>
                                 </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                                    <label
-                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
-                                        title={t('failover.alwaysPlayPrimaryTooltip', { defaultValue: 'When tuning any channel that belongs to a failover group, automatically start with the primary stream first unless selected directly from the failover widget or switched during failover.' })}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={failoverAlwaysPlayPrimary}
-                                            onChange={(e) => setFailoverAlwaysPlayPrimary(e.target.checked)}
-                                            style={{ accentColor: 'var(--accent-primary, #00d4ff)', cursor: 'pointer' }}
-                                        />
-                                        <span>{t('failover.alwaysPlayPrimary', { defaultValue: 'Always Play Primary' })}</span>
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.7 }}><InfoSvg size={12} /></span>
-                                    </label>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
                                         <input
                                             type="checkbox"
@@ -549,6 +538,57 @@ export function FailoverGroupListModal({ onClose }: FailoverGroupListModalProps)
                                             style={{ accentColor: 'var(--accent-primary, #00d4ff)', cursor: 'pointer' }}
                                         />
                                         <span>{t('failover.showMediaBarWidget', { defaultValue: 'Show Player Media Bar Widget' })}</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Playback behavior (failover tuning) */}
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px 12px',
+                                    marginTop: '10px',
+                                    background: 'rgba(255, 255, 255, 0.03)',
+                                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                                    borderRadius: '8px',
+                                    fontSize: '0.8rem',
+                                    color: 'rgba(255, 255, 255, 0.75)',
+                                    flexWrap: 'wrap',
+                                    gap: '10px',
+                                }}
+                            >
+                                <span style={{ fontWeight: 500, color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <SettingsSvg size={13} />
+                                    <span>{t('failover.playbackBehavior', { defaultValue: 'Playback:' })}</span>
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                                    <label
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
+                                        title={t('failover.alwaysPlayPrimaryTooltip', { defaultValue: 'When tuning any channel that belongs to a failover group, automatically start with the primary stream first unless selected directly from the failover widget or switched during failover.' })}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={failoverAlwaysPlayPrimary}
+                                            onChange={(e) => setFailoverAlwaysPlayPrimary(e.target.checked)}
+                                            style={{ accentColor: 'var(--accent-primary, #00d4ff)', cursor: 'pointer' }}
+                                        />
+                                        <span>{t('failover.alwaysPlayPrimary', { defaultValue: 'Always Play Primary' })}</span>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.7 }}><InfoSvg size={12} /></span>
+                                    </label>
+                                    <label
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
+                                        title={t('failover.keepViewTooltip', { defaultValue: 'When tuning a channel that belongs to a failover group, play the primary stream but keep the guide/category on the channel you picked, so channel up/down keeps navigating the category you were browsing.' })}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={failoverKeepView}
+                                            onChange={(e) => setFailoverKeepView(e.target.checked)}
+                                            style={{ accentColor: 'var(--accent-primary, #00d4ff)', cursor: 'pointer' }}
+                                        />
+                                        <span>{t('failover.keepView', { defaultValue: 'Keep View on Selected Channel' })}</span>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', opacity: 0.7 }}><InfoSvg size={12} /></span>
                                     </label>
                                 </div>
                             </div>

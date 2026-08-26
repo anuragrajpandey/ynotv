@@ -1904,6 +1904,33 @@ async fn serve_remote_html() -> impl IntoResponse {
       justify-content: space-between;
       flex-shrink: 0;
     }
+    /* Failover playback toggle (synced from the desktop app). Compact bar so
+       tuning from the phone follows the same Always Play Primary setting. */
+    .failover-guide-bar {
+      display: none;
+      align-items: center;
+      padding: 6px 14px;
+      background: rgba(14, 18, 28, 0.4);
+      border-bottom: 1px solid var(--border-glass);
+      flex-shrink: 0;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    .failover-guide-bar input {
+      accent-color: var(--accent-cyan);
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+    .failover-guide-bar label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
     .guide-cat-title {
       font-size: 13px;
       font-weight: 800;
@@ -1948,6 +1975,16 @@ async fn serve_remote_html() -> impl IntoResponse {
       cursor: pointer;
       box-shadow: var(--glass-card-shadow);
       transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    /* Now-viewing highlight: the channel the user is watching (or the keep-view
+       anchor when failover redirects tuning to a group primary). */
+    .guide-card.is-view {
+      border-color: rgba(56, 189, 248, 0.7);
+      background: rgba(56, 189, 248, 0.14);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+    }
+    .guide-card.is-view .guide-card-ch-name {
+      color: #7dd3fc;
     }
     .guide-card:active {
       background: rgba(56, 189, 248, 0.12);
@@ -2763,6 +2800,18 @@ async fn serve_remote_html() -> impl IntoResponse {
                 <span id="guide-pick-indicator" class="guide-pick-indicator" style="display:none;"></span>
               </div>
               <span id="guide-cat-count" class="guide-cat-count"></span>
+            </div>
+            <!-- Failover playback toggle: synced with the desktop setting so
+                 tuning from the phone behaves the same as tuning on the app. -->
+            <div id="failover-guide-bar" class="failover-guide-bar">
+              <label>
+                <input type="checkbox" id="failover-primary-toggle" onchange="onFailoverPrimaryToggle(this.checked)" />
+                <span>Always Play Primary</span>
+              </label>
+              <label style="margin-left:6px; padding-left:10px; border-left:1px solid var(--border-glass);">
+                <input type="checkbox" id="failover-keepview-toggle" onchange="onFailoverKeepViewToggle(this.checked)" />
+                <span>Keep View on Selected Channel</span>
+              </label>
             </div>
             <div id="guide-list" class="guide-channel-list">
               <div style="text-align:center; padding:30px; color:#64748b;">Loading channels...</div>
@@ -3868,9 +3917,42 @@ async fn serve_remote_html() -> impl IntoResponse {
       });
     }
 
+    // Failover playback settings mirrored from the desktop app (Always Play
+    // Primary + keep-view). Tuning from the phone goes through the same desktop
+    // wrapper, so this bar only surfaces the current toggle state and lets the
+    // user flip it from the phone. viewChannel is the channel to highlight in
+    // the guide list as now-viewing (keep-view anchor when active).
+    let failoverSettings = { failoverAlwaysPlayPrimary: false, failoverKeepView: false };
+    let viewChannelStreamId = null;
+    function updateGuideViewHighlight() {
+      const cards = document.querySelectorAll('#guide-list .guide-card');
+      cards.forEach(card => {
+        card.classList.toggle('is-view', card.dataset.streamId === viewChannelStreamId);
+      });
+    }
+    function applyFailoverSettings(s) {
+      if (!s) return;
+      failoverSettings = Object.assign({}, failoverSettings, s);
+      if (s.viewChannel) viewChannelStreamId = s.viewChannel.stream_id || null;
+      const bar = document.getElementById('failover-guide-bar');
+      if (bar) bar.style.display = 'flex';
+      const cb = document.getElementById('failover-primary-toggle');
+      if (cb) cb.checked = !!failoverSettings.failoverAlwaysPlayPrimary;
+      const kv = document.getElementById('failover-keepview-toggle');
+      if (kv) kv.checked = !!failoverSettings.failoverKeepView;
+      updateGuideViewHighlight();
+    }
+    function onFailoverPrimaryToggle(enabled) {
+      send({ action: 'setFailoverAlwaysPlayPrimary', enabled });
+    }
+    function onFailoverKeepViewToggle(enabled) {
+      send({ action: 'setFailoverKeepView', enabled });
+    }
+
     function handleIncomingData(data) {
       if (data.type === 'initialState') {
         if (data.phoneRemoteConfig) applyPhoneRemoteConfig(data.phoneRemoteConfig);
+        if (data.failoverSettings) applyFailoverSettings(data.failoverSettings);
         if (data.nowPlaying !== undefined) renderNowPlaying(data.nowPlaying);
         if (data.categoryTree) renderCategoryTree(data.categoryTree);
         if (data.multiview) renderMultiview(data.multiview);
@@ -3884,6 +3966,8 @@ async fn serve_remote_html() -> impl IntoResponse {
         }
       } else if (data.type === 'remoteConfig') {
         if (data.config) applyPhoneRemoteConfig(data.config);
+      } else if (data.type === 'failoverSettings') {
+        applyFailoverSettings(data);
       } else if (data.type === 'volume') {
         renderVolume(data.volume, data.muted);
       } else if (data.type === 'view') {
@@ -4117,8 +4201,9 @@ async fn serve_remote_html() -> impl IntoResponse {
         const nextTitle = c.next_program ? `Next: ${esc(c.next_program.title)}` : '';
         const timeRange = formatTimeRange(c.current_program?.start, c.current_program?.end);
 
+        const isView = c.stream_id === viewChannelStreamId;
         html += `
-          <div class="guide-card" onclick="channelTap('${escAttr(c.stream_id)}', '${escAttr(name)}', '${escAttr(tapCat)}')">
+          <div class="guide-card${isView ? ' is-view' : ''}" data-stream-id="${escAttr(c.stream_id)}" onclick="channelTap('${escAttr(c.stream_id)}', '${escAttr(name)}', '${escAttr(tapCat)}')">
             ${logoHtml}
             <div class="guide-card-content">
               <div class="guide-card-header">

@@ -2068,7 +2068,10 @@
       "streamCount_two": "{{count}} 流",
       "streamCount_zero": "{{count}} 流",
       "alwaysPlayPrimary": "始终播放主要流",
-      "alwaysPlayPrimaryTooltip": "当选择属于故障转移组的任何频道时，自动首先播放主要流，除非直接从故障转移小部件中选择或在故障转移期间切换。"
+      "alwaysPlayPrimaryTooltip": "当选择属于故障转移组的任何频道时，自动首先播放主要流，除非直接从故障转移小部件中选择或在故障转移期间切换。",
+      "playbackBehavior": "播放：",
+      "keepView": "在所选频道上保持视图",
+      "keepViewTooltip": "当选择属于故障转移组的频道时，播放主要流，但指南/分类仍停留在您选择的频道上，这样向上/向下切换频道就会继续在您浏览的分类中导航。"
     },
     "movies": {
       "genreCarousels": "电影类型轮播",

@@ -748,6 +748,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
   const lastAudioTracksCountRef = useRef(0);
   const autoSelectTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSelectAttemptsRef = useRef(0);
+  // Monotonic sequence for handlePlayChannel: guards against the async
+  // failover-primary lookup resolving out of order during rapid channel zaps.
+  const playChannelSeqRef = useRef(0);
   const streamFailureHandlingRef = useRef(false);
   const recoveryArmedRef = useRef(false);
   const userPausedRef = useRef(false);
@@ -1916,6 +1919,13 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
     setVodInfo(null);
     setCatchupInfo(null);
 
+    // Monotonic guard: the primary-channel lookup below is async, so a fast
+    // sequence of zaps could otherwise resolve out of order (a group-member
+    // lookup also round-trips through storage, making it slower than a plain
+    // non-member lookup) and load the wrong channel last. Bump a sequence
+    // number per call and ignore this invocation if a newer one arrived while
+    // we were awaiting.
+    const playSeq = ++playChannelSeqRef.current;
     let channelToPlay = channel;
     if (!autoSwitched && !directPlay && useSettingsStore.getState().failoverAlwaysPlayPrimary) {
       try {
@@ -1927,6 +1937,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
         console.error('[Playback] Failed to lookup primary failover channel:', err);
       }
     }
+    if (playSeq !== playChannelSeqRef.current) return; // superseded by a newer zap
 
     if (!autoSwitched) {
       addToRecentChannels(channelToPlay);

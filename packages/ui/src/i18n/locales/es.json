@@ -2068,7 +2068,10 @@
       "streamCount_two": "{{count}} transmisiones",
       "streamCount_zero": "{{count}} transmisiones",
       "alwaysPlayPrimary": "Reproducir siempre el principal",
-      "alwaysPlayPrimaryTooltip": "Al sintonizar cualquier canal que pertenezca a un grupo de conmutación por error, comienza automáticamente con la transmisión principal primero, a menos que se seleccione directamente desde el widget de conmutación o cambie durante la conmutación."
+      "alwaysPlayPrimaryTooltip": "Al sintonizar cualquier canal que pertenezca a un grupo de conmutación por error, comienza automáticamente con la transmisión principal primero, a menos que se seleccione directamente desde el widget de conmutación o cambie durante la conmutación.",
+      "playbackBehavior": "Reproducción:",
+      "keepView": "Mantener la vista en el canal seleccionado",
+      "keepViewTooltip": "Al sintonizar un canal que pertenece a un grupo de conmutación por error, reproduce la transmisión principal pero mantiene la guía/categoría en el canal que elegiste, de modo que el cambio de canal arriba/abajo sigue navegando por la categoría que estabas viendo."
     },
     "movies": {
       "genreCarousels": "Carruseles de géneros de películas",

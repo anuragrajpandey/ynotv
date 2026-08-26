@@ -48,6 +48,12 @@ export function HlsMultiviewCell({
     const hlsRef = useRef<Hls | null>(null);
     const fatalRetryCountRef = useRef(0);
     const fatalRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Timestamp of the last fatal error, so the retry budget counts *consecutive*
+    // failures within a window instead of a lifetime total. A stream that hiccups
+    // once every few minutes must keep playing; only a stream that keeps failing
+    // back-to-back should burn the budget and surface the error badge.
+    const lastFatalAtRef = useRef(0);
+    const FATAL_RETRY_WINDOW_MS = 30_000;
     const { t } = useTranslation('player');
 
     const [volume, setVolume] = useState(100);
@@ -87,6 +93,7 @@ export function HlsMultiviewCell({
             fatalRetryTimerRef.current = null;
         }
         fatalRetryCountRef.current = 0;
+        lastFatalAtRef.current = 0;
         setHlsError(null);
 
         if (!channelUrl || !active || hidden) {
@@ -138,15 +145,30 @@ export function HlsMultiviewCell({
             // rewritten to .m3u8 that the provider doesn't actually serve) looped
             // forever: video went black, retry, black, retry... with no backoff and
             // no user-visible signal. Now we pace retries and surface an error
-            // badge once the budget is exhausted.
+            // badge once the budget is exhausted. The budget only counts
+            // consecutive failures inside FATAL_RETRY_WINDOW_MS, so a glitchy
+            // stream that occasionally drops is retried indefinitely while a
+            // truly dead stream still gives up fast.
             const MAX_FATAL_RETRIES = 3;
             hls.on(Hls.Events.ERROR, (_event, data) => {
                 if (!data.fatal) return;
                 console.warn('[HLS Error]', data.type, data.details);
 
                 if (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                    // Start a fresh streak if the previous fatal was long ago.
+                    const now = Date.now();
+                    if (now - lastFatalAtRef.current > FATAL_RETRY_WINDOW_MS) {
+                        fatalRetryCountRef.current = 0;
+                    }
+                    lastFatalAtRef.current = now;
                     fatalRetryCountRef.current += 1;
                     if (fatalRetryCountRef.current > MAX_FATAL_RETRIES) {
+                        // Give up: clear any pending retry first so it can't fire
+                        // startLoad() on the instance we're about to destroy.
+                        if (fatalRetryTimerRef.current) {
+                            clearTimeout(fatalRetryTimerRef.current);
+                            fatalRetryTimerRef.current = null;
+                        }
                         setHlsError(`Fatal stream error: ${data.details}`);
                         destroyHls();
                         return;
@@ -158,6 +180,7 @@ export function HlsMultiviewCell({
                     // hls.js does not add backoff to manual fatal recovery; pace it
                     // ourselves so a dead stream doesn't flash black at full speed.
                     fatalRetryTimerRef.current = setTimeout(() => {
+                        fatalRetryTimerRef.current = null;
                         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
                             hls.startLoad();
                         } else {

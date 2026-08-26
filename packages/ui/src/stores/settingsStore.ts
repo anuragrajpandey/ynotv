@@ -560,6 +560,8 @@ export interface SettingsState {
   setFailoverGroupShowSource: (enabled: boolean) => void;
   failoverAlwaysPlayPrimary: boolean;
   setFailoverAlwaysPlayPrimary: (enabled: boolean) => void;
+  failoverKeepView: boolean;
+  setFailoverKeepView: (enabled: boolean) => void;
   showFailoverLiveTvWidget: boolean;
   setShowFailoverLiveTvWidget: (enabled: boolean) => void;
   showFailoverMediaBarWidget: boolean;
@@ -1462,6 +1464,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     persistSettings({ failoverAlwaysPlayPrimary: enabled });
     dispatchAppEvent('ynotv:livetv-settings-changed', { failoverAlwaysPlayPrimary: enabled });
   },
+  failoverKeepView: false,
+  setFailoverKeepView: (enabled) => {
+    set({ failoverKeepView: enabled });
+    persistSettings({ failoverKeepView: enabled });
+    dispatchAppEvent('ynotv:livetv-settings-changed', { failoverKeepView: enabled });
+  },
   showFailoverLiveTvWidget: true,
   setShowFailoverLiveTvWidget: (enabled) => {
     set({ showFailoverLiveTvWidget: enabled });
@@ -1846,6 +1854,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         cornerButtons: config.cornerButtons
           ? { ...state.phoneRemoteConfig.cornerButtons, ...config.cornerButtons }
           : state.phoneRemoteConfig.cornerButtons,
+        centerButtons: config.centerButtons
+          ? { ...state.phoneRemoteConfig.centerButtons, ...config.centerButtons }
+          : state.phoneRemoteConfig.centerButtons,
         layout: config.layout
           ? { ...state.phoneRemoteConfig.layout, ...config.layout }
           : state.phoneRemoteConfig.layout,

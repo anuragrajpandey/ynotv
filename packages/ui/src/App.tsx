@@ -859,6 +859,16 @@ function App() {
   const multiviewLayoutRef = useRef<LayoutMode>('main');
   const handlePlayChannelRef = useRef<((channel: StoredChannel, autoSwitched?: boolean, directPlay?: boolean) => void | Promise<void>) | null>(null);
   const handlePlayChannelWrapperRef = useRef<((channel: StoredChannel, autoSwitched?: boolean, categoryOverride?: string, directPlay?: boolean) => Promise<void>) | null>(null);
+  // Monotonic sequence shared with handlePlayChannelWrapper: guards the async
+  // failover-primary lookup against out-of-order resolution on rapid channel picks.
+  const playChannelSeqRef = useRef(0);
+  // With failoverKeepView, this remembers the channel the user actually picked
+  // when failover redirects tuning to a group primary, so channel up/down keeps
+  // navigating the category they were browsing instead of jumping to the primary.
+  const failoverNavAnchorRef = useRef<StoredChannel | null>(null);
+  // Mirror of the anchor as state so the guide grid can re-render its highlight
+  // to the picked channel instead of the playing failover primary.
+  const [failoverNavAnchor, setFailoverNavAnchor] = useState<StoredChannel | null>(null);
   const lastPlayedChannelRef = useRef<StoredChannel | null>(null);
   useEffect(() => { multiviewLayoutRef.current = multiviewLayout; }, [multiviewLayout]);
 
@@ -1591,10 +1601,19 @@ function useTmdbPresencePoster(
   const phoneRemoteLiveLeagues = useSportsSettingsStore((s) => s.liveLeagues);
   const companionCategories = useCategories();
 
+  // The channel the phone remote should highlight as "now viewing". With
+  // failoverKeepView this is the channel the user picked (the failover primary
+  // may be what's actually streaming). Computed here (before the companion hook)
+  // because the hook needs it in its options; the desktop grid uses the stricter
+  // guideHighlightChannel memo below with the current-category membership check.
+  const failoverKeepViewSetting = useSettingsStore((s) => s.failoverKeepView);
+  const remoteViewChannel = (failoverKeepViewSetting && failoverNavAnchor) ? failoverNavAnchor : currentChannel;
+
   const { isRemoteClientConnected } = usePhoneRemoteCompanion({
     currentChannel,
     currentProgram,
     categories: companionCategories || [],
+    viewChannel: remoteViewChannel,
     activeView,
     searchQuery,
     multiviewLayout,
@@ -2737,18 +2756,39 @@ function useTmdbPresencePoster(
     directPlay?: boolean
   ) => {
     setPlaybackSourceView(null);
+    // Same monotonic guard as handlePlayChannel: the failover-primary lookup
+    // is async, so rapid channel picks must not resolve out of order.
+    const playSeq = ++playChannelSeqRef.current;
     let targetChannel = channel;
+    let swappedToPrimary = false;
     if (!autoSwitched && !directPlay && useSettingsStore.getState().failoverAlwaysPlayPrimary) {
       try {
         const primary = await getPrimaryChannelForGroup(channel.stream_id);
         if (primary) {
           targetChannel = primary;
+          swappedToPrimary = true;
         }
       } catch (err) {
         console.error('[App] Failed to lookup primary failover channel:', err);
       }
     }
-    const catIds = parseCategoryIds(targetChannel?.category_ids);
+    if (playSeq !== playChannelSeqRef.current) return; // superseded by a newer pick
+
+    // failoverKeepView: when the tune was redirected to a group primary, keep
+    // the guide anchored to the channel the user actually picked (and its
+    // category) instead of jumping the view to the primary. The anchor is what
+    // channel up/down then navigates from, so zapping follows the category the
+    // user was browsing even though the primary is the stream playing.
+    const keepView = useSettingsStore.getState().failoverKeepView;
+    if (keepView) {
+      failoverNavAnchorRef.current = channel;
+      setFailoverNavAnchor(channel);
+    } else if (swappedToPrimary) {
+      failoverNavAnchorRef.current = null;
+      setFailoverNavAnchor(null);
+    }
+    const anchorChannel = keepView && swappedToPrimary ? channel : targetChannel;
+    const catIds = parseCategoryIds(anchorChannel?.category_ids);
     const targetCat = categoryOverride ?? catIds[0];
     if (targetCat && targetCat !== categoryId) {
       setCategoryId(targetCat);
@@ -3871,17 +3911,28 @@ function useTmdbPresencePoster(
     
     // Default: navigate channels
     if (currentChannel) {
-      const { list: channelsList, index: currentIndex, resolvedCategoryId } = await resolveChannelNavList(currentChannel, currentChannels);
+      // With failoverKeepView, navigate from the channel the user last picked
+      // (which may differ from the actually-playing failover primary) so zapping
+      // stays inside the category they were browsing.
+      const keepView = useSettingsStore.getState().failoverKeepView;
+      const navChannel =
+        keepView && failoverNavAnchorRef.current &&
+        currentChannels.some((c) => c.stream_id === failoverNavAnchorRef.current?.stream_id)
+          ? failoverNavAnchorRef.current
+          : currentChannel;
+      const { list: channelsList, index: currentIndex, resolvedCategoryId } = await resolveChannelNavList(navChannel, currentChannels);
       if (resolvedCategoryId) {
         setCategoryId(resolvedCategoryId);
       }
       if (currentIndex >= 0 && channelsList.length > 0) {
-        if (currentIndex > 0) {
-          handlePlayChannel(channelsList[currentIndex - 1]);
-        } else {
-          // Wrap to last channel
-          handlePlayChannel(channelsList[channelsList.length - 1]);
+        const nextChannel = currentIndex > 0
+          ? channelsList[currentIndex - 1]
+          : channelsList[channelsList.length - 1]; // Wrap to last channel
+        if (keepView) {
+          failoverNavAnchorRef.current = nextChannel;
+          setFailoverNavAnchor(nextChannel);
         }
+        handlePlayChannel(nextChannel);
       }
     }
   }, [currentChannels, currentChannel, handlePlayChannel, vodInfo, handlePlayVod, handleStop, setCategoryId]);
@@ -4053,20 +4104,47 @@ function useTmdbPresencePoster(
     
     // Default: navigate channels
     if (currentChannel) {
-      const { list: channelsList, index: currentIndex, resolvedCategoryId } = await resolveChannelNavList(currentChannel, currentChannels);
+      // With failoverKeepView, navigate from the channel the user last picked
+      // (which may differ from the actually-playing failover primary) so zapping
+      // stays inside the category they were browsing.
+      const keepView = useSettingsStore.getState().failoverKeepView;
+      const navChannel =
+        keepView && failoverNavAnchorRef.current &&
+        currentChannels.some((c) => c.stream_id === failoverNavAnchorRef.current?.stream_id)
+          ? failoverNavAnchorRef.current
+          : currentChannel;
+      const { list: channelsList, index: currentIndex, resolvedCategoryId } = await resolveChannelNavList(navChannel, currentChannels);
       if (resolvedCategoryId) {
         setCategoryId(resolvedCategoryId);
       }
       if (currentIndex >= 0 && channelsList.length > 0) {
-        if (currentIndex < channelsList.length - 1) {
-          handlePlayChannel(channelsList[currentIndex + 1]);
-        } else {
-          // Wrap to first channel
-          handlePlayChannel(channelsList[0]);
+        const nextChannel = currentIndex < channelsList.length - 1
+          ? channelsList[currentIndex + 1]
+          : channelsList[0]; // Wrap to first channel
+        if (keepView) {
+          failoverNavAnchorRef.current = nextChannel;
+          setFailoverNavAnchor(nextChannel);
         }
+        handlePlayChannel(nextChannel);
       }
     }
   }, [currentChannels, currentChannel, handlePlayChannel, vodInfo, handlePlayVod, handleStop, setCategoryId]);
+
+  // The channel the guide grid should highlight and scroll to. With
+  // failoverKeepView, the row the user picked stays visually selected even
+  // though the failover primary is the stream that's actually playing. Stricter
+  // than remoteViewChannel: only follows the anchor while it's still in the
+  // current category, so switching categories falls back to the playing channel.
+  const guideHighlightChannel = useMemo(() => {
+    if (
+      failoverKeepViewSetting &&
+      failoverNavAnchor &&
+      currentChannels.some((c) => c.stream_id === failoverNavAnchor.stream_id)
+    ) {
+      return failoverNavAnchor;
+    }
+    return currentChannel;
+  }, [failoverKeepViewSetting, failoverNavAnchor, currentChannels, currentChannel]);
 
   // ==========================================================================
   // Keyboard Shortcuts (using latest ref pattern)
@@ -5693,7 +5771,7 @@ function useTmdbPresencePoster(
           multiviewLayout !== '2x2' &&
           multiviewLayout !== 'bigbottom'
         }
-        channel={currentChannel}
+        channel={guideHighlightChannel}
         playing={playing}
         muted={muted}
         volume={volume}
@@ -6159,6 +6237,7 @@ function useTmdbPresencePoster(
         epgMetadataBadgeBitrate={epgMetadataBadgeBitrate}
         epgMetadataBadgeAudioBitrate={epgMetadataBadgeAudioBitrate}
         currentChannel={currentChannel}
+        highlightChannel={guideHighlightChannel}
         onTogglePlay={handleTogglePlay}
         isPlaying={playing}
         onChannelUp={handleChannelUp}

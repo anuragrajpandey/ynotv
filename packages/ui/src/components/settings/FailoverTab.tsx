@@ -132,6 +132,8 @@ export function FailoverTab() {
   const [displaySource, setDisplaySource] = useState(false);
   const failoverAlwaysPlayPrimary = useSettingsStore((s) => s.failoverAlwaysPlayPrimary);
   const setFailoverAlwaysPlayPrimary = useSettingsStore((s) => s.setFailoverAlwaysPlayPrimary);
+  const failoverKeepView = useSettingsStore((s) => s.failoverKeepView);
+  const setFailoverKeepView = useSettingsStore((s) => s.setFailoverKeepView);
   const [sourceNameMap, setSourceNameMap] = useState<Map<string, string>>(new Map());
   const [categoryNameMap, setCategoryNameMap] = useState<Map<string, string>>(new Map());
 
@@ -321,6 +323,18 @@ export function FailoverTab() {
               onChange={e => setFailoverAlwaysPlayPrimary(e.target.checked)}
             />
             {i18n.t('settings:failover.alwaysPlayPrimary', { defaultValue: 'Always Play Primary' })}
+          </label>
+          <label
+            className="failover-display-source-label"
+            title={i18n.t('settings:failover.keepViewTooltip', { defaultValue: 'When tuning a channel that belongs to a failover group, play the primary stream but keep the guide/category on the channel you picked, so channel up/down keeps navigating the category you were browsing.' })}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
+          >
+            <input
+              type="checkbox"
+              checked={failoverKeepView}
+              onChange={e => setFailoverKeepView(e.target.checked)}
+            />
+            {i18n.t('settings:failover.keepView', { defaultValue: 'Keep View on Selected Channel' })}
           </label>
           <label className="failover-display-source-label" title={i18n.t('settings:failover.displaySourceHint')} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
             <input

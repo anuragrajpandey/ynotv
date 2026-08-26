@@ -184,6 +184,9 @@ async function buildOrderedCategoryChannels(
 
 export interface UsePhoneRemoteCompanionOptions {
   currentChannel: StoredChannel | null;
+  /** Channel the phone guide should highlight as "now viewing" (keep-view
+   *  anchor when failover redirects tuning to a group primary). */
+  viewChannel?: StoredChannel | null;
   currentProgram: StoredProgram | null;
   categories: StoredCategory[];
   activeView: string;
@@ -584,6 +587,7 @@ async function buildCategoryTree(categories: StoredCategory[]): Promise<Category
 
 export function usePhoneRemoteCompanion({
   currentChannel,
+  viewChannel,
   currentProgram,
   categories,
   activeView,
@@ -752,6 +756,24 @@ export function usePhoneRemoteCompanion({
     }
   }, [phoneRemoteConfig]);
 
+  // Sync failover playback settings to the phone in real-time (the phone guide
+  // shows the Always Play Primary toggle and tunes through the same wrapper, so
+  // it must know the current values). The view channel is the channel the phone
+  // guide should highlight as now-viewing (the keep-view anchor when active).
+  const failoverAlwaysPlayPrimary = useSettingsStore((s) => s.failoverAlwaysPlayPrimary);
+  const failoverKeepView = useSettingsStore((s) => s.failoverKeepView);
+  const viewChannelStreamId = viewChannel?.stream_id ?? null;
+  useEffect(() => {
+    broadcastToRemote({
+      type: 'failoverSettings',
+      failoverAlwaysPlayPrimary,
+      failoverKeepView,
+      viewChannel: viewChannel
+        ? { stream_id: viewChannel.stream_id, name: viewChannel.name }
+        : null,
+    });
+  }, [failoverAlwaysPlayPrimary, failoverKeepView, viewChannelStreamId]);
+
   // Handle incoming commands and queries from the phone remote
   useEffect(() => {
     let unlistenCmd: (() => void) | null = null;
@@ -837,6 +859,18 @@ export function usePhoneRemoteCompanion({
               }
               break;
 
+            case 'setFailoverAlwaysPlayPrimary':
+              if (typeof payload.enabled === 'boolean') {
+                useSettingsStore.getState().setFailoverAlwaysPlayPrimary(payload.enabled);
+              }
+              break;
+
+            case 'setFailoverKeepView':
+              if (typeof payload.enabled === 'boolean') {
+                useSettingsStore.getState().setFailoverKeepView(payload.enabled);
+              }
+              break;
+
             case 'tuneChannelNumber':
               if (typeof payload.channelNum === 'number') {
                 const num = payload.channelNum;
@@ -914,6 +948,13 @@ export function usePhoneRemoteCompanion({
       } : null,
       categoryTree: tree,
       phoneRemoteConfig: useSettingsStore.getState().phoneRemoteConfig,
+      failoverSettings: {
+        failoverAlwaysPlayPrimary: useSettingsStore.getState().failoverAlwaysPlayPrimary,
+        failoverKeepView: useSettingsStore.getState().failoverKeepView,
+        viewChannel: viewChannel
+          ? { stream_id: viewChannel.stream_id, name: viewChannel.name }
+          : null,
+      },
       multiview: {
         layout: mvLayout,
         slots: mvSlots.map((s, idx) => ({

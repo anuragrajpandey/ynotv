@@ -2068,7 +2068,10 @@
       "streamCount_two": "{{count}} transmetime",
       "streamCount_zero": "{{count}} transmetime",
       "alwaysPlayPrimary": "Luaj gjithmonë kryesoren",
-      "alwaysPlayPrimaryTooltip": "Kur hapni një kanal që i përket një grupi failover, fillon automatikisht me transmetimin kryesor, përveç nëse zgjidhet direkt nga widget-i i failover ose ndërrohet gjatë dështimit."
+      "alwaysPlayPrimaryTooltip": "Kur hapni një kanal që i përket një grupi failover, fillon automatikisht me transmetimin kryesor, përveç nëse zgjidhet direkt nga widget-i i failover ose ndërrohet gjatë dështimit.",
+      "playbackBehavior": "Riprodhimi:",
+      "keepView": "Mbaj pamjen në kanalin e zgjedhur",
+      "keepViewTooltip": "Kur hapni një kanal që i përket një grupi failover, luhet transmetimi kryesor, por udhëzuesi/kategoria mbetet te kanali që zgjodhët, në mënyrë që ndërrimi i kanaleve lart/poshtë të vazhdojë të lëvizë në kategorinë që po shfletonit."
     },
     "movies": {
       "genreCarousels": "Karuselët e zhanreve të filmave",

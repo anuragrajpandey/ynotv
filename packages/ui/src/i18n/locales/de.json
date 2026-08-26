@@ -2068,7 +2068,10 @@
       "streamCount_two": "{{count}} Streams",
       "streamCount_zero": "{{count}} Streams",
       "alwaysPlayPrimary": "Immer primären Kanal abspielen",
-      "alwaysPlayPrimaryTooltip": "Beim Einstellen eines Kanals, der zu einer Failover-Gruppe gehört, wird automatisch zuerst der primäre Stream abgespielt, es sei denn, er wird direkt aus dem Failover-Widget ausgewählt oder während des Failovers umgeschaltet."
+      "alwaysPlayPrimaryTooltip": "Beim Einstellen eines Kanals, der zu einer Failover-Gruppe gehört, wird automatisch zuerst der primäre Stream abgespielt, es sei denn, er wird direkt aus dem Failover-Widget ausgewählt oder während des Failovers umgeschaltet.",
+      "playbackBehavior": "Wiedergabe:",
+      "keepView": "Ansicht auf ausgewähltem Kanal behalten",
+      "keepViewTooltip": "Beim Einstellen eines Kanals aus einer Failover-Gruppe wird der primäre Stream abgespielt, aber die Ansicht (Leitfaden/Kategorie) bleibt auf dem Kanal, den du ausgewählt hast, sodass du mit Kanal hoch/runter weiterhin in der Kategorie navigierst, in der du gerade warst."
     },
     "movies": {
       "genreCarousels": "Genre-Karussells für Filme",

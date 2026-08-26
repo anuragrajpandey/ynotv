@@ -2068,7 +2068,10 @@
       "streamCount_two": "{{count}} strumienie",
       "streamCount_zero": "{{count}} strumienie",
       "alwaysPlayPrimary": "Zawsze odtwarzaj główny",
-      "alwaysPlayPrimaryTooltip": "Podczas przełączania na dowolny kanał należący do grupy failover automatycznie uruchamiaj najpierw strumień główny, chyba że wybrano go bezpośrednio z widżetu failover lub przełączono podczas awarii."
+      "alwaysPlayPrimaryTooltip": "Podczas przełączania na dowolny kanał należący do grupy failover automatycznie uruchamiaj najpierw strumień główny, chyba że wybrano go bezpośrednio z widżetu failover lub przełączono podczas awarii.",
+      "playbackBehavior": "Odtwarzanie:",
+      "keepView": "Zachowaj widok na wybranym kanale",
+      "keepViewTooltip": "Podczas przełączania na kanał należący do grupy failover odtwarzany jest strumień główny, ale przewodnik/kategoria pozostaje na wybranym kanale, dzięki czemu przełączanie kanałów w górę/w dół nadal porusza się po kategorii, którą przeglądałeś."
     },
     "movies": {
       "genreCarousels": "Karuzele gatunków filmów",
