@@ -584,6 +584,11 @@ export interface SettingsState {
   controllerChords: Record<string, string>;
   setControllerChords: (chords: Record<string, string>) => void;
   resetControllerChords: () => void;
+  controllerVisualizerLayout: 'auto' | 'xbox' | 'playstation';
+  setControllerVisualizerLayout: (layout: 'auto' | 'xbox' | 'playstation') => void;
+  customGamepadProfiles: Record<string, Record<string, string>>;
+  saveCustomGamepadProfile: (deviceId: string, mapping: Record<string, string>) => void;
+  deleteCustomGamepadProfile: (deviceId: string) => void;
 
   // Phone Remote Server
   remoteControlEnabled: boolean;
@@ -1754,6 +1759,27 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   resetControllerChords: () => {
     set({ controllerChords: { ...DEFAULT_CONTROLLER_CHORDS } });
     persistSettings({ controllerChords: { ...DEFAULT_CONTROLLER_CHORDS } });
+  },
+  controllerVisualizerLayout: cachedSettings?.controllerVisualizerLayout ?? 'xbox',
+  setControllerVisualizerLayout: (layout) => {
+    set({ controllerVisualizerLayout: layout });
+    persistSettings({ controllerVisualizerLayout: layout });
+  },
+  customGamepadProfiles: cachedSettings?.customGamepadProfiles ?? {},
+  saveCustomGamepadProfile: (deviceId, mapping) => {
+    set((state) => {
+      const updated = { ...state.customGamepadProfiles, [deviceId]: mapping };
+      persistSettings({ customGamepadProfiles: updated });
+      return { customGamepadProfiles: updated };
+    });
+  },
+  deleteCustomGamepadProfile: (deviceId) => {
+    set((state) => {
+      const updated = { ...state.customGamepadProfiles };
+      delete updated[deviceId];
+      persistSettings({ customGamepadProfiles: updated });
+      return { customGamepadProfiles: updated };
+    });
   },
 
   // Phone Remote Server (opt-in — off unless the user explicitly enables it)

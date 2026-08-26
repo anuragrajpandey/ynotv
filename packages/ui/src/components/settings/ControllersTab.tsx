@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsStore, DEFAULT_CONTROLLER_MAPPINGS, DEFAULT_CONTROLLER_CHORDS } from '../../stores/settingsStore';
 import { subscribeGamepadButtonPress, type GamepadDeviceInfo, type LiveButtonEvent } from '../../hooks/useGamepad';
 import { generateQrDataUrl } from '../../utils/qrCode';
+import { ControllerVisualizer } from './ControllerVisualizer';
+import { ControllerRemapModal } from './ControllerRemapModal';
 import './ControllersTab.css';
 
 // Each entry id doubles as the i18n key suffix under settings:controllers.mapping.
@@ -90,6 +92,9 @@ export function ControllersTab() {
   const controllerChords = useSettingsStore((s) => s.controllerChords);
   const setControllerChords = useSettingsStore((s) => s.setControllerChords);
   const resetControllerChords = useSettingsStore((s) => s.resetControllerChords);
+  const controllerVisualizerLayout = useSettingsStore((s) => s.controllerVisualizerLayout);
+  const setControllerVisualizerLayout = useSettingsStore((s) => s.setControllerVisualizerLayout);
+  const customGamepadProfiles = useSettingsStore((s) => s.customGamepadProfiles);
 
   const remoteControlEnabled = useSettingsStore((s) => s.remoteControlEnabled);
   const setRemoteControlEnabled = useSettingsStore((s) => s.setRemoteControlEnabled);
@@ -103,6 +108,7 @@ export function ControllersTab() {
 
   const [connectedDevices, setConnectedDevices] = useState<GamepadDeviceInfo[]>([]);
   const [lastActiveBtn, setLastActiveBtn] = useState<string>('');
+  const [isRemapModalOpen, setIsRemapModalOpen] = useState<boolean>(false);
   // Which modifier's combination matrix is shown in the chords section.
   const [chordTab, setChordTab] = useState<string>('left_bumper');
   const [lastActiveInfo, setLastActiveInfo] = useState<LiveButtonEvent | null>(null);
@@ -347,71 +353,60 @@ export function ControllersTab() {
           </label>
         </div>
 
-        {/* Live Detected Controllers Status */}
+        {/* Live Detected Controllers Status & Interactive Visualizer */}
         <div className="device-status-card">
           <div className="device-status-header">
             <span className="device-icon">🎮</span>
             <div className="device-info-main">
-              <span className="device-status-title">
-                {connectedDevices.length > 0
-                  ? i18n.t('settings:controllers.connectedCount', { count: connectedDevices.length })
-                  : i18n.t('settings:controllers.noGamepads')}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="device-status-title">
+                  {connectedDevices.length > 0
+                    ? i18n.t('settings:controllers.connectedCount', { count: connectedDevices.length })
+                    : i18n.t('settings:controllers.noGamepads')}
+                </span>
+                {connectedDevices.some((d) => customGamepadProfiles[d.name]) && (
+                  <span className="custom-profile-badge">
+                    {i18n.t('settings:controllers.customProfileActive', { defaultValue: 'Custom Profile Active' })}
+                  </span>
+                )}
+              </div>
               <span className="device-status-sub">
                 {connectedDevices.length > 0
                   ? connectedDevices.map((d) => d.name).join(', ')
                   : i18n.t('settings:controllers.connectHint')}
               </span>
             </div>
-            <span
-              className={`device-pill ${
-                connectedDevices.length > 0 ? 'pill-connected' : 'pill-disconnected'
-              }`}
-            >
-              {connectedDevices.length > 0
-                ? i18n.t('settings:controllers.ready')
-                : i18n.t('settings:controllers.scanning')}
-            </span>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                type="button"
+                className="remap-launch-btn"
+                onClick={() => setIsRemapModalOpen(true)}
+                title={i18n.t('settings:controllers.remapBtnTooltip', {
+                  defaultValue: 'Calibrate and map buttons for any generic or 3rd-party gamepad',
+                })}
+              >
+                ⚙️ {i18n.t('settings:controllers.remapBtn', { defaultValue: 'Calibrate / Configure Gamepad' })}
+              </button>
+
+              <span
+                className={`device-pill ${
+                  connectedDevices.length > 0 ? 'pill-connected' : 'pill-disconnected'
+                }`}
+              >
+                {connectedDevices.length > 0
+                  ? i18n.t('settings:controllers.ready')
+                  : i18n.t('settings:controllers.scanning')}
+              </span>
+            </div>
           </div>
 
-          {/* Live Button Visualizer */}
-          <div className="live-tester">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span className="tester-label">{i18n.t('settings:controllers.liveMonitor')}</span>
-              {lastActiveInfo && (
-                <span className="live-telemetry">
-                  {i18n.t('settings:controllers.lastDetected')} <strong>{lastActiveInfo.rawLabel}</strong>
-                </span>
-              )}
-            </div>
-            <div className="tester-buttons">
-              {[
-                { id: 'south', name: 'A / Cross' },
-                { id: 'east', name: 'B / Circle' },
-                { id: 'west', name: 'X / Square' },
-                { id: 'north', name: 'Y / Triangle' },
-                { id: 'dpad_up', name: 'D-Pad ▲' },
-                { id: 'dpad_down', name: 'D-Pad ▼' },
-                { id: 'dpad_left', name: 'D-Pad ◀' },
-                { id: 'dpad_right', name: 'D-Pad ▶' },
-                { id: 'left_bumper', name: 'L1' },
-                { id: 'right_bumper', name: 'R1' },
-                { id: 'left_trigger', name: 'L2' },
-                { id: 'right_trigger', name: 'R2' },
-                { id: 'left_stick_click', name: 'L3' },
-                { id: 'right_stick_click', name: 'R3' },
-                { id: 'start', name: 'Options' },
-                { id: 'select', name: 'Share' },
-              ].map((btn) => (
-                <span
-                  key={btn.id}
-                  className={`tester-btn ${lastActiveBtn === btn.id ? 'active' : ''}`}
-                >
-                  {btn.name}
-                </span>
-              ))}
-            </div>
-          </div>
+          {/* Interactive Controller SVG Live Preview */}
+          <ControllerVisualizer
+            connectedDevices={connectedDevices}
+            activeLayout={controllerVisualizerLayout}
+            onLayoutChange={setControllerVisualizerLayout}
+          />
         </div>
 
         {/* Stick Sensitivity / Deadzone */}
@@ -730,6 +725,13 @@ export function ControllersTab() {
           })}
         </div>
       </div>
+
+      {/* Generic Gamepad Calibration / Remap Modal */}
+      <ControllerRemapModal
+        isOpen={isRemapModalOpen}
+        onClose={() => setIsRemapModalOpen(false)}
+        connectedDevices={connectedDevices}
+      />
     </div>
   );
 }

@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Live Preview",
+      "liveHint": "Connect a controller: every press and stick move shows up here, live.",
+      "customProfileActive": "Custom Profile Active",
+      "configureGamepad": "Configure / Calibrate Gamepad",
+      "remapBtn": "Calibrate / Configure Gamepad",
+      "remapBtnTooltip": "Calibrate and map buttons for any generic or 3rd-party gamepad",
+      "remap": {
+        "title": "Configure & Calibrate Gamepad",
+        "subtitle": "Map any generic or 3rd-party controller buttons to YNOTV standard controls.",
+        "targetDevice": "Target Controller:",
+        "reset": "Reset Profile",
+        "prev": "Previous",
+        "skip": "Skip",
+        "save": "Save & Apply"
+      },
       "remote": {
         "enablePromptTitle": "Enable Phone Remote?",
         "enablePromptText": "Control YNOTV from your phone over Wi-Fi — a touchpad, D-pad, and media remote. The local server is off by default and starts only when you turn it on.",

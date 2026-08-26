@@ -82,17 +82,52 @@ export interface LiveButtonEvent {
   deviceName: string;
 }
 
+export interface StickTelemetryEvent {
+  stick: 'left' | 'right';
+  x: number;
+  y: number;
+  deviceName?: string;
+}
+
+export interface RawGamepadInputEvent {
+  buttonIndex?: number;
+  buttonCode: string;
+  rawLabel: string;
+  isPressed: boolean;
+  deviceName: string;
+}
+
 // Global button listener registry for live visualizer
 const buttonListeners = new Set<(event: LiveButtonEvent) => void>();
+const stickListeners = new Set<(event: StickTelemetryEvent) => void>();
+let calibrationCallback: ((event: RawGamepadInputEvent) => void) | null = null;
 
 export function subscribeGamepadButtonPress(cb: (event: LiveButtonEvent) => void): () => void {
   buttonListeners.add(cb);
   return () => buttonListeners.delete(cb);
 }
 
+export function subscribeGamepadStickTelemetry(cb: (event: StickTelemetryEvent) => void): () => void {
+  stickListeners.add(cb);
+  return () => stickListeners.delete(cb);
+}
+
+export function setGamepadCalibrationCallback(cb: ((event: RawGamepadInputEvent) => void) | null) {
+  calibrationCallback = cb;
+}
+
 function notifyButtonPressed(action: string, rawLabel: string = action, deviceName: string = 'Gamepad') {
   const payload: LiveButtonEvent = { action, rawLabel, deviceName };
   buttonListeners.forEach((cb) => {
+    try {
+      cb(payload);
+    } catch {}
+  });
+}
+
+function notifyStickMoved(stick: 'left' | 'right', x: number, y: number, deviceName?: string) {
+  const payload: StickTelemetryEvent = { stick, x, y, deviceName };
+  stickListeners.forEach((cb) => {
     try {
       cb(payload);
     } catch {}
@@ -372,7 +407,7 @@ export function useGamepad() {
 
         // Listen for controller button / stick events from Rust
         unlistenGamepad = await listen<GamepadEventPayload>('ynotv://gamepad', (event) => {
-          const rawAction = event.payload?.action;
+          let rawAction = event.payload?.action;
           const pressed = event.payload?.pressed;
           const gpName = event.payload?.gamepad_name || 'Controller';
           if (!rawAction) return;
@@ -384,8 +419,44 @@ export function useGamepad() {
             `native event: action=${rawAction} pressed=${pressed} id=${event.payload?.gamepad_id} name=${gpName}`
           );
 
+          if (calibrationCallback && pressed) {
+            calibrationCallback({
+              buttonCode: rawAction,
+              rawLabel: event.payload.button || rawAction,
+              isPressed: true,
+              deviceName: gpName,
+            });
+            return;
+          }
+
+          // Custom hardware profile lookup
+          const customProfiles = useSettingsStore.getState().customGamepadProfiles;
+          const padProfile = customProfiles[gpName] || customProfiles[normalizePadName(gpName)];
+          if (padProfile && padProfile[rawAction]) {
+            rawAction = padProfile[rawAction];
+          }
+
+          const buttonSource = event.payload?.button || rawAction;
+          const isLeftStickEvent =
+            buttonSource.toLowerCase().includes('leftstick') ||
+            buttonSource.toLowerCase().includes('analog') ||
+            gpName.toLowerCase() === 'analog';
+
           if (pressed) {
-            notifyButtonPressed(rawAction, event.payload.button || rawAction, gpName);
+            if (isLeftStickEvent) {
+              let sx = 0;
+              let sy = 0;
+              if (rawAction === 'dpad_up') sy = -1;
+              else if (rawAction === 'dpad_down') sy = 1;
+              else if (rawAction === 'dpad_left') sx = -1;
+              else if (rawAction === 'dpad_right') sx = 1;
+              notifyStickMoved('left', sx, sy, gpName);
+              setTimeout(() => {
+                notifyStickMoved('left', 0, 0, gpName);
+              }, 220);
+            } else {
+              notifyButtonPressed(rawAction, buttonSource, gpName);
+            }
           }
 
           // Chords: keep held-modifier state in sync on both edges BEFORE the
@@ -415,6 +486,7 @@ export function useGamepad() {
           if (!p) return;
           // Any native event from a pad means the native side owns it.
           claimNativePad(p.gamepad_name || 'Controller');
+          notifyStickMoved('right', p.x, p.y, p.gamepad_name);
           if (!enabledRef.current || !isInputActive()) return;
           // The native backends emit Y with UP positive (matching their D-pad
           // emulation), while scrollActiveContainerByStick expects the browser
@@ -582,17 +654,39 @@ export function useGamepad() {
 
             if (isPressed && !wasPressed) {
               prevButtonStates.set(stateKey, true);
-              notifyButtonPressed(rawAction, `Button ${btnIdx} (${rawAction})`, gpName);
+
+              if (calibrationCallback) {
+                calibrationCallback({
+                  buttonIndex: btnIdx,
+                  buttonCode: rawAction,
+                  rawLabel: `Button ${btnIdx}`,
+                  isPressed: true,
+                  deviceName: gpName,
+                });
+                continue;
+              }
+
+              // Custom hardware profile lookup
+              const customProfiles = useSettingsStore.getState().customGamepadProfiles;
+              const padProfile = customProfiles[gpName] || customProfiles[normalizePadName(gpName)];
+              let resolvedAction = rawAction;
+              if (padProfile && padProfile[rawAction]) {
+                resolvedAction = padProfile[rawAction];
+              } else if (padProfile && padProfile[String(btnIdx)]) {
+                resolvedAction = padProfile[String(btnIdx)];
+              }
+
+              notifyButtonPressed(resolvedAction, `Button ${btnIdx} (${resolvedAction})`, gpName);
 
               // Chords: a modifier held while this button presses swaps in the
               // chord action and suppresses the base button's normal action.
-              setHeldModifier(rawAction, true);
+              setHeldModifier(resolvedAction, true);
               if (enabledRef.current && isInputActive()) {
-                const chord = chordActionFor(rawAction, chordsRef.current);
+                const chord = chordActionFor(resolvedAction, chordsRef.current);
                 if (chord) {
                   tryDispatchAction(chord);
                 } else {
-                  const action = mappingsRef.current[rawAction] || rawAction;
+                  const action = mappingsRef.current[resolvedAction] || resolvedAction;
                   tryDispatchAction(action);
                 }
               }
@@ -603,22 +697,27 @@ export function useGamepad() {
           }
         }
 
-        // Left Analog Stick (Axes 0 & 1) → D-pad direction. Computed for every
-        // pad so the diagnostic line can show what Chromium reports; only
-        // dispatched for pads the native backends haven't claimed.
+        // Left Analog Stick (Axes 0 & 1) → D-pad direction & visualizer telemetry
         const deadzone = deadzoneRef.current;
         const stickX = gp.axes[0] || 0;
         const stickY = gp.axes[1] || 0;
 
+        notifyStickMoved('left', stickX, stickY, gpName);
+
         let currentDir: string | null = null;
+        let isStickNav = false;
         if (stickY < -deadzone) {
           currentDir = 'dpad_up';
+          isStickNav = true;
         } else if (stickY > deadzone) {
           currentDir = 'dpad_down';
+          isStickNav = true;
         } else if (stickX < -deadzone) {
           currentDir = 'dpad_left';
+          isStickNav = true;
         } else if (stickX > deadzone) {
           currentDir = 'dpad_right';
+          isStickNav = true;
         }
 
         // Scan D-Pad Hat Switch ONLY on raw DirectInput / Bluetooth controllers (mapping !== 'standard')
@@ -649,7 +748,9 @@ export function useGamepad() {
               activeDir = currentDir;
               dirHeldSince = now;
               lastDirTime = now;
-              notifyButtonPressed(currentDir, currentDir.toUpperCase(), gpName);
+              if (!isStickNav) {
+                notifyButtonPressed(currentDir, currentDir.toUpperCase(), gpName);
+              }
               debugGamepad(
                 `poller dir start: idx=${gp.index} dir=${currentDir} ax0=${stickX.toFixed(2)} ax1=${stickY.toFixed(2)} hat=${hatVal === undefined ? '-' : hatVal.toFixed(2)}`
               );
@@ -663,7 +764,9 @@ export function useGamepad() {
               const sinceLast = now - lastDirTime;
               if (heldDuration >= REPEAT_DELAY_MS && sinceLast >= REPEAT_INTERVAL_MS) {
                 lastDirTime = now;
-                notifyButtonPressed(currentDir, currentDir.toUpperCase(), gpName);
+                if (!isStickNav) {
+                  notifyButtonPressed(currentDir, currentDir.toUpperCase(), gpName);
+                }
                 debugGamepad(
                   `poller dir repeat: idx=${gp.index} dir=${currentDir} ax0=${stickX.toFixed(2)} ax1=${stickY.toFixed(2)} hat=${hatVal === undefined ? '-' : hatVal.toFixed(2)}`
                 );
@@ -686,24 +789,26 @@ export function useGamepad() {
             .join(',')}] ax0=${stickX.toFixed(2)} ax1=${stickY.toFixed(2)} hat=${hatVal === undefined ? '-' : hatVal.toFixed(2)} dir=${currentDir ?? '-'} claimed=${claimed}`
         );
 
-        // Scan Right Analog Stick (Axes 2 & 3/5) for smooth variable-speed page scrolling
+        // Scan Right Analog Stick (Axes 2 & 3/5) for smooth variable-speed page scrolling & telemetry
+        let rightStickX = 0;
+        let rightStickY = 0;
+
+        if (gp.axes.length > 2) {
+          rightStickX = gp.axes[2] || 0;
+        }
+        if (gp.axes.length > 3) {
+          const axis3 = gp.axes[3];
+          const axis5 = gp.axes.length > 5 ? gp.axes[5] : null;
+          if (gp.mapping !== 'standard' && typeof axis5 === 'number' && Math.abs(axis3 + 1) < 0.05) {
+            rightStickY = axis5;
+          } else {
+            rightStickY = axis3 || 0;
+          }
+        }
+
+        notifyStickMoved('right', rightStickX, rightStickY, gpName);
+
         if (!claimed && enabledRef.current && isInputActive()) {
-          let rightStickX = 0;
-          let rightStickY = 0;
-
-          if (gp.axes.length > 2) {
-            rightStickX = gp.axes[2] || 0;
-          }
-          if (gp.axes.length > 3) {
-            const axis3 = gp.axes[3];
-            const axis5 = gp.axes.length > 5 ? gp.axes[5] : null;
-            if (gp.mapping !== 'standard' && typeof axis5 === 'number' && Math.abs(axis3 + 1) < 0.05) {
-              rightStickY = axis5;
-            } else {
-              rightStickY = axis3 || 0;
-            }
-          }
-
           if (Math.abs(rightStickY) > deadzone || Math.abs(rightStickX) > deadzone) {
             scrollActiveContainerByStick(rightStickX, rightStickY, deadzone);
           }

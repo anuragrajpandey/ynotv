@@ -1,0 +1,301 @@
+/* Controller Visualizer Card */
+.controller-visualizer-card {
+  background: rgba(18, 21, 28, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 18px 22px 14px 22px;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  user-select: none;
+}
+
+/* Header with Title and Layout Toggle */
+.visualizer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 4px;
+}
+
+.visualizer-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  text-transform: uppercase;
+}
+
+.layout-pill-selector {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.layout-pill-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 14px;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.layout-pill-btn:hover {
+  color: #ffffff;
+}
+
+.layout-pill-btn.active {
+  background: #ffffff;
+  color: #0b0d11;
+  border-color: #f6c065;
+  box-shadow: 0 0 10px rgba(246, 192, 101, 0.35);
+  font-weight: 700;
+}
+
+/* Canvas Wrap & SVG */
+.visualizer-canvas-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.controller-svg {
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.5));
+}
+
+/* Button & Stick SVG Elements */
+.shoulder-rect {
+  fill: #1a1e27;
+  stroke: #2e3544;
+  stroke-width: 1.2;
+  transition: all 0.12s ease;
+}
+
+.shoulder-text {
+  font-size: 11px;
+  font-weight: 700;
+  fill: #7e8b9e;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.menu-btn-circle {
+  fill: #1c202a;
+  stroke: #2e3544;
+  stroke-width: 1.2;
+  transition: all 0.12s ease;
+}
+
+.guide-circle {
+  fill: #181c24;
+  stroke: #384050;
+  stroke-width: 1.5;
+  transition: all 0.12s ease;
+}
+
+.guide-glyph-xbox {
+  font-size: 13px;
+  font-weight: 900;
+  fill: #4ade80;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.guide-glyph-ps {
+  font-size: 12px;
+  font-weight: 900;
+  fill: #60a5fa;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.dpad-wing {
+  fill: #222733;
+  stroke: #2c3342;
+  stroke-width: 1;
+  transition: all 0.1s ease;
+  cursor: default;
+}
+
+.face-btn-bg {
+  fill: #1c202a;
+  stroke: #2c3342;
+  stroke-width: 1.2;
+  transition: all 0.12s ease;
+}
+
+.face-glyph {
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: central;
+  user-select: none;
+}
+
+.xbox-y {
+  fill: #facc15;
+  font-size: 13px;
+}
+
+.xbox-b {
+  fill: #f87171;
+  font-size: 13px;
+}
+
+.xbox-a {
+  fill: #4ade80;
+  font-size: 13px;
+}
+
+.xbox-x {
+  fill: #60a5fa;
+  font-size: 13px;
+}
+
+.ps-triangle {
+  fill: #4ade80;
+  font-size: 11px;
+}
+
+.ps-circle {
+  fill: #f87171;
+  font-size: 12px;
+}
+
+.ps-cross {
+  fill: #60a5fa;
+  font-size: 13px;
+}
+
+.ps-square {
+  fill: #f472b6;
+  font-size: 11px;
+}
+
+.stick-well {
+  fill: #12151b;
+  stroke: #222732;
+  stroke-width: 1.5;
+}
+
+.stick-well-inner {
+  fill: #0d0f14;
+  opacity: 0.8;
+}
+
+.ctrl-stick-head {
+  cursor: default;
+}
+
+/* ========================================================
+   ACTIVE & GLOWING HIGHLIGHT STATES
+   ======================================================== */
+.ctrl-btn.active.active-blue .shoulder-rect,
+.ctrl-btn.active.active-blue .menu-btn-circle,
+.ctrl-btn.active.active-blue.dpad-wing {
+  fill: #2563eb !important;
+  stroke: #93c5fd !important;
+  filter: url(#btn-glow-blue);
+}
+
+.ctrl-btn.active.active-blue .shoulder-text {
+  fill: #ffffff !important;
+}
+
+.ctrl-btn.guide-btn.active .guide-circle {
+  fill: #2563eb !important;
+  stroke: #93c5fd !important;
+  filter: url(#btn-glow-blue);
+}
+
+.ctrl-btn.face-btn.active .face-btn-bg {
+  stroke-width: 2 !important;
+}
+
+.ctrl-btn.face-btn.north-btn.active .face-btn-bg {
+  fill: #ca8a04 !important;
+  stroke: #fef08a !important;
+  filter: url(#btn-glow-yellow);
+}
+
+.ctrl-btn.face-btn.north-btn.active .face-glyph {
+  fill: #ffffff !important;
+}
+
+.ctrl-btn.face-btn.east-btn.active .face-btn-bg {
+  fill: #dc2626 !important;
+  stroke: #fca5a5 !important;
+  filter: url(#btn-glow-red);
+}
+
+.ctrl-btn.face-btn.east-btn.active .face-glyph {
+  fill: #ffffff !important;
+}
+
+.ctrl-btn.face-btn.south-btn.active .face-btn-bg {
+  fill: #16a34a !important;
+  stroke: #86efac !important;
+  filter: url(#btn-glow-green);
+}
+
+.ctrl-btn.face-btn.south-btn.active .face-glyph {
+  fill: #ffffff !important;
+}
+
+.ctrl-btn.face-btn.west-btn.active .face-btn-bg {
+  fill: #2563eb !important;
+  stroke: #93c5fd !important;
+  filter: url(#btn-glow-blue);
+}
+
+.ctrl-btn.face-btn.west-btn.active .face-glyph {
+  fill: #ffffff !important;
+}
+
+.ctrl-stick-head.active-click circle:first-child {
+  fill: #2563eb !important;
+  stroke: #93c5fd !important;
+  filter: url(#btn-glow-blue);
+}
+
+.ctrl-stick-head.stick-active circle:first-child {
+  stroke: #60a5fa !important;
+  stroke-width: 2 !important;
+  filter: url(#btn-glow-blue);
+}
+
+.touchpad-active {
+  fill: #2563eb !important;
+  stroke: #60a5fa !important;
+  filter: url(#btn-glow-blue);
+}
+
+/* Footer Hint */
+.visualizer-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.visualizer-hint {
+  font-size: 12px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  text-align: center;
+}
