@@ -305,6 +305,13 @@ const SETTINGS_SEARCH_INDEX: SettingsSearchResult[] = [
   { id: 'shortcut-layout-grid', label: 'Layout: 2x2 Grid', tabId: 'shortcuts', tabLabel: 'Shortcuts', section: 'Layout' },
   { id: 'keyboard-shortcuts', label: 'Keyboard Shortcuts', tabId: 'shortcuts', tabLabel: 'Shortcuts', section: 'Keyboard Shortcuts' },
 
+
+  // --- Controllers & Remote ---
+  { id: 'controllers-tab', label: 'Controllers & Remote', tabId: 'controllers', tabLabel: 'Controllers & Remote', section: 'Controllers & Remote' },
+  { id: 'controller-repeat-delay', label: 'D-Pad Hold Delay', description: 'How long to hold a D-Pad direction before it starts repeating.', tabId: 'controllers', tabLabel: 'Controllers & Remote', section: 'Controllers & Remote' },
+  { id: 'controller-repeat-speed', label: 'D-Pad Repeat Speed', description: 'Base time between repeat presses while holding a D-Pad direction.', tabId: 'controllers', tabLabel: 'Controllers & Remote', section: 'Controllers & Remote' },
+  { id: 'controller-epg-shift', label: 'EPG Shift Buttons', description: 'Map a controller button to move the EPG backward or forward by an hour in LiveTV.', tabId: 'controllers', tabLabel: 'Controllers & Remote', section: 'Controllers & Remote' },
+
   // --- Export / Import ---
   { id: 'export-import-tab', label: 'Export / Import', tabId: 'export-import', tabLabel: 'Export / Import', section: 'Export / Import' },
   { id: 'system-backup', label: 'System Backup & Restoration', description: 'Export configuration to a JSON file for backup or transfer.', tabId: 'export-import', tabLabel: 'Export / Import', section: 'System Backup & Restoration' },

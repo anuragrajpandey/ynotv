@@ -233,8 +233,26 @@ export function SportsHub({
       // disappears. Only null the rect while we're the visible owner (e.g.
       // preview disabled or the pane isn't laid out yet).
       if (!visible) return;
+
+      // Preview turned off (or not ready yet) while we own the screen: null the
+      // rect so the glass backdrop renders full-opaque (no cutout), and hand
+      // the video back to the full window instead of leaving it pinned at the
+      // last preview-pane rect (a lingering child window renders over the page).
       if (!previewRef.current || !previewEnabled || !isReady) {
         onPreviewVideoRectChange?.(null);
+        if (!previewRef.current || !previewEnabled) {
+          // Only when the pane is genuinely gone (preview disabled / unmounted),
+          // not mid-transition — reset to the default full-window geometry so the
+          // MPV child stops overlapping the just-opaque page.
+          Bridge.setProperties({
+            'video-zoom': 0,
+            'video-align-x': 0,
+            'video-align-y': 0,
+            'video-aspect-override': aspectRatio === '4:3' ? '4:3' : (aspectRatio === '16:9' ? '16:9' : -1),
+            'keepaspect': aspectRatio !== 'stretch',
+          }).catch(() => { });
+          invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
+        }
         return;
       }
 

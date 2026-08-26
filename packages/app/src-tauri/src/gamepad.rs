@@ -192,6 +192,15 @@ pub fn start(app_handle: &AppHandle) {
             let mut last_axis_id: usize = 0;
             let mut last_axis_name = String::from("Controller");
 
+            // D-Pad hat state (DirectInput / Bluetooth hat switch reported via
+            // Axis::DPadX/DPadY). Stored like the sticks so the post-drain block
+            // can derive the held direction each loop and emit clean press/release
+            // edges — the frontend drives the accelerating hold-to-repeat from
+            // those edges, exactly like the phone remote's D-pad.
+            let mut dpad_x: f32 = 0.0;
+            let mut dpad_y: f32 = 0.0;
+            let mut active_dpad_dir: Option<&'static str> = None;
+
             while RUNNING.load(Ordering::Relaxed) {
                 let mut had_event = false;
 
@@ -293,45 +302,13 @@ pub fn start(app_handle: &AppHandle) {
                                 last_axis_id = gamepad_id;
                                 last_axis_name = gamepad_name.clone();
                             } else if axis == Axis::DPadX {
-                                if val > 0.4 {
-                                    emit_debug(&gamepad_name, "dpad_right", "DPadRight", true, gamepad_id);
-                                    let _ = handle.emit("ynotv://gamepad", GamepadPayload {
-                                        action: "dpad_right".to_string(),
-                                        button: "DPadRight".to_string(),
-                                        pressed: true,
-                                        gamepad_id,
-                                        gamepad_name: gamepad_name.clone(),
-                                    });
-                                } else if val < -0.4 {
-                                    emit_debug(&gamepad_name, "dpad_left", "DPadLeft", true, gamepad_id);
-                                    let _ = handle.emit("ynotv://gamepad", GamepadPayload {
-                                        action: "dpad_left".to_string(),
-                                        button: "DPadLeft".to_string(),
-                                        pressed: true,
-                                        gamepad_id,
-                                        gamepad_name: gamepad_name.clone(),
-                                    });
-                                }
+                                dpad_x = val;
+                                last_axis_id = gamepad_id;
+                                last_axis_name = gamepad_name.clone();
                             } else if axis == Axis::DPadY {
-                                if val > 0.4 {
-                                    emit_debug(&gamepad_name, "dpad_up", "DPadUp", true, gamepad_id);
-                                    let _ = handle.emit("ynotv://gamepad", GamepadPayload {
-                                        action: "dpad_up".to_string(),
-                                        button: "DPadUp".to_string(),
-                                        pressed: true,
-                                        gamepad_id,
-                                        gamepad_name: gamepad_name.clone(),
-                                    });
-                                } else if val < -0.4 {
-                                    emit_debug(&gamepad_name, "dpad_down", "DPadDown", true, gamepad_id);
-                                    let _ = handle.emit("ynotv://gamepad", GamepadPayload {
-                                        action: "dpad_down".to_string(),
-                                        button: "DPadDown".to_string(),
-                                        pressed: true,
-                                        gamepad_id,
-                                        gamepad_name: gamepad_name.clone(),
-                                    });
-                                }
+                                dpad_y = val;
+                                last_axis_id = gamepad_id;
+                                last_axis_name = gamepad_name.clone();
                             }
                         }
                         _ => {}
@@ -384,6 +361,50 @@ pub fn start(app_handle: &AppHandle) {
                     }
                 } else if active_dir.is_some() {
                     active_dir = None;
+                }
+
+                // D-Pad hat → clean press/release edges. The hat axes only fire
+                // an AxisChanged on change, so recompute the held direction from
+                // the stored dpad_x/dpad_y each loop. Emit `pressed:true` when a
+                // direction engages and `pressed:false` when it releases or
+                // changes, so the frontend's accelerating hold-to-repeat always
+                // gets a matching release to stop on.
+                let dpad_dir = if dpad_y > 0.4 {
+                    Some("dpad_up")
+                } else if dpad_y < -0.4 {
+                    Some("dpad_down")
+                } else if dpad_x < -0.4 {
+                    Some("dpad_left")
+                } else if dpad_x > 0.4 {
+                    Some("dpad_right")
+                } else {
+                    None
+                };
+                let emit_dpad = |action: &str, pressed: bool| {
+                    emit_debug(&last_axis_name, action, "DPad", pressed, last_axis_id);
+                    let _ = handle.emit("ynotv://gamepad", GamepadPayload {
+                        action: action.to_string(),
+                        button: "DPad".to_string(),
+                        pressed,
+                        gamepad_id: last_axis_id,
+                        gamepad_name: last_axis_name.clone(),
+                    });
+                };
+                match (active_dpad_dir, dpad_dir) {
+                    (None, Some(dir)) => {
+                        active_dpad_dir = Some(dir);
+                        emit_dpad(dir, true);
+                    }
+                    (Some(prev), new) if new != Some(prev) => {
+                        emit_dpad(prev, false);
+                        if let Some(dir) = new {
+                            active_dpad_dir = Some(dir);
+                            emit_dpad(dir, true);
+                        } else {
+                            active_dpad_dir = None;
+                        }
+                    }
+                    _ => {}
                 }
 
                 // Right analog stick → smooth page scrolling (ynotv://gamepad-stick),

@@ -2064,6 +2064,26 @@ export function ChannelPanel({
     return () => window.removeEventListener('ynotv:spatial-scroll-to-index', handleSpatialIndexRequest);
   }, []);
 
+  // Controller buttons can be mapped to "EPG < 1 hour"/"EPG > 1 hour". Those fire
+  // a ynotv:gamepad-epg-shift event; apply the delta to the current offset here,
+  // clamped to the same [-12, 12] bounds the EpgShiftModal enforces. No-op outside
+  // the guide (this component isn't mounted elsewhere).
+  useEffect(() => {
+    const handleEpgShift = (event: Event) => {
+      const delta = (event as CustomEvent<{ delta?: number }>).detail?.delta;
+      if (!delta) return;
+      const next = Math.max(-12, Math.min(12, currentEpgOffset + delta));
+      if (next !== currentEpgOffset) {
+        // Keep the local offset in sync so the toolbar label and repeated
+        // presses reflect the shift (handleEpgShiftChange only persists it).
+        setCurrentEpgOffset(next);
+        handleEpgShiftChange(next);
+      }
+    };
+    window.addEventListener('ynotv:gamepad-epg-shift', handleEpgShift);
+    return () => window.removeEventListener('ynotv:gamepad-epg-shift', handleEpgShift);
+  }, [currentEpgOffset, handleEpgShiftChange]);
+
   // Handle auto-scrolling to keep the selected channel near the middle/visible
   useEffect(() => {
     if (!visible) return;

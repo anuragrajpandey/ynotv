@@ -323,6 +323,8 @@ export function useGamepad() {
   const controllerMappings = useSettingsStore((s) => s.controllerMappings);
   const controllerChords = useSettingsStore((s) => s.controllerChords);
   const controllerDeadzone = useSettingsStore((s) => s.controllerDeadzone);
+  const controllerRepeatDelayMs = useSettingsStore((s) => s.controllerRepeatDelayMs);
+  const controllerRepeatIntervalMs = useSettingsStore((s) => s.controllerRepeatIntervalMs);
   const [connectedGamepads, setConnectedGamepads] = useState<GamepadDeviceInfo[]>([]);
 
   const mappingsRef = useRef(controllerMappings);
@@ -354,6 +356,75 @@ export function useGamepad() {
     let unlistenStick: (() => void) | null = null;
     let unlistenRemote: (() => void) | null = null;
     let isCancelled = false;
+
+    // ── D-pad hold-to-repeat (phone-remote-style acceleration) ────────────────
+    // The native side delivers dpad presses/releases as discrete edges, so a
+    // held directional button only fires once. Mirror the phone remote's
+    // D-pad: re-fire the action while the button is held, starting after a
+    // short hold delay and gradually speeding up. Timings match the remote
+    // (see NAV_REPEAT_* in web_server.rs).
+    const DPAD_DIRECTIONS = new Set(['dpad_up', 'dpad_down', 'dpad_left', 'dpad_right']);
+    // Repeat timings read fresh from settings at schedule time so a change
+    // applies immediately without re-running the whole effect. Defaults mirror
+    // the phone remote's D-pad (NAV_REPEAT_* in web_server.rs): hold delay
+    // 350ms, starting interval 220ms, −15ms per repeat, 60ms fastest. The
+    // starting interval drives the whole accelerating curve — step and min
+    // scale with it so the curve keeps its shape as the user adjusts speed.
+    const NAV_REPEAT_PROTO_START = 220;
+    const NAV_REPEAT_PROTO_STEP = 15;
+    const NAV_REPEAT_PROTO_MIN = 60;
+    const navRepeatDelayMs = () => useSettingsStore.getState().controllerRepeatDelayMs;
+    const navRepeatStartMs = () => {
+      const start = useSettingsStore.getState().controllerRepeatIntervalMs;
+      return Math.max(40, Math.round(start));
+    };
+    const navRepeatStepMs = (startMs: number) => Math.max(5, Math.round(startMs * (NAV_REPEAT_PROTO_STEP / NAV_REPEAT_PROTO_START)));
+    const navRepeatMinMs = (startMs: number) => Math.max(navRepeatStepMs(startMs), Math.round(startMs * (NAV_REPEAT_PROTO_MIN / NAV_REPEAT_PROTO_START)));
+
+    // Dispatch one dpad action, honoring enabled/focus gates, held-modifier
+    // chords, and custom mappings — identical to the initial-press path below.
+    const repeatNativeAction = (action: string) => {
+      if (!enabledRef.current || !isInputActive()) return;
+      const chord = chordActionFor(action, chordsRef.current);
+      if (chord) {
+        tryDispatchAction(chord);
+        return;
+      }
+      tryDispatchAction(mappingsRef.current[action] || action);
+    };
+
+    // Per-direction timers for an active hold.
+    const heldDpad: {
+      [dir: string]: { hold: number | null; repeat: number | null };
+    } = {};
+    const stopDpadRepeat = (dir: string) => {
+      const t = heldDpad[dir];
+      if (!t) return;
+      if (t.hold !== null) clearTimeout(t.hold);
+      if (t.repeat !== null) clearTimeout(t.repeat);
+      delete heldDpad[dir];
+    };
+    const stopAllDpadRepeat = () => {
+      Object.keys(heldDpad).forEach(stopDpadRepeat);
+    };
+    const startDpadRepeat = (dir: string) => {
+      stopDpadRepeat(dir);
+      const t: { hold: number | null; repeat: number | null } = { hold: null, repeat: null };
+      heldDpad[dir] = t;
+      t.hold = window.setTimeout(() => {
+        t.hold = null;
+        const startMs = navRepeatStartMs();
+        const stepMs = navRepeatStepMs(startMs);
+        const minMs = navRepeatMinMs(startMs);
+        let intervalMs = startMs;
+        const tick = () => {
+          repeatNativeAction(dir);
+          intervalMs = Math.max(minMs, intervalMs - stepMs);
+          t.repeat = window.setTimeout(tick, intervalMs);
+        };
+        tick();
+      }, navRepeatDelayMs());
+    };
 
     const setupTauri = async () => {
       try {
@@ -441,6 +512,16 @@ export function useGamepad() {
             buttonSource.toLowerCase().includes('leftstick') ||
             buttonSource.toLowerCase().includes('analog') ||
             gpName.toLowerCase() === 'analog';
+
+          // Manage the accelerating hold-to-repeat for dpad directions. The
+          // initial press still dispatches through the normal path below; these
+          // timers only add the repeats. Releasing stops the current repeat.
+          // Skip stick events: the analog stick maps to dpad_* too but already
+          // repeats natively and never emits a release, so a timer would leak.
+          if (!isLeftStickEvent && DPAD_DIRECTIONS.has(rawAction)) {
+            if (pressed) startDpadRepeat(rawAction);
+            else stopDpadRepeat(rawAction);
+          }
 
           if (pressed) {
             if (isLeftStickEvent) {
@@ -562,13 +643,17 @@ export function useGamepad() {
     // arrives — clear held modifiers when the window loses focus (unless the
     // user opted into background listening) so a stuck chord can't wedge input.
     const onWindowBlur = () => {
-      if (!backgroundListenRef.current) clearHeldModifiers();
+      if (!backgroundListenRef.current) {
+        clearHeldModifiers();
+        stopAllDpadRepeat();
+      }
     };
     window.addEventListener('blur', onWindowBlur);
 
     return () => {
       isCancelled = true;
       window.removeEventListener('blur', onWindowBlur);
+      stopAllDpadRepeat();
       unlistenGamepad?.();
       unlistenStatus?.();
       unlistenStick?.();
@@ -894,6 +979,12 @@ export function executeAction(action: string) {
       break;
     case 'prev_channel':
       window.dispatchEvent(new CustomEvent('ynotv:gamepad-channel-step', { detail: { step: -1 } }));
+      break;
+    case 'epg_shift_forward':
+      window.dispatchEvent(new CustomEvent('ynotv:gamepad-epg-shift', { detail: { delta: 1 } }));
+      break;
+    case 'epg_shift_backward':
+      window.dispatchEvent(new CustomEvent('ynotv:gamepad-epg-shift', { detail: { delta: -1 } }));
       break;
     case 'toggle_fullscreen':
       window.dispatchEvent(new CustomEvent('ynotv:gamepad-toggle-fullscreen'));

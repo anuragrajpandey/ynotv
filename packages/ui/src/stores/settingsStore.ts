@@ -578,6 +578,10 @@ export interface SettingsState {
   setControllerBackgroundListening: (enabled: boolean) => void;
   controllerDeadzone: number;
   setControllerDeadzone: (deadzone: number) => void;
+  controllerRepeatDelayMs: number;
+  setControllerRepeatDelayMs: (ms: number) => void;
+  controllerRepeatIntervalMs: number;
+  setControllerRepeatIntervalMs: (ms: number) => void;
   controllerMappings: Record<string, string>;
   setControllerMappings: (mappings: Record<string, string>) => void;
   resetControllerMappings: () => void;
@@ -1741,6 +1745,20 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setControllerDeadzone: (deadzone) => {
     set({ controllerDeadzone: deadzone });
     persistSettings({ controllerDeadzone: deadzone }, true);
+  },
+  // D-pad hold-to-repeat. Defaults mirror the phone remote's timings
+  // (NAV_REPEAT_HOLD_MS / NAV_REPEAT_START_MS). controllerRepeatIntervalMs is
+  // the base speed of the accelerating curve — the faster (interval) it is, the
+  // quicker repeats fire.
+  controllerRepeatDelayMs: cachedSettings?.controllerRepeatDelayMs ?? 350,
+  setControllerRepeatDelayMs: (ms) => {
+    set({ controllerRepeatDelayMs: ms });
+    persistSettings({ controllerRepeatDelayMs: ms }, true);
+  },
+  controllerRepeatIntervalMs: cachedSettings?.controllerRepeatIntervalMs ?? 220,
+  setControllerRepeatIntervalMs: (ms) => {
+    set({ controllerRepeatIntervalMs: ms });
+    persistSettings({ controllerRepeatIntervalMs: ms }, true);
   },
   controllerMappings: cachedSettings?.controllerMappings ?? DEFAULT_CONTROLLER_MAPPINGS,
   setControllerMappings: (mappings) => {

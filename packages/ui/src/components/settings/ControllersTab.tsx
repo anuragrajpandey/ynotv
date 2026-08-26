@@ -20,6 +20,8 @@ const AVAILABLE_ACTIONS: Array<{ id: string }> = [
   { id: 'seek_backward' },
   { id: 'next_channel' },
   { id: 'prev_channel' },
+  { id: 'epg_shift_forward' },
+  { id: 'epg_shift_backward' },
   { id: 'toggle_fullscreen' },
   { id: 'toggle_mute' },
   { id: 'volume_up' },
@@ -86,6 +88,10 @@ export function ControllersTab() {
   const setControllerBackgroundListening = useSettingsStore((s) => s.setControllerBackgroundListening);
   const controllerDeadzone = useSettingsStore((s) => s.controllerDeadzone);
   const setControllerDeadzone = useSettingsStore((s) => s.setControllerDeadzone);
+  const controllerRepeatDelayMs = useSettingsStore((s) => s.controllerRepeatDelayMs);
+  const setControllerRepeatDelayMs = useSettingsStore((s) => s.setControllerRepeatDelayMs);
+  const controllerRepeatIntervalMs = useSettingsStore((s) => s.controllerRepeatIntervalMs);
+  const setControllerRepeatIntervalMs = useSettingsStore((s) => s.setControllerRepeatIntervalMs);
   const controllerMappings = useSettingsStore((s) => s.controllerMappings);
   const setControllerMappings = useSettingsStore((s) => s.setControllerMappings);
   const resetControllerMappings = useSettingsStore((s) => s.resetControllerMappings);
@@ -434,6 +440,48 @@ export function ControllersTab() {
             <span className="deadzone-value-badge">
               {Math.round(controllerDeadzone * 100)}%
             </span>
+          </div>
+        </div>
+
+        {/* D-Pad Hold-To-Repeat */}
+        <div className="timeshift-toggle-row" style={{ borderBottom: 'none', marginTop: '12px' }}>
+          <div className="timeshift-toggle-info" style={{ flex: 1, minWidth: 0, paddingRight: '16px' }}>
+            <span className="timeshift-toggle-label">
+              {i18n.t('settings:controllers.repeatDelayLabel', { ms: controllerRepeatDelayMs })}
+            </span>
+            <span className="timeshift-toggle-sub">{i18n.t('settings:controllers.repeatDelayHint')}</span>
+          </div>
+          <div className="deadzone-slider-control">
+            <input
+              type="range"
+              min="100"
+              max="1000"
+              step="25"
+              value={controllerRepeatDelayMs}
+              onChange={(e) => setControllerRepeatDelayMs(parseInt(e.target.value, 10))}
+              className="deadzone-range-input"
+            />
+            <span className="deadzone-value-badge">{controllerRepeatDelayMs} ms</span>
+          </div>
+        </div>
+        <div className="timeshift-toggle-row" style={{ borderBottom: 'none', marginTop: '12px' }}>
+          <div className="timeshift-toggle-info" style={{ flex: 1, minWidth: 0, paddingRight: '16px' }}>
+            <span className="timeshift-toggle-label">
+              {i18n.t('settings:controllers.repeatSpeedLabel')}
+            </span>
+            <span className="timeshift-toggle-sub">{i18n.t('settings:controllers.repeatSpeedHint')}</span>
+          </div>
+          <div className="deadzone-slider-control">
+            <input
+              type="range"
+              min="40"
+              max="500"
+              step="10"
+              value={controllerRepeatIntervalMs}
+              onChange={(e) => setControllerRepeatIntervalMs(parseInt(e.target.value, 10))}
+              className="deadzone-range-input"
+            />
+            <span className="deadzone-value-badge">{controllerRepeatIntervalMs} ms</span>
           </div>
         </div>
       </div>

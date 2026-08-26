@@ -2252,6 +2252,10 @@
       "lastDetected": "Último detectado:",
       "deadzoneLabel": "Zona muerta de la palanca analógica ({{percent}}%)",
       "deadzoneHint": "Evita la deriva de la palanca estableciendo la inclinación mínima necesaria antes de mover el foco",
+      "repeatDelayLabel": "Retardo al mantener la cruceta ({{ms}}ms)",
+      "repeatDelayHint": "Cuánto tiempo mantener pulsada una dirección de la cruceta antes de que empiece a repetirse (el valor predeterminado en el control remoto del teléfono es 350ms)",
+      "repeatSpeedLabel": "Velocidad de repetición de la cruceta",
+      "repeatSpeedHint": "Tiempo base entre pulsaciones repetidas mientras se mantiene una dirección — cuanto más bajo, más rápido (valor predeterminado: 220ms)",
       "mapping": {
         "title": "Personalización de la asignación de botones",
         "description": "Elige qué hace cada botón del controlador",
@@ -2289,7 +2293,9 @@
           "open_series": "Abrir series de TV",
           "open_sports": "Abrir centro deportivo",
           "open_settings": "Abrir configuración",
-          "none": "Ninguno (sin asignar)"
+          "none": "Ninguno (sin asignar)",
+          "epg_shift_forward": "EPG hora siguiente (guía > 1 hora)",
+          "epg_shift_backward": "EPG hora anterior (guía < 1 hora)"
         },
         "buttons": {
           "south": "A / Cross (botón inferior)",
