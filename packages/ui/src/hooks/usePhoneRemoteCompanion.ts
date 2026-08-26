@@ -194,11 +194,15 @@ export interface UsePhoneRemoteCompanionOptions {
   searchQuery: string;
   multiviewLayout: LayoutMode;
   multiviewSlots: ViewerSlot[];
+  /** Current multiview engine ('hls' | 'mpv_canvas'); synced to the phone so
+   *  its Multiview tab can show/pick the engine the desktop is using. */
+  multiviewEngineMode?: string;
   volume?: number;
   isMuted?: boolean;
   onPlayChannel: (channel: StoredChannel, sourceCategoryId?: string) => void;
   onSendToSlot?: (slotIndex: number, channel: StoredChannel) => void;
   onSwitchLayout?: (layout: string) => void;
+  onSetEngineMode?: (mode: string) => void;
   onSetAudioSlot?: (slotIndex: number) => void;
   onSetVolume?: (vol: number) => void;
   /** Trigger a one-shot sports scores refresh; called only when the cached data is stale. */
@@ -594,11 +598,13 @@ export function usePhoneRemoteCompanion({
   searchQuery,
   multiviewLayout,
   multiviewSlots,
+  multiviewEngineMode,
   volume,
   isMuted,
   onPlayChannel,
   onSendToSlot,
   onSwitchLayout,
+  onSetEngineMode,
   onSetAudioSlot,
   onSetVolume,
   onRequestSportsRefresh,
@@ -611,11 +617,13 @@ export function usePhoneRemoteCompanion({
     searchQuery,
     multiviewLayout,
     multiviewSlots,
+    multiviewEngineMode,
     volume,
     isMuted,
     onPlayChannel,
     onSendToSlot,
     onSwitchLayout,
+    onSetEngineMode,
     onSetAudioSlot,
     onSetVolume,
     onRequestSportsRefresh,
@@ -629,11 +637,13 @@ export function usePhoneRemoteCompanion({
     searchQuery,
     multiviewLayout,
     multiviewSlots,
+    multiviewEngineMode,
     volume,
     isMuted,
     onPlayChannel,
     onSendToSlot,
     onSwitchLayout,
+    onSetEngineMode,
     onSetAudioSlot,
     onSetVolume,
     onRequestSportsRefresh,
@@ -729,6 +739,7 @@ export function usePhoneRemoteCompanion({
       type: 'multiview',
       multiview: {
         layout: multiviewLayout,
+        engine: multiviewEngineMode,
         slots: multiviewSlots.map((s, idx) => ({
           index: idx,
           slot_id: s.id,
@@ -738,7 +749,7 @@ export function usePhoneRemoteCompanion({
         })),
       },
     });
-  }, [multiviewLayout, multiviewSlots]);
+  }, [multiviewLayout, multiviewSlots, multiviewEngineMode]);
 
   // Track whether at least one phone is currently paired/connected, so the app
   // can scope background work (e.g. sports polling) to active remote sessions.
@@ -847,6 +858,12 @@ export function usePhoneRemoteCompanion({
               }
               break;
 
+            case 'setMultiviewEngine':
+              if (payload.mode && latestRefs.current.onSetEngineMode) {
+                latestRefs.current.onSetEngineMode(payload.mode);
+              }
+              break;
+
             case 'setAudioSlot':
               if (typeof payload.slotIndex === 'number' && latestRefs.current.onSetAudioSlot) {
                 latestRefs.current.onSetAudioSlot(payload.slotIndex);
@@ -907,6 +924,7 @@ export function usePhoneRemoteCompanion({
     const cats = latestRefs.current.categories;
     const mvLayout = latestRefs.current.multiviewLayout;
     const mvSlots = latestRefs.current.multiviewSlots;
+    const mvEngine = latestRefs.current.multiviewEngineMode;
 
     const now = Date.now();
     let progressPercent = 0;
@@ -957,6 +975,7 @@ export function usePhoneRemoteCompanion({
       },
       multiview: {
         layout: mvLayout,
+        engine: mvEngine,
         slots: mvSlots.map((s, idx) => ({
           index: idx,
           slot_id: s.id,

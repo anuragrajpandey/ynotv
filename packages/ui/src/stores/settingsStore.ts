@@ -1325,7 +1325,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ epgMetadataBadgeFhdLabels: enabled });
     persistSettings({ epgMetadataBadgeFhdLabels: enabled });
   },
-  epgResolutionFilterEnabled: (cachedSettings?.epgResolutionFilterEnabled as boolean) ?? false,
+  epgResolutionFilterEnabled: (cachedSettings?.epgResolutionFilterEnabled as boolean) ?? true,
   setEpgResolutionFilterEnabled: (enabled) => {
     set({ epgResolutionFilterEnabled: enabled });
     persistSettings({ epgResolutionFilterEnabled: enabled });

@@ -2839,7 +2839,12 @@ async fn serve_remote_html() -> impl IntoResponse {
       <!-- 4. MULTIVIEW TAB -->
       <div id="tab-multiview" class="tab-pane" style="overflow-y:auto;">
         <div class="mv-container">
-          <span style="font-size:13px; font-weight:800; color:#f1f5f9; letter-spacing:0.2px;">Multiview Layout</span>
+          <span style="font-size:13px; font-weight:800; color:#f1f5f9; letter-spacing:0.2px;">Multiview Engine</span>
+          <div class="mv-layout-row">
+            <button class="mv-layout-btn mv-engine-btn" data-engine="hls" onclick="setMultiviewEngine('hls')">HLS</button>
+            <button class="mv-layout-btn mv-engine-btn" data-engine="mpv_canvas" onclick="setMultiviewEngine('mpv_canvas')">MPV</button>
+          </div>
+          <span style="font-size:13px; font-weight:800; color:#f1f5f9; letter-spacing:0.2px; margin-top:8px;">Multiview Layout</span>
           <div class="mv-layout-row">
             <button class="mv-layout-btn" data-layout="single" onclick="switchLayout('single')">Single</button>
             <button class="mv-layout-btn" data-layout="split" onclick="switchLayout('split')">Split</button>
@@ -4392,8 +4397,14 @@ async fn serve_remote_html() -> impl IntoResponse {
         : mv.layout === '2x2' ? 'quad'
         : mv.layout === 'bigbottom' ? 'triple'
         : null;
-      document.querySelectorAll('.mv-layout-btn').forEach(btn => {
+      document.querySelectorAll('.mv-layout-btn[data-layout]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.layout === btnLayout);
+      });
+      // Engine pills: reflect the desktop's current engine (default HLS when
+      // the desktop hasn't reported one yet).
+      const engine = mv.engine === 'mpv_canvas' ? 'mpv_canvas' : 'hls';
+      document.querySelectorAll('.mv-engine-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.engine === engine);
       });
 
       const mainName = lastNowPlaying?.name || null;
@@ -4435,6 +4446,14 @@ async fn serve_remote_html() -> impl IntoResponse {
     function switchLayout(layout) {
       send({ action: 'switchMultiviewLayout', layout });
       showToast(`Layout: ${layout}`);
+    }
+
+    function setMultiviewEngine(mode) {
+      send({ action: 'setMultiviewEngine', mode });
+      document.querySelectorAll('.mv-engine-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.engine === mode);
+      });
+      showToast(mode === 'hls' ? 'Engine: HLS' : 'Engine: MPV');
     }
 
     /* Pick a slot, then choose its channel from the Live Guide */

@@ -59,8 +59,10 @@ if ($downloadNeeded) {
             Write-Host "[setup-libmpv] download from $url failed: $_" -ForegroundColor Yellow
         }
     }
-    if (-not $downloaded -and -not (Test-Path $dllPath)) {
-        throw "Failed to download verified libmpv-2.dll from configured endpoints."
+    if (-not $downloaded) {
+        # Note: a previous download attempt may have left a file on disk, but
+        # only a SHA256-verified DLL may be used for the build.
+        throw "Failed to download a verified libmpv-2.dll (all endpoints failed or SHA256 mismatch)."
     }
 }
 

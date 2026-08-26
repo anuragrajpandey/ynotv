@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+      # v-assets is a non-app release that only hosts binary dependencies
+      # (e.g. libmpv-2.dll) for the setup-libmpv script. Exclude it so pushing
+      # that tag doesn't trigger a full app build/publish.
+      - '!v-assets'
 
 jobs:
   release:

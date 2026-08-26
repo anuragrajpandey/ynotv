@@ -77,7 +77,9 @@ export function useMultiview() {
     // Engine mode: 'mpv_canvas' uses in-DOM <canvas> via libmpv; 'hls' uses in-DOM <video> via hls.js
     const [engineMode, setEngineModeState] = useState<MultiviewEngineMode>(() => {
         const saved = localStorage.getItem('multiviewEngineMode');
-        return saved === 'hls' ? 'hls' : 'mpv_canvas';
+        // HLS is the default engine; only an explicit 'mpv_canvas' choice opts
+        // into the canvas engine.
+        return saved === 'mpv_canvas' ? 'mpv_canvas' : 'hls';
     });
     const engineModeRef = useRef<MultiviewEngineMode>(engineMode);
     useEffect(() => { engineModeRef.current = engineMode; }, [engineMode]);

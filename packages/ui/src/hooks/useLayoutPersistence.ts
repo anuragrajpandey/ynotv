@@ -363,7 +363,7 @@ export function useLayoutPersistence(options: UseLayoutPersistenceOptions) {
       if (hasRestoredRef.current) return;
       hasRestoredRef.current = true;
 
-      const restoredEngineMode: MultiviewEngineMode = (state.engineMode === 'hls' || state.engineMode === 'mpv_canvas') ? state.engineMode : 'mpv_canvas';
+      const restoredEngineMode: MultiviewEngineMode = (state.engineMode === 'hls' || state.engineMode === 'mpv_canvas') ? state.engineMode : 'hls';
 
       // Step 1: Restore engine mode FIRST so engineModeRef is correct before any slot loading.
       await setEngineMode(restoredEngineMode);

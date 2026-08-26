@@ -402,7 +402,7 @@ export function ChannelPanel({
   watchlistItems,
   onWatchlistRefresh,
   currentLayout,
-  multiviewEngineMode = 'mpv_canvas',
+  multiviewEngineMode = 'hls',
   onSendToSlot,
   multiviewSlots = [],
   onSwapWithMain,

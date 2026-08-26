@@ -1618,6 +1618,7 @@ function useTmdbPresencePoster(
     searchQuery,
     multiviewLayout,
     multiviewSlots: multiviewSlots || [],
+    multiviewEngineMode,
     volume,
     isMuted: muted,
     onPlayChannel: (channel: StoredChannel, sourceCategoryId?: string) => {
@@ -1659,6 +1660,11 @@ function useTmdbPresencePoster(
       const mapped = REMOTE_LAYOUT_MAP[layout];
       if (mapped) {
         rawSwitchLayout(mapped);
+      }
+    },
+    onSetEngineMode: (mode: string) => {
+      if (mode === 'hls' || mode === 'mpv_canvas') {
+        setMultiviewEngineMode(mode);
       }
     },
     onRequestSportsRefresh: async () => {

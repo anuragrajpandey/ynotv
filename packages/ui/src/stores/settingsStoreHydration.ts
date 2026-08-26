@@ -439,7 +439,7 @@ async function hydrateSettingsStore(): Promise<void> {
         epgMetadataBadgeFps: data.epgMetadataBadgeFps ?? true,
         epgMetadataBadgeFpsSuffix: data.epgMetadataBadgeFpsSuffix ?? true,
         epgMetadataBadgeFhdLabels: data.epgMetadataBadgeFhdLabels ?? false,
-        epgResolutionFilterEnabled: data.epgResolutionFilterEnabled ?? false,
+        epgResolutionFilterEnabled: data.epgResolutionFilterEnabled ?? true,
         epgMetadataBadgeSound: data.epgMetadataBadgeSound ?? true,
         epgMetadataBadgeBitrate: data.epgMetadataBadgeBitrate ?? false,
         epgMetadataBadgeAudioBitrate: data.epgMetadataBadgeAudioBitrate ?? false,
