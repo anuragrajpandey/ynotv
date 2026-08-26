@@ -28,6 +28,12 @@
     background: #000;
     z-index: 1;
     pointer-events: none;
+    /* WebView2/Chromium: a <video> overlaying continuously-animating layers
+       (the liquid-glass blobs behind the guide/sports preview) flickers black
+       when the compositor re-rasterizes. Promote the video to its own stable
+       GPU layer so background invalidation can't touch its surface. */
+    transform: translateZ(0);
+    will-change: transform;
 }
 
 /* Transparent interaction overlay covers the full video area */

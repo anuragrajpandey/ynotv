@@ -22,6 +22,8 @@ interface HlsAbsoluteWrapperProps {
 
 function HlsAbsoluteWrapper({ slotId, activeView, layout, hidden, active, children }: HlsAbsoluteWrapperProps) {
     const [style, setStyle] = useState<React.CSSProperties>({ display: 'none' });
+    const lastStyleKeyRef = useRef<string>('');
+    const zoomRef = useRef<number>(1);
 
     // Pick the DOM container that defines where this slot's video lives:
     // the EPG preview grid (Guide), the Sports preview pane, or the Hero
@@ -40,23 +42,46 @@ function HlsAbsoluteWrapper({ slotId, activeView, layout, hidden, active, childr
     };
 
     useLayoutEffect(() => {
+        // Reset the cache whenever the effect re-runs (view/layout/container
+        // change) so the first updatePosition call always paints fresh.
+        lastStyleKeyRef.current = '';
+
+        // Cache --app-zoom once per effect run + window resize instead of
+        // reading getComputedStyle on every 50ms poll tick (forced style
+        // recalculation churn across all slots).
+        const readZoom = () => {
+            zoomRef.current = parseFloat(
+                getComputedStyle(document.documentElement).getPropertyValue('--app-zoom').trim()
+            ) || 1;
+        };
+        readZoom();
+
         const updatePosition = () => {
             if (!active) {
-                setStyle({ display: 'none' });
+                lastStyleKeyRef.current = '';
+                // Skip the re-render when the wrapper is already hidden — the
+                // old code set a fresh object every 50ms even while hidden.
+                setStyle(prev => (prev.display === 'none' ? prev : { display: 'none' }));
                 return;
             }
 
             const id = containerId();
             const el = document.getElementById(id);
             if (!el) {
-                setStyle({ display: 'none' });
+                lastStyleKeyRef.current = '';
+                setStyle(prev => (prev.display === 'none' ? prev : { display: 'none' }));
                 return;
             }
 
-            const zoom = parseFloat(
-                getComputedStyle(document.documentElement).getPropertyValue('--app-zoom').trim()
-            ) || 1;
+            const zoom = zoomRef.current;
             const rect = el.getBoundingClientRect();
+            const key = `${rect.left}|${rect.top}|${rect.width}|${rect.height}|${zoom}`;
+            // The 50ms interval calls this constantly; skip the setState (and the
+            // resulting video-layer re-composite) when the cell hasn't actually
+            // moved. Re-rendering identical geometry 20x/sec is what made HLS
+            // cells flicker/black-paint intermittently in WebView2.
+            if (key === lastStyleKeyRef.current) return;
+            lastStyleKeyRef.current = key;
             setStyle({
                 position: 'fixed',
                 left: `${rect.left / zoom}px`,
@@ -81,14 +106,18 @@ function HlsAbsoluteWrapper({ slotId, activeView, layout, hidden, active, childr
             observer.observe(targetEl);
         }
 
-        window.addEventListener('resize', updatePosition);
+        const onResize = () => {
+            readZoom();
+            updatePosition();
+        };
+        window.addEventListener('resize', onResize);
         
         // Sync position frequently to follow React layout transitions and state updates smoothly
         const intervalId = setInterval(updatePosition, 50);
 
         return () => {
             if (observer) observer.disconnect();
-            window.removeEventListener('resize', updatePosition);
+            window.removeEventListener('resize', onResize);
             clearInterval(intervalId);
         };
     }, [slotId, activeView, layout, hidden, active]);

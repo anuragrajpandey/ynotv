@@ -46,6 +46,8 @@ export function HlsMultiviewCell({
 }: HlsMultiviewCellProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const hlsRef = useRef<Hls | null>(null);
+    const fatalRetryCountRef = useRef(0);
+    const fatalRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { t } = useTranslation('player');
 
     const [volume, setVolume] = useState(100);
@@ -80,6 +82,11 @@ export function HlsMultiviewCell({
         if (!video) return;
 
         destroyHls();
+        if (fatalRetryTimerRef.current) {
+            clearTimeout(fatalRetryTimerRef.current);
+            fatalRetryTimerRef.current = null;
+        }
+        fatalRetryCountRef.current = 0;
         setHlsError(null);
 
         if (!channelUrl || !active || hidden) {
@@ -110,32 +117,57 @@ export function HlsMultiviewCell({
         }
 
         if (Hls.isSupported()) {
+            // IPTV live streams are plain (non low-latency) HLS. lowLatencyMode +
+            // backBufferLength flushing is a known source of repeated black-frame /
+            // rebuffer loops on such streams, so keep the normal buffer path and
+            // give it generous headroom for multiview cells.
             const hls = new Hls({
                 enableWorker: true,
-                lowLatencyMode: true,
-                backBufferLength: 30,
+                lowLatencyMode: false,
+                backBufferLength: 90,
+                maxBufferLength: 30,
+                maxMaxBufferLength: 60,
+                maxBufferSize: 60 * 1000 * 1000,
+                liveSyncDurationCount: 3,
             });
             hlsRef.current = hls;
 
+            // Fatal-error recovery with a bounded, backed-off retry budget. The
+            // previous code called startLoad()/recoverMediaError() unconditionally
+            // on every fatal error, so a stream that kept failing (e.g. a .ts URL
+            // rewritten to .m3u8 that the provider doesn't actually serve) looped
+            // forever: video went black, retry, black, retry... with no backoff and
+            // no user-visible signal. Now we pace retries and surface an error
+            // badge once the budget is exhausted.
+            const MAX_FATAL_RETRIES = 3;
             hls.on(Hls.Events.ERROR, (_event, data) => {
-                if (data.fatal) {
-                    console.warn('[HLS Error]', data.type, data.details);
-                    switch (data.type) {
-                        case Hls.ErrorTypes.NETWORK_ERROR:
-                            // try to recover network error
-                            console.log('fatal network error encountered, try to recover');
-                            hls.startLoad();
-                            break;
-                        case Hls.ErrorTypes.MEDIA_ERROR:
-                            console.log('fatal media error encountered, try to recover');
-                            hls.recoverMediaError();
-                            break;
-                        default:
-                            // cannot recover
-                            setHlsError(`Fatal stream error: ${data.details}`);
-                            destroyHls();
-                            break;
+                if (!data.fatal) return;
+                console.warn('[HLS Error]', data.type, data.details);
+
+                if (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                    fatalRetryCountRef.current += 1;
+                    if (fatalRetryCountRef.current > MAX_FATAL_RETRIES) {
+                        setHlsError(`Fatal stream error: ${data.details}`);
+                        destroyHls();
+                        return;
                     }
+                    console.warn(
+                        `[HLS Error] fatal ${data.type} (attempt ${fatalRetryCountRef.current}/${MAX_FATAL_RETRIES}), retrying with backoff`
+                    );
+                    if (fatalRetryTimerRef.current) clearTimeout(fatalRetryTimerRef.current);
+                    // hls.js does not add backoff to manual fatal recovery; pace it
+                    // ourselves so a dead stream doesn't flash black at full speed.
+                    fatalRetryTimerRef.current = setTimeout(() => {
+                        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                            hls.startLoad();
+                        } else {
+                            hls.recoverMediaError();
+                        }
+                    }, 1000 * fatalRetryCountRef.current);
+                } else {
+                    // Cannot recover (manifest/parser etc.)
+                    setHlsError(`Fatal stream error: ${data.details}`);
+                    destroyHls();
                 }
             });
 
@@ -176,7 +208,10 @@ export function HlsMultiviewCell({
 
     // Cleanup on unmount
     useEffect(() => {
-        return () => { destroyHls(); };
+        return () => {
+            if (fatalRetryTimerRef.current) clearTimeout(fatalRetryTimerRef.current);
+            destroyHls();
+        };
     }, [destroyHls]);
 
     const handleMuteToggle = (e: React.MouseEvent) => {

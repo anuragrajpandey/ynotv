@@ -1,3 +1,17 @@
+/* ── HLS FIXED WRAPPER ───────────────────── */
+
+/* The HLS video cells are position:fixed overlays that track their grid
+   containers on a 50ms poll. Promote the wrapper to its own compositing layer
+   and isolate the subtree, so page-level re-composites — the continuously-
+   animating liquid-glass blobs behind the guide/sports preview, neighbor
+   restyles, native-window resizes — can't invalidate the <video> surface and
+   make it flicker black in WebView2. */
+.hls-absolute-wrapper {
+    transform: translateZ(0);
+    will-change: transform;
+    contain: layout paint;
+}
+
 /* ── SHARED MPV PLACEHOLDER ─────────────── */
 
 /* Semi-transparent label showing where MPV is rendering */
