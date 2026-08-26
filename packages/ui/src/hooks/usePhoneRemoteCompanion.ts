@@ -741,6 +741,17 @@ export function usePhoneRemoteCompanion({
   const clientCountRef = useRef(0);
   const [isRemoteClientConnected, setIsRemoteClientConnected] = useState(false);
 
+  // Sync Phone Remote custom configuration in real-time
+  const phoneRemoteConfig = useSettingsStore((s) => s.phoneRemoteConfig);
+  useEffect(() => {
+    if (phoneRemoteConfig) {
+      broadcastToRemote({
+        type: 'remoteConfig',
+        config: phoneRemoteConfig,
+      });
+    }
+  }, [phoneRemoteConfig]);
+
   // Handle incoming commands and queries from the phone remote
   useEffect(() => {
     let unlistenCmd: (() => void) | null = null;
@@ -819,6 +830,28 @@ export function usePhoneRemoteCompanion({
                 latestRefs.current.onSetAudioSlot(payload.slotIndex);
               }
               break;
+
+            case 'setRemoteConfig':
+              if (payload.config && typeof payload.config === 'object') {
+                useSettingsStore.getState().setPhoneRemoteConfig(payload.config);
+              }
+              break;
+
+            case 'tuneChannelNumber':
+              if (typeof payload.channelNum === 'number') {
+                const num = payload.channelNum;
+                db.channels
+                  .where('channel_num')
+                  .equals(num)
+                  .first()
+                  .then((ch) => {
+                    if (ch) {
+                      latestRefs.current.onPlayChannel(ch);
+                    }
+                  })
+                  .catch(() => {});
+              }
+              break;
           }
         });
       } catch (err) {
@@ -880,6 +913,7 @@ export function usePhoneRemoteCompanion({
         } : null,
       } : null,
       categoryTree: tree,
+      phoneRemoteConfig: useSettingsStore.getState().phoneRemoteConfig,
       multiview: {
         layout: mvLayout,
         slots: mvSlots.map((s, idx) => ({

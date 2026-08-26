@@ -974,6 +974,12 @@ export function executeAction(action: string) {
     case 'seek_backward':
       window.dispatchEvent(new CustomEvent('ynotv:gamepad-seek', { detail: { delta: -10 } }));
       break;
+    case 'seek_forward_30':
+      window.dispatchEvent(new CustomEvent('ynotv:gamepad-seek', { detail: { delta: 30 } }));
+      break;
+    case 'seek_backward_30':
+      window.dispatchEvent(new CustomEvent('ynotv:gamepad-seek', { detail: { delta: -30 } }));
+      break;
     case 'next_channel':
       window.dispatchEvent(new CustomEvent('ynotv:gamepad-channel-step', { detail: { step: 1 } }));
       break;
@@ -1015,6 +1021,8 @@ export function executeAction(action: string) {
       window.dispatchEvent(new CustomEvent('ynotv:navigate-view', { detail: { view: 'stremio' } }));
       break;
     case 'toggle_transparent_overlay':
+    case 'open_sections':
+    case 'toggle_sections':
       window.dispatchEvent(new CustomEvent('ynotv:gamepad-toggle-transparent-guide'));
       break;
     case 'toggle_overlay':

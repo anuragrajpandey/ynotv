@@ -565,6 +565,221 @@ async fn serve_remote_html() -> impl IntoResponse {
       background: var(--accent-cyan);
     }
 
+    /* ── SKINS & THEMES ── */
+    body[data-skin="oled"] {
+      --bg-deep: #000000;
+      --bg-surface: rgba(14, 14, 14, 0.95);
+      --bg-surface-elevated: rgba(22, 22, 22, 0.95);
+      --bg-card: rgba(255, 255, 255, 0.05);
+      --border-glass: rgba(255, 255, 255, 0.16);
+      --border-glass-bright: rgba(255, 255, 255, 0.3);
+      --glass-filter: none;
+      --glass-filter-modal: none;
+      --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.8);
+      --accent-cyan: #00e5ff;
+      --accent-cyan-bright: #33ecff;
+      --accent-gradient: linear-gradient(135deg, #00e5ff 0%, #ffffff 100%);
+      background: #000000;
+      background-image: none;
+    }
+    body[data-skin="cyberpunk"] {
+      --bg-deep: #09030e;
+      --bg-surface: rgba(22, 10, 32, 0.85);
+      --bg-surface-elevated: rgba(36, 14, 52, 0.9);
+      --bg-card: rgba(255, 0, 127, 0.06);
+      --border-glass: rgba(255, 0, 127, 0.25);
+      --border-glass-bright: rgba(0, 240, 255, 0.4);
+      --accent-cyan: #00f0ff;
+      --accent-cyan-bright: #33f3ff;
+      --accent-purple: #ff007f;
+      --accent-violet: #d946ef;
+      --accent-gradient: linear-gradient(135deg, #ff007f 0%, #a855f7 50%, #00f0ff 100%);
+      --accent-glow: 0 0 18px rgba(255, 0, 127, 0.45);
+      background: #09030e;
+      background-image: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 0, 127, 0.22), transparent 70%),
+                        radial-gradient(ellipse 70% 50% at 100% 100%, rgba(0, 240, 255, 0.18), transparent 70%);
+    }
+    body[data-skin="midnight"] {
+      --bg-deep: #050b16;
+      --bg-surface: rgba(10, 20, 40, 0.82);
+      --bg-surface-elevated: rgba(16, 32, 64, 0.88);
+      --border-glass: rgba(56, 189, 248, 0.16);
+      --accent-cyan: #38bdf8;
+      --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
+      background: #050b16;
+      background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(37, 99, 235, 0.22), transparent 70%);
+    }
+    body[data-skin="sunset"] {
+      --bg-deep: #14050d;
+      --bg-surface: rgba(35, 12, 24, 0.82);
+      --bg-surface-elevated: rgba(52, 16, 34, 0.88);
+      --border-glass: rgba(249, 115, 22, 0.18);
+      --accent-cyan: #f97316;
+      --accent-gradient: linear-gradient(135deg, #f97316 0%, #e11d48 55%, #9333ea 100%);
+      background: #14050d;
+      background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(249, 115, 22, 0.2), transparent 70%),
+                        radial-gradient(ellipse 60% 50% at 90% 90%, rgba(225, 29, 72, 0.18), transparent 70%);
+    }
+    body[data-skin="forest"] {
+      --bg-deep: #041009;
+      --bg-surface: rgba(8, 28, 18, 0.82);
+      --bg-surface-elevated: rgba(12, 44, 28, 0.88);
+      --border-glass: rgba(16, 185, 129, 0.18);
+      --accent-cyan: #10b981;
+      --accent-gradient: linear-gradient(135deg, #10b981 0%, #059669 50%, #34d399 100%);
+      background: #041009;
+      background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(16, 185, 129, 0.2), transparent 70%);
+    }
+    body[data-skin="crimson"] {
+      --bg-deep: #100305;
+      --bg-surface: rgba(30, 8, 12, 0.82);
+      --bg-surface-elevated: rgba(48, 12, 18, 0.88);
+      --border-glass: rgba(239, 68, 68, 0.2);
+      --accent-cyan: #ef4444;
+      --accent-gradient: linear-gradient(135deg, #ef4444 0%, #b91c1c 55%, #f43f5e 100%);
+      background: #100305;
+      background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(239, 68, 68, 0.2), transparent 70%);
+    }
+    body[data-skin="retro"] {
+      --bg-deep: #18191f;
+      --bg-surface: #22242b;
+      --bg-surface-elevated: #2a2c35;
+      --bg-card: rgba(255, 255, 255, 0.05);
+      --border-glass: #333642;
+      --border-glass-bright: #474a5a;
+      --accent-cyan: #f59e0b;
+      --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #ef4444 50%, #3b82f6 100%);
+      --glass-filter: none;
+      --glass-filter-modal: none;
+      background: #18191f;
+      background-image: none;
+    }
+
+    /* Size scaling */
+    body[data-size="compact"] .dpad-wrapper { transform: scale(0.88); margin-bottom: -12px; }
+    body[data-size="compact"] .middle-cluster { transform: scale(0.9); }
+    body[data-size="large"] .dpad-wrapper { transform: scale(1.08); margin-top: 6px; }
+    body[data-size="large"] .middle-cluster { transform: scale(1.06); }
+
+    /* Quick Action Grid */
+    .remote-qa-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 7px;
+      width: 100%;
+      max-width: 330px;
+      margin: 10px auto 0;
+      padding: 0 8px;
+    }
+    .remote-qa-btn {
+      padding: 7px 11px;
+      border-radius: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass-bright);
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      box-shadow: var(--glass-card-shadow);
+      transition: all 0.15s ease;
+      touch-action: manipulation;
+    }
+    .remote-qa-btn:active {
+      transform: scale(0.92);
+      background: var(--accent-cyan);
+      color: #04101c;
+    }
+
+    /* Middle Center Stack Sizing */
+    body[data-center-size="compact"] .cluster-center-stack .center-action-btn {
+      height: 38px;
+      font-size: 11px;
+      border-radius: 12px;
+      padding: 0 8px;
+    }
+    body[data-center-size="compact"] .cluster-center-stack .center-action-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+    body[data-center-size="normal"] .cluster-center-stack .center-action-btn {
+      height: 52px;
+      font-size: 13px;
+      border-radius: 16px;
+    }
+    body[data-center-size="normal"] .cluster-center-stack .center-action-btn svg {
+      width: 17px;
+      height: 17px;
+    }
+    body[data-center-size="large"] .cluster-center-stack .center-action-btn {
+      height: 68px;
+      font-size: 14.5px;
+      border-radius: 18px;
+    }
+    body[data-center-size="large"] .cluster-center-stack .center-action-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+    body[data-center-size="expanded"] .cluster-center-stack .center-action-btn {
+      height: 86px;
+      font-size: 16px;
+      border-radius: 20px;
+    }
+    body[data-center-size="expanded"] .cluster-center-stack .center-action-btn svg {
+      width: 23px;
+      height: 23px;
+    }
+
+    /* On-phone Settings Header Button & Modal */
+    .header-settings-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-glass);
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      margin-left: 6px;
+    }
+    .header-settings-btn:active {
+      transform: scale(0.92);
+      color: var(--accent-cyan);
+    }
+    .header-settings-btn svg {
+      width: 15px;
+      height: 15px;
+    }
+    .phone-skin-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .phone-skin-option {
+      padding: 10px 8px;
+      border-radius: 10px;
+      border: 1px solid var(--border-glass);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .phone-skin-option.active {
+      border-color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      box-shadow: var(--accent-glow-subtle);
+    }
+
     /* Header */
     header {
       display: flex;
@@ -1177,16 +1392,16 @@ async fn serve_remote_html() -> impl IntoResponse {
     /* Middle 3-Column Cluster (Volume, [Back & Play/Pause], Channel) */
     .middle-cluster {
       display: flex;
-      align-items: stretch;
+      align-items: center;
       justify-content: space-between;
       width: 100%;
       max-width: 320px;
       gap: 12px;
-      height: 136px;
+      min-height: 136px;
     }
     .cluster-pillar {
       width: 52px;
-      height: 100%;
+      height: 136px;
       background: radial-gradient(circle at 50% 30%, #1a2032 0%, #0e121e 100%);
       border: 2px solid rgba(255, 255, 255, 0.1);
       border-radius: 24px;
@@ -1201,16 +1416,16 @@ async fn serve_remote_html() -> impl IntoResponse {
     }
     .cluster-center-stack {
       flex: 1;
-      height: 100%;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      justify-content: center;
       gap: 10px;
       min-width: 0;
     }
     .center-action-btn {
       width: 100%;
-      flex: 1;
+      flex: none;
+      height: 52px;
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border-glass);
       border-radius: 16px;
@@ -2289,11 +2504,17 @@ async fn serve_remote_html() -> impl IntoResponse {
         <span class="logo">YNOTV</span>
         <span class="logo-badge">Remote</span>
       </div>
-      <div class="header-right">
+      <div class="header-right" style="display:flex; align-items:center; gap:6px;">
         <div id="status" class="status-badge">
           <span class="status-dot"></span>
           <span id="status-text">Connecting...</span>
         </div>
+        <button class="header-settings-btn" onclick="openPhoneSettingsModal()" title="Remote Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -2330,44 +2551,52 @@ async fn serve_remote_html() -> impl IntoResponse {
         <div class="pad-container">
           <!-- D-Pad Dial with 4 Corner Satellite Controls -->
           <div class="dpad-wrapper">
-            <!-- Top-Left Corner: Open Destinations -->
-            <button id="open-sections-btn" class="dpad-corner-btn dpad-corner-top-left" onclick="toggleSectionsMenu(event)" title="App Destinations" aria-label="Open">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="7" height="7"></rect>
-                <rect x="14" y="3" width="7" height="7"></rect>
-                <rect x="14" y="14" width="7" height="7"></rect>
-                <rect x="3" y="14" width="7" height="7"></rect>
-              </svg>
-              <span class="corner-btn-sub">Open</span>
+            <!-- Top-Left Corner Button -->
+            <button id="corner-top-left" class="dpad-corner-btn dpad-corner-top-left" onpointerdown="onCornerBtnClick('topLeft', event)" title="App Destinations" aria-label="Open">
+              <span id="corner-icon-top-left">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+              </span>
+              <span id="corner-label-top-left" class="corner-btn-sub">Open</span>
             </button>
 
-            <!-- Top-Right Corner: Toggle Fullscreen -->
-            <button class="dpad-corner-btn dpad-corner-top-right" onpointerdown="sendAction('toggle_fullscreen', event)" title="Toggle Fullscreen" aria-label="Fullscreen">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <polyline points="9 21 3 21 3 15"></polyline>
-                <line x1="21" y1="3" x2="14" y2="10"></line>
-                <line x1="3" y1="21" x2="10" y2="14"></line>
-              </svg>
-              <span class="corner-btn-sub">Screen</span>
+            <!-- Top-Right Corner Button -->
+            <button id="corner-top-right" class="dpad-corner-btn dpad-corner-top-right" onpointerdown="onCornerBtnClick('topRight', event)" title="Toggle Fullscreen" aria-label="Fullscreen">
+              <span id="corner-icon-top-right">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <polyline points="9 21 3 21 3 15"></polyline>
+                  <line x1="21" y1="3" x2="14" y2="10"></line>
+                  <line x1="3" y1="21" x2="10" y2="14"></line>
+                </svg>
+              </span>
+              <span id="corner-label-top-right" class="corner-btn-sub">Screen</span>
             </button>
 
-            <!-- Bottom-Left Corner: Rewind 10s -->
-            <button class="dpad-corner-btn dpad-corner-bottom-left" onpointerdown="sendAction('seek_backward', event)" title="Rewind 10s" aria-label="Rewind 10s">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="11 19 2 12 11 5 11 19"></polygon>
-                <polygon points="22 19 13 12 22 5 22 19"></polygon>
-              </svg>
-              <span class="corner-btn-sub">10s</span>
+            <!-- Bottom-Left Corner Button -->
+            <button id="corner-bottom-left" class="dpad-corner-btn dpad-corner-bottom-left" onpointerdown="onCornerBtnClick('bottomLeft', event)" title="Rewind 10s" aria-label="Rewind 10s">
+              <span id="corner-icon-bottom-left">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 19 2 12 11 5 11 19"></polygon>
+                  <polygon points="22 19 13 12 22 5 22 19"></polygon>
+                </svg>
+              </span>
+              <span id="corner-label-bottom-left" class="corner-btn-sub">10s</span>
             </button>
 
-            <!-- Bottom-Right Corner: Fast Forward 10s -->
-            <button class="dpad-corner-btn dpad-corner-bottom-right" onpointerdown="sendAction('seek_forward', event)" title="Forward 10s" aria-label="Forward 10s">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="13 19 22 12 13 5 13 19"></polygon>
-                <polygon points="2 19 11 12 2 5 2 19"></polygon>
-              </svg>
-              <span class="corner-btn-sub">10s</span>
+            <!-- Bottom-Right Corner Button -->
+            <button id="corner-bottom-right" class="dpad-corner-btn dpad-corner-bottom-right" onpointerdown="onCornerBtnClick('bottomRight', event)" title="Forward 10s" aria-label="Forward 10s">
+              <span id="corner-icon-bottom-right">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="13 19 22 12 13 5 13 19"></polygon>
+                  <polygon points="2 19 11 12 2 5 2 19"></polygon>
+                </svg>
+              </span>
+              <span id="corner-label-bottom-right" class="corner-btn-sub">10s</span>
             </button>
 
             <!-- Center Large D-Pad -->
@@ -2397,9 +2626,9 @@ async fn serve_remote_html() -> impl IntoResponse {
           </div>
 
           <!-- Middle Cluster (Vol Rocker, [Back & Play/Pause], Channel Rocker) -->
-          <div class="middle-cluster">
+          <div id="middle-cluster" class="middle-cluster">
             <!-- Left Pillar: Volume Up, Mute, Volume Down -->
-            <div class="cluster-pillar">
+            <div id="vol-pillar" class="cluster-pillar">
               <button class="rocker-btn" onpointerdown="sendVolumeStep(5, event)" title="Volume Up" aria-label="Volume Up">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -2420,25 +2649,29 @@ async fn serve_remote_html() -> impl IntoResponse {
               </button>
             </div>
 
-            <!-- Middle Column: Back & Play/Pause Stack -->
-            <div class="cluster-center-stack">
-              <button class="center-action-btn back-btn" onpointerdown="sendNav('back', event)" title="Back">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="9 14 4 9 9 4"></polyline>
-                  <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
-                </svg>
-                <span>Back</span>
+            <!-- Middle Column: Dynamic Top and Bottom Action Buttons Stack -->
+            <div id="center-stack" class="cluster-center-stack">
+              <button id="center-btn-top" class="center-action-btn back-btn" onpointerdown="onCenterBtnClick('top', event)" title="Back">
+                <span id="center-icon-top">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 14 4 9 9 4"></polyline>
+                    <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+                  </svg>
+                </span>
+                <span id="center-label-top">Back</span>
               </button>
-              <button class="center-action-btn play-btn" onpointerdown="sendAction('play_pause', event)" title="Play / Pause">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
-                <span>Play / Pause</span>
+              <button id="center-btn-bottom" class="center-action-btn play-btn" onpointerdown="onCenterBtnClick('bottom', event)" title="Play / Pause">
+                <span id="center-icon-bottom">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                </span>
+                <span id="center-label-bottom">Play / Pause</span>
               </button>
             </div>
 
             <!-- Right Pillar: Channel Up, CH Label, Channel Down -->
-            <div class="cluster-pillar">
+            <div id="ch-pillar" class="cluster-pillar">
               <button class="rocker-btn" onpointerdown="sendAction('next_channel', event)" title="Channel Up" aria-label="Channel Up">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="18 15 12 9 6 15"></polyline>
@@ -2453,8 +2686,11 @@ async fn serve_remote_html() -> impl IntoResponse {
             </div>
           </div>
 
+          <!-- Quick Actions Grid Container -->
+          <div id="remote-quick-actions" class="remote-qa-grid"></div>
+
           <!-- Remote Search (types with the phone's own keyboard) -->
-          <div class="remote-search">
+          <div id="remote-search-wrap" class="remote-search">
             <div class="remote-search-input-wrap">
               <input
                 type="text"
@@ -2565,6 +2801,85 @@ async fn serve_remote_html() -> impl IntoResponse {
           <div id="mv-grid" class="mv-grid-preview"></div>
         </div>
       </div>
+
+      <!-- 5. DESTINATIONS DIRECT TAB -->
+      <div id="tab-destinations" class="tab-pane" style="overflow-y:auto;">
+        <div style="padding:14px;">
+          <span style="font-size:13px; font-weight:800; color:#f1f5f9; letter-spacing:0.2px; display:block; margin-bottom:12px;">App Destinations</span>
+          <div class="destinations-grid">
+            <div class="dest-card" data-view="livetv" onclick="selectDestination('livetv', event)">
+              <div class="dest-icon-box" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="7" width="20" height="15" rx="3"></rect>
+                  <polyline points="17 2 12 7 7 2"></polyline>
+                </svg>
+              </div>
+              <div class="dest-text"><span class="dest-name">Live TV</span><span class="dest-sub">Channels & Guide</span></div>
+            </div>
+            <div class="dest-card" data-view="movies" onclick="selectDestination('movies', event)">
+              <div class="dest-icon-box" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                  <line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                </svg>
+              </div>
+              <div class="dest-text"><span class="dest-name">Movies</span><span class="dest-sub">VOD Cinema</span></div>
+            </div>
+            <div class="dest-card" data-view="series" onclick="selectDestination('series', event)">
+              <div class="dest-icon-box" style="background: rgba(236, 72, 153, 0.12); color: #ec4899;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+                  <polyline points="17 2 12 7 7 2"></polyline>
+                </svg>
+              </div>
+              <div class="dest-text"><span class="dest-name">Series</span><span class="dest-sub">TV Shows</span></div>
+            </div>
+            <div class="dest-card" data-view="sports" onclick="selectDestination('sports', event)">
+              <div class="dest-icon-box" style="background: rgba(16, 185, 129, 0.12); color: #10b981;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path>
+                </svg>
+              </div>
+              <div class="dest-text"><span class="dest-name">Sports</span><span class="dest-sub">Live & Upcoming</span></div>
+            </div>
+            <div class="dest-card" data-view="stremio" onclick="selectDestination('stremio', event)">
+              <div class="dest-icon-box" style="background: rgba(99, 102, 241, 0.12); color: #818cf8;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon>
+                </svg>
+              </div>
+              <div class="dest-text"><span class="dest-name">Stremio</span><span class="dest-sub">Addon Catalogs</span></div>
+            </div>
+            <div class="dest-card" data-view="nuvio" onclick="selectDestination('nuvio', event)">
+              <div class="dest-icon-box" style="background: rgba(14, 165, 233, 0.12); color: #38bdf8;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+                </svg>
+              </div>
+              <div class="dest-text"><span class="dest-name">Nuvio</span><span class="dest-sub">Cloud Streams</span></div>
+            </div>
+            <div class="dest-card" data-view="dvr" onclick="selectDestination('dvr', event)">
+              <div class="dest-icon-box" style="background: rgba(245, 158, 11, 0.12); color: #f59e0b;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </div>
+              <div class="dest-text"><span class="dest-name">DVR</span><span class="dest-sub">Recordings</span></div>
+            </div>
+            <div class="dest-card" data-view="settings" onclick="selectDestination('settings', event)">
+              <div class="dest-icon-box" style="background: rgba(148, 163, 184, 0.12); color: #cbd5e1;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+              </div>
+              <div class="dest-text"><span class="dest-name">Settings</span><span class="dest-sub">Options & Setup</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Bottom Navigation Bar -->
@@ -2603,7 +2918,68 @@ async fn serve_remote_html() -> impl IntoResponse {
         </svg>
         <span class="nav-label">Multiview</span>
       </button>
+      <button id="nav-destinations" class="nav-tab-btn" style="display:none;" onclick="switchTab('destinations')">
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+        </svg>
+        <span class="nav-label">Sections</span>
+      </button>
     </nav>
+  </div>
+
+  <!-- On-Phone Settings Modal Sheet -->
+  <div id="phone-settings-overlay" class="sections-overlay" onclick="closePhoneSettingsModal(event)">
+    <div class="sections-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle" onclick="closePhoneSettingsModal()"></div>
+      <div class="sheet-header">
+        <div class="sheet-title-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span class="sheet-title">Remote Settings</span>
+        </div>
+        <button class="sheet-close-btn" onclick="closePhoneSettingsModal()" title="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div style="padding:16px; display:flex; flex-direction:column; gap:16px;">
+        <div>
+          <span style="font-size:12px; font-weight:800; color:var(--text-secondary); display:block; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Theme & Skin</span>
+          <div id="phone-skin-picker" class="phone-skin-picker-grid"></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; padding-top:8px; border-top:1px solid var(--border-glass);">
+          <div>
+            <span style="font-size:13px; font-weight:700; display:block;">Button Sizing</span>
+            <span style="font-size:11px; color:var(--text-muted);">Overall remote scaling</span>
+          </div>
+          <select id="phone-size-select" onchange="setPhoneButtonSize(this.value)" style="background:var(--bg-surface-elevated); color:var(--text-primary); border:1px solid var(--border-glass); border-radius:8px; padding:6px 10px; font-size:12px; font-weight:700;">
+            <option value="compact">Compact</option>
+            <option value="normal">Normal</option>
+            <option value="large">Large</option>
+          </select>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; padding-top:8px; border-top:1px solid var(--border-glass);">
+          <div>
+            <span style="font-size:13px; font-weight:700; display:block;">Middle Buttons Size</span>
+            <span style="font-size:11px; color:var(--text-muted);">Height of Back / Play stack</span>
+          </div>
+          <select id="phone-center-size-select" onchange="setPhoneCenterSize(this.value)" style="background:var(--bg-surface-elevated); color:var(--text-primary); border:1px solid var(--border-glass); border-radius:8px; padding:6px 10px; font-size:12px; font-weight:700;">
+            <option value="compact">Compact</option>
+            <option value="normal">Normal</option>
+            <option value="large">Large</option>
+            <option value="expanded">Expanded</option>
+          </select>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Launch Shortcuts / Destinations Bottom Sheet Modal -->
@@ -2986,9 +3362,326 @@ async fn serve_remote_html() -> impl IntoResponse {
     }
     function sendAction(action, e) {
       if (e && e.cancelable) e.preventDefault();
-      if (navigator.vibrate) navigator.vibrate(10);
+      if (action === 'open_sections' || action === 'toggle_sections') {
+        toggleSectionsMenu(e);
+        return;
+      }
+      if (action === 'back') {
+        sendNav('back', e);
+        return;
+      }
       send({ action });
     }
+
+    // ── Remote Customization & Skin Engine ──────────────────────────────────
+    const DEFAULT_PHONE_REMOTE_CONFIG = {
+      skin: 'modern',
+      enabledTabs: ['remote', 'guide', 'sports', 'multiview'],
+      cornerButtons: {
+        topLeft: { enabled: true, action: 'open_sections', customLabel: 'Open' },
+        topRight: { enabled: true, action: 'toggle_fullscreen', customLabel: 'Screen' },
+        bottomLeft: { enabled: true, action: 'seek_backward', customLabel: '10s' },
+        bottomRight: { enabled: true, action: 'seek_forward', customLabel: '10s' },
+      },
+      centerButtons: {
+        top: { enabled: true, action: 'back', customLabel: 'Back' },
+        bottom: { enabled: true, action: 'play_pause', customLabel: 'Play / Pause' },
+        size: 'normal',
+      },
+      quickActions: [],
+      layout: {
+        buttonSize: 'normal',
+        showNowPlaying: true,
+        showVolumeRocker: true,
+        showChannelRocker: true,
+        showCenterStack: true,
+        showSearch: true,
+        showQuickActions: true,
+      },
+    };
+
+    const ACTION_ICONS = {
+      back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>`,
+      open_sections: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>`,
+      toggle_sections: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>`,
+      toggle_fullscreen: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>`,
+      toggle_live_game_sidebar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path></svg>`,
+      search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`,
+      subtitles: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><line x1="7" y1="15" x2="9" y2="15"></line><line x1="11" y1="15" x2="17" y2="15"></line></svg>`,
+      toggle_overlay: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line></svg>`,
+      toggle_transparent_overlay: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>`,
+      play_pause: `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`,
+      seek_backward: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>`,
+      seek_forward: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 19 22 12 13 5 13 19"></polygon><polygon points="2 19 11 12 2 5 2 19"></polygon></svg>`,
+      seek_backward_30: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>`,
+      seek_forward_30: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline></svg>`,
+      toggle_mute: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`,
+      volume_up: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`,
+      volume_down: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`,
+      next_channel: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`,
+      prev_channel: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`,
+      epg_shift_forward: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>`,
+      epg_shift_backward: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>`,
+      toggle_livetv: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="3"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>`,
+      open_movies: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line></svg>`,
+      open_series: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>`,
+      open_sports: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path></svg>`,
+      toggle_stremio: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>`,
+      toggle_nuvio: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path></svg>`,
+      open_settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`,
+    };
+
+    const ACTION_NAMES = {
+      back: 'Back',
+      open_sections: 'Destinations',
+      toggle_sections: 'Destinations',
+      toggle_fullscreen: 'Fullscreen',
+      seek_backward: 'Rewind 10s',
+      seek_forward: 'Forward 10s',
+      seek_backward_30: 'Rewind 30s',
+      seek_forward_30: 'Forward 30s',
+      toggle_mute: 'Mute',
+      volume_up: 'Vol +',
+      volume_down: 'Vol -',
+      search: 'Search',
+      subtitles: 'Subtitles',
+      toggle_livetv: 'Live TV',
+      toggle_stremio: 'Stremio',
+      toggle_nuvio: 'Nuvio',
+      toggle_overlay: 'EPG Overlay',
+      toggle_transparent_overlay: 'Quick Guide',
+      open_movies: 'Movies',
+      open_series: 'Series',
+      open_sports: 'Sports',
+      open_settings: 'Settings',
+      toggle_live_game_sidebar: 'Scores',
+      play_pause: 'Play/Pause',
+      next_channel: 'Next CH',
+      prev_channel: 'Prev CH',
+      epg_shift_forward: 'EPG +2h',
+      epg_shift_backward: 'EPG -2h',
+    };
+
+    let phoneRemoteConfig = null;
+
+    function loadPhoneRemoteConfig() {
+      try {
+        const raw = localStorage.getItem('phoneRemote_config');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return {
+            ...DEFAULT_PHONE_REMOTE_CONFIG,
+            ...parsed,
+            cornerButtons: { ...DEFAULT_PHONE_REMOTE_CONFIG.cornerButtons, ...(parsed.cornerButtons || {}) },
+            centerButtons: { ...DEFAULT_PHONE_REMOTE_CONFIG.centerButtons, ...(parsed.centerButtons || {}) },
+            layout: { ...DEFAULT_PHONE_REMOTE_CONFIG.layout, ...(parsed.layout || {}) }
+          };
+        }
+      } catch (e) {}
+      return { ...DEFAULT_PHONE_REMOTE_CONFIG };
+    }
+
+    function savePhoneRemoteConfig(config) {
+      try {
+        localStorage.setItem('phoneRemote_config', JSON.stringify(config));
+      } catch (e) {}
+    }
+
+    function onCornerBtnClick(cornerKey, e) {
+      if (e && e.cancelable) e.preventDefault();
+      if (!phoneRemoteConfig || !phoneRemoteConfig.cornerButtons) {
+        if (cornerKey === 'topLeft') toggleSectionsMenu(e);
+        else if (cornerKey === 'topRight') sendAction('toggle_fullscreen', e);
+        else if (cornerKey === 'bottomLeft') sendAction('seek_backward', e);
+        else if (cornerKey === 'bottomRight') sendAction('seek_forward', e);
+        return;
+      }
+      const corner = phoneRemoteConfig.cornerButtons[cornerKey];
+      if (!corner || corner.enabled === false || !corner.action || corner.action === 'none') return;
+      if (corner.action === 'open_sections' || corner.action === 'toggle_sections') {
+        toggleSectionsMenu(e);
+      } else if (corner.action === 'back') {
+        sendNav('back', e);
+      } else {
+        sendAction(corner.action, e);
+      }
+    }
+
+    function onCenterBtnClick(pos, e) {
+      if (e && e.cancelable) e.preventDefault();
+      if (!phoneRemoteConfig || !phoneRemoteConfig.centerButtons) {
+        if (pos === 'top') sendNav('back', e);
+        else sendAction('play_pause', e);
+        return;
+      }
+      const btn = phoneRemoteConfig.centerButtons[pos];
+      if (!btn || btn.enabled === false || !btn.action || btn.action === 'none') return;
+      if (btn.action === 'back') {
+        sendNav('back', e);
+      } else if (btn.action === 'open_sections' || btn.action === 'toggle_sections') {
+        toggleSectionsMenu(e);
+      } else {
+        sendAction(btn.action, e);
+      }
+    }
+
+    function applyPhoneRemoteConfig(config) {
+      if (!config) return;
+      phoneRemoteConfig = config;
+      savePhoneRemoteConfig(config);
+
+      // 1. Skin Theme & Sizing
+      document.body.dataset.skin = config.skin || 'modern';
+      document.body.dataset.size = config.layout?.buttonSize || 'normal';
+      document.body.dataset.centerSize = config.centerButtons?.size || 'normal';
+
+      // 2. Corner Satellite Buttons
+      const corners = config.cornerButtons || DEFAULT_PHONE_REMOTE_CONFIG.cornerButtons;
+      const mapCorner = (domId, cornerObj) => {
+        const cornerEl = document.getElementById(`corner-${domId}`);
+        const iconEl = document.getElementById(`corner-icon-${domId}`);
+        const labelEl = document.getElementById(`corner-label-${domId}`);
+        if (!cornerEl) return;
+        if (!cornerObj || cornerObj.enabled === false || cornerObj.action === 'none') {
+          cornerEl.style.visibility = 'hidden';
+          return;
+        }
+        cornerEl.style.visibility = 'visible';
+        const labelText = cornerObj.customLabel || cornerObj.label || ACTION_NAMES[cornerObj.action] || (domId === 'top-left' ? 'Open' : domId === 'top-right' ? 'Screen' : '10s');
+        cornerEl.title = labelText;
+        if (labelEl) labelEl.innerText = labelText;
+        if (iconEl) iconEl.innerHTML = ACTION_ICONS[cornerObj.action] || (domId === 'top-left' ? ACTION_ICONS.open_sections : ACTION_ICONS.toggle_fullscreen);
+      };
+      mapCorner('top-left', corners.topLeft);
+      mapCorner('top-right', corners.topRight);
+      mapCorner('bottom-left', corners.bottomLeft);
+      mapCorner('bottom-right', corners.bottomRight);
+
+      // 3. Center Stack Buttons (Top / Bottom)
+      const centerBtns = config.centerButtons || DEFAULT_PHONE_REMOTE_CONFIG.centerButtons;
+      const mapCenterBtn = (pos, btnObj) => {
+        const btnEl = document.getElementById(`center-btn-${pos}`);
+        const iconEl = document.getElementById(`center-icon-${pos}`);
+        const labelEl = document.getElementById(`center-label-${pos}`);
+        if (!btnEl) return;
+        if (!btnObj || btnObj.enabled === false || btnObj.action === 'none') {
+          btnEl.style.display = 'none';
+          return;
+        }
+        btnEl.style.display = 'flex';
+        const labelText = btnObj.customLabel || ACTION_NAMES[btnObj.action] || (pos === 'top' ? 'Back' : 'Play / Pause');
+        btnEl.title = labelText;
+        if (labelEl) labelEl.innerText = labelText;
+        if (iconEl) iconEl.innerHTML = ACTION_ICONS[btnObj.action] || (pos === 'top' ? ACTION_ICONS.back : ACTION_ICONS.play_pause);
+      };
+      mapCenterBtn('top', centerBtns.top);
+      mapCenterBtn('bottom', centerBtns.bottom);
+
+      // 4. Quick Actions
+      const qaContainer = document.getElementById('remote-quick-actions');
+      if (qaContainer) {
+        if (config.layout?.showQuickActions !== false && Array.isArray(config.quickActions) && config.quickActions.length > 0) {
+          qaContainer.style.display = 'flex';
+          qaContainer.innerHTML = config.quickActions.map(actId => {
+            const icon = ACTION_ICONS[actId] || '';
+            const name = ACTION_NAMES[actId] || actId;
+            return `<button class="remote-qa-btn" onpointerdown="sendAction('${escAttr(actId)}', event)">${icon}<span>${esc(name)}</span></button>`;
+          }).join('');
+        } else {
+          qaContainer.style.display = 'none';
+        }
+      }
+
+      // 5. Layout elements
+      const npBanner = document.getElementById('now-playing-banner');
+      if (npBanner && config.layout?.showNowPlaying === false) {
+        npBanner.style.setProperty('display', 'none', 'important');
+      }
+
+      const searchWrap = document.getElementById('remote-search-wrap');
+      if (searchWrap) searchWrap.style.display = config.layout?.showSearch !== false ? 'flex' : 'none';
+
+      const volPillar = document.getElementById('vol-pillar');
+      if (volPillar) volPillar.style.display = config.layout?.showVolumeRocker !== false ? 'flex' : 'none';
+
+      const chPillar = document.getElementById('ch-pillar');
+      if (chPillar) chPillar.style.display = config.layout?.showChannelRocker !== false ? 'flex' : 'none';
+
+      const centerStack = document.getElementById('center-stack');
+      if (centerStack) centerStack.style.display = config.layout?.showCenterStack !== false ? 'flex' : 'none';
+
+      // 6. Tabs display
+      const enabledTabs = new Set(config.enabledTabs || ['remote', 'guide', 'sports', 'multiview']);
+      ['remote', 'guide', 'sports', 'multiview', 'destinations'].forEach(tabId => {
+        const navBtn = document.getElementById(`nav-${tabId}`);
+        if (navBtn) {
+          navBtn.style.display = enabledTabs.has(tabId) ? 'flex' : 'none';
+        }
+      });
+
+      // Update phone settings modal controls if open
+      const sizeSelect = document.getElementById('phone-size-select');
+      if (sizeSelect) sizeSelect.value = config.layout?.buttonSize || 'normal';
+      const centerSizeSelect = document.getElementById('phone-center-size-select');
+      if (centerSizeSelect) centerSizeSelect.value = config.centerButtons?.size || 'normal';
+      renderPhoneSkinPicker();
+    }
+
+    // ── On-Phone Remote Settings Modal ───────────────────────────────────────
+    const ALL_SKINS = [
+      { id: 'modern', name: 'Modern' },
+      { id: 'oled', name: 'OLED' },
+      { id: 'cyberpunk', name: 'Cyber' },
+      { id: 'midnight', name: 'Midnight' },
+      { id: 'sunset', name: 'Sunset' },
+      { id: 'forest', name: 'Emerald' },
+      { id: 'crimson', name: 'Crimson' },
+      { id: 'retro', name: 'Arcade' },
+    ];
+
+    function openPhoneSettingsModal() {
+      const modal = document.getElementById('phone-settings-overlay');
+      if (modal) modal.classList.add('open');
+      renderPhoneSkinPicker();
+    }
+    function closePhoneSettingsModal(e) {
+      if (e && e.target && e.target.id !== 'phone-settings-overlay' && !e.target.closest('.sheet-close-btn') && !e.target.classList.contains('sheet-handle')) return;
+      const modal = document.getElementById('phone-settings-overlay');
+      if (modal) modal.classList.remove('open');
+    }
+    function renderPhoneSkinPicker() {
+      const picker = document.getElementById('phone-skin-picker');
+      if (!picker || !phoneRemoteConfig) return;
+      const curSkin = phoneRemoteConfig.skin || 'modern';
+      picker.innerHTML = ALL_SKINS.map(s => `
+        <button class="phone-skin-option ${s.id === curSkin ? 'active' : ''}" onclick="selectPhoneSkin('${s.id}')">
+          ${esc(s.name)}
+        </button>
+      `).join('');
+    }
+    function selectPhoneSkin(skinId) {
+      if (!phoneRemoteConfig) return;
+      phoneRemoteConfig.skin = skinId;
+      applyPhoneRemoteConfig(phoneRemoteConfig);
+      send({ action: 'setRemoteConfig', config: phoneRemoteConfig });
+    }
+    function setPhoneButtonSize(size) {
+      if (!phoneRemoteConfig) return;
+      if (!phoneRemoteConfig.layout) phoneRemoteConfig.layout = {};
+      phoneRemoteConfig.layout.buttonSize = size;
+      applyPhoneRemoteConfig(phoneRemoteConfig);
+      send({ action: 'setRemoteConfig', config: phoneRemoteConfig });
+    }
+    function setPhoneCenterSize(size) {
+      if (!phoneRemoteConfig) return;
+      if (!phoneRemoteConfig.centerButtons) phoneRemoteConfig.centerButtons = { ...DEFAULT_PHONE_REMOTE_CONFIG.centerButtons };
+      phoneRemoteConfig.centerButtons.size = size;
+      applyPhoneRemoteConfig(phoneRemoteConfig);
+      send({ action: 'setRemoteConfig', config: phoneRemoteConfig });
+    }
+
+    // Apply saved or default config immediately
+    applyPhoneRemoteConfig(loadPhoneRemoteConfig());
 
     // ── Remote search box ────────────────────────────────────────────────────
     // Typing on the phone sends the query to the app (debounced) so the app
@@ -3177,6 +3870,7 @@ async fn serve_remote_html() -> impl IntoResponse {
 
     function handleIncomingData(data) {
       if (data.type === 'initialState') {
+        if (data.phoneRemoteConfig) applyPhoneRemoteConfig(data.phoneRemoteConfig);
         if (data.nowPlaying !== undefined) renderNowPlaying(data.nowPlaying);
         if (data.categoryTree) renderCategoryTree(data.categoryTree);
         if (data.multiview) renderMultiview(data.multiview);
@@ -3188,6 +3882,8 @@ async fn serve_remote_html() -> impl IntoResponse {
           if (searchInput) searchInput.value = lastSyncedRemoteQuery;
           updateRemoteSearchUi();
         }
+      } else if (data.type === 'remoteConfig') {
+        if (data.config) applyPhoneRemoteConfig(data.config);
       } else if (data.type === 'volume') {
         renderVolume(data.volume, data.muted);
       } else if (data.type === 'view') {
@@ -3735,6 +4431,9 @@ async fn serve_remote_html() -> impl IntoResponse {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"))
+        .header(header::CACHE_CONTROL, HeaderValue::from_static("no-cache, no-store, must-revalidate"))
+        .header(header::PRAGMA, HeaderValue::from_static("no-cache"))
+        .header(header::EXPIRES, HeaderValue::from_static("0"))
         .body(html.to_string())
         .unwrap()
 }

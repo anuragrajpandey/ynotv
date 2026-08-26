@@ -1,0 +1,833 @@
+/* Phone Remote Customizer Modal & Preview Styles */
+.phone-remote-customizer-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 24px;
+}
+
+.phone-remote-customizer-modal {
+  background: var(--surface-bg, rgba(16, 20, 30, 0.95));
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  width: 100%;
+  max-width: 1100px;
+  height: 88vh;
+  max-height: 850px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  color: var(--text-primary, #ffffff);
+}
+
+.prc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--surface-border, rgba(255, 255, 255, 0.08));
+  flex-shrink: 0;
+}
+
+.prc-header-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.prc-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.prc-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.55));
+  margin: 0;
+}
+
+.prc-close-btn {
+  background: transparent;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.15));
+  color: var(--text-muted, rgba(255, 255, 255, 0.7));
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prc-close-btn:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #ffffff);
+}
+
+/* Two-column layout: Left (Preview Mockup), Right (Controls) */
+.prc-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.prc-preview-pane {
+  flex: 0 0 380px;
+  background: rgba(8, 10, 16, 0.6);
+  border-right: 1px solid var(--surface-border, rgba(255, 255, 255, 0.08));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+}
+
+.prc-preview-badge {
+  position: absolute;
+  top: 14px;
+  left: 18px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: var(--accent-primary, #38bdf8);
+}
+
+/* Phone Bezel Frame */
+.prc-phone-frame {
+  width: 290px;
+  height: 570px;
+  border-radius: 38px;
+  background: #11141d;
+  border: 6px solid #2a3142;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), inset 0 0 4px rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.prc-phone-notch {
+  width: 100px;
+  height: 18px;
+  background: #2a3142;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+  align-self: center;
+  position: absolute;
+  top: 0;
+  z-index: 10;
+}
+
+/* Phone Inner Screen Mockup */
+.prc-phone-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 18px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* Screen Themes inside Mockup */
+.prc-phone-screen.skin-modern {
+  background: #07090e;
+  background-image: radial-gradient(ellipse 90% 60% at 50% -10%, rgba(99, 102, 241, 0.2), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 90% 90%, rgba(56, 189, 248, 0.15), transparent 70%);
+  color: #f8fafc;
+}
+
+.prc-phone-screen.skin-oled {
+  background: #000000;
+  color: #ffffff;
+}
+
+.prc-phone-screen.skin-cyberpunk {
+  background: #09030e;
+  background-image: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 0, 127, 0.25), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(0, 240, 255, 0.2), transparent 70%);
+  color: #ffffff;
+}
+
+.prc-phone-screen.skin-midnight {
+  background: #050b16;
+  background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(30, 64, 175, 0.25), transparent 70%);
+  color: #f0f6fc;
+}
+
+.prc-phone-screen.skin-sunset {
+  background: #14050d;
+  background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(249, 115, 22, 0.22), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 90% 90%, rgba(225, 29, 72, 0.2), transparent 70%);
+  color: #fff1f2;
+}
+
+.prc-phone-screen.skin-forest {
+  background: #041009;
+  background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(16, 185, 129, 0.2), transparent 70%);
+  color: #ecfdf5;
+}
+
+.prc-phone-screen.skin-crimson {
+  background: #100305;
+  background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(239, 68, 68, 0.22), transparent 70%);
+  color: #fef2f2;
+}
+
+.prc-phone-screen.skin-retro {
+  background: #17181c;
+  color: #e2e8f0;
+}
+
+/* Phone Screen Elements */
+.prc-screen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.prc-screen-logo {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.prc-screen-status {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  font-weight: 600;
+}
+
+.prc-screen-np {
+  margin: 6px 8px 4px;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prc-screen-np-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.prc-screen-np-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.prc-screen-np-title {
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.prc-screen-np-sub {
+  font-size: 8px;
+  opacity: 0.6;
+  line-height: 1.1;
+}
+
+.prc-screen-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  overflow-y: auto;
+  gap: 6px;
+}
+
+/* Mockup D-Pad Wrapper */
+.prc-mock-dpad-wrap {
+  width: 170px;
+  height: 170px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.prc-mock-corner-btn {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 7px;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prc-mock-corner-btn.top-left { top: 2px; left: 2px; }
+.prc-mock-corner-btn.top-right { top: 2px; right: 2px; }
+.prc-mock-corner-btn.bottom-left { bottom: 2px; left: 2px; }
+.prc-mock-corner-btn.bottom-right { bottom: 2px; right: 2px; }
+.prc-mock-corner-btn.disabled { opacity: 0.2; }
+
+.prc-mock-dpad {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.prc-mock-dpad-center {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Mockup Middle Cluster */
+.prc-mock-middle-cluster {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 230px;
+  gap: 6px;
+  margin: 4px 0;
+  min-height: 74px;
+}
+
+.prc-mock-pillar {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 2px;
+  width: 32px;
+  height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.prc-mock-pillar-btn {
+  width: 28px;
+  height: 22px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.prc-mock-center-stack {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.prc-mock-center-btn {
+  width: 100%;
+  flex: none;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8.5px;
+  font-weight: 700;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.prc-mock-center-stack.size-compact .prc-mock-center-btn {
+  height: 20px;
+  font-size: 7.5px;
+  border-radius: 6px;
+}
+.prc-mock-center-stack.size-normal .prc-mock-center-btn {
+  height: 28px;
+  font-size: 8.5px;
+  border-radius: 8px;
+}
+.prc-mock-center-stack.size-large .prc-mock-center-btn {
+  height: 38px;
+  font-size: 9.5px;
+  border-radius: 10px;
+}
+.prc-mock-center-stack.size-expanded .prc-mock-center-btn {
+  height: 48px;
+  font-size: 10.5px;
+  border-radius: 12px;
+}
+.prc-mock-center-btn.disabled {
+  opacity: 0.25;
+}
+
+/* Mockup Quick Actions Row */
+.prc-mock-qa-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 0 4px;
+}
+
+.prc-mock-qa-pill {
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 7.5px;
+  font-weight: 600;
+}
+
+/* Mockup Bottom Nav Bar */
+.prc-mock-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 6px 4px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.prc-mock-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-size: 7.5px;
+  font-weight: 600;
+  opacity: 0.55;
+}
+
+.prc-mock-nav-item.active {
+  opacity: 1;
+  color: var(--accent-primary, #38bdf8);
+}
+
+/* Right Controls Pane */
+.prc-controls-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 20px 24px;
+  gap: 24px;
+}
+
+.prc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prc-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prc-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  margin: 0;
+}
+
+.prc-section-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.55));
+  margin: 0;
+}
+
+/* Skins Grid */
+.prc-skins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.prc-skin-card {
+  border-radius: 10px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  background: var(--surface-card, rgba(255, 255, 255, 0.04));
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+  position: relative;
+  text-align: left;
+}
+
+.prc-skin-card:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+  border-color: var(--surface-border-bright, rgba(255, 255, 255, 0.25));
+}
+
+.prc-skin-card.selected {
+  border-color: var(--accent-primary, #38bdf8);
+  background: var(--accent-subtle, rgba(56, 189, 248, 0.12));
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+}
+
+.prc-skin-swatch {
+  height: 38px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.prc-skin-accent-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.prc-skin-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+}
+
+/* Tabs Selector Grid */
+.prc-tabs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.prc-tab-pill-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--surface-card, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+}
+
+.prc-tab-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.prc-tab-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.prc-tab-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.5));
+}
+
+/* Corner Buttons Configuration Grid */
+.prc-corners-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.prc-corner-card {
+  padding: 10px 12px;
+  background: var(--surface-card, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prc-corner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.prc-corner-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.prc-select {
+  background: var(--surface-bg, #10141e);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.15));
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text-primary, #ffffff);
+  font-size: 0.82rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.prc-select:focus {
+  border-color: var(--accent-primary, #38bdf8);
+}
+
+/* Quick Actions List */
+.prc-qa-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prc-qa-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.15));
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.prc-qa-remove-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, rgba(255, 255, 255, 0.5));
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+}
+
+.prc-qa-remove-btn:hover {
+  color: #ef4444;
+}
+
+.prc-add-qa-select-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Layout Options Switches */
+.prc-toggles-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prc-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--surface-border, rgba(255, 255, 255, 0.05));
+}
+
+.prc-toggle-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* Footer */
+.prc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.08));
+  background: rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.prc-live-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #10b981;
+}
+
+.prc-reset-btn {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prc-reset-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+}
+
+.prc-done-btn {
+  background: var(--accent-primary, #00d4ff);
+  color: #04101c;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prc-done-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* In-App Confirmation Modal Dialog */
+.prc-confirm-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: prc-fade-in 0.15s ease;
+}
+
+.prc-confirm-modal {
+  background: var(--surface-card, #121826);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 420px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: prc-scale-up 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.prc-confirm-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.prc-confirm-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.prc-confirm-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #f8fafc);
+  margin: 0;
+}
+
+.prc-confirm-message {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0;
+}
+
+.prc-confirm-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.prc-confirm-btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prc-confirm-btn.cancel {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  color: var(--text-primary, #f8fafc);
+}
+
+.prc-confirm-btn.cancel:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.prc-confirm-btn.confirm {
+  background: #ef4444;
+  border: 1px solid #dc2626;
+  color: #ffffff;
+}
+
+.prc-confirm-btn.confirm:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}

@@ -2,6 +2,8 @@ import { useSettingsStore, DEFAULT_SUBTITLE_SETTINGS, DEFAULT_MAX_SEARCH_RESULTS
 import type { SettingsState } from './settingsStore';
 import type { SavedLayoutState } from '../hooks/useLayoutPersistence';
 import type { ThemeId } from '../types/app';
+import type { PhoneRemoteConfig } from '../types/phoneRemote';
+import { DEFAULT_PHONE_REMOTE_CONFIG } from '../types/phoneRemote';
 import i18n, { isSupportedLocale } from '../i18n';
 
 /* ---------------------------------------------------------------------------
@@ -143,6 +145,29 @@ function isEmptyData(data: Record<string, any>): boolean {
 let hydrationStarted = false;
 
 /** Kick off the single boot load once (idempotent, race-free). */
+export function sanitizeHydratedSettings(data: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = { ...data };
+  if (data.phoneRemoteConfig && typeof data.phoneRemoteConfig === 'object') {
+    result.phoneRemoteConfig = {
+      ...DEFAULT_PHONE_REMOTE_CONFIG,
+      ...data.phoneRemoteConfig,
+      cornerButtons: {
+        ...DEFAULT_PHONE_REMOTE_CONFIG.cornerButtons,
+        ...(data.phoneRemoteConfig.cornerButtons || {}),
+      },
+      centerButtons: {
+        ...DEFAULT_PHONE_REMOTE_CONFIG.centerButtons,
+        ...(data.phoneRemoteConfig.centerButtons || {}),
+      },
+      layout: {
+        ...DEFAULT_PHONE_REMOTE_CONFIG.layout,
+        ...(data.phoneRemoteConfig.layout || {}),
+      },
+    };
+  }
+  return result;
+}
+
 export function ensureSettingsHydration(): void {
   if (hydrationStarted) return;
   hydrationStarted = true;
@@ -370,6 +395,24 @@ async function hydrateSettingsStore(): Promise<void> {
           : { ...DEFAULT_CONTROLLER_CHORDS },
         remoteControlEnabled: data.remoteControlEnabled ?? false,
         remoteControlPort: typeof data.remoteControlPort === 'number' ? data.remoteControlPort : 11470,
+        phoneRemoteConfig: data.phoneRemoteConfig && typeof data.phoneRemoteConfig === 'object'
+          ? {
+              ...DEFAULT_PHONE_REMOTE_CONFIG,
+              ...data.phoneRemoteConfig,
+              cornerButtons: {
+                ...DEFAULT_PHONE_REMOTE_CONFIG.cornerButtons,
+                ...(data.phoneRemoteConfig.cornerButtons || {}),
+              },
+              centerButtons: {
+                ...DEFAULT_PHONE_REMOTE_CONFIG.centerButtons,
+                ...(data.phoneRemoteConfig.centerButtons || {}),
+              },
+              layout: {
+                ...DEFAULT_PHONE_REMOTE_CONFIG.layout,
+                ...(data.phoneRemoteConfig.layout || {}),
+              },
+            }
+          : { ...DEFAULT_PHONE_REMOTE_CONFIG },
         enableCustomScrollbarWidth: data.enableCustomScrollbarWidth ?? false,
         customScrollbarWidth: data.customScrollbarWidth ?? 12,
         hardwareAcceleration: data.hardwareAcceleration ?? true,

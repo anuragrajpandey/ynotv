@@ -4,6 +4,8 @@ import type { ThemeId, CustomThemeConfig, ShortcutsMap, GlobalEpgLink } from '..
 import type { SubtitleSettings } from '../components/settings/SubtitlesTab';
 import type { AutoBackupSettings } from '../services/autoBackup';
 import type { TrailerSource, VodPlayerMode } from '../components/vod/SplitPlayButton';
+import type { PhoneRemoteConfig } from '../types/phoneRemote';
+import { DEFAULT_PHONE_REMOTE_CONFIG } from '../types/phoneRemote';
 import i18n, { isSupportedLocale } from '../i18n';
 
 /* ---------------------------------------------------------------------------
@@ -596,11 +598,14 @@ export interface SettingsState {
   saveCustomGamepadProfile: (deviceId: string, mapping: Record<string, string>) => void;
   deleteCustomGamepadProfile: (deviceId: string) => void;
 
-  // Phone Remote Server
+  // Phone Remote Server & Customization
   remoteControlEnabled: boolean;
   setRemoteControlEnabled: (enabled: boolean) => void;
   remoteControlPort: number;
   setRemoteControlPort: (port: number) => void;
+  phoneRemoteConfig: PhoneRemoteConfig;
+  setPhoneRemoteConfig: (config: Partial<PhoneRemoteConfig>) => void;
+  resetPhoneRemoteConfig: () => void;
 
   // EPG cosmetic classes (load-time only — hydrated, no setters)
   epgDarkenCurrent: boolean;
@@ -1818,6 +1823,40 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setRemoteControlPort: (port) => {
     set({ remoteControlPort: port });
     persistSettings({ remoteControlPort: port });
+  },
+  phoneRemoteConfig: cachedSettings?.phoneRemoteConfig
+    ? {
+        ...DEFAULT_PHONE_REMOTE_CONFIG,
+        ...cachedSettings.phoneRemoteConfig,
+        cornerButtons: {
+          ...DEFAULT_PHONE_REMOTE_CONFIG.cornerButtons,
+          ...(cachedSettings.phoneRemoteConfig.cornerButtons || {}),
+        },
+        layout: {
+          ...DEFAULT_PHONE_REMOTE_CONFIG.layout,
+          ...(cachedSettings.phoneRemoteConfig.layout || {}),
+        },
+      }
+    : { ...DEFAULT_PHONE_REMOTE_CONFIG },
+  setPhoneRemoteConfig: (config) => {
+    set((state) => {
+      const updated: PhoneRemoteConfig = {
+        ...state.phoneRemoteConfig,
+        ...config,
+        cornerButtons: config.cornerButtons
+          ? { ...state.phoneRemoteConfig.cornerButtons, ...config.cornerButtons }
+          : state.phoneRemoteConfig.cornerButtons,
+        layout: config.layout
+          ? { ...state.phoneRemoteConfig.layout, ...config.layout }
+          : state.phoneRemoteConfig.layout,
+      };
+      persistSettings({ phoneRemoteConfig: updated });
+      return { phoneRemoteConfig: updated };
+    });
+  },
+  resetPhoneRemoteConfig: () => {
+    set({ phoneRemoteConfig: { ...DEFAULT_PHONE_REMOTE_CONFIG } });
+    persistSettings({ phoneRemoteConfig: { ...DEFAULT_PHONE_REMOTE_CONFIG } });
   },
 
   // EPG cosmetic classes (load-time only — hydrated from settings, no setters)
