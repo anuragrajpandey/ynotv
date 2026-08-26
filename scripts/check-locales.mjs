@@ -212,6 +212,16 @@ const UNTRANSLATED_ALLOWLIST = new Set([
   'fr:settings.livetv.logos.defaultBgAuto', 'hr:settings.livetv.logos.defaultBgAuto',
   'it:settings.livetv.logos.defaultBgAuto', 'nl:settings.livetv.logos.defaultBgAuto',
   'pl:settings.livetv.logos.defaultBgAuto', 'sq:settings.livetv.logos.defaultBgAuto',
+  // per-locale exceptions: "Normal"/"Compact" size labels are universal loanwords
+  'de:settings.controllers.remoteCustomizer.buttonSizeNormal',
+  'de:settings.controllers.remoteCustomizer.centerSizeNormal',
+  'fr:settings.controllers.remoteCustomizer.buttonSizeCompact',
+  'fr:settings.controllers.remoteCustomizer.buttonSizeNormal',
+  'es:settings.controllers.remoteCustomizer.buttonSizeNormal',
+  'nl:settings.controllers.remoteCustomizer.buttonSizeCompact',
+  'pt-BR:settings.controllers.remoteCustomizer.buttonSizeNormal',
+  'sq:settings.controllers.remoteCustomizer.buttonSizeNormal',
+  'tr:settings.controllers.remoteCustomizer.buttonSizeNormal',
 ]);
 
 // Values with no lowercase ASCII letters ("DRM", "OK", "4K / UHD", "1 GB") or no
