@@ -2236,7 +2236,7 @@
       "errSave": "Failed to save changes. Please try again."
     },
     "controllers": {
-      "title": "Gamepad & Controller Support",
+      "title": "Gamepad & Controller Support (Experimental)",
       "description": "Navigate YNOTV with any PS5 DualSense (Bluetooth or USB), PS4, Xbox, Switch Pro, or TV remote.",
       "enableNavigation": "Enable Controller Navigation",
       "enableNavigationHint": "Control channels, menus, movies, sports, and video playback with connected gamepads. Off by default — enable it to start listening for controller input.",
@@ -2344,6 +2344,7 @@
         "step1": "Keep the YNOTV app running on this PC.",
         "step2": "Scan the QR code with your phone's camera — or open the URL below.",
         "step3": "Control YNOTV from your phone: touchpad, D-pad, and media remote.",
+        "step4": "(Optional) Add the page to your homescreen or bookmark to not have to scan the QR code every time.",
         "qrAlt": "Remote QR Code",
         "generatingQr": "Generating QR...",
         "scanHint": "Scan with phone camera",

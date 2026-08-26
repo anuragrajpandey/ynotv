@@ -320,13 +320,15 @@ export function ControllersTab() {
     <div className="settings-tab-content controllers-tab">
       {/* Gamepad & Controller Section */}
       <div className="settings-section">
-        <h3 className="section-title">{i18n.t('settings:controllers.title')}</h3>
-        <p className="section-desc">{i18n.t('settings:controllers.description')}</p>
+        <div className="section-header">
+          <h3>{i18n.t('settings:controllers.title')}</h3>
+        </div>
+        <p className="section-description">{i18n.t('settings:controllers.description')}</p>
 
-        <div className="setting-row">
-          <div className="setting-info">
-            <span className="setting-label">{i18n.t('settings:controllers.enableNavigation')}</span>
-            <span className="setting-sublabel">{i18n.t('settings:controllers.enableNavigationHint')}</span>
+        <div className="timeshift-toggle-row">
+          <div className="timeshift-toggle-info">
+            <span className="timeshift-toggle-label">{i18n.t('settings:controllers.enableNavigation')}</span>
+            <span className="timeshift-toggle-sub">{i18n.t('settings:controllers.enableNavigationHint')}</span>
           </div>
           <label className="toggle-switch">
             <input
@@ -338,10 +340,10 @@ export function ControllersTab() {
           </label>
         </div>
 
-        <div className="setting-row">
-          <div className="setting-info">
-            <span className="setting-label">{i18n.t('settings:controllers.backgroundListening')}</span>
-            <span className="setting-sublabel">{i18n.t('settings:controllers.backgroundListeningHint')}</span>
+        <div className="timeshift-toggle-row">
+          <div className="timeshift-toggle-info">
+            <span className="timeshift-toggle-label">{i18n.t('settings:controllers.backgroundListening')}</span>
+            <span className="timeshift-toggle-sub">{i18n.t('settings:controllers.backgroundListeningHint')}</span>
           </div>
           <label className="toggle-switch">
             <input
@@ -410,14 +412,14 @@ export function ControllersTab() {
         </div>
 
         {/* Stick Sensitivity / Deadzone */}
-        <div className="setting-row" style={{ marginTop: '16px' }}>
-          <div className="setting-info" style={{ flex: 1, minWidth: 0, paddingRight: '16px' }}>
-            <span className="setting-label">
+        <div className="timeshift-toggle-row" style={{ borderBottom: 'none', marginTop: '12px' }}>
+          <div className="timeshift-toggle-info" style={{ flex: 1, minWidth: 0, paddingRight: '16px' }}>
+            <span className="timeshift-toggle-label">
               {i18n.t('settings:controllers.deadzoneLabel', {
                 percent: Math.round(controllerDeadzone * 100),
               })}
             </span>
-            <span className="setting-sublabel">{i18n.t('settings:controllers.deadzoneHint')}</span>
+            <span className="timeshift-toggle-sub">{i18n.t('settings:controllers.deadzoneHint')}</span>
           </div>
           <div className="deadzone-slider-control">
             <input
@@ -437,7 +439,7 @@ export function ControllersTab() {
       </div>
 
       {/* Built-in Phone Remote Server */}
-      <div className="settings-section">
+      <div className="settings-section phone-remote-section">
         {showRemotePrompt && (
           <div className="phone-remote-prompt">
             <div className="phone-remote-prompt-info">
@@ -465,11 +467,8 @@ export function ControllersTab() {
           </div>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h3 className="section-title">{i18n.t('settings:controllers.remote.title')}</h3>
-            <p className="section-desc">{i18n.t('settings:controllers.remote.description')}</p>
-          </div>
+        <div className="section-header">
+          <h3>{i18n.t('settings:controllers.remote.title')}</h3>
           <span
             className={`device-pill ${
               remoteStatus.running ? 'pill-connected' : 'pill-disconnected'
@@ -480,11 +479,12 @@ export function ControllersTab() {
               : i18n.t('settings:controllers.remote.serverStopped')}
           </span>
         </div>
+        <p className="section-description">{i18n.t('settings:controllers.remote.description')}</p>
 
-        <div className="setting-row">
-          <div className="setting-info">
-            <span className="setting-label">{i18n.t('settings:controllers.remote.enableServer')}</span>
-            <span className="setting-sublabel">
+        <div className="timeshift-toggle-row">
+          <div className="timeshift-toggle-info">
+            <span className="timeshift-toggle-label">{i18n.t('settings:controllers.remote.enableServer')}</span>
+            <span className="timeshift-toggle-sub">
               {remoteControlEnabled
                 ? i18n.t('settings:controllers.remote.enabledHint', {
                     url: `http://${remoteStatus.local_ip}:${remoteControlPort}/remote`,
@@ -524,6 +524,7 @@ export function ControllersTab() {
               <li>{i18n.t('settings:controllers.remote.step1')}</li>
               <li>{i18n.t('settings:controllers.remote.step2')}</li>
               <li>{i18n.t('settings:controllers.remote.step3')}</li>
+              <li>{i18n.t('settings:controllers.remote.step4')}</li>
             </ol>
           </div>
         )}
@@ -616,15 +617,13 @@ export function ControllersTab() {
 
       {/* Button Customization Matrix */}
       <div className="settings-section">
-        <div className="matrix-header">
-          <div>
-            <h3 className="section-title">{i18n.t('settings:controllers.mapping.title')}</h3>
-            <p className="section-desc">{i18n.t('settings:controllers.mapping.description')}</p>
-          </div>
+        <div className="section-header">
+          <h3>{i18n.t('settings:controllers.mapping.title')}</h3>
           <button className="reset-btn" onClick={resetControllerMappings}>
             {i18n.t('settings:controllers.mapping.reset')}
           </button>
         </div>
+        <p className="section-description">{i18n.t('settings:controllers.mapping.description')}</p>
 
         <div className="mapping-grid">
           {BUTTON_CONFIG.map((btn) => (
@@ -665,15 +664,13 @@ export function ControllersTab() {
 
       {/* Button Combination Matrix — hold a modifier (L1/L2/R1/R2) + a button */}
       <div className="settings-section">
-        <div className="matrix-header">
-          <div>
-            <h3 className="section-title">{i18n.t('settings:controllers.chords.title')}</h3>
-            <p className="section-desc">{i18n.t('settings:controllers.chords.description')}</p>
-          </div>
+        <div className="section-header">
+          <h3>{i18n.t('settings:controllers.chords.title')}</h3>
           <button className="reset-btn" onClick={resetControllerChords}>
             {i18n.t('settings:controllers.chords.reset')}
           </button>
         </div>
+        <p className="section-description">{i18n.t('settings:controllers.chords.description')}</p>
 
         <div className="settings-tabs" style={{ marginBottom: 14, padding: '0 4px' }}>
           {CHORD_MODIFIERS.map((mod) => (

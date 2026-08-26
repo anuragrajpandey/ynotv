@@ -284,7 +284,7 @@
     "epgShift": "Dịch Chuyển EPG",
     "failoverGroup": "Nhóm Chuyển Dự Phòng",
     "jumpToLetter": "Chuyển tới chữ cái (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Lọc kênh theo độ phân giải",
     "linkedCategory": "Danh Mục Liên Kết",
     "manageChannels": "Quản Lý Kênh",
     "manageCustomGroup": "Quản Lý Nhóm Tùy Chỉnh",
@@ -1801,7 +1801,7 @@
       "errSave": "Không lưu được các thay đổi. Vui lòng thử lại."
     },
     "controllers": {
-      "title": "Hỗ trợ Gamepad và Tay cầm",
+      "title": "Hỗ trợ Gamepad và Tay cầm (Thử nghiệm)",
       "description": "Điều hướng YNOTV bằng mọi DualSense PS5 (Bluetooth hoặc USB), PS4, Xbox, Switch Pro hoặc điều khiển TV.",
       "enableNavigation": "Bật điều hướng bằng tay cầm",
       "enableNavigationHint": "Điều khiển kênh, menu, phim, thể thao và phát video bằng gamepad đã kết nối. Tắt theo mặc định — bật để bắt đầu lắng nghe đầu vào từ tay cầm.",
@@ -1875,6 +1875,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Xem trước trực tiếp",
+      "liveHint": "Kết nối tay cầm: mọi lần nhấn và chuyển động cần gạt đều hiển thị ở đây, trực tiếp.",
+      "customProfileActive": "Hồ sơ tùy chỉnh đang hoạt động",
+      "configureGamepad": "Cấu hình / hiệu chỉnh gamepad",
+      "remapBtn": "Hiệu chỉnh / cấu hình gamepad",
+      "remapBtnTooltip": "Hiệu chỉnh và ánh xạ nút cho mọi gamepad chung hoặc bên thứ ba",
+      "remap": {
+        "title": "Cấu hình và hiệu chỉnh gamepad",
+        "subtitle": "Ánh xạ các nút của bất kỳ tay cầm chung hoặc bên thứ ba nào sang các điều khiển tiêu chuẩn của YNOTV.",
+        "targetDevice": "Tay cầm mục tiêu:",
+        "reset": "Đặt lại hồ sơ",
+        "prev": "Trước",
+        "skip": "Bỏ qua",
+        "save": "Lưu và áp dụng"
+      },
       "remote": {
         "enablePromptTitle": "Bật Phone Remote?",
         "enablePromptText": "Điều khiển YNOTV từ điện thoại qua Wi-Fi — bàn di chuột, D-pad và điều khiển phương tiện. Máy chủ cục bộ tắt theo mặc định và chỉ khởi động khi bạn bật.",
@@ -1905,7 +1920,8 @@
         "altUrlsTitle": "Địa chỉ mạng thay thế:",
         "clickToCopy": "Nhấp để sao chép",
         "instructions": "Đảm bảo điện thoại của bạn kết nối cùng mạng Wi-Fi với PC này. Bạn sẽ có bàn di chuột không dây đầy đủ, D-Pad, điều khiển âm lượng và phím tắt các mục!",
-        "restartServer": "🔄 Khởi động lại máy chủ trên cổng {{port}}"
+        "restartServer": "🔄 Khởi động lại máy chủ trên cổng {{port}}",
+        "step4": "(Tùy chọn) Thêm trang vào màn hình chính hoặc dấu trang để không phải quét mã QR mỗi lần."
       },
       "chords": {
         "title": "Kết hợp nút",
@@ -2248,8 +2264,8 @@
       "epgClockFormatSub": "Chọn giữa đồng hồ 12 giờ (SA/CH) và 24 giờ trên lưới EPG, kết quả tìm kiếm, danh sách xem và bản ghi.",
       "clock12": "Đồng Hồ 12 Giờ (ví dụ: 2:30 CH)",
       "clock24": "Đồng Hồ 24 Giờ (ví dụ: 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Bộ lọc độ phân giải",
+      "epgResolutionFilterSub": "Thêm nút lọc độ phân giải vào thanh công cụ EPG, cho phép bạn chỉ hiển thị các kênh có độ phân giải đã chọn. Chỉ hoạt động với các kênh đã được quét / có huy hiệu siêu dữ liệu.",
       "epgShowDate": "Hiển Thị Ngày Trong EPG",
       "epgShowDateSub": "Hiển thị ngày cùng với các mốc thời gian trong tiêu đề dòng thời gian EPG.",
       "darkenCurrent": "Làm tối các khối chương trình đang phát trong EPG",
@@ -2266,8 +2282,8 @@
       "sound": "Âm Thanh",
       "fpsSuffix": "Hiển thị hậu tố \"fps\"",
       "fpsSuffixSub": "Hiển thị tốc độ khung hình dạng \"60fps\" thay vì chỉ \"60\".",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Hiển thị độ phân giải dưới dạng FHD/HD",
+      "fhdLabelsSub": "Hiển thị 1080p dưới dạng \"FHD\" và 720p dưới dạng \"HD\" trong huy hiệu siêu dữ liệu.",
       "boldTypography": "Kiểu Chữ Đậm",
       "boldTypographySub": "Bật định dạng phông chữ đậm cho các phần tử EPG và danh mục thanh bên.",
       "channelNames": "Tên Kênh",
@@ -3217,15 +3233,15 @@
       "updatesDescription": "Kiểm tra các phiên bản mới của ynoTV. Các bản cập nhật bao gồm sửa lỗi, cải thiện hiệu suất và tính năng mới.",
       "checkForUpdates": "Kiểm Tra Cập Nhật",
       "changelog": "Nhật Ký Thay Đổi",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp hỗ trợ phát trailer YouTube. Hiển thị phiên bản đi kèm và cập nhật lên bản mới nhất.",
+      "ytdlpPath": "Đường dẫn:",
+      "ytdlpNotInstalled": "Không tìm thấy",
+      "ytdlpUpdate": "Cập nhật yt-dlp",
+      "ytdlpChecking": "Đang cập nhật...",
+      "ytdlpUpToDate": "Đã cập nhật ({{version}})",
+      "ytdlpUpdated": "Đã cập nhật lên {{version}}",
+      "ytdlpError": "Cập nhật thất bại: {{message}}",
+      "ytdlpNotSupported": "Không hỗ trợ cập nhật trên nền tảng này."
     },
     "tmdb": {
       "title": "Tích Hợp TMDB",

@@ -221,7 +221,7 @@
     "epgShift": "Zhvendosja e EPG-së",
     "failoverGroup": "Grupi i rezervës",
     "jumpToLetter": "Kalo te shkronja (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Filtro kanalet sipas rezolucionit",
     "linkedCategory": "Kategori e lidhur",
     "manageChannels": "Menaxho kanalet",
     "manageCustomGroup": "Menaxho grupin e personalizuar",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Zgjidh midis orës 12-orëshe (AM/PM) dhe 24-orëshe në rrjetin EPG, rezultatet e kërkimit, listën e shikimit dhe regjistrimet.",
       "clock12": "Ora 12-orëshe (p.sh. 14:30)",
       "clock24": "Ora 24-orëshe (p.sh. 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Filtri i rezolucionit",
+      "epgResolutionFilterSub": "Shton një buton të filtrit të rezolucionit në shiritin e veglave të EPG-së, duke ju lejuar të shfaqni vetëm kanalet me rezolucionin e zgjedhur. Funksionon vetëm për kanalet që janë skanuar / kanë distinktivë metadata.",
       "epgShowDate": "Shfaq datën në EPG",
       "epgShowDateSub": "Shfaq datën pranë shenjave të kohës në kokën e afatit kohor të EPG-së.",
       "darkenCurrent": "Errëso blloqet e programeve aktuale në EPG",
@@ -803,8 +803,8 @@
       "sound": "Zëri",
       "fpsSuffix": "Shfaq prapashtesën „fps\"",
       "fpsSuffixSub": "Shfaq numrin e kornizave si p.sh. „60fps\" në vend të vetëm „60\".",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Shfaq rezolucionin si FHD/HD",
+      "fhdLabelsSub": "Shfaq 1080p si \"FHD\" dhe 720p si \"HD\" në distinktivët e metadatave.",
       "boldTypography": "Tipografi e theksuar",
       "boldTypographySub": "Aktivizo elementet e theksuara të EPG-së dhe kategoritë e shiritit anësor.",
       "channelNames": "Emrat e kanaleve",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "Kontrollo për versione të reja të ynoTV. Përditësimet përfshijnë rregullime gabimesh, përmirësime performancës dhe veçori të reja.",
       "checkForUpdates": "Kontrollo për përditësime",
       "changelog": "Regjistri i ndryshimeve",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp fuqizon riprodhimin e trailerave të YouTube. Tregon versionin e përfshirë dhe e përditëson në versionin më të ri.",
+      "ytdlpPath": "Rruga:",
+      "ytdlpNotInstalled": "Nuk u gjet",
+      "ytdlpUpdate": "Përditëso yt-dlp",
+      "ytdlpChecking": "Duke u përditësuar...",
+      "ytdlpUpToDate": "I përditësuar ({{version}})",
+      "ytdlpUpdated": "U përditësua në {{version}}",
+      "ytdlpError": "Përditësimi dështoi: {{message}}",
+      "ytdlpNotSupported": "Përditësimet nuk mbështeten në këtë platformë."
     },
     "tmdb": {
       "title": "Integrimi me TMDB",
@@ -2236,7 +2236,7 @@
       "errSave": "Dështoi ruajtja e ndryshimeve. Provo përsëri."
     },
     "controllers": {
-      "title": "Mbështetje për gamepad dhe kontrollorë",
+      "title": "Mbështetje për gamepad dhe kontrollorë (Eksperimentale)",
       "description": "Navigoni në YNOTV me çdo DualSense PS5 (Bluetooth ose USB), PS4, Xbox, Switch Pro ose telekomandë TV.",
       "enableNavigation": "Aktivizo navigimin me kontrollor",
       "enableNavigationHint": "Kontrolloni kanalet, menytë, filmat, sportin dhe riprodhimin e videos me gamepad të lidhur. I çaktivizuar si parazgjedhje — aktivizojeni për të filluar dëgjimin e të dhënave nga kontrollori.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Parapamje e drejtpërdrejtë",
+      "liveHint": "Lidh një kontrollor: çdo shtypje dhe lëvizje e levës shfaqet këtu, drejtpërdrejt.",
+      "customProfileActive": "Profil i personalizuar aktiv",
+      "configureGamepad": "Konfiguro / kalibro gamepadin",
+      "remapBtn": "Kalibro / konfiguro gamepadin",
+      "remapBtnTooltip": "Kalibro dhe vendos butonat për çdo gamepad gjenerik ose të palës së tretë",
+      "remap": {
+        "title": "Konfiguro dhe kalibro gamepadin",
+        "subtitle": "Vendos butonat e çdo kontrollori gjenerik ose të palës së tretë në kontrollet standarde të YNOTV.",
+        "targetDevice": "Kontrollori i synuar:",
+        "reset": "Rivendos profilin",
+        "prev": "Prapa",
+        "skip": "Kapërce",
+        "save": "Ruaj dhe zbato"
+      },
       "remote": {
         "enablePromptTitle": "Të aktivizohet Phone Remote?",
         "enablePromptText": "Kontrolloni YNOTV nga telefoni juaj përmes Wi-Fi — touchpad, D-pad dhe telekomandë mediatike. Serveri lokal është i çaktivizuar si parazgjedhje dhe niset vetëm kur e ndizni.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Adresa alternative të rrjetit:",
         "clickToCopy": "Kliko për të kopjuar",
         "instructions": "Sigurohuni që telefoni të jetë i lidhur në të njëjtin rrjet Wi-Fi si ky PC. Do të keni një touchpad të plotë me valë, D-Pad, kontroll të volumit dhe shkurtesa seksionesh!",
-        "restartServer": "🔄 Rinis serverin në portën {{port}}"
+        "restartServer": "🔄 Rinis serverin në portën {{port}}",
+        "step4": "(Opsionale) Shtojeni faqen në ekranin bazë ose te faqerojtësit për të mos pasur nevojë të skanoni kodin QR çdo herë."
       },
       "chords": {
         "title": "Kombinimet e butonave",

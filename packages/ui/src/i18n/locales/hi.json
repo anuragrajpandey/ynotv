@@ -221,7 +221,7 @@
     "epgShift": "EPG शिफ्ट",
     "failoverGroup": "फ़ेलओवर समूह",
     "jumpToLetter": "अक्षर पर जाएँ (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "रिज़ॉल्यूशन के अनुसार चैनल फ़िल्टर करें",
     "linkedCategory": "लिंक्ड श्रेणी",
     "manageChannels": "चैनल प्रबंधित करें",
     "manageCustomGroup": "कस्टम समूह प्रबंधित करें",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "EPG ग्रिड, खोज परिणामों, वॉचलिस्ट और रिकॉर्डिंग में 12-घंटे (AM/PM) और 24-घंटे की घड़ी प्रदर्शन के बीच चुनें।",
       "clock12": "12 घंटे",
       "clock24": "24 घंटे",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "रिज़ॉल्यूशन फ़िल्टर",
+      "epgResolutionFilterSub": "EPG टूलबार में रिज़ॉल्यूशन फ़िल्टर बटन जोड़ता है, जिससे आप केवल चुने गए रिज़ॉल्यूशन वाले चैनल दिखा सकते हैं। केवल उन चैनलों के लिए काम करता है जिन्हें प्रोब किया गया है / जिनके पास मेटाडेटा बैज हैं।",
       "epgShowDate": "EPG में दिनांक दिखाएँ",
       "epgShowDateSub": "EPG समयरेखा शीर्षलेख में समय चिह्नों के साथ दिनांक प्रदर्शित करें।",
       "darkenCurrent": "EPG में वर्तमान में प्रसारित कार्यक्रम ब्लॉकों को गहरा करें",
@@ -803,8 +803,8 @@
       "sound": "ध्वनि",
       "fpsSuffix": "फ़्रेम दर प्रत्यय",
       "fpsSuffixSub": "फ़्रेम दर को सिर्फ़ \"60\" के बजाय उदा. \"60fps\" के रूप में प्रदर्शित करें।",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "रिज़ॉल्यूशन को FHD/HD के रूप में दिखाएँ",
+      "fhdLabelsSub": "मेटाडेटा बैज में 1080p को \"FHD\" और 720p को \"HD\" के रूप में दिखाएँ।",
       "boldTypography": "बोल्ड टाइपोग्राफ़ी",
       "boldTypographySub": "EPG तत्वों और साइडबार श्रेणियों के लिए बोल्ड फ़ॉन्ट फ़ॉर्मेटिंग सक्षम करें।",
       "channelNames": "चैनल नाम",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "ynoTV के नए संस्करणों की जाँच करें। अपडेट में बग फ़िक्स, प्रदर्शन सुधार और नई सुविधाएँ शामिल हैं।",
       "checkForUpdates": "अपडेट के लिए जाँचें",
       "changelog": "चेंजलॉग",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp YouTube ट्रेलर प्लेबैक को संचालित करता है। बंडल किया गया संस्करण दिखाता है और उसे नवीनतम रिलीज़ में अपडेट करता है।",
+      "ytdlpPath": "पथ:",
+      "ytdlpNotInstalled": "नहीं मिला",
+      "ytdlpUpdate": "yt-dlp अपडेट करें",
+      "ytdlpChecking": "अपडेट हो रहा है...",
+      "ytdlpUpToDate": "नवीनतम ({{version}})",
+      "ytdlpUpdated": "{{version}} में अपडेट किया गया",
+      "ytdlpError": "अपडेट विफल: {{message}}",
+      "ytdlpNotSupported": "इस प्लेटफ़ॉर्म पर अपडेट समर्थित नहीं हैं।"
     },
     "tmdb": {
       "title": "TMDB एकीकरण",
@@ -2236,7 +2236,7 @@
       "errSave": "परिवर्तन सहेजने में विफल। कृपया पुनः प्रयास करें।"
     },
     "controllers": {
-      "title": "गेमपैड और कंट्रोलर समर्थन",
+      "title": "गेमपैड और कंट्रोलर समर्थन (प्रायोगिक)",
       "description": "किसी भी PS5 DualSense (ब्लूटूथ या USB), PS4, Xbox, Switch Pro या TV रिमोट से YNOTV को नियंत्रित करें।",
       "enableNavigation": "कंट्रोलर नेविगेशन सक्षम करें",
       "enableNavigationHint": "कनेक्टेड गेमपैड से चैनल, मेनू, मूवी, स्पोर्ट्स और वीडियो प्लेबैक नियंत्रित करें। डिफ़ॉल्ट रूप से बंद — कंट्रोलर इनपुट सुनना शुरू करने के लिए इसे चालू करें।",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "लाइव पूर्वावलोकन",
+      "liveHint": "कंट्रोलर कनेक्ट करें: हर दबाव और स्टिक की गतिविधि यहाँ लाइव दिखाई देती है।",
+      "customProfileActive": "कस्टम प्रोफ़ाइल सक्रिय",
+      "configureGamepad": "गेमपैड कॉन्फ़िगर / कैलिब्रेट करें",
+      "remapBtn": "कैलिब्रेट / कॉन्फ़िगर करें",
+      "remapBtnTooltip": "किसी भी सामान्य या तृतीय-पक्ष गेमपैड के बटन कैलिब्रेट और मैप करें",
+      "remap": {
+        "title": "गेमपैड कॉन्फ़िगर और कैलिब्रेट करें",
+        "subtitle": "किसी भी सामान्य या तृतीय-पक्ष कंट्रोलर के बटन YNOTV मानक नियंत्रणों से मैप करें।",
+        "targetDevice": "लक्ष्य कंट्रोलर:",
+        "reset": "प्रोफ़ाइल रीसेट करें",
+        "prev": "पिछला",
+        "skip": "छोड़ें",
+        "save": "सहेजें और लागू करें"
+      },
       "remote": {
         "enablePromptTitle": "Phone Remote सक्षम करें?",
         "enablePromptText": "अपने फ़ोन से Wi-Fi पर YNOTV नियंत्रित करें — टचपैड, D-pad और मीडिया रिमोट। स्थानीय सर्वर डिफ़ॉल्ट रूप से बंद है और केवल चालू करने पर ही शुरू होता है।",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "वैकल्पिक नेटवर्क पते:",
         "clickToCopy": "कॉपी करने के लिए क्लिक करें",
         "instructions": "सुनिश्चित करें कि आपका फ़ोन इस PC के समान Wi-Fi नेटवर्क से जुड़ा है। आपको पूर्ण वायरलेस टचपैड, D-Pad, वॉल्यूम नियंत्रण और सेक्शन शॉर्टकट मिलेंगे!",
-        "restartServer": "🔄 पोर्ट {{port}} पर सर्वर पुनः प्रारंभ करें"
+        "restartServer": "🔄 पोर्ट {{port}} पर सर्वर पुनः प्रारंभ करें",
+        "step4": "(वैकल्पिक) हर बार QR कोड स्कैन करने से बचने के लिए पेज को अपनी होम स्क्रीन या बुकमार्क में जोड़ें।"
       },
       "chords": {
         "title": "बटन संयोजन",

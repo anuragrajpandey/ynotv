@@ -221,7 +221,7 @@
     "epgShift": "Spostamento EPG",
     "failoverGroup": "Gruppo di failover",
     "jumpToLetter": "Vai alla lettera (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Filtra i canali per risoluzione",
     "linkedCategory": "Categoria collegata",
     "manageChannels": "Gestisci Canali",
     "manageCustomGroup": "Gestisci Gruppo Personalizzato",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Scegli tra orologio a 12 ore (AM/PM) e a 24 ore nella griglia EPG, risultati di ricerca, lista di visione e registrazioni.",
       "clock12": "Orologio a 12 ore (es. 2:30 PM)",
       "clock24": "Orologio a 24 ore (es. 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Filtro risoluzione",
+      "epgResolutionFilterSub": "Aggiunge un pulsante filtro risoluzione alla barra degli strumenti dell'EPG, consentendo di mostrare solo i canali con la risoluzione scelta. Funziona solo per i canali che sono stati sondati / hanno badge metadati.",
       "epgShowDate": "Mostra data nell'EPG",
       "epgShowDateSub": "Mostra la data accanto ai segni orari nell'intestazione della timeline dell'EPG.",
       "darkenCurrent": "Oscura i blocchi dei programmi in onda nell'EPG",
@@ -803,8 +803,8 @@
       "sound": "Audio",
       "fpsSuffix": "Mostra suffisso \"fps\"",
       "fpsSuffixSub": "Mostra il frame rate come, ad esempio, \"60fps\" invece di solo \"60\".",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Mostra risoluzione come FHD/HD",
+      "fhdLabelsSub": "Mostra 1080p come \"FHD\" e 720p come \"HD\" nei badge metadati.",
       "boldTypography": "Tipografia in grassetto",
       "boldTypographySub": "Attiva la formattazione in grassetto per gli elementi dell'EPG e le categorie della barra laterale.",
       "channelNames": "Nomi canali",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "Controlla le nuove versioni di ynoTV. Gli aggiornamenti includono correzioni di bug, miglioramenti delle prestazioni e nuove funzionalità.",
       "checkForUpdates": "Controlla aggiornamenti",
       "changelog": "Registro modifiche",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp gestisce la riproduzione dei trailer di YouTube. Mostra la versione inclusa e la aggiorna all'ultima versione.",
+      "ytdlpPath": "Percorso:",
+      "ytdlpNotInstalled": "Non trovato",
+      "ytdlpUpdate": "Aggiorna yt-dlp",
+      "ytdlpChecking": "Aggiornamento...",
+      "ytdlpUpToDate": "Aggiornato ({{version}})",
+      "ytdlpUpdated": "Aggiornato a {{version}}",
+      "ytdlpError": "Aggiornamento non riuscito: {{message}}",
+      "ytdlpNotSupported": "Gli aggiornamenti non sono supportati su questa piattaforma."
     },
     "tmdb": {
       "title": "Integrazione TMDB",
@@ -2236,7 +2236,7 @@
       "errSave": "Impossibile salvare le modifiche. Riprova."
     },
     "controllers": {
-      "title": "Supporto per Gamepad e Controller",
+      "title": "Supporto per Gamepad e Controller (Sperimentale)",
       "description": "Naviga in YNOTV con qualsiasi DualSense PS5 (Bluetooth o USB), PS4, Xbox, Switch Pro o telecomando TV.",
       "enableNavigation": "Abilita navigazione con controller",
       "enableNavigationHint": "Controlla canali, menu, film, sport e riproduzione video con i gamepad collegati. Disattivato per impostazione predefinita: attivalo per iniziare ad ascoltare l'input del controller.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Anteprima dal vivo",
+      "liveHint": "Collega un controller: ogni pressione e movimento dello stick appare qui, dal vivo.",
+      "customProfileActive": "Profilo personalizzato attivo",
+      "configureGamepad": "Configura / calibra il gamepad",
+      "remapBtn": "Calibra / configura il gamepad",
+      "remapBtnTooltip": "Calibra e mappa i pulsanti per qualsiasi gamepad generico o di terze parti",
+      "remap": {
+        "title": "Configura e calibra il gamepad",
+        "subtitle": "Mappa i pulsanti di qualsiasi controller generico o di terze parti sui controlli standard di YNOTV.",
+        "targetDevice": "Controller di destinazione:",
+        "reset": "Reimposta profilo",
+        "prev": "Indietro",
+        "skip": "Salta",
+        "save": "Salva e applica"
+      },
       "remote": {
         "enablePromptTitle": "Abilitare Phone Remote?",
         "enablePromptText": "Controlla YNOTV dal tuo telefono tramite Wi-Fi: touchpad, D-pad e telecomando multimediale. Il server locale è disattivato per impostazione predefinita e si avvia solo quando lo attivi.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Indirizzi di rete alternativi:",
         "clickToCopy": "Clicca per copiare",
         "instructions": "Assicurati che il telefono sia connesso alla stessa rete Wi-Fi di questo PC. Avrai un touchpad wireless completo, D-Pad, controlli del volume e scorciatoie alle sezioni!",
-        "restartServer": "🔄 Riavvia server sulla porta {{port}}"
+        "restartServer": "🔄 Riavvia server sulla porta {{port}}",
+        "step4": "(Opzionale) Aggiungi la pagina alla schermata iniziale o ai preferiti per non dover scansionare il codice QR ogni volta."
       },
       "chords": {
         "title": "Combinazioni di pulsanti",

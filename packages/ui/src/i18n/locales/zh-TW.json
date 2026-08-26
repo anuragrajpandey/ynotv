@@ -221,7 +221,7 @@
     "epgShift": "EPG 時移",
     "failoverGroup": "故障轉移組",
     "jumpToLetter": "跳到字母（#-Z）",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "按分辨率篩選頻道",
     "linkedCategory": "關聯分類",
     "manageChannels": "管理頻道",
     "manageCustomGroup": "管理自訂分組",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "在 EPG 網格、搜尋結果、觀看列表和錄製中選擇 12 小時（AM/PM）和 24 小時時鐘顯示。",
       "clock12": "12 小時制（例如 2:30 PM）",
       "clock24": "24 小時制（例如 14:30）",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "解析度篩選器",
+      "epgResolutionFilterSub": "在 EPG 工具列新增解析度篩選按鈕，讓您只顯示所選解析度的頻道。僅適用於已探測/帶有元數據徽章的頻道。",
       "epgShowDate": "在 EPG 中顯示日期",
       "epgShowDateSub": "在 EPG 時間線標題中與時間標記一起顯示日期。",
       "darkenCurrent": "使 EPG 當前播出節目塊變暗",
@@ -803,8 +803,8 @@
       "sound": "聲音",
       "fpsSuffix": "顯示\"fps\"後綴",
       "fpsSuffixSub": "將幀率顯示為例如\"60fps\"而不是僅\"60\"。",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "將解析度顯示為 FHD/HD",
+      "fhdLabelsSub": "在元數據徽章中將 1080p 顯示為 \"FHD\"，將 720p 顯示為 \"HD\"。",
       "boldTypography": "粗體排版",
       "boldTypographySub": "為 EPG 元素和側邊欄分類啟用粗體字體格式。",
       "channelNames": "頻道名稱",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "檢查 ynoTV 的新版本。更新包括錯誤修復、效能改進和新功能。",
       "checkForUpdates": "檢查更新",
       "changelog": "更新日誌",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp 為 YouTube 預告片播放提供支援。顯示內建版本並更新至最新版本。",
+      "ytdlpPath": "路徑：",
+      "ytdlpNotInstalled": "未找到",
+      "ytdlpUpdate": "更新 yt-dlp",
+      "ytdlpChecking": "正在更新...",
+      "ytdlpUpToDate": "已是最新 ({{version}})",
+      "ytdlpUpdated": "已更新至 {{version}}",
+      "ytdlpError": "更新失敗：{{message}}",
+      "ytdlpNotSupported": "此平台不支援更新。"
     },
     "tmdb": {
       "title": "TMDB 集成",
@@ -2236,7 +2236,7 @@
       "errSave": "保存更改失敗。請重試。"
     },
     "controllers": {
-      "title": "遊戲手把與控制器支援",
+      "title": "遊戲手把與控制器支援（實驗性）",
       "description": "使用任何 PS5 DualSense（藍牙或 USB）、PS4、Xbox、Switch Pro 或電視遙控器操控 YNOTV。",
       "enableNavigation": "啟用控制器導覽",
       "enableNavigationHint": "使用已連接的遊戲手把控制頻道、選單、電影、體育和影片播放。預設關閉 — 啟用後開始監聽控制器輸入。",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "即時預覽",
+      "liveHint": "連接控制器：每次按鍵和搖桿移動都會即時顯示在這裡。",
+      "customProfileActive": "自訂設定檔已啟用",
+      "configureGamepad": "設定 / 校準遊戲手把",
+      "remapBtn": "校準 / 設定遊戲手把",
+      "remapBtnTooltip": "為任何通用或第三方遊戲手把校準並對應按鍵",
+      "remap": {
+        "title": "設定並校準遊戲手把",
+        "subtitle": "將任何通用或第三方控制器的按鍵對應到 YNOTV 標準控制。",
+        "targetDevice": "目標控制器：",
+        "reset": "重設設定檔",
+        "prev": "上一步",
+        "skip": "略過",
+        "save": "儲存並套用"
+      },
       "remote": {
         "enablePromptTitle": "啟用 Phone Remote？",
         "enablePromptText": "透過 Wi-Fi 從手機控制 YNOTV —— 觸控板、方向鍵和媒體遙控器。本機伺服器預設關閉，僅在您開啟時啟動。",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "備用網路位址：",
         "clickToCopy": "點擊複製",
         "instructions": "請確保手機與本電腦連線到相同的 Wi-Fi 網路。您將獲得完整的無線觸控板、D-Pad、音量控制和區塊捷徑！",
-        "restartServer": "🔄 在連接埠 {{port}} 上重新啟動伺服器"
+        "restartServer": "🔄 在連接埠 {{port}} 上重新啟動伺服器",
+        "step4": "(可選) 將頁面新增至主畫面或書籤，無需每次都掃描 QR 碼。"
       },
       "chords": {
         "title": "按鍵組合",

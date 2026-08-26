@@ -221,7 +221,7 @@
     "epgShift": "Décalage EPG",
     "failoverGroup": "Groupe de bascule",
     "jumpToLetter": "Aller à la lettre (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Filtrer les chaînes par résolution",
     "linkedCategory": "Catégorie liée",
     "manageChannels": "Gérer les chaînes",
     "manageCustomGroup": "Gérer le groupe personnalisé",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Choisissez entre le format 12h (AM/PM) et 24h sur la grille EPG, la recherche, la liste de suivi et les enregistrements.",
       "clock12": "Horloge 12h (ex. 2:30 PM)",
       "clock24": "Horloge 24h (ex. 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Filtre de résolution",
+      "epgResolutionFilterSub": "Ajoute un bouton de filtre de résolution à la barre d'outils de l'EPG, permettant d'afficher uniquement les chaînes d'une résolution choisie. Fonctionne uniquement pour les chaînes qui ont été sondées / qui ont des badges de métadonnées.",
       "epgShowDate": "Afficher la date dans l'EPG",
       "epgShowDateSub": "Afficher la date à côté des marqueurs d'heure dans l'en-tête de la chronologie EPG.",
       "darkenCurrent": "Assombrir le bloc du programme en cours",
@@ -803,8 +803,8 @@
       "sound": "Son",
       "fpsSuffix": "Afficher le suffixe « fps »",
       "fpsSuffixSub": "Affiche le taux d’images par seconde, p. ex. « 60fps » au lieu de « 60 ».",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Afficher la résolution en FHD/HD",
+      "fhdLabelsSub": "Affiche 1080p comme « FHD » et 720p comme « HD » dans les badges de métadonnées.",
       "boldTypography": "Typographie en gras",
       "boldTypographySub": "Active la mise en gras des éléments EPG et des catégories de la barre latérale.",
       "channelNames": "Noms des chaînes",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "Rechercher de nouvelles versions de ynoTV. Les mises à jour incluent des correctifs, des améliorations de performances et de nouvelles fonctionnalités.",
       "checkForUpdates": "Rechercher des mises à jour",
       "changelog": "Journal des modifications",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp gère la lecture des bandes-annonces YouTube. Affiche la version fournie et la met à jour vers la dernière version.",
+      "ytdlpPath": "Chemin :",
+      "ytdlpNotInstalled": "Introuvable",
+      "ytdlpUpdate": "Mettre à jour yt-dlp",
+      "ytdlpChecking": "Mise à jour...",
+      "ytdlpUpToDate": "À jour ({{version}})",
+      "ytdlpUpdated": "Mis à jour vers {{version}}",
+      "ytdlpError": "Échec de la mise à jour : {{message}}",
+      "ytdlpNotSupported": "Les mises à jour ne sont pas prises en charge sur cette plateforme."
     },
     "tmdb": {
       "title": "Intégration TMDB",
@@ -2236,7 +2236,7 @@
       "errSave": "Échec de l’enregistrement des modifications. Veuillez réessayer."
     },
     "controllers": {
-      "title": "Prise en charge des manettes",
+      "title": "Prise en charge des manettes (Expérimental)",
       "description": "Naviguez dans YNOTV avec une manette PS5 DualSense (Bluetooth ou USB), PS4, Xbox, Switch Pro ou une télécommande TV.",
       "enableNavigation": "Activer la navigation à la manette",
       "enableNavigationHint": "Contrôlez les chaînes, menus, films, sports et la lecture vidéo avec les manettes connectées. Désactivé par défaut — activez-le pour commencer à écouter les entrées de la manette.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Aperçu en direct",
+      "liveHint": "Connectez une manette : chaque pression et chaque mouvement de stick s'affiche ici, en direct.",
+      "customProfileActive": "Profil personnalisé actif",
+      "configureGamepad": "Configurer / calibrer la manette",
+      "remapBtn": "Calibrer / configurer la manette",
+      "remapBtnTooltip": "Calibrer et mapper les boutons de toute manette générique ou tierce",
+      "remap": {
+        "title": "Configurer et calibrer la manette",
+        "subtitle": "Mappez les boutons de toute manette générique ou tierce sur les commandes standard de YNOTV.",
+        "targetDevice": "Manette cible :",
+        "reset": "Réinitialiser le profil",
+        "prev": "Précédent",
+        "skip": "Ignorer",
+        "save": "Enregistrer et appliquer"
+      },
       "remote": {
         "enablePromptTitle": "Activer Phone Remote ?",
         "enablePromptText": "Contrôlez YNOTV depuis votre téléphone en Wi-Fi — un pavé tactile, un D-pad et une télécommande multimédia. Le serveur local est désactivé par défaut et ne démarre que lorsque vous l'activez.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Adresses réseau alternatives :",
         "clickToCopy": "Cliquer pour copier",
         "instructions": "Assurez-vous que votre téléphone est connecté au même réseau Wi-Fi que ce PC. Vous disposerez d'un pavé tactile sans fil complet, d'un D-Pad, des commandes de volume et de raccourcis vers les sections !",
-        "restartServer": "🔄 Redémarrer le serveur sur le port {{port}}"
+        "restartServer": "🔄 Redémarrer le serveur sur le port {{port}}",
+        "step4": "(Optionnel) Ajoutez la page à votre écran d'accueil ou à vos favoris pour ne pas avoir à scanner le code QR à chaque fois."
       },
       "chords": {
         "title": "Combinaisons de boutons",

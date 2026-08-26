@@ -221,7 +221,7 @@
     "epgShift": "جابه‌جایی EPG",
     "failoverGroup": "گروه جایگزین",
     "jumpToLetter": "پرش به حرف (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "فیلتر کردن کانال‌ها بر اساس رزولوشن",
     "linkedCategory": "دسته مرتبط",
     "manageChannels": "مدیریت کانال‌ها",
     "manageCustomGroup": "مدیریت گروه سفارشی",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "انتخاب بین نمایش ساعت ۱۲ ساعته (AM/PM) و ۲۴ ساعته در شبکه EPG، نتایج جستجو، لیست تماشا و ضبط‌ها.",
       "clock12": "۱۲ ساعته",
       "clock24": "۲۴ ساعته",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "فیلتر رزولوشن",
+      "epgResolutionFilterSub": "دکمه‌ای فیلتر رزولوشن به نوار ابزار EPG اضافه می‌کند و به شما امکان می‌دهد فقط کانال‌هایی با رزولوشن انتخابی را نشان دهید. فقط برای کانال‌هایی کار می‌کند که اسکن شده‌اند / نشان‌های فراداده دارند.",
       "epgShowDate": "نمایش تاریخ در EPG",
       "epgShowDateSub": "نمایش تاریخ در کنار نشانگرهای زمان در سربرگ خط زمانی EPG.",
       "darkenCurrent": "تیره‌کردن بلوک‌های برنامه در حال پخش در EPG",
@@ -803,8 +803,8 @@
       "sound": "صدا",
       "fpsSuffix": "پسوند فریم‌ریت",
       "fpsSuffixSub": "نمایش نرخ فریم به‌صورت مثلاً «۶۰fps» به‌جای فقط «۶۰».",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "نمایش رزولوشن به صورت FHD/HD",
+      "fhdLabelsSub": "نمایش 1080p به صورت \"FHD\" و 720p به صورت \"HD\" در نشان‌های فراداده.",
       "boldTypography": "تایپوگرافی بولد",
       "boldTypographySub": "فعال‌سازی قالب‌بندی فونت بولد برای عناصر EPG و دسته‌های نوار کناری.",
       "channelNames": "نام‌های کانال",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "نسخه‌های جدید ynoTV را بررسی کنید. به‌روزرسانی‌ها شامل رفع باگ، بهبود عملکرد و ویژگی‌های جدید هستند.",
       "checkForUpdates": "بررسی به‌روزرسانی‌ها",
       "changelog": "تغییرات",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp پخش تریلرهای یوتیوب را فراهم می‌کند. نسخهٔ همراه را نشان می‌دهد و آن را به آخرین نسخه به‌روزرسانی می‌کند.",
+      "ytdlpPath": "مسیر:",
+      "ytdlpNotInstalled": "یافت نشد",
+      "ytdlpUpdate": "به‌روزرسانی yt-dlp",
+      "ytdlpChecking": "در حال به‌روزرسانی...",
+      "ytdlpUpToDate": "به‌روز ({{version}})",
+      "ytdlpUpdated": "به {{version}} به‌روزرسانی شد",
+      "ytdlpError": "به‌روزرسانی ناموفق بود: {{message}}",
+      "ytdlpNotSupported": "به‌روزرسانی‌ها در این پلتفرم پشتیبانی نمی‌شوند."
     },
     "tmdb": {
       "title": "یکپارچه‌سازی TMDB",
@@ -2236,7 +2236,7 @@
       "errSave": "ذخیره تغییرات ناموفق بود. دوباره تلاش کنید."
     },
     "controllers": {
-      "title": "پشتیبانی از گیم‌پد و کنترلر",
+      "title": "پشتیبانی از گیم‌پد و کنترلر (آزمایشی)",
       "description": "با هر DualSense PS5 (بلوتوث یا USB)، PS4، Xbox، Switch Pro یا کنترلر تلویزیون در YNOTV حرکت کنید.",
       "enableNavigation": "فعال‌سازی پیمایش با کنترلر",
       "enableNavigationHint": "کانال‌ها، منوها، فیلم‌ها، ورزش و پخش ویدیو را با گیم‌پدهای متصل کنترل کنید. به‌طور پیش‌فرض غیرفعال است — آن را فعال کنید تا ورودی کنترلر دریافت شود.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "پیش‌نمایش زنده",
+      "liveHint": "یک کنترلر وصل کنید: هر فشردن و حرکت اهرم اینجا به‌صورت زنده نمایش داده می‌شود.",
+      "customProfileActive": "پروفایل سفارشی فعال",
+      "configureGamepad": "پیکربندی / کالیبره کردن گیم‌پد",
+      "remapBtn": "کالیبره / پیکربندی گیم‌پد",
+      "remapBtnTooltip": "کالیبره و نگاشت دکمه‌ها برای هر گیم‌پد عمومی یا شخص ثالث",
+      "remap": {
+        "title": "پیکربندی و کالیبره کردن گیم‌پد",
+        "subtitle": "دکمه‌های هر کنترلر عمومی یا شخص ثالث را به کنترل‌های استاندارد YNOTV نگاشت کنید.",
+        "targetDevice": "کنترلر هدف:",
+        "reset": "بازنشانی پروفایل",
+        "prev": "قبلی",
+        "skip": "رد شدن",
+        "save": "ذخیره و اعمال"
+      },
       "remote": {
         "enablePromptTitle": "فعال‌سازی Phone Remote؟",
         "enablePromptText": "با تلفن خود از طریق Wi-Fi در YNOTV کنترل کنید — تاچ‌پد، D-pad و ریموت رسانه. سرور محلی به‌طور پیش‌فرض غیرفعال است و فقط با روشن کردن آن شروع به کار می‌کند.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "آدرس‌های شبکه جایگزین:",
         "clickToCopy": "برای کپی کلیک کنید",
         "instructions": "مطمئن شوید تلفن شما به همان شبکه Wi-Fi این رایانه متصل است. تاچ‌پد بی‌سیم کامل، D-Pad، کنترل صدا و میان‌برهای بخش در اختیار شما خواهد بود!",
-        "restartServer": "🔄 راه‌اندازی مجدد سرور در پورت {{port}}"
+        "restartServer": "🔄 راه‌اندازی مجدد سرور در پورت {{port}}",
+        "step4": "(اختیاری) صفحه را به صفحه اصلی یا نشانک‌ها اضافه کنید تا نیازی به اسکن مجدد کد QR در هر بار نباشد."
       },
       "chords": {
         "title": "ترکیب دکمه‌ها",

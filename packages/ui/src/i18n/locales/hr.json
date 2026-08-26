@@ -221,7 +221,7 @@
     "epgShift": "Pomicanje EPG-a",
     "failoverGroup": "Grupa za prebacivanje",
     "jumpToLetter": "Skoči na slovo (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Filtriraj kanale po rezoluciji",
     "linkedCategory": "Povezana kategorija",
     "manageChannels": "Upravljanje kanalima",
     "manageCustomGroup": "Upravljanje prilagođenom grupom",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Izaberite između 12-časovnog (AM/PM) i 24-časovnog sata u EPG mreži, rezultatima pretrage, listi za gledanje i snimcima.",
       "clock12": "12-časovni sat (npr. 14:30)",
       "clock24": "24-časovni sat (npr. 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Filter rezolucije",
+      "epgResolutionFilterSub": "Dodaje gumb filtera rezolucije na EPG alatnu traku, omogućujući prikaz samo kanala odabrane rezolucije. Radi samo za kanale koji su skenirani / imaju značke metapodataka.",
       "epgShowDate": "Prikaži datum u EPG-u",
       "epgShowDateSub": "Prikazujte datum uz oznake vremena u zaglavlju vremenske linije EPG-a.",
       "darkenCurrent": "Potamni blokove trenutnih programa u EPG-u",
@@ -803,8 +803,8 @@
       "sound": "Zvuk",
       "fpsSuffix": "Prikaži sufiks „fps\"",
       "fpsSuffixSub": "Prikazujte broj frejmova kao npr. „60fps\" umjesto samo „60\".",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Prikaži rezoluciju kao FHD/HD",
+      "fhdLabelsSub": "Prikaži 1080p kao \"FHD\" i 720p kao \"HD\" u značkama metapodataka.",
       "boldTypography": "Podebljana tipografija",
       "boldTypographySub": "Omogući podebljano formatiranje za EPG elemente i kategorije bočne trake.",
       "channelNames": "Nazivi kanala",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "Proverite nove verzije ynoTV-a. Ažuriranja uključuju ispravke grešaka, poboljšanja performansi i nove funkcije.",
       "checkForUpdates": "Proveri ažuriranja",
       "changelog": "Dnevnik izmjena",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp pokreće reprodukciju YouTube trejlera. Prikazuje ugrađenu verziju i ažurira je na najnovije izdanje.",
+      "ytdlpPath": "Putanja:",
+      "ytdlpNotInstalled": "Nije pronađeno",
+      "ytdlpUpdate": "Ažuriraj yt-dlp",
+      "ytdlpChecking": "Ažuriranje...",
+      "ytdlpUpToDate": "Ažurirano ({{version}})",
+      "ytdlpUpdated": "Ažurirano na {{version}}",
+      "ytdlpError": "Ažuriranje nije uspjelo: {{message}}",
+      "ytdlpNotSupported": "Ažuriranja nisu podržana na ovoj platformi."
     },
     "tmdb": {
       "title": "TMDB integracija",
@@ -2236,7 +2236,7 @@
       "errSave": "Spremanje izmjena nije uspjelo. Pokušajte ponovo."
     },
     "controllers": {
-      "title": "Podrška za gamepad i kontroler",
+      "title": "Podrška za gamepad i kontroler (Eksperimentalno)",
       "description": "Upravljajte YNOTV-om bilo kojim PS5 DualSense (Bluetooth ili USB), PS4, Xbox, Switch Pro ili TV daljinskim upravljačem.",
       "enableNavigation": "Omogući navigaciju kontrolerom",
       "enableNavigationHint": "Kontrolirajte kanale, izbornike, filmove, sport i reprodukciju videa povezanim gamepadima. Isključeno prema zadanim postavkama — omogućite to za početak slušanja unosa kontrolera.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Pregled uživo",
+      "liveHint": "Povežite kontroler: svaki pritisak i pomak štapa prikazuje se ovdje uživo.",
+      "customProfileActive": "Aktivan prilagođeni profil",
+      "configureGamepad": "Konfiguriraj / kalibriraj gamepad",
+      "remapBtn": "Kalibriraj / konfiguriraj gamepad",
+      "remapBtnTooltip": "Kalibrirajte i mapirajte gumbe za bilo koji generički ili treće strane gamepad",
+      "remap": {
+        "title": "Konfiguriraj i kalibriraj gamepad",
+        "subtitle": "Mapirajte gumbe bilo kojeg generičkog ili treće strane kontrolera na standardne kontrole YNOTV-a.",
+        "targetDevice": "Ciljni kontroler:",
+        "reset": "Resetiraj profil",
+        "prev": "Prethodno",
+        "skip": "Preskoči",
+        "save": "Spremi i primijeni"
+      },
       "remote": {
         "enablePromptTitle": "Omogućiti Phone Remote?",
         "enablePromptText": "Kontrolirajte YNOTV sa svog telefona putem Wi-Fi-ja — touchpad, D-pad i medijski daljinski. Lokalni poslužitelj isključen je prema zadanim postavkama i pokreće se samo kada ga uključite.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Alternativne mrežne adrese:",
         "clickToCopy": "Kliknite za kopiranje",
         "instructions": "Provjerite je li telefon povezan na istu Wi-Fi mrežu kao ovo računalo. Dobit ćete potpuni bežični touchpad, D-pad, kontrole glasnoće i prečace do sekcija!",
-        "restartServer": "🔄 Ponovno pokreni poslužitelj na portu {{port}}"
+        "restartServer": "🔄 Ponovno pokreni poslužitelj na portu {{port}}",
+        "step4": "(Opcionalno) Dodajte stranicu na početni zaslon ili u oznake kako ne biste morali svaki put skenirati QR kod."
       },
       "chords": {
         "title": "Kombinacije tipki",

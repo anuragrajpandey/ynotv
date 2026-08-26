@@ -221,7 +221,7 @@
     "epgShift": "EPG-verschuiving",
     "failoverGroup": "Failovergroep",
     "jumpToLetter": "Spring naar letter (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Kanalen filteren op resolutie",
     "linkedCategory": "Gekoppelde categorie",
     "manageChannels": "Kanalen beheren",
     "manageCustomGroup": "Aangepaste groep beheren",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Kies tussen 12-uurs (AM/PM) en 24-uurs klokweergave in het EPG-raster, zoekresultaten, kijklijst en opnames.",
       "clock12": "12-uurs klok (bijv. 14:30)",
       "clock24": "24-uurs klok (bijv. 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Resolutiefilter",
+      "epgResolutionFilterSub": "Voegt een knop voor het resolutiefilter toe aan de EPG-werkbalk, zodat u alleen kanalen met een gekozen resolutie kunt tonen. Werkt alleen voor kanalen die zijn gescand / metadatabadges hebben.",
       "epgShowDate": "Datum tonen in EPG",
       "epgShowDateSub": "Toon de datum naast tijdmarkeringen in de EPG-tijdlijnkop.",
       "darkenCurrent": "Huidige EPG-programmablokken donkerder maken",
@@ -803,8 +803,8 @@
       "sound": "Geluid",
       "fpsSuffix": "Toon «fps»-achtervoegsel",
       "fpsSuffixSub": "Toon framerate als bijv. «60fps» in plaats van alleen «60».",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Resolutie weergeven als FHD/HD",
+      "fhdLabelsSub": "Toont 1080p als \"FHD\" en 720p als \"HD\" in metadatabadges.",
       "boldTypography": "Vette typografie",
       "boldTypographySub": "Schakel vetgedrukte opmaak in voor EPG-elementen en zijbalkcategorieën.",
       "channelNames": "Kanaalnamen",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "Controleer op nieuwe versies van ynoTV. Updates bevatten bugfixes, prestatieverbeteringen en nieuwe functies.",
       "checkForUpdates": "Controleren op updates",
       "changelog": "Wijzigingslog",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp verzorgt het afspelen van YouTube-trailers. Toont de gebundelde versie en werkt deze bij naar de nieuwste versie.",
+      "ytdlpPath": "Pad:",
+      "ytdlpNotInstalled": "Niet gevonden",
+      "ytdlpUpdate": "yt-dlp bijwerken",
+      "ytdlpChecking": "Bijwerken...",
+      "ytdlpUpToDate": "Actueel ({{version}})",
+      "ytdlpUpdated": "Bijgewerkt naar {{version}}",
+      "ytdlpError": "Bijwerken mislukt: {{message}}",
+      "ytdlpNotSupported": "Updates worden niet ondersteund op dit platform."
     },
     "tmdb": {
       "title": "TMDB-integratie",
@@ -2236,7 +2236,7 @@
       "errSave": "Kan wijzigingen niet opslaan. Probeer het opnieuw."
     },
     "controllers": {
-      "title": "Gamepad- en controllerondersteuning",
+      "title": "Gamepad- en controllerondersteuning (Experimenteel)",
       "description": "Navigeer door YNOTV met elke PS5 DualSense (Bluetooth of USB), PS4, Xbox, Switch Pro of tv-afstandsbediening.",
       "enableNavigation": "Controller-navigatie inschakelen",
       "enableNavigationHint": "Bestuur kanalen, menu's, films, sport en videoweergave met verbonden gamepads. Standaard uitgeschakeld — schakel het in om naar controller-invoer te luisteren.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Live voorbeeld",
+      "liveHint": "Sluit een controller aan: elke knop en stickbeweging wordt hier live getoond.",
+      "customProfileActive": "Aangepast profiel actief",
+      "configureGamepad": "Gamepad configureren / kalibreren",
+      "remapBtn": "Kalibreren / configureren",
+      "remapBtnTooltip": "Kalibreer en wijs knoppen toe voor elke generieke of externe gamepad",
+      "remap": {
+        "title": "Gamepad configureren en kalibreren",
+        "subtitle": "Wijs knoppen van elke generieke of externe controller toe aan de standaardbesturing van YNOTV.",
+        "targetDevice": "Doelcontroller:",
+        "reset": "Profiel resetten",
+        "prev": "Vorige",
+        "skip": "Overslaan",
+        "save": "Opslaan en toepassen"
+      },
       "remote": {
         "enablePromptTitle": "Phone Remote inschakelen?",
         "enablePromptText": "Bestuur YNOTV vanaf je telefoon via Wi-Fi: een touchpad, D-pad en mediarapparaat. De lokale server is standaard uitgeschakeld en start alleen wanneer je hem inschakelt.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Alternatieve netwerkadressen:",
         "clickToCopy": "Klik om te kopiëren",
         "instructions": "Zorg ervoor dat je telefoon is verbonden met hetzelfde Wi-Fi-netwerk als deze pc. Je krijgt een volledige draadloze touchpad, D-pad, volumeregeling en sectiesnelkoppelingen!",
-        "restartServer": "🔄 Server op poort {{port}} opnieuw starten"
+        "restartServer": "🔄 Server op poort {{port}} opnieuw starten",
+        "step4": "(Optioneel) Voeg de pagina toe aan je startscherm of bladwijzers om niet elke keer de QR-code te hoeven scannen."
       },
       "chords": {
         "title": "Knopcombinaties",

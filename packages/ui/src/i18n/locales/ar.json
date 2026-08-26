@@ -221,7 +221,7 @@
     "epgShift": "إزاحة دليل البرامج",
     "failoverGroup": "مجموعة التبديل الاحتياطي",
     "jumpToLetter": "الانتقال إلى حرف (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "تصفية القنوات حسب الدقة",
     "linkedCategory": "الفئة المرتبطة",
     "manageChannels": "إدارة القنوات",
     "manageCustomGroup": "إدارة المجموعة المخصصة",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "اختر بين عرض الساعة 12 ساعة (صباحًا/مساءً) و24 ساعة عبر شبكة دليل البرامج ونتائج البحث وقائمة المشاهدة والتسجيلات.",
       "clock12": "ساعة 12 ساعة (مثال: 2:30 مساءً)",
       "clock24": "ساعة 24 ساعة (مثال: 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "مرشح الدقة",
+      "epgResolutionFilterSub": "يضيف زر مرشح الدقة إلى شريط أدوات دليل البرامج، مما يتيح لك عرض القنوات بالدقة المختارة فقط. يعمل فقط مع القنوات التي تم فحصها / التي تحتوي على شارات بيانات وصفية.",
       "epgShowDate": "إظهار التاريخ في دليل البرامج",
       "epgShowDateSub": "اعرض التاريخ بجانب علامات الوقت في رأس الخط الزمني لدليل البرامج.",
       "darkenCurrent": "جعل كتل البرامج المعروضة حاليًا في دليل البرامج أغمق",
@@ -803,8 +803,8 @@
       "sound": "الصوت",
       "fpsSuffix": "إظهار لاحقة «fps»",
       "fpsSuffixSub": "اعرض معدل الإطارات مثل «60fps» بدلًا من «60» فقط.",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "عرض الدقة كـ FHD/HD",
+      "fhdLabelsSub": "اعرض 1080p كـ \"FHD\" و720p كـ \"HD\" في شارات البيانات الوصفية.",
       "boldTypography": "طباعة عريضة",
       "boldTypographySub": "فعّل تنسيق الخط العريض لعناصر دليل البرامج وفئات الشريط الجانبي.",
       "channelNames": "أسماء القنوات",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "تحقق من وجود إصدارات جديدة من ynoTV. تشمل التحديثات إصلاحات الأخطاء وتحسينات الأداء والميزات الجديدة.",
       "checkForUpdates": "التحقق من وجود تحديثات",
       "changelog": "سجل التغييرات",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp يشغّل عرض التريلرات من يوتيوب. يعرض الإصدار المضمّن ويحدّثه إلى أحدث إصدار.",
+      "ytdlpPath": "المسار:",
+      "ytdlpNotInstalled": "غير موجود",
+      "ytdlpUpdate": "تحديث yt-dlp",
+      "ytdlpChecking": "جارٍ التحديث...",
+      "ytdlpUpToDate": "أحدث إصدار ({{version}})",
+      "ytdlpUpdated": "تم التحديث إلى {{version}}",
+      "ytdlpError": "فشل التحديث: {{message}}",
+      "ytdlpNotSupported": "التحديثات غير مدعومة على هذه المنصة."
     },
     "tmdb": {
       "title": "تكامل TMDB",
@@ -2236,7 +2236,7 @@
       "errSave": "تعذّر حفظ التغييرات. يرجى المحاولة مرة أخرى."
     },
     "controllers": {
-      "title": "دعم أجهزة التحكم والألعاب",
+      "title": "دعم أجهزة التحكم والألعاب (تجريبي)",
       "description": "تحكم في YNOTV باستخدام أي جهاز PS5 DualSense (بلوتوث أو USB) أو PS4 أو Xbox أو Switch Pro أو جهاز تحكم تلفزيون.",
       "enableNavigation": "تفعيل التنقل بجهاز التحكم",
       "enableNavigationHint": "تحكم في القنوات والقوائم والأفلام والرياضة وتشغيل الفيديو باستخدام أجهزة التحكم المتصلة. معطّل افتراضيًا — فعّله لبدء الاستماع لمدخلات جهاز التحكم.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "معاينة مباشرة",
+      "liveHint": "قم بتوصيل يد التحكم: تظهر كل ضغطة وحركة عصا هنا مباشرة.",
+      "customProfileActive": "ملف شخصي مخصص نشط",
+      "configureGamepad": "تهيئة / معايرة يد التحكم",
+      "remapBtn": "معايرة / تهيئة يد التحكم",
+      "remapBtnTooltip": "معايرة وضبط أزرار أي يد تحكم عامة أو من جهة خارجية",
+      "remap": {
+        "title": "تهيئة ومعايرة يد التحكم",
+        "subtitle": "عيّن أزرار أي يد تحكم عامة أو من جهة خارجية على عناصر التحكم القياسية في YNOTV.",
+        "targetDevice": "يد التحكم المستهدفة:",
+        "reset": "إعادة تعيين الملف الشخصي",
+        "prev": "السابق",
+        "skip": "تخطي",
+        "save": "حفظ وتطبيق"
+      },
       "remote": {
         "enablePromptTitle": "تفعيل Phone Remote؟",
         "enablePromptText": "تحكم في YNOTV من هاتفك عبر شبكة Wi-Fi — لوحة لمس وجهاز تحكم وريموت وسائط. الخادم المحلي معطّل افتراضيًا ولا يعمل إلا عند تشغيله.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "عناوين الشبكة البديلة:",
         "clickToCopy": "انقر للنسخ",
         "instructions": "تأكد من أن هاتفك متصل بنفس شبكة Wi-Fi الخاصة بهذا الكمبيوتر. ستحصل على لوحة لمس لاسلكية كاملة وجهاز تحكم وأزرار صوت واختصارات أقسام!",
-        "restartServer": "🔄 إعادة تشغيل الخادم على المنفذ {{port}}"
+        "restartServer": "🔄 إعادة تشغيل الخادم على المنفذ {{port}}",
+        "step4": "(اختياري) أضف الصفحة إلى شاشتك الرئيسية أو الإشارات المرجعية لتجنب مسح رمز QR في كل مرة."
       },
       "chords": {
         "title": "توليفات الأزرار",

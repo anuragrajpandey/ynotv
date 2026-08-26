@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   normalizeGenre,
   fuzzyMatchAddon,
@@ -30,9 +30,11 @@ describe('collectionSourceResolver', () => {
       {
         id: 'community.cinemeta',
         baseUrl: 'https://v3-cinemeta.strem.io',
+        installedAt: 0,
         manifest: {
           id: 'community.cinemeta',
           name: 'Cinemeta',
+          description: 'Cinemeta addon',
           version: '1.0.0',
           resources: ['catalog', 'meta'],
           types: ['movie', 'series'],
@@ -45,9 +47,11 @@ describe('collectionSourceResolver', () => {
       {
         id: 'com.cyberflix.catalog',
         baseUrl: 'https://cyberflix.strem.fun',
+        installedAt: 0,
         manifest: {
           id: 'com.cyberflix.catalog',
           name: 'Cyberflix',
+          description: 'Cyberflix addon',
           version: '1.0.0',
           resources: ['catalog'],
           types: ['movie'],

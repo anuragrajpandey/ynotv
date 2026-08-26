@@ -221,7 +221,7 @@
     "epgShift": "Rehber Kaydırma",
     "failoverGroup": "Yük Devretme Grubu",
     "jumpToLetter": "Harfe atla (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Kanalları çözünürlüğe göre filtrele",
     "linkedCategory": "Bağlı Kategori",
     "manageChannels": "Kanalları Yönet",
     "manageCustomGroup": "Özel Grubu Yönet",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Rehber ızgarası, arama sonuçları, izleme listesi ve kayıtlarda 12 saatlik (ÖÖ/ÖS) ve 24 saatlik saat görünümü arasında seçim yapın.",
       "clock12": "12 Saatlik Saat (örn. 14:30)",
       "clock24": "24 Saatlik Saat (örn. 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Çözünürlük filtresi",
+      "epgResolutionFilterSub": "EPG araç çubuğuna çözünürlük filtresi düğmesi ekleyerek yalnızca seçilen çözünürlükteki kanalları göstermenizi sağlar. Yalnızca taranmış / meta veri rozetlerine sahip kanallarda çalışır.",
       "epgShowDate": "Rehberde Tarihi Göster",
       "epgShowDateSub": "Rehber zaman çizelgesi başlığında saat işaretlerinin yanında tarihi görüntüleyin.",
       "darkenCurrent": "Rehberde o anda yayınlanan program bloklarını koyulaştır",
@@ -803,8 +803,8 @@
       "sound": "Ses",
       "fpsSuffix": "\"fps\" sonekini göster",
       "fpsSuffixSub": "Kare hızını yalnızca \"60\" yerine örn. \"60fps\" olarak görüntüleyin.",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Çözünürlüğü FHD/HD olarak göster",
+      "fhdLabelsSub": "Meta veri rozetlerinde 1080p'yi \"FHD\" ve 720p'yi \"HD\" olarak görüntüle.",
       "boldTypography": "Kalın Tipografi",
       "boldTypographySub": "Rehber öğeleri ve kenar çubuğu kategorileri için kalın yazı biçimlendirmesini etkinleştirin.",
       "channelNames": "Kanal Adları",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "ynoTV'nin yeni sürümlerini kontrol edin. Güncellemeler hata düzeltmeleri, performans iyileştirmeleri ve yeni özellikler içerir.",
       "checkForUpdates": "Güncellemeleri Kontrol Et",
       "changelog": "Sürüm Notları",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp, YouTube fragmanlarının oynatılmasını sağlar. Paketlenmiş sürümü gösterir ve en son sürüme günceller.",
+      "ytdlpPath": "Yol:",
+      "ytdlpNotInstalled": "Bulunamadı",
+      "ytdlpUpdate": "yt-dlp'yi Güncelle",
+      "ytdlpChecking": "Güncelleniyor...",
+      "ytdlpUpToDate": "Güncel ({{version}})",
+      "ytdlpUpdated": "{{version}} sürümüne güncellendi",
+      "ytdlpError": "Güncelleme başarısız: {{message}}",
+      "ytdlpNotSupported": "Bu platformada güncellemeler desteklenmiyor."
     },
     "tmdb": {
       "title": "TMDB Entegrasyonu",
@@ -2236,7 +2236,7 @@
       "errSave": "Değişiklikler kaydedilemedi. Lütfen tekrar deneyin."
     },
     "controllers": {
-      "title": "Gamepad ve Kumanda Desteği",
+      "title": "Gamepad ve Kumanda Desteği (Deneysel)",
       "description": "YNOTV'da herhangi bir PS5 DualSense (Bluetooth veya USB), PS4, Xbox, Switch Pro veya TV kumandasıyla gezinin.",
       "enableNavigation": "Kumanda ile Gezinmeyi Etkinleştir",
       "enableNavigationHint": "Bağlı gamepad'lerle kanalları, menüleri, filmleri, sporları ve video oynatmayı kontrol edin. Varsayılan olarak kapalı — kumanda girişlerini dinlemeye başlamak için etkinleştirin.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Canlı önizleme",
+      "liveHint": "Bir kumanda bağlayın: her tuş basışı ve çubuk hareketi burada canlı olarak görünür.",
+      "customProfileActive": "Özel profil etkin",
+      "configureGamepad": "Gamepad'i yapılandır / kalibre et",
+      "remapBtn": "Kalibre et / yapılandır",
+      "remapBtnTooltip": "Herhangi bir genel veya üçüncü taraf gamepad için düğmeleri kalibre edin ve eşleyin",
+      "remap": {
+        "title": "Gamepad'i yapılandır ve kalibre et",
+        "subtitle": "Herhangi bir genel veya üçüncü taraf kumandanın düğmelerini YNOTV standart kontrollerine eşleyin.",
+        "targetDevice": "Hedef kumanda:",
+        "reset": "Profili sıfırla",
+        "prev": "Önceki",
+        "skip": "Atla",
+        "save": "Kaydet ve uygula"
+      },
       "remote": {
         "enablePromptTitle": "Phone Remote etkinleştirilsin mi?",
         "enablePromptText": "YNOTV'u telefonunuzdan Wi-Fi üzerinden kontrol edin — dokunmatik yüzey, D-pad ve medya kumandası. Yerel sunucu varsayılan olarak kapalıdır ve yalnızca açtığınızda başlar.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Alternatif ağ adresleri:",
         "clickToCopy": "Kopyalamak için tıklayın",
         "instructions": "Telefonunuzun bu bilgisayarla aynı Wi-Fi ağına bağlı olduğundan emin olun. Tam kablosuz dokunmatik yüzey, D-Pad, ses kontrolleri ve bölüm kısayollarına sahip olacaksınız!",
-        "restartServer": "🔄 Sunucuyu {{port}} bağlantı noktasında yeniden başlat"
+        "restartServer": "🔄 Sunucuyu {{port}} bağlantı noktasında yeniden başlat",
+        "step4": "(İsteğe bağlı) QR kodunu her seferinde taramak zorunda kalmamak için sayfayı ana ekranınıza veya yer imlerinize ekleyin."
       },
       "chords": {
         "title": "Düğme Kombinasyonları",

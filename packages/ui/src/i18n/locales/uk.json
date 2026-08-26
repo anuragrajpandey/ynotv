@@ -221,7 +221,7 @@
     "epgShift": "Зсув EPG",
     "failoverGroup": "Група перемикання",
     "jumpToLetter": "Перейти до літері (#-Я)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Фільтрувати канали за роздільною здатністю",
     "linkedCategory": "Пов'язана категорія",
     "manageChannels": "Керування каналами",
     "manageCustomGroup": "Керування своєї групою",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Виберіть між 12-годинним (AM/PM) і 24-годинним форматом в сітці EPG, результатах пошуку, списку перегляду і записах.",
       "clock12": "12-годинний формат (наприклад, 14:30)",
       "clock24": "24-годинний формат (наприклад, 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Фільтр роздільної здатності",
+      "epgResolutionFilterSub": "Додає кнопку фільтра роздільної здатності на панель EPG, дозволяючи показувати лише канали обраної роздільної здатності. Працює лише для каналів, які були перевірені / мають значки метаданих.",
       "epgShowDate": "Показувати дату в EPG",
       "epgShowDateSub": "Відображати дату поруч з позначками часу в шапці часовий шкали EPG.",
       "darkenCurrent": "Затемнювати поточні блоки програм в EPG",
@@ -803,8 +803,8 @@
       "sound": "Звук",
       "fpsSuffix": "Показувати суфікс «fps»",
       "fpsSuffixSub": "Відображати частоту кадрів як «60fps» замість просто «60».",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Показувати роздільну здатність як FHD/HD",
+      "fhdLabelsSub": "Показувати 1080p як «FHD» і 720p як «HD» у значках метаданих.",
       "boldTypography": "Жирна типографіка",
       "boldTypographySub": "Увімкнути жирне форматування для елементів EPG і категорій бічна панелі.",
       "channelNames": "Назви каналів",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "Проверяйте налічі нових версій ynoTV. Оновлення включають ісправлення помилок, улучшення продуктивності і нові функції.",
       "checkForUpdates": "Перевірити оновлення",
       "changelog": "Історія змін",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp забезпечує відтворення трейлерів YouTube. Показує вбудовану версію та оновлює її до останнього випуску.",
+      "ytdlpPath": "Шлях:",
+      "ytdlpNotInstalled": "Не знайдено",
+      "ytdlpUpdate": "Оновити yt-dlp",
+      "ytdlpChecking": "Оновлення...",
+      "ytdlpUpToDate": "Актуально ({{version}})",
+      "ytdlpUpdated": "Оновлено до {{version}}",
+      "ytdlpError": "Не вдалося оновити: {{message}}",
+      "ytdlpNotSupported": "Оновлення не підтримуються на цій платформі."
     },
     "tmdb": {
       "title": "Інтеграція TMDB",
@@ -2236,7 +2236,7 @@
       "errSave": "Не вдалося зберегти зміни. Спробуйте ще раз."
     },
     "controllers": {
-      "title": "Підтримка геймпадів і контролерів",
+      "title": "Підтримка геймпадів і контролерів (Експериментально)",
       "description": "Керуйте YNOTV за допомогою будь-якого DualSense PS5 (Bluetooth або USB), PS4, Xbox, Switch Pro або ТБ-пульта.",
       "enableNavigation": "Увімкнути навігацію з контролера",
       "enableNavigationHint": "Керуйте каналами, меню, фільмами, спортом і відтворенням відео за допомогою подключьонніх геймпадів. Вимкнено за замовчуванням — увімкніть, щоб почати принімати введення з контролера.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Попередній перегляд у реальному часі",
+      "liveHint": "Підключіть контролер: кожне натискання та рух стіка відображаються тут у реальному часі.",
+      "customProfileActive": "Активний користувацький профіль",
+      "configureGamepad": "Налаштувати / відкалібрувати геймпад",
+      "remapBtn": "Відкалібрувати / налаштувати геймпад",
+      "remapBtnTooltip": "Відкалібруйте та призначте кнопки для будь-якого універсального або стороннього геймпада",
+      "remap": {
+        "title": "Налаштування та калібрування геймпада",
+        "subtitle": "Призначте кнопки будь-якого універсального або стороннього контролера на стандартне керування YNOTV.",
+        "targetDevice": "Цільовий контролер:",
+        "reset": "Скинути профіль",
+        "prev": "Назад",
+        "skip": "Пропустити",
+        "save": "Зберегти та застосувати"
+      },
       "remote": {
         "enablePromptTitle": "Увімкнути Phone Remote?",
         "enablePromptText": "Керуйте YNOTV з телефону через Wi-Fi — тачпад, D-pad і медіапульт. Локальний сервер вимкнено за замовчуванням і запускається тільки після увімкнення.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Альтернативні мережеві адреси:",
         "clickToCopy": "Натисніть, щоб скопіювати",
         "instructions": "Переконайтеся, що телефон підключено до тієї ж мережі Wi-Fi, що і цей ПК. Ви отримайте полноценній бездротовий тачпад, D-Pad, регуліровку гучності і ярлікі розділів!",
-        "restartServer": "🔄 Перезапустити сервер на порту {{port}}"
+        "restartServer": "🔄 Перезапустити сервер на порту {{port}}",
+        "step4": "(Необов'язково) Додайте сторінку на головний екран або в закладки, щоб не сканувати QR-код щоразу."
       },
       "chords": {
         "title": "Комбінації кнопок",

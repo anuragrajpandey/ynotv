@@ -221,7 +221,7 @@
     "epgShift": "EPG eltolás",
     "failoverGroup": "Tartalékcsoport",
     "jumpToLetter": "Ugrás betűre (#–Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Csatornák szűrése felbontás szerint",
     "linkedCategory": "Kapcsolt kategória",
     "manageChannels": "Csatornák kezelése",
     "manageCustomGroup": "Egyéni csoport kezelése",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Válasszon 12 órás (délelőtt/délután) vagy 24 órás óraformátumot az EPG-rácsban, a keresési találatoknál, a figyelőlistánál és a felvételeknél.",
       "clock12": "12 órás (pl. du. 2:30)",
       "clock24": "24 órás (pl. 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Felbontásszűrő",
+      "epgResolutionFilterSub": "Felbontásszűrő gombot ad az EPG eszköztárához, így csak a kiválasztott felbontású csatornákat jelenítheti meg. Csak azoknál a csatornáknál működik, amelyeket vizsgáltak / rendelkeznek metaadat-jelvényekkel.",
       "epgShowDate": "Dátum megjelenítése az EPG-ben",
       "epgShowDateSub": "A dátum megjelenítése az időjelzők mellett az EPG idővonal-fejlécében.",
       "darkenCurrent": "Az EPG aktuálisan futó műsorblokkjainak sötétebbé tétele",
@@ -803,8 +803,8 @@
       "sound": "Hang",
       "fpsSuffix": "„fps” utótag megjelenítése",
       "fpsSuffixSub": "A képkockasebesség megjelenítése pl. „60fps” formában a sima „60” helyett.",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Felbontás megjelenítése FHD/HD formában",
+      "fhdLabelsSub": "A 1080p megjelenítése \"FHD\", a 720p pedig \"HD\" jelöléssel a metaadat-jelvényekben.",
       "boldTypography": "Félkövér tipográfia",
       "boldTypographySub": "Félkövér betűformázás engedélyezése az EPG-elemekhez és az oldalsáv kategóriáihoz.",
       "channelNames": "Csatornanevek",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "Új ynoTV-verziók keresése. A frissítések hibajavításokat, teljesítményjavításokat és új funkciókat tartalmaznak.",
       "checkForUpdates": "Frissítések keresése",
       "changelog": "Változásnapló",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "A yt-dlp biztosítja a YouTube-előzetesek lejátszását. Megjeleníti a mellékelt verziót, és frissíti a legújabb kiadásra.",
+      "ytdlpPath": "Elérési út:",
+      "ytdlpNotInstalled": "Nem található",
+      "ytdlpUpdate": "yt-dlp frissítése",
+      "ytdlpChecking": "Frissítés...",
+      "ytdlpUpToDate": "Naprakész ({{version}})",
+      "ytdlpUpdated": "Frissítve erre: {{version}}",
+      "ytdlpError": "A frissítés sikertelen: {{message}}",
+      "ytdlpNotSupported": "Ezen a platformon a frissítések nem támogatottak."
     },
     "tmdb": {
       "title": "TMDB-integráció",
@@ -2236,7 +2236,7 @@
       "errSave": "Nem sikerült menteni a módosításokat. Kérjük, próbálja újra."
     },
     "controllers": {
-      "title": "Gamepad és vezérlő támogatás",
+      "title": "Gamepad és vezérlő támogatás (Kísérleti)",
       "description": "Navigáljon a YNOTV-ban bármilyen PS5 DualSense (Bluetooth vagy USB), PS4, Xbox, Switch Pro vagy TV távirányítóval.",
       "enableNavigation": "Vezérlővel történő navigáció engedélyezése",
       "enableNavigationHint": "Irányítsa a csatornákat, menüket, filmeket, sportot és a videolejátszást csatlakoztatott gamepadekkel. Alapértelmezetten ki van kapcsolva – engedélyezze a vezérlőbemenetek hallgatásához.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Élő előnézet",
+      "liveHint": "Csatlakoztasson egy vezérlőt: minden gombnyomás és botkormánymozdulat itt jelenik meg, élőben.",
+      "customProfileActive": "Egyéni profil aktív",
+      "configureGamepad": "Gamepad konfigurálása / kalibrálása",
+      "remapBtn": "Kalibrálás / konfigurálás",
+      "remapBtnTooltip": "Kalibrálás és gombok hozzárendelése bármely általános vagy harmadik féltől származó gamepadhez",
+      "remap": {
+        "title": "Gamepad konfigurálása és kalibrálása",
+        "subtitle": "Bármely általános vagy harmadik féltől származó vezérlő gombjait rendelje a YNOTV szabványos vezérlőihez.",
+        "targetDevice": "Célvezérlő:",
+        "reset": "Profil visszaállítása",
+        "prev": "Előző",
+        "skip": "Kihagyás",
+        "save": "Mentés és alkalmazás"
+      },
       "remote": {
         "enablePromptTitle": "Phone Remote engedélyezése?",
         "enablePromptText": "Irányítsa a YNOTV-ot telefonjáról Wi-Fi-n keresztül — touchpad, D-pad és média távirányító. A helyi kiszolgáló alapértelmezetten ki van kapcsolva, és csak akkor indul el, ha bekapcsolja.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Alternatív hálózati címek:",
         "clickToCopy": "Kattintson a másoláshoz",
         "instructions": "Győződjön meg róla, hogy telefonja ugyanahhoz a Wi-Fi hálózathoz csatlakozik, mint ez a számítógép. Teljes vezeték nélküli touchpad, D-Pad, hangerőszabályozás és szakaszparancsok állnak rendelkezésére!",
-        "restartServer": "🔄 Kiszolgáló újraindítása a(z) {{port}} porton"
+        "restartServer": "🔄 Kiszolgáló újraindítása a(z) {{port}} porton",
+        "step4": "(Opcionális) Adja hozzá az oldalt a kezdőképernyőhöz vagy a könyvjelzőkhöz, hogy ne kelljen minden alkalommal beolvasni a QR-kódot."
       },
       "chords": {
         "title": "Gombkombinációk",

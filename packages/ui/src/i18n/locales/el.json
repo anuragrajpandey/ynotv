@@ -221,7 +221,7 @@
     "epgShift": "Μετατόπιση EPG",
     "failoverGroup": "Ομάδα Εναλλαγής",
     "jumpToLetter": "Μετάβαση σε γράμμα (#-Ω)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Φιλτράρισμα καναλιών ανά ανάλυση",
     "linkedCategory": "Συνδεδεμένη Κατηγορία",
     "manageChannels": "Διαχείριση Καναλιών",
     "manageCustomGroup": "Διαχείριση Προσαρμοσμένης Ομάδας",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Επιλέξτε μεταξύ 12-ωρης (π.μ./μ.μ.) και 24-ωρης εμφάνισης ρολογιού σε πλέγμα EPG, αποτελέσματα αναζήτησης, λίστα παρακολούθησης και εγγραφές.",
       "clock12": "Ρολόι 12 Ωρών (π.χ. 2:30 μ.μ.)",
       "clock24": "Ρολόι 24 Ωρών (π.χ. 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Φίλτρο ανάλυσης",
+      "epgResolutionFilterSub": "Προσθέτει ένα κουμπί φίλτρου ανάλυσης στη γραμμή εργαλείων EPG, επιτρέποντάς σας να εμφανίζετε μόνο κανάλια με την επιλεγμένη ανάλυση. Λειτουργεί μόνο για κανάλια που έχουν ελεγχθεί / έχουν σήματα μεταδεδομένων.",
       "epgShowDate": "Εμφάνιση Ημερομηνίας στο EPG",
       "epgShowDateSub": "Εμφάνιση της ημερομηνίας μαζί με τις σημάνσεις ώρας στην κεφαλίδα της γραμμής χρόνου EPG.",
       "darkenCurrent": "Σκούραση τρεχόντων προγραμμάτων στο EPG",
@@ -803,8 +803,8 @@
       "sound": "Ήχος",
       "fpsSuffix": "Εμφάνιση επιθήματος «fps»",
       "fpsSuffixSub": "Εμφάνιση ρυθμού καρέ ως «60fps» αντί μόνο «60».",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Εμφάνιση ανάλυσης ως FHD/HD",
+      "fhdLabelsSub": "Εμφανίζει 1080p ως \"FHD\" και 720p ως \"HD\" στα σήματα μεταδεδομένων.",
       "boldTypography": "Έντονη Τυπογραφία",
       "boldTypographySub": "Ενεργοποίηση έντονης μορφοποίησης για στοιχεία EPG και κατηγορίες πλευρικής γραμμής.",
       "channelNames": "Ονόματα Καναλιών",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "Ελέγξτε για νέες εκδόσεις του ynoTV. Οι ενημερώσεις περιλαμβάνουν διορθώσεις σφαλμάτων, βελτιώσεις απόδοσης και νέες δυνατότητες.",
       "checkForUpdates": "Έλεγχος για Ενημερώσεις",
       "changelog": "Αρχείο αλλαγών",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "Το yt-dlp υποστηρίζει την αναπαραγωγή τρέιλερ YouTube. Εμφανίζει την ενσωματωμένη έκδοση και την ενημερώνει στην τελευταία έκδοση.",
+      "ytdlpPath": "Διαδρομή:",
+      "ytdlpNotInstalled": "Δεν βρέθηκε",
+      "ytdlpUpdate": "Ενημέρωση yt-dlp",
+      "ytdlpChecking": "Ενημέρωση...",
+      "ytdlpUpToDate": "Ενημερωμένο ({{version}})",
+      "ytdlpUpdated": "Ενημερώθηκε στην {{version}}",
+      "ytdlpError": "Η ενημέρωση απέτυχε: {{message}}",
+      "ytdlpNotSupported": "Οι ενημερώσεις δεν υποστηρίζονται σε αυτήν την πλατφόρμα."
     },
     "tmdb": {
       "title": "Ενσωμάτωση TMDB",
@@ -2236,7 +2236,7 @@
       "errSave": "Αποτυχία αποθήκευσης αλλαγών. Προσπαθήστε ξανά."
     },
     "controllers": {
-      "title": "Υποστήριξη Gamepad και Controller",
+      "title": "Υποστήριξη Gamepad και Controller (Πειραματικό)",
       "description": "Πλοηγηθείτε στο YNOTV με οποιοδήποτε PS5 DualSense (Bluetooth ή USB), PS4, Xbox, Switch Pro ή τηλεχειριστήριο TV.",
       "enableNavigation": "Ενεργοποίηση πλοήγησης με controller",
       "enableNavigationHint": "Ελέγξτε κανάλια, μενού, ταινίες, αθλητικά και αναπαραγωγή βίντεο με συνδεδεμένα gamepad. Απενεργοποιημένο από προεπιλογή — ενεργοποιήστε το για να λαμβάνετε είσοδο από το controller.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Ζωντανή προεπισκόπηση",
+      "liveHint": "Συνδέστε έναν ελεγκτή: κάθε πάτημα και κίνηση του μοχλού εμφανίζεται εδώ, ζωντανά.",
+      "customProfileActive": "Ενεργό προσαρμοσμένο προφίλ",
+      "configureGamepad": "Διαμόρφωση / βαθμονόμηση gamepad",
+      "remapBtn": "Βαθμονόμηση / διαμόρφωση gamepad",
+      "remapBtnTooltip": "Βαθμονόμηση και αντιστοίχιση κουμπιών για οποιοδήποτε γενικό ή τρίτου κατασκευαστή gamepad",
+      "remap": {
+        "title": "Διαμόρφωση και βαθμονόμηση gamepad",
+        "subtitle": "Αντιστοιχίστε τα κουμπιά οποιουδήποτε γενικού ή τρίτου κατασκευαστή ελεγκτή στα τυπικά χειριστήρια YNOTV.",
+        "targetDevice": "Ελεγκτής στόχος:",
+        "reset": "Επαναφορά προφίλ",
+        "prev": "Προηγούμενο",
+        "skip": "Παράβλεψη",
+        "save": "Αποθήκευση και εφαρμογή"
+      },
       "remote": {
         "enablePromptTitle": "Ενεργοποίηση Phone Remote;",
         "enablePromptText": "Ελέγξτε το YNOTV από το τηλέφωνό σας μέσω Wi-Fi — touchpad, D-pad και τηλεχειριστήριο πολυμέσων. Ο τοπικός διακομιστής είναι απενεργοποιημένος από προεπιλογή και ξεκινά μόνο όταν τον ενεργοποιήσετε.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Εναλλακτικές διευθύνσεις δικτύου:",
         "clickToCopy": "Κάντε κλικ για αντιγραφή",
         "instructions": "Βεβαιωθείτε ότι το τηλέφωνό σας είναι συνδεδεμένο στο ίδιο δίκτυο Wi-Fi με αυτόν τον υπολογιστή. Θα έχετε πλήρες ασύρματο touchpad, D-Pad, έλεγχο έντασης και συντομεύσεις ενοτήτων!",
-        "restartServer": "🔄 Επανεκκίνηση διακομιστή στη θύρα {{port}}"
+        "restartServer": "🔄 Επανεκκίνηση διακομιστή στη θύρα {{port}}",
+        "step4": "(Προαιρετικό) Προσθέστε τη σελίδα στην αρχική οθόνη ή στους σελιδοδείκτες σας για να μην χρειάζεται να σαρώνετε τον κωδικό QR κάθε φορά."
       },
       "chords": {
         "title": "Συνδυασμοί κουμπιών",

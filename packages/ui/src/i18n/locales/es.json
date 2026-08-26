@@ -221,7 +221,7 @@
     "epgShift": "Desplazamiento de guía",
     "failoverGroup": "Grupo de conmutación por error",
     "jumpToLetter": "Saltar a letra (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Filtrar canales por resolución",
     "linkedCategory": "Categoría vinculada",
     "manageChannels": "Gestionar canales",
     "manageCustomGroup": "Gestionar grupo personalizado",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Selecciona entre reloj de 12 horas (AM/PM) y de 24 horas en la cuadrícula de EPG, resultados de búsqueda, lista de seguimiento y grabaciones.",
       "clock12": "Reloj de 12 horas (p. ej., 2:30 PM)",
       "clock24": "Reloj de 24 horas (p. ej., 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Filtro de resolución",
+      "epgResolutionFilterSub": "Añade un botón de filtro de resolución a la barra de herramientas de la guía, permitiendo mostrar solo canales con la resolución elegida. Solo funciona con canales que han sido analizados / tienen insignias de metadatos.",
       "epgShowDate": "Mostrar fecha en EPG",
       "epgShowDateSub": "Muestra la fecha junto a las marcas de tiempo en el encabezado de la línea de tiempo de EPG.",
       "darkenCurrent": "Oscurecer los bloques de programas en emisión en el EPG",
@@ -803,8 +803,8 @@
       "sound": "Sonido",
       "fpsSuffix": "Mostrar sufijo \"fps\"",
       "fpsSuffixSub": "Muestra la frecuencia de imagen como p. ej. \"60fps\" en lugar de solo \"60\".",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Mostrar resolución como FHD/HD",
+      "fhdLabelsSub": "Muestra 1080p como \"FHD\" y 720p como \"HD\" en las insignias de metadatos.",
       "boldTypography": "Tipografía en negrita",
       "boldTypographySub": "Activa el formato de fuente en negrita para elementos de EPG y categorías de la barra lateral.",
       "channelNames": "Nombres de canales",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "Comprueba las nuevas versiones de ynoTV. Las actualizaciones incluyen correcciones de errores, mejoras de rendimiento y nuevas funciones.",
       "checkForUpdates": "Buscar actualizaciones",
       "changelog": "Registro de cambios",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp permite la reproducción de tráilers de YouTube. Muestra la versión incluida y la actualiza a la última versión.",
+      "ytdlpPath": "Ruta:",
+      "ytdlpNotInstalled": "No encontrado",
+      "ytdlpUpdate": "Actualizar yt-dlp",
+      "ytdlpChecking": "Actualizando...",
+      "ytdlpUpToDate": "Actualizado ({{version}})",
+      "ytdlpUpdated": "Actualizado a {{version}}",
+      "ytdlpError": "Error al actualizar: {{message}}",
+      "ytdlpNotSupported": "Las actualizaciones no son compatibles con esta plataforma."
     },
     "tmdb": {
       "title": "Integración de TMDB",
@@ -2236,7 +2236,7 @@
       "errSave": "No se pudieron guardar los cambios. Inténtalo de nuevo."
     },
     "controllers": {
-      "title": "Compatibilidad con Gamepad y Controlador",
+      "title": "Compatibilidad con Gamepad y Controlador (Experimental)",
       "description": "Navega por YNOTV con cualquier DualSense de PS5 (Bluetooth o USB), PS4, Xbox, Switch Pro o mando de TV.",
       "enableNavigation": "Habilitar navegación con controlador",
       "enableNavigationHint": "Controla canales, menús, películas, deportes y reproducción de video con gamepads conectados. Desactivado por defecto: actívalo para empezar a escuchar la entrada del controlador.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Vista previa en vivo",
+      "liveHint": "Conecta un controlador: cada pulsación y movimiento de palanca aparece aquí, en vivo.",
+      "customProfileActive": "Perfil personalizado activo",
+      "configureGamepad": "Configurar / calibrar el gamepad",
+      "remapBtn": "Calibrar / configurar el gamepad",
+      "remapBtnTooltip": "Calibra y asigna botones para cualquier gamepad genérico o de terceros",
+      "remap": {
+        "title": "Configurar y calibrar el gamepad",
+        "subtitle": "Asigna los botones de cualquier controlador genérico o de terceros a los controles estándar de YNOTV.",
+        "targetDevice": "Controlador de destino:",
+        "reset": "Restablecer perfil",
+        "prev": "Anterior",
+        "skip": "Omitir",
+        "save": "Guardar y aplicar"
+      },
       "remote": {
         "enablePromptTitle": "¿Habilitar Phone Remote?",
         "enablePromptText": "Controla YNOTV desde tu teléfono por Wi-Fi: un panel táctil, D-pad y control remoto de medios. El servidor local está desactivado por defecto y solo se inicia cuando lo enciendes.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Direcciones de red alternativas:",
         "clickToCopy": "Haz clic para copiar",
         "instructions": "Asegúrate de que tu teléfono esté conectado a la misma red Wi-Fi que este PC. ¡Tendrás un panel táctil inalámbrico completo, D-Pad, controles de volumen y accesos directos a secciones!",
-        "restartServer": "🔄 Reiniciar servidor en el puerto {{port}}"
+        "restartServer": "🔄 Reiniciar servidor en el puerto {{port}}",
+        "step4": "(Opcional) Añade la página a tu pantalla de inicio o a marcadores para no tener que escanear el código QR cada vez."
       },
       "chords": {
         "title": "Combinaciones de botones",

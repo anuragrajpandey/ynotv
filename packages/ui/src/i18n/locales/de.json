@@ -221,7 +221,7 @@
     "epgShift": "EPG-Verschiebung",
     "failoverGroup": "Failover-Gruppe",
     "jumpToLetter": "Zum Buchstaben springen (#-Z)",
-    "resolutionFilter": "Filter channels by resolution",
+    "resolutionFilter": "Sender nach Auflösung filtern",
     "linkedCategory": "Verknüpfte Kategorie",
     "manageChannels": "Sender verwalten",
     "manageCustomGroup": "Benutzerdefinierte Gruppe verwalten",
@@ -785,8 +785,8 @@
       "epgClockFormatSub": "Wählen Sie zwischen 12-Stunden-Uhr (AM/PM) und 24-Stunden-Uhr im EPG-Raster, in Suchergebnissen, der Merkliste und Aufnahmen.",
       "clock12": "12-Stunden-Uhr (z. B. 2:30 PM)",
       "clock24": "24-Stunden-Uhr (z. B. 14:30)",
-      "epgResolutionFilter": "Resolution filter",
-      "epgResolutionFilterSub": "Adds a resolution filter button to the EPG toolbar, letting you show only channels of a chosen resolution. Only works for channels that have been probed / have metadata badges.",
+      "epgResolutionFilter": "Auflösungsfilter",
+      "epgResolutionFilterSub": "Fügt eine Schaltfläche für den Auflösungsfilter zur EPG-Symbolleiste hinzu, sodass nur Sender mit einer gewählten Auflösung angezeigt werden. Funktioniert nur bei Sendern, die gescannt wurden / Metadaten-Abzeichen haben.",
       "epgShowDate": "Datum im EPG anzeigen",
       "epgShowDateSub": "Zeigt das Datum neben den Zeitmarken in der Kopfzeile der EPG-Zeitleiste.",
       "darkenCurrent": "Blöcke laufender Programme im EPG abdunkeln",
@@ -803,8 +803,8 @@
       "sound": "Ton",
       "fpsSuffix": "Suffix \"fps\" anzeigen",
       "fpsSuffixSub": "Zeigt die Bildrate z. B. als \"60fps\" statt nur \"60\".",
-      "fhdLabels": "Show resolution as FHD/HD",
-      "fhdLabelsSub": "Display 1080p as \"FHD\" and 720p as \"HD\" in metadata badges.",
+      "fhdLabels": "Auflösung als FHD/HD anzeigen",
+      "fhdLabelsSub": "Zeigt 1080p als \"FHD\" und 720p als \"HD\" in Metadaten-Abzeichen an.",
       "boldTypography": "Fette Typografie",
       "boldTypographySub": "Aktiviert fette Formatierung für EPG-Elemente und Kategorien der Seitenleiste.",
       "channelNames": "Sendernamen",
@@ -1768,15 +1768,15 @@
       "updatesDescription": "Prüfen Sie auf neue ynoTV-Versionen. Updates enthalten Fehlerkorrekturen, Leistungsverbesserungen und neue Funktionen.",
       "checkForUpdates": "Nach Updates suchen",
       "changelog": "Änderungsprotokoll",
-      "ytdlpDescription": "yt-dlp powers YouTube trailer playback. Shows the bundled version and updates it to the latest release.",
-      "ytdlpPath": "Path:",
-      "ytdlpNotInstalled": "Not found",
-      "ytdlpUpdate": "Update yt-dlp",
-      "ytdlpChecking": "Updating...",
-      "ytdlpUpToDate": "Up to date ({{version}})",
-      "ytdlpUpdated": "Updated to {{version}}",
-      "ytdlpError": "Update failed: {{message}}",
-      "ytdlpNotSupported": "Updates are not supported on this platform."
+      "ytdlpDescription": "yt-dlp ermöglicht die Wiedergabe von YouTube-Trailern. Zeigt die gebündelte Version und aktualisiert sie auf die neueste Version.",
+      "ytdlpPath": "Pfad:",
+      "ytdlpNotInstalled": "Nicht gefunden",
+      "ytdlpUpdate": "yt-dlp aktualisieren",
+      "ytdlpChecking": "Wird aktualisiert...",
+      "ytdlpUpToDate": "Aktuell ({{version}})",
+      "ytdlpUpdated": "Aktualisiert auf {{version}}",
+      "ytdlpError": "Aktualisierung fehlgeschlagen: {{message}}",
+      "ytdlpNotSupported": "Updates werden auf dieser Plattform nicht unterstützt."
     },
     "tmdb": {
       "title": "TMDB-Integration",
@@ -2236,7 +2236,7 @@
       "errSave": "Änderungen konnten nicht gespeichert werden. Bitte erneut versuchen."
     },
     "controllers": {
-      "title": "Gamepad- & Controller-Unterstützung",
+      "title": "Gamepad- & Controller-Unterstützung (Experimentell)",
       "description": "Steuern Sie YNOTV mit einem PS5-DualSense (Bluetooth oder USB), PS4, Xbox, Switch Pro oder TV-Fernbedienung.",
       "enableNavigation": "Controller-Navigation aktivieren",
       "enableNavigationHint": "Steuern Sie Kanäle, Menüs, Filme, Sport und Videowiedergabe mit angeschlossenen Gamepads. Standardmäßig deaktiviert – aktivieren Sie es, um Controller-Eingaben zu empfangen.",
@@ -2310,6 +2310,21 @@
           "select": "Select / Share / Create"
         }
       },
+      "livePreview": "Live-Vorschau",
+      "liveHint": "Schließen Sie einen Controller an: Jede Taste und jede Stick-Bewegung erscheint hier live.",
+      "customProfileActive": "Benutzerdefiniertes Profil aktiv",
+      "configureGamepad": "Gamepad konfigurieren / kalibrieren",
+      "remapBtn": "Kalibrieren / konfigurieren",
+      "remapBtnTooltip": "Kalibrieren und Tasten für jedes generische oder Drittanbieter-Gamepad zuordnen",
+      "remap": {
+        "title": "Gamepad konfigurieren und kalibrieren",
+        "subtitle": "Ordnen Sie die Tasten eines beliebigen generischen oder Drittanbieter-Controllers den YNOTV-Standardsteuerungen zu.",
+        "targetDevice": "Ziel-Controller:",
+        "reset": "Profil zurücksetzen",
+        "prev": "Zurück",
+        "skip": "Überspringen",
+        "save": "Speichern und übernehmen"
+      },
       "remote": {
         "enablePromptTitle": "Phone Remote aktivieren?",
         "enablePromptText": "Steuern Sie YNOTV von Ihrem Telefon über WLAN — Touchpad, D-Pad und Medienfernbedienung. Der lokale Server ist standardmäßig deaktiviert und startet nur, wenn Sie ihn einschalten.",
@@ -2340,7 +2355,8 @@
         "altUrlsTitle": "Alternative Netzwerkadressen:",
         "clickToCopy": "Zum Kopieren klicken",
         "instructions": "Stellen Sie sicher, dass Ihr Telefon mit demselben WLAN-Netzwerk wie dieser PC verbunden ist. Sie erhalten ein vollwertiges drahtloses Touchpad, D-Pad, Lautstärkeregler und Abschnittsverknüpfungen!",
-        "restartServer": "🔄 Server auf Port {{port}} neu starten"
+        "restartServer": "🔄 Server auf Port {{port}} neu starten",
+        "step4": "(Optional) Fügen Sie die Seite Ihrem Startbildschirm oder Ihren Lesezeichen hinzu, um den QR-Code nicht jedes Mal scannen zu müssen."
       },
       "chords": {
         "title": "Tastenkombinationen",

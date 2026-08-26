@@ -276,7 +276,11 @@ for (const code of fileCodes) {
   if (typeof ov === 'string') {
     // Old wording named only the SHAPE; new wording also names the background.
     // Heuristic: if it reads as shape-only (no background dimension spelled out) flag it.
-    const mentionsBackground = /background|achtergrond|fond|hintergrund|fundo|sfondo|фон|позадин|پس┤زمینه|خلف|پس│زمینه|पृष्ठभूमि|háttér|tło|tłem|arka|nền|背景|pozadinu|pozadini|sfond|позад|زمینہ|hinter|fondo/i.test(ov);
+    // Background-word coverage per script: el → παρασκήνιο*, fa → پس‌زمینه (ZWNJ),
+    // ur → بیک گراؤنڈ (English loanword, regular space), hu → hátter*/háttér,
+    // de → Hintergrund, nl → achtergrond, sq → sfond*, sr/bs/hr → позадин*/pozadin*,
+    // uk/ru → фон, pl → tło, tr → arka, vi → nền, zh → 背景, hi → पृष्ठभूमि.
+    const mentionsBackground = /background|achtergrond|fond|hintergrund|fundo|sfondo|фон|позадин|παρασκην|زمینه|خلف|بیک گراؤنڈ|पृष्ठभूमि|hátter|háttér|tło|tłem|arka|nền|背景|pozadinu|pozadini|sfond|позад|hinter|fondo/i.test(ov);
     if (!mentionsBackground) {
       staleBgWarnings.push([code, 'settings.livetv.logos.perSourceOverridesSub', ov]);
     }
