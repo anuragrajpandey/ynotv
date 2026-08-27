@@ -1,5 +1,83 @@
 # Changelog
 
+## v2.5.0
+
+### Added
+
+**Stream Bitrate Badges and Probe Enhancements**
+
+- **Average bitrate badges** - Stream Probe can now measure and display average video bitrate (kbps/Mbps) and audio bitrate (kbps) as metadata badges. Enable `Measure Video/Audio Bitrate` before probing - this adds a few extra seconds per channel during the probe.
+- **Per-location bitrate badge toggles** - Video and audio bitrate badges can be enabled or disabled independently across the EPG, Channel Info Overlay, Search Results, Failover Groups, and Linked Sports Channels under `Settings → Live TV → EPG`.
+- **Probe scopes for Failover and Linked Sports Channels** - Dedicated probe scopes have been added to the Channel Stream Probe for quickly verifying stream health within Failover groups and Linked Sports channels. Select them as Target Channels to scope the probe.
+- **Sort Failover and Sports channels by resolution** - After probing Target Channels, Failover groups and Sports stream lists can be sorted by stream resolution (e.g. highest quality first). Use the `Sort` button at the bottom once probing completes to reorder the group.
+
+**Local Library Rework** *(Recommended: remove and re-add local folders after updating, scoped by Movies or Series)*
+
+- **Reworked local file matching** - Improved movie and series matching from filename and folder name, with a reworked database layer that eliminates lag when switching to the Local tab.
+- **Reworked TMDb matching for Series** - Series are now matched once per folder rather than per file, reducing API calls and improving matching speed.
+- **Reworked review button** - The review button now includes Skip and Remove options. After reviewing an item, the modal automatically advances to the next file requiring review instead of closing.
+- **Refresh Metadata for Local Library** - A new `Refresh Metadata` action re-fetches up-to-date TMDB details and artwork for all matched titles, with improved poster preloading.
+- **Reworked Local Folders management** - Scanned folder management is now split into separate Movies and Series tabs for better title and folder name trimming during TMDb matching.
+- **Missing metadata filter** - The local library view can now be filtered to show only titles without TMDB metadata.
+- **Local media in Playlists and Favorites** - Local movies and series episodes can now be added to VOD Playlists and Favorites.
+- **Watch progress tracking for local movies** - Playback progress and resume positions are now tracked and saved for local movie files, including display in the Recently Watched rail.
+- **Local Library included in backup and restore** - Local library entries and configured folder paths are now included in export and import backup files.
+- **Intro skip for local series episodes** - Intro skip now applies to local series episodes when the episode has an entry in the IntroDB database.
+
+**Controller and Phone Remote Support** *(Experimental)*
+
+Controller and phone remote support has been added. The app was designed primarily for keyboard and mouse use, so controller navigation uses spatial navigation and may not be perfect in all areas. Enable under `Settings → Controllers & Remote`.
+- **Controller support** - Tested with DualSense (Bluetooth), Xbox controller (Bluetooth), and Logitech Dual Action. Compatibility with other controllers has not been confirmed. It is recommended to configure a button for Search, as it will open an on-screen keyboard.
+- **Phone Remote** - Use your phone as a remote control by scanning the QR code shown in `Settings → Controllers & Remote`. Features a built-in Guide browser for sending channels to the app, and a Sports tab that mirrors the Sports sidebar for quick game switching. Adding the page to your home screen is recommended for repeat access without rescanning the QR code.
+
+**Other Additions**
+
+- **Reworked EPG syncing** - Syncing multiple playlists has been optimized for reduced overall sync time, now limited primarily by server download speed.
+- **libmpv playback engine** - An embedded libmpv engine is now available as an alternative to the sidecar MPV process. Set under `Settings → Playback → Playback Engine`. Multiview has also been migrated to libmpv, enabling overlays to be displayed over multiview players.
+- **Collapsible VOD sidebar** - The category navigation sidebar in VOD Movies and Series can now be collapsed to maximize screen space while browsing.
+- **Blur unwatched episode thumbnails** - Episode screencaps for unwatched episodes on Series detail pages can be blurred to prevent spoilers. Enable under `Settings → Playback → VOD Playback → Blur Unwatched Episodes`.
+- **Scroll wheel seek for VOD** - The mouse scroll wheel can now be used to seek forward and backward through VOD content instead of adjusting volume. Enable under `Settings → Playback → VOD Playback`.
+- **UEFA Conference League support** - The UEFA Conference League (ECL) has been added to supported leagues, team pages, and stream matching.
+- **Expanded Team Channel search** - Team Channel link matching now shows all results in the `+ Link Channel` view instead of being capped at 8.
+- **DVR custom user agent** - DVR recordings now apply the source's configured user agent header, falling back to the Global UA if set, rather than being hardcoded to VLC.
+- **Hide VOD tabs** - The All Movies/Series, Favorites, Playlists, Local, and Recent tabs in the VOD sidebar can now be hidden individually under `Settings → Navigation → VOD`.
+- **Favorite button in Now Playing bar** - The currently playing channel or media can be toggled as a favorite directly from the media bar.
+- **Scrollbar width override expanded** - The scrollbar width override now applies to additional locations within VOD pages.
+- **Smart EPG URL fallback** - EPG sync now automatically attempts fallback candidates (scheme switches, port corrections, and CDN port stripping) if the initial URL fails, and saves the working URL as the default for that source going forward.
+- **Quick Record until stop** - An option to record until manually stopped has been added to Quick Record.
+- **Delete recordings from disk** - When deleting a recording, you can now choose between removing it from disk entirely or only removing the database entry.
+- **TMDB language picker** - An option has been added in TMDB settings to return metadata in a selected language. Defaults to English if the selected language is unavailable.
+- **yt-dlp version checker and updater** - The current yt-dlp version can be checked and updated directly from `Settings → About`.
+- **MPV preset picture profiles** - Preset picture profiles are now available for selection under `Settings → Playback`.
+- **Failover primary channel preference** - An option has been added to Failover groups to always play the primary channel when any channel within the group is selected.
+- **Nuvio catalogs as hero banner** - Nuvio catalogs can now be used as the source for the home screen hero banner.
+- **Resolution filter in EPG** - A resolution filter has been added to the EPG next to the A–Z button, allowing channels to be filtered by stream resolution. Requires channels to have been probed or have metadata badges populated.
+- **FHD/HD badge labels** - The 1080p and 720p resolution badges can be displayed as `FHD` and `HD` instead. Enable under `Settings → Live TV → EPG Grid`.
+- **Nuvio add-on configure button** - A configure button has been added to Nuvio add-ons for quick access to each add-on's configuration page.
+- **Improved sports match stream search** - Stream searches now check city vs. city matchups, soccer club names, and nickname variants across channels and EPG titles, with improved delimiter normalization.
+- **Ukrainian language support** - Ukrainian (Українська) has been added to the supported localization languages.
+- **HDR to SDR tonemapping** - HDR content can now be tonemapped to SDR during playback, with an optional quick toggle in the Now Playing bar. Configure under `Settings → Playback`.
+- **Audio settings** - New audio options include downmixing surround to stereo, volume boost above 100%, custom audio device selection, and normalization/EQ profiles. Configure under `Settings → Subtitles & Audio`.
+
+### Fixed
+
+- **Failover overlay rendering behind preview player** - Resolved an issue where the Failover channel overlay would not appear on top of the preview player in Live TV.
+- **Jump to Letter not handling symbol-prefixed channel names** - Alphabetical jump navigation now correctly handles channel names that begin with symbols.
+- **Channel Info Overlay showing wrong program when two overlap** - When two programs occupy the same time slot, the Channel Info Overlay now correctly defaults to the later one.
+- **Minimize to tray not working** - Resolved an issue preventing the app from minimizing to the system tray correctly.
+- **Disable Glass Backdrop Blur causing background UI to bleed into view** - Fixed an issue where enabling the `Disable Glass Backdrop Blur` optimization caused background elements to become visible in the foreground.
+- **VOD Playlist items not updating when source changes** - Items in VOD Playlists now correctly update when the underlying source information changes.
+- **Duplicate Recent Channels widget removed** - The older Recent Channels widget capped at 5 entries has been removed. The default is now 10.
+- **Sports League tab showing incorrect game dates** - Games are now correctly mapped to their actual date in the League Games tab.
+- **Discord Rich Presence showing incorrect duration for Live TV** - Live TV programs now display the correct duration in Discord Rich Presence.
+- **Stremio episode picker showing oversized images in UI v1/v2** - Episode images in the Stremio episode picker now display at the correct size in UI v1 and v2.
+- **Streaming catalog genre label getting cut off** - Genre labels now wrap to a second row instead of being clipped off screen.
+- **Nuvio Continue Watching not updating** - Resolved a bug that was preventing the Continue Watching list from updating correctly.
+- **Recently Watched series resuming from the wrong episode** - The Recently Watched tab now resumes from the exact episode saved in watch history (e.g. S2 E7) instead of reverting to an earlier episode when previous episodes were skipped or left unfinished.
+- **Trailer 403 errors** - Updated the bundled yt-dlp version to resolve 403 errors when loading trailers.
+- **Transparent background when switching from Sports to Live TV** - The background now displays correctly when navigating from the Sports tab to Live TV.
+
+
 ## v2.4.0
 
 ### Added
