@@ -276,6 +276,13 @@ const SearchResultRowVirtuoso = memo(function SearchResultRowVirtuoso({
          !recordingsChanged;
 });
 
+// Overscan passed to the guide's VirtualList. The auto-scroll follow logic
+// subtracts this from the reported rendered range so the "keep 2 channels
+// above/below" padding math uses the VISIBLE bounds instead of the
+// overscan-inflated ones (otherwise the list only scrolls after the channel
+// has already left the viewport).
+const CHANNEL_LIST_OVERS = 5;
+
 interface ChannelPanelProps {
   categoryId: string | null;
   visible: boolean;
@@ -2121,15 +2128,23 @@ export function ChannelPanel({
       return;
     }
 
+    // The reported range includes the virtualizer's overscan rows (rendered
+    // but not visible). Shrink to the actual visible bounds so the follow
+    // scroll starts as the channel approaches the edge — keeping at least
+    // PADDING channels above/below — instead of waiting until the channel
+    // has already scrolled out of view.
+    const visibleStart = startIndex > 0 ? startIndex + CHANNEL_LIST_OVERS : 0;
+    const visibleEnd = endIndex < filteredChannels.length - 1 ? endIndex - CHANNEL_LIST_OVERS : endIndex;
+
     const PADDING = 2; // Keep at least 2 items below/above
 
-    if (index >= endIndex - PADDING) {
+    if (index >= visibleEnd - PADDING) {
       virtuosoRef.current.scrollToIndex({
         index: Math.min(filteredChannels.length - 1, index + PADDING),
         align: 'end',
         behavior: 'smooth',
       });
-    } else if (index <= startIndex + PADDING) {
+    } else if (index <= visibleStart + PADDING) {
       virtuosoRef.current.scrollToIndex({
         index: Math.max(0, index - PADDING),
         align: 'start',
@@ -3465,6 +3480,7 @@ export function ChannelPanel({
                   ref={virtuosoRef}
                   items={filteredChannels}
                   estimateItemHeight={52}
+                  overscan={CHANNEL_LIST_OVERS}
                   onRangeChange={(range) => {
                     visibleRangeRef.current = range;
                     if (!shouldTrackVisibleRange) return;
@@ -3506,7 +3522,6 @@ export function ChannelPanel({
                       }}
                     />
                   )}
-                  overscan={5}
                 />
               </div>
             )
