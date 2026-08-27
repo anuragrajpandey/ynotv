@@ -1,8 +1,12 @@
 # Changelog
 
-## v2.5.0
+## v2.5.1
 
-### Added
+### Fixed in v2.5.1
+
+- **Categories jumping to original source** - Fixed a bug where playing a channel not in its original category caused the EPG list to jump to original source.
+
+### Added in v2.5.0
 
 **Stream Bitrate Badges and Probe Enhancements**
 
@@ -59,7 +63,7 @@ Controller and phone remote support has been added. The app was designed primari
 - **HDR to SDR tonemapping** - HDR content can now be tonemapped to SDR during playback, with an optional quick toggle in the Now Playing bar. Configure under `Settings → Playback`.
 - **Audio settings** - New audio options include downmixing surround to stereo, volume boost above 100%, custom audio device selection, and normalization/EQ profiles. Configure under `Settings → Subtitles & Audio`.
 
-### Fixed
+### Fixed in v2.5.0
 
 - **Failover overlay rendering behind preview player** - Resolved an issue where the Failover channel overlay would not appear on top of the preview player in Live TV.
 - **Jump to Letter not handling symbol-prefixed channel names** - Alphabetical jump navigation now correctly handles channel names that begin with symbols.
@@ -76,7 +80,6 @@ Controller and phone remote support has been added. The app was designed primari
 - **Recently Watched series resuming from the wrong episode** - The Recently Watched tab now resumes from the exact episode saved in watch history (e.g. S2 E7) instead of reverting to an earlier episode when previous episodes were skipped or left unfinished.
 - **Trailer 403 errors** - Updated the bundled yt-dlp version to resolve 403 errors when loading trailers.
 - **Transparent background when switching from Sports to Live TV** - The background now displays correctly when navigating from the Sports tab to Live TV.
-
 
 ## v2.4.0
 
