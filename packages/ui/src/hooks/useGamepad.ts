@@ -1074,12 +1074,35 @@ const KEYBOARD_BUTTON_LABELS: Record<string, string> = {
 /** Pretty label for a stored key code (used in the settings key-binding UI). */
 export function keyboardKeyLabel(code: string): string {
   if (KEYBOARD_BUTTON_LABELS[code]) return KEYBOARD_BUTTON_LABELS[code];
+  // Modifier keys: show the canonical logical name regardless of which side
+  // (or which legacy stored variant) was used.
+  const mod = code.replace(/Left$|Right$/i, '');
+  if (mod === 'Control') return 'Ctrl';
+  if (mod === 'Shift') return 'Shift';
+  if (mod === 'Alt') return 'Alt';
+  if (mod === 'Meta') return 'Win';
   if (/^Key[A-Z]$/.test(code)) return code.slice(3);
   if (/^Digit[0-9]$/.test(code)) return code.slice(5);
   if (/^Numpad[0-9]$/.test(code)) return `Num ${code.slice(6)}`;
   if (/^F(?:[1-9]|1[0-2])$/.test(code)) return code;
   if (code.startsWith('Media')) return code.slice(5);
   return code;
+}
+
+/**
+ * Canonical key id for a keyboard event, used by BOTH the capture UI and the
+ * live resolver so they always agree. Modifier keys are normalized to their
+ * logical name — ControlLeft/ControlRight → 'Control', and even when the
+ * environment reports an unusable code ('Unidentified', '') the logical
+ * e.key still identifies the modifier — so Ctrl/Shift/Alt always bind and
+ * resolve as three distinct keys, never collapsing onto one.
+ */
+export function keyboardKeyId(e: { code?: string; key?: string }): string {
+  const key = e.key || '';
+  const code = e.code || '';
+  if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') return key;
+  if (code && code !== 'Unidentified') return code;
+  return key;
 }
 
 // While the settings key-capture UI is waiting for a press, the keyboard
@@ -1133,7 +1156,11 @@ export function useKeyboardAsController() {
 
     const resolveButton = (e: KeyboardEvent): string | null => {
       const table = kbMappingsRef.current;
-      return table[e.code] || table[e.key] || null;
+      // Canonical id first; legacy variants (pre-normalization stored
+      // 'ControlLeft' etc.) are still honored as a fallback. 'Unidentified'
+      // entries (junk captures from broken environments) are never matched.
+      const legacyCode = e.code && e.code !== 'Unidentified' ? e.code : '';
+      return table[keyboardKeyId(e)] || (legacyCode && table[legacyCode]) || table[e.key] || null;
     };
 
     const onKeyDown = (e: KeyboardEvent) => {

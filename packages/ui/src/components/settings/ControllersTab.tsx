@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useSettingsStore, DEFAULT_CONTROLLER_MAPPINGS, DEFAULT_CONTROLLER_CHORDS } from '../../stores/settingsStore';
 import {
   subscribeGamepadButtonPress,
+  keyboardKeyId,
   keyboardKeyLabel,
   setKeyboardCaptureActive,
   type GamepadDeviceInfo,
@@ -315,14 +316,16 @@ export function ControllersTab() {
   // keyboard controller layer stands down (setKeyboardCaptureActive) so the
   // next keypress reaches this listener. Esc cancels; any other key binds to
   // the controller button (physical e.code, so non-English layouts still
-  // work). Binding a key already used by another button moves it.
+  // work). Binding a key already used by another button moves it. Modifier
+  // keys are canonicalized (left/right Ctrl → 'Control') so they bind as one
+  // distinct key each.
   useEffect(() => {
     if (!capturingButton) return;
     setKeyboardCaptureActive(true);
     const onCaptureKey = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopImmediatePropagation();
-      const code = e.code || e.key;
+      const code = keyboardKeyId(e);
       if (code && code !== 'Escape') {
         const current = useSettingsStore.getState().keyboardControllerMappings;
         setKeyboardControllerMappings({ ...current, [code]: capturingButton });
