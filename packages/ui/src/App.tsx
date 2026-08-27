@@ -1622,10 +1622,8 @@ function useTmdbPresencePoster(
     volume,
     isMuted: muted,
     onPlayChannel: (channel: StoredChannel, sourceCategoryId?: string) => {
-      const catIds = parseCategoryIds(channel?.category_ids);
-      const targetCat = sourceCategoryId ?? catIds[0];
-      if (targetCat) {
-        setCategoryId(targetCat);
+      if (sourceCategoryId && sourceCategoryId !== categoryId) {
+        setCategoryId(sourceCategoryId);
       }
       if (handlePlayChannelWrapperRef.current) {
         handlePlayChannelWrapperRef.current(channel, undefined, sourceCategoryId);
@@ -2793,11 +2791,8 @@ function useTmdbPresencePoster(
       failoverNavAnchorRef.current = null;
       setFailoverNavAnchor(null);
     }
-    const anchorChannel = keepView && swappedToPrimary ? channel : targetChannel;
-    const catIds = parseCategoryIds(anchorChannel?.category_ids);
-    const targetCat = categoryOverride ?? catIds[0];
-    if (targetCat && targetCat !== categoryId) {
-      setCategoryId(targetCat);
+    if (categoryOverride && categoryOverride !== categoryId) {
+      setCategoryId(categoryOverride);
     }
     const currentMode = popoutModeRef.current;
     if (currentMode === 'external') {
@@ -4310,9 +4305,9 @@ function useTmdbPresencePoster(
           } else {
             setView('guide');
             setCats(!catHidden);
-            if (curChan?.category_ids) {
+            if (!curCatId && curChan?.category_ids) {
               const catIds = parseCategoryIds(curChan.category_ids);
-              if (catIds.length > 0 && (!curCatId || !catIds.includes(curCatId))) {
+              if (catIds.length > 0) {
                 setCatId(catIds[0]);
               }
             }
@@ -4348,9 +4343,9 @@ function useTmdbPresencePoster(
             setCats(false);
           } else {
             setView('guide');
-            if (curChan?.category_ids) {
+            if (!curCatId && curChan?.category_ids) {
               const catIds = parseCategoryIds(curChan.category_ids);
-              if (catIds.length > 0 && (!curCatId || !catIds.includes(curCatId))) {
+              if (catIds.length > 0) {
                 setCatId(catIds[0]);
               }
             }
@@ -5117,9 +5112,9 @@ function useTmdbPresencePoster(
                     // Open LiveTV, respect user's category hidden preference
                     setActiveView('guide');
                     setCategoriesOpen(!categoriesHidden);
-                    if (currentChannel?.category_ids) {
+                    if (!categoryId && currentChannel?.category_ids) {
                       const catIds = parseCategoryIds(currentChannel.category_ids);
-                      if (catIds.length > 0 && (!categoryId || !catIds.includes(categoryId))) {
+                      if (catIds.length > 0) {
                         setCategoryId(catIds[0]);
                       }
                     }

@@ -198,9 +198,9 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions): void
                     // Open LiveTV, respect user's category hidden preference
                     setActiveView('guide');
                     setCategoriesOpen(!categoriesHidden);
-                    if (currentChannel?.category_ids && latestRefs.current.setCategoryId) {
+                    if (!latestRefs.current.categoryId && currentChannel?.category_ids && latestRefs.current.setCategoryId) {
                         const catIds = parseCategoryIds(currentChannel.category_ids);
-                        if (catIds.length > 0 && (!latestRefs.current.categoryId || !catIds.includes(latestRefs.current.categoryId))) {
+                        if (catIds.length > 0) {
                             latestRefs.current.setCategoryId(catIds[0]);
                         }
                     }
