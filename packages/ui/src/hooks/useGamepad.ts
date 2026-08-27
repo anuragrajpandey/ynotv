@@ -1049,3 +1049,156 @@ export function executeAction(action: string) {
       break;
   }
 }
+
+// ── Keyboard as Controller ─────────────────────────────────────────────────
+// Maps physical keys (e.code) to controller buttons so an HTPC keyboard /
+// wireless remote can drive the same controller UI (spatial nav, chords,
+// mappings, visualizer) as a gamepad. Keys are translated into controller
+// buttons and fed through the exact same pipeline as a gamepad press:
+//   key → controller button → controllerMappings/chords → executeAction
+// Only mapped keys are intercepted — everything else keeps its normal
+// behavior, and keys are ignored while typing in text fields.
+const KEYBOARD_BUTTON_LABELS: Record<string, string> = {
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+  Enter: 'Enter',
+  NumpadEnter: 'Enter',
+  Escape: 'Esc',
+  Backspace: 'Backspace',
+  Space: 'Space',
+  Tab: 'Tab',
+};
+
+/** Pretty label for a stored key code (used in the settings key-binding UI). */
+export function keyboardKeyLabel(code: string): string {
+  if (KEYBOARD_BUTTON_LABELS[code]) return KEYBOARD_BUTTON_LABELS[code];
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+  if (/^Numpad[0-9]$/.test(code)) return `Num ${code.slice(6)}`;
+  if (/^F(?:[1-9]|1[0-2])$/.test(code)) return code;
+  if (code.startsWith('Media')) return code.slice(5);
+  return code;
+}
+
+// While the settings key-capture UI is waiting for a press, the keyboard
+// controller layer must stand down so the capture listener sees the key.
+let keyboardCaptureActive = false;
+export function setKeyboardCaptureActive(active: boolean) {
+  keyboardCaptureActive = active;
+}
+
+// Keys that must keep their normal behavior while an editable field is
+// focused (typing, submitting a form, deleting characters, moving the caret
+// by word). Everything else — D-Pad arrows, Escape, F-keys, media keys — acts
+// as a controller button even then, so spatial focus can move away from
+// search boxes exactly like it can with a real gamepad.
+const EDITING_KEYS = new Set(['Enter', 'Backspace', 'Delete', 'Tab', 'Home', 'End']);
+
+export function useKeyboardAsController() {
+  const keyboardControllerEnabled = useSettingsStore((s) => s.keyboardControllerEnabled);
+  const keyboardControllerMappings = useSettingsStore((s) => s.keyboardControllerMappings);
+  const controllerMappings = useSettingsStore((s) => s.controllerMappings);
+  const controllerChords = useSettingsStore((s) => s.controllerChords);
+  const controllerBackgroundListening = useSettingsStore((s) => s.controllerBackgroundListening);
+
+  const kbEnabledRef = useRef(keyboardControllerEnabled);
+  kbEnabledRef.current = keyboardControllerEnabled;
+  const kbMappingsRef = useRef(keyboardControllerMappings);
+  kbMappingsRef.current = keyboardControllerMappings;
+  const mappingsRef = useRef(controllerMappings);
+  mappingsRef.current = controllerMappings;
+  const chordsRef = useRef(controllerChords);
+  chordsRef.current = controllerChords;
+  const backgroundListenRef = useRef(controllerBackgroundListening);
+  backgroundListenRef.current = controllerBackgroundListening;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isInputActive = () =>
+      backgroundListenRef.current || (typeof document !== 'undefined' && document.hasFocus());
+
+    const isTypingTarget = (target: EventTarget | null): boolean => {
+      if (!target) return false;
+      const el = target as HTMLElement;
+      return (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        el instanceof HTMLSelectElement ||
+        el.isContentEditable === true
+      );
+    };
+
+    const resolveButton = (e: KeyboardEvent): string | null => {
+      const table = kbMappingsRef.current;
+      return table[e.code] || table[e.key] || null;
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (keyboardCaptureActive) return;
+      const button = resolveButton(e);
+      if (!button) return;
+      if (!kbEnabledRef.current || !isInputActive()) return;
+
+      // While an editable field is focused, let text-editing keys behave
+      // normally: printable keys type (even if a letter is bound to a
+      // controller button), Enter submits, Backspace/Delete edit. All other
+      // mapped keys still act as controller buttons, so the D-Pad moves
+      // spatial focus away from search boxes — matching a real gamepad.
+      if (isTypingTarget(e.target)) {
+        const producesText = e.isComposing || (e.key && e.key.length === 1);
+        if (producesText || EDITING_KEYS.has(e.key)) return;
+      }
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      if (e.repeat) {
+        // Native key repeat: re-fire the mapped action, bypassing the 60ms
+        // dedupe window (mirrors the gamepad poller's repeat path) so held
+        // keys move through the grid at the OS repeat rate.
+        const chord = chordActionFor(button, chordsRef.current);
+        if (chord) {
+          tryDispatchAction(chord);
+        } else {
+          executeAction(mappingsRef.current[button] || button);
+        }
+        return;
+      }
+
+      notifyButtonPressed(button, `${keyboardKeyLabel(e.code)} → ${button}`, 'Keyboard');
+      setHeldModifier(button, true);
+
+      const chord = chordActionFor(button, chordsRef.current);
+      if (chord) {
+        tryDispatchAction(chord);
+      } else {
+        tryDispatchAction(mappingsRef.current[button] || button);
+      }
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (keyboardCaptureActive) return;
+      const button = resolveButton(e);
+      if (!button) return;
+      setHeldModifier(button, false);
+    };
+
+    const onWindowBlur = () => {
+      clearHeldModifiers();
+    };
+
+    // Capture phase so a mapped key fully takes over before any app shortcut
+    // (bubble-phase) listener sees it.
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    window.addEventListener('keyup', onKeyUp, { capture: true });
+    window.addEventListener('blur', onWindowBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, { capture: true });
+      window.removeEventListener('keyup', onKeyUp, { capture: true });
+      window.removeEventListener('blur', onWindowBlur);
+    };
+  }, []);
+}

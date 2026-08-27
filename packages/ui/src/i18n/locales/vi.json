@@ -1942,6 +1942,16 @@
           "right_trigger": "R2"
         }
       },
+      "keyboard": {
+        "title": "Bàn phím làm bộ điều khiển",
+        "description": "Liên kết các phím trên bàn phím để giả vờ là các nút của bộ điều khiển, do đó, bàn phím/điều khiển từ xa không dây HTPC có thể điều khiển giao diện người dùng của bộ điều khiển (điều hướng không gian, hợp âm và ánh xạ nút).",
+        "enableLabel": "Bật bàn phím làm bộ điều khiển",
+        "enableHint": "Khi được bật, các phím được ánh xạ sẽ hoạt động như các nút điều khiển. Các phím mũi tên, Enter và Escape được liên kết sẵn với D-Pad và A/B. Các phím chưa được ánh xạ sẽ giữ hoạt động bình thường của chúng. Khi gõ vào ô tìm kiếm, các chữ cái và phím soạn thảo (Enter, Backspace) vẫn hoạt động bình thường, trong khi D-Pad và Escape vẫn đóng vai trò là nút điều khiển để bạn có thể di chuyển ra xa. Bấm vào nút phím bên dưới, sau đó bấm phím bạn muốn gán.",
+        "reset": "Đặt lại các ràng buộc chính",
+        "pressKey": "Nhấn một phím...",
+        "unmapped": "Chưa được lập bản đồ",
+        "unmap": "Hủy liên kết"
+      },
       "remoteCustomizer": {
         "title": "Trình tùy chỉnh điều khiển từ xa của điện thoại",
         "subtitle": "Cá nhân hóa điều khiển từ xa ảo với giao diện tùy chỉnh, nút được gán lại và các tab hiển thị.",

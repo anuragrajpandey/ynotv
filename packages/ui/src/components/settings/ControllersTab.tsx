@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore, DEFAULT_CONTROLLER_MAPPINGS, DEFAULT_CONTROLLER_CHORDS } from '../../stores/settingsStore';
-import { subscribeGamepadButtonPress, type GamepadDeviceInfo, type LiveButtonEvent } from '../../hooks/useGamepad';
+import {
+  subscribeGamepadButtonPress,
+  keyboardKeyLabel,
+  setKeyboardCaptureActive,
+  type GamepadDeviceInfo,
+  type LiveButtonEvent,
+} from '../../hooks/useGamepad';
 import { generateQrDataUrl } from '../../utils/qrCode';
 import { ControllerVisualizer } from './ControllerVisualizer';
 import { ControllerRemapModal } from './ControllerRemapModal';
@@ -96,6 +102,11 @@ export function ControllersTab() {
   const controllerMappings = useSettingsStore((s) => s.controllerMappings);
   const setControllerMappings = useSettingsStore((s) => s.setControllerMappings);
   const resetControllerMappings = useSettingsStore((s) => s.resetControllerMappings);
+  const keyboardControllerEnabled = useSettingsStore((s) => s.keyboardControllerEnabled);
+  const setKeyboardControllerEnabled = useSettingsStore((s) => s.setKeyboardControllerEnabled);
+  const keyboardControllerMappings = useSettingsStore((s) => s.keyboardControllerMappings);
+  const setKeyboardControllerMappings = useSettingsStore((s) => s.setKeyboardControllerMappings);
+  const resetKeyboardControllerMappings = useSettingsStore((s) => s.resetKeyboardControllerMappings);
   const controllerChords = useSettingsStore((s) => s.controllerChords);
   const setControllerChords = useSettingsStore((s) => s.setControllerChords);
   const resetControllerChords = useSettingsStore((s) => s.resetControllerChords);
@@ -119,6 +130,9 @@ export function ControllersTab() {
   const [isPhoneCustomizerOpen, setIsPhoneCustomizerOpen] = useState<boolean>(false);
   // Which modifier's combination matrix is shown in the chords section.
   const [chordTab, setChordTab] = useState<string>('left_bumper');
+  // Which controller button is waiting for a keyboard key to be pressed
+  // (null = no key capture in progress).
+  const [capturingButton, setCapturingButton] = useState<string | null>(null);
   const [lastActiveInfo, setLastActiveInfo] = useState<LiveButtonEvent | null>(null);
   const [remoteStatus, setRemoteStatus] = useState<{
     running: boolean;
@@ -295,6 +309,41 @@ export function ControllersTab() {
       ...controllerChords,
       [`${modifierId}+${baseId}`]: actionId,
     });
+  };
+
+  // Keyboard-as-controller key capture: while capturingButton is set, the
+  // keyboard controller layer stands down (setKeyboardCaptureActive) so the
+  // next keypress reaches this listener. Esc cancels; any other key binds to
+  // the controller button (physical e.code, so non-English layouts still
+  // work). Binding a key already used by another button moves it.
+  useEffect(() => {
+    if (!capturingButton) return;
+    setKeyboardCaptureActive(true);
+    const onCaptureKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const code = e.code || e.key;
+      if (code && code !== 'Escape') {
+        const current = useSettingsStore.getState().keyboardControllerMappings;
+        setKeyboardControllerMappings({ ...current, [code]: capturingButton });
+      }
+      setCapturingButton(null);
+    };
+    window.addEventListener('keydown', onCaptureKey, { capture: true });
+    return () => {
+      setKeyboardCaptureActive(false);
+      window.removeEventListener('keydown', onCaptureKey, { capture: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [capturingButton]);
+
+  const unmapKeyboardKey = (buttonId: string) => {
+    const current = useSettingsStore.getState().keyboardControllerMappings;
+    const next = { ...current };
+    for (const key of Object.keys(next)) {
+      if (next[key] === buttonId) delete next[key];
+    }
+    setKeyboardControllerMappings(next);
   };
 
   const copyUrl = (urlToCopy?: string) => {
@@ -798,6 +847,75 @@ export function ControllersTab() {
                     </option>
                   ))}
                 </select>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Keyboard as Controller — bind keyboard keys to pretend to be controller buttons */}
+      <div className="settings-section">
+        <div className="section-header">
+          <h3>{i18n.t('settings:controllers.keyboard.title')}</h3>
+          <button className="reset-btn" onClick={resetKeyboardControllerMappings}>
+            {i18n.t('settings:controllers.keyboard.reset')}
+          </button>
+        </div>
+        <p className="section-description">{i18n.t('settings:controllers.keyboard.description')}</p>
+
+        <label className="kb-controller-toggle">
+          <input
+            type="checkbox"
+            checked={keyboardControllerEnabled}
+            onChange={(e) => setKeyboardControllerEnabled(e.target.checked)}
+          />
+          <span>{i18n.t('settings:controllers.keyboard.enableLabel')}</span>
+        </label>
+        <p className="section-description" style={{ marginTop: 6 }}>
+          {i18n.t('settings:controllers.keyboard.enableHint')}
+        </p>
+
+        <div className="mapping-grid" style={{ marginTop: 14 }}>
+          {BUTTON_CONFIG.map((btn) => {
+            const boundKey = Object.keys(keyboardControllerMappings).find(
+              (key) => keyboardControllerMappings[key] === btn.id
+            );
+            const isCapturing = capturingButton === btn.id;
+            return (
+              <div key={`kb-${btn.id}`} className="mapping-card">
+                <div className="mapping-label-box">
+                  <span className="mapping-group">
+                    {i18n.t(`settings:controllers.mapping.groups.${btn.group}`, {
+                      defaultValue: btn.group,
+                    })}
+                  </span>
+                  <span className="mapping-btn-name">
+                    {i18n.t(`settings:controllers.mapping.buttons.${btn.id}`, {
+                      defaultValue: btn.id,
+                    })}
+                  </span>
+                </div>
+                <div className="mapping-key-row">
+                  <button
+                    className={`mapping-key-btn${isCapturing ? ' capturing' : ''}${boundKey ? ' bound' : ''}`}
+                    onClick={() => setCapturingButton((prev) => (prev === btn.id ? null : btn.id))}
+                  >
+                    {isCapturing
+                      ? i18n.t('settings:controllers.keyboard.pressKey')
+                      : boundKey
+                      ? keyboardKeyLabel(boundKey)
+                      : i18n.t('settings:controllers.keyboard.unmapped')}
+                  </button>
+                  {boundKey && !isCapturing && (
+                    <button
+                      className="mapping-key-clear"
+                      title={i18n.t('settings:controllers.keyboard.unmap')}
+                      onClick={() => unmapKeyboardKey(btn.id)}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

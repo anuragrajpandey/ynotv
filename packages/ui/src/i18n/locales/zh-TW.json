@@ -2382,6 +2382,16 @@
           "right_trigger": "R2"
         }
       },
+      "keyboard": {
+        "title": "鍵盤作為控制器",
+        "description": "綁定鍵盤按鍵以假裝為控制器按鈕，以便 HTPC 無線鍵盤/遙控器可以驅動控制器 UI（空間導航、和弦和按鈕映射）。",
+        "enableLabel": "啟用鍵盤作為控制器",
+        "enableHint": "啟用後，映射鍵充當控制器按鈕。箭頭鍵、Enter 和 Escape 已預先綁定到 D-Pad 和 A/B。未映射的鍵保持其正常行為。在搜尋框中輸入內容時，字母和編輯鍵（Enter、Backspace）保持正常工作，而方向鍵和 Escape 仍充當控制器按鈕，以便您可以離開。按一下下面的按鍵按鈕，然後按您要指派的按鍵。",
+        "reset": "重置按鍵綁定",
+        "pressKey": "按一個鍵...",
+        "unmapped": "未映射",
+        "unmap": "解綁"
+      },
       "remoteCustomizer": {
         "title": "手機遙控器自訂",
         "subtitle": "使用自訂面板、重新對應的按鈕和可見的標籤頁個人化虛擬遙控器。",

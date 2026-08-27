@@ -2382,6 +2382,16 @@
           "right_trigger": "R2"
         }
       },
+      "keyboard": {
+        "title": "Toetsenbord als controller",
+        "description": "Verbind de toetsenbordtoetsen zodat ze zich voordoen als controllerknoppen, zodat een draadloos HTPC-toetsenbord/afstandsbediening de gebruikersinterface van de controller kan aansturen (ruimtelijke navigatie, akkoorden en knoptoewijzingen).",
+        "enableLabel": "Schakel toetsenbord in als controller",
+        "enableHint": "Indien ingeschakeld, fungeren toegewezen toetsen als controllerknoppen. Pijltjestoetsen, Enter en Escape zijn vooraf gebonden aan het D-Pad en A/B. Niet-toegewezen sleutels behouden hun normale gedrag. Terwijl u in een zoekvak typt, blijven letters en bewerkingstoetsen (Enter, Backspace) normaal werken, terwijl het D-Pad en Escape nog steeds als controllerknoppen fungeren, zodat u weg kunt gaan. Klik hieronder op een sleutelknop en druk vervolgens op de sleutel die u wilt toewijzen.",
+        "reset": "Toetsbindingen opnieuw instellen",
+        "pressKey": "Druk op een toets...",
+        "unmapped": "Niet in kaart gebracht",
+        "unmap": "Ontbinden"
+      },
       "remoteCustomizer": {
         "title": "Telefoonafstandsbediening aanpassen",
         "subtitle": "Personalis eer de virtuele afstandsbediening met aangepaste skins, opnieuw toegewezen knoppen en zichtbare tabbladen.",

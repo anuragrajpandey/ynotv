@@ -2382,6 +2382,16 @@
           "right_trigger": "R2"
         }
       },
+      "keyboard": {
+        "title": "Teclado como controlador",
+        "description": "Vincule as teclas do teclado para fingir que são botões do controlador, para que um teclado/controle remoto sem fio HTPC possa controlar a interface do usuário do controlador (navegação espacial, acordes e mapeamentos de botões).",
+        "enableLabel": "Habilitar teclado como controlador",
+        "enableHint": "Quando ativadas, as teclas mapeadas atuam como botões do controlador. As teclas de seta, Enter e Escape estão pré-vinculadas ao D-Pad e A/B. As chaves não mapeadas mantêm seu comportamento normal. Ao digitar em uma caixa de pesquisa, as letras e as teclas de edição (Enter, Backspace) continuam funcionando normalmente, enquanto o D-Pad e o Escape ainda atuam como botões do controlador para que você possa se afastar. Clique em um botão de tecla abaixo e pressione a tecla que deseja atribuir.",
+        "reset": "Redefinir associações de teclas",
+        "pressKey": "Pressione uma tecla...",
+        "unmapped": "Não mapeado",
+        "unmap": "Desvincular"
+      },
       "remoteCustomizer": {
         "title": "Personalização do controle remoto do celular",
         "subtitle": "Personalize o controle remoto virtual com temas personalizados, botões remapeados e guias visíveis.",

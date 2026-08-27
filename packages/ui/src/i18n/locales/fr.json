@@ -2382,6 +2382,16 @@
           "right_trigger": "R2"
         }
       },
+      "keyboard": {
+        "title": "Clavier comme contrôleur",
+        "description": "Liez les touches du clavier pour faire semblant d'être des boutons de contrôleur, afin qu'un clavier/télécommande sans fil HTPC puisse piloter l'interface utilisateur du contrôleur (navigation spatiale, accords et mappages de boutons).",
+        "enableLabel": "Activer le clavier en tant que contrôleur",
+        "enableHint": "Lorsqu'elles sont activées, les touches mappées agissent comme des boutons de contrôleur. Les touches fléchées, Entrée et Échap sont pré-liées au D-Pad et à A/B. Les clés non mappées conservent leur comportement normal. Lorsque vous tapez dans un champ de recherche, les lettres et les touches d'édition (Entrée, Retour arrière) continuent de fonctionner normalement, tandis que le D-Pad et Échap font toujours office de boutons de contrôleur pour que vous puissiez vous éloigner. Cliquez sur un bouton clé ci-dessous, puis appuyez sur la touche que vous souhaitez attribuer.",
+        "reset": "Réinitialiser les raccourcis clavier",
+        "pressKey": "Appuyez sur une touche...",
+        "unmapped": "Non mappé",
+        "unmap": "Délier"
+      },
       "remoteCustomizer": {
         "title": "Personnalisation de la télécommande du téléphone",
         "subtitle": "Personnalisez la télécommande virtuelle avec des thèmes personnalisés, des boutons réassignés et des onglets visibles.",

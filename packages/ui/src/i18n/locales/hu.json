@@ -2382,6 +2382,16 @@
           "right_trigger": "R2"
         }
       },
+      "keyboard": {
+        "title": "Billentyűzet vezérlőként",
+        "description": "Kösd össze a billentyűzet billentyűit úgy, mintha vezérlőgombok lennének, így a HTPC vezeték nélküli billentyűzet/távirányító kezelni tudja a vezérlő felhasználói felületét (térbeli navigáció, akkordok és gombleképezések).",
+        "enableLabel": "Billentyűzet engedélyezése vezérlőként",
+        "enableHint": "Ha engedélyezve van, a leképezett billentyűk vezérlőgombként működnek. A nyílbillentyűk, az Enter és az Escape előre vannak kötve a D-Pad-hez és az A/B-hez. A leképezés nélküli kulcsok megtartják normál viselkedésüket. A keresőmezőbe való beírás közben a betűk és a szerkesztő billentyűk (Enter, Backspace) továbbra is normálisan működnek, míg a D-Pad és az Escape továbbra is vezérlőgombként működik, így távolodhat. Kattintson az alábbi gombokra, majd nyomja meg a hozzárendelni kívánt gombot.",
+        "reset": "Reset Key Bindings",
+        "pressKey": "Nyomj meg egy gombot...",
+        "unmapped": "Feltérképezetlen",
+        "unmap": "Kiold"
+      },
       "remoteCustomizer": {
         "title": "Telefonos távirányító testreszabása",
         "subtitle": "Szabja személyre a virtuális távirányítót egyedi témákkal, átmappelt gombokkal és látható lapokkal.",

@@ -2382,6 +2382,16 @@
           "right_trigger": "R2"
         }
       },
+      "keyboard": {
+        "title": "键盘作为控制器",
+        "description": "绑定键盘按键以假装为控制器按钮，以便 HTPC 无线键盘/遥控器可以驱动控制器 UI（空间导航、和弦和按钮映射）。",
+        "enableLabel": "启用键盘作为控制器",
+        "enableHint": "启用后，映射键充当控制器按钮。箭头键、Enter 和 Escape 已预先绑定到 D-Pad 和 A/B。未映射的键保持其正常行为。在搜索框中输入内容时，字母和编辑键（Enter、Backspace）保持正常工作，而方向键和 Escape 仍充当控制器按钮，以便您可以离开。单击下面的按键按钮，然后按您要分配的按键。",
+        "reset": "重置按键绑定",
+        "pressKey": "按一个键...",
+        "unmapped": "未映射",
+        "unmap": "解绑"
+      },
       "remoteCustomizer": {
         "title": "手机遥控器自定义",
         "subtitle": "使用自定义皮肤、重新映射的按钮和可见的标签页个性化虚拟遥控器。",

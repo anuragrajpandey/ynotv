@@ -2382,6 +2382,16 @@
           "right_trigger": "R2"
         }
       },
+      "keyboard": {
+        "title": "Klawiatura jako kontroler",
+        "description": "Powiąż klawisze klawiatury, aby udawały przyciski kontrolera, aby bezprzewodowa klawiatura/pilot HTPC mogła sterować interfejsem kontrolera (nawigacja przestrzenna, akordy i mapowanie przycisków).",
+        "enableLabel": "Włącz klawiaturę jako kontroler",
+        "enableHint": "Po włączeniu zamapowane klawisze działają jak przyciski kontrolera. Klawisze strzałek, Enter i Escape są wstępnie powiązane z padem kierunkowym i A/B. Niezamapowane klawisze zachowują swoje normalne zachowanie. Podczas wpisywania w polu wyszukiwania litery i klawisze edycyjne (Enter, Backspace) działają normalnie, natomiast D-Pad i Escape nadal działają jak przyciski kontrolera, dzięki czemu możesz się oddalić. Kliknij przycisk klawisza poniżej, a następnie naciśnij klawisz, który chcesz przypisać.",
+        "reset": "Zresetuj powiązania klawiszy",
+        "pressKey": "Naciśnij klawisz...",
+        "unmapped": "Niezmapowane",
+        "unmap": "Rozwiązać"
+      },
       "remoteCustomizer": {
         "title": "Personalizacja pilota telefonicznego",
         "subtitle": "Spersonalizuj wirtualny pilot za pomocą niestandardowych motywów, ponownie przypisanych przycisków i widocznych zakładek.",

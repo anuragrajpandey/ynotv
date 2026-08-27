@@ -2382,6 +2382,16 @@
           "right_trigger": "R2"
         }
       },
+      "keyboard": {
+        "title": "Tastiera si kontrollues",
+        "description": "Lidhni tastet e tastierës për t'u pretenduar se janë butona të kontrolluesit, kështu që një tastierë/tekomanda me valë HTPC mund të drejtojë ndërfaqen e përdoruesit të kontrolluesit (navigimi hapësinor, akordet dhe hartëzimi i butonave).",
+        "enableLabel": "Aktivizo tastierën si kontrollues",
+        "enableHint": "Kur aktivizohet, çelësat e hartës veprojnë si butona kontrollues. Tastet me shigjeta, Enter dhe Escape janë të lidhur paraprakisht me D-Pad dhe A/B. Çelësat e pahartuar mbajnë sjelljen e tyre normale. Ndërsa shkruani në një kuti kërkimi, shkronjat dhe butonat e redaktimit (Enter, Backspace) vazhdojnë të punojnë normalisht, ndërsa D-Pad dhe Escape ende veprojnë si butona kontrollues që të mund të largoheni. Klikoni një buton tasti më poshtë, më pas shtypni tastin që dëshironi të caktoni.",
+        "reset": "Rivendos lidhjet kryesore",
+        "pressKey": "Shtypni një çelës...",
+        "unmapped": "Pa hartë",
+        "unmap": "Çlidhe"
+      },
       "remoteCustomizer": {
         "title": "Personalizim i telekomandës së telefonit",
         "subtitle": "Personalizoni telekomandën virtuale me tema të personalizuara, butona të ricaktuar dhe skeda të dukshme.",

@@ -2382,6 +2382,16 @@
           "right_trigger": "R2"
         }
       },
+      "keyboard": {
+        "title": "Tastatura kao kontroler",
+        "description": "Povežite tastere tastature da se pretvaraju da su tasteri kontrolera, tako da HTPC bežična tastatura/daljinski upravljač može upravljati korisničkim interfejsom kontrolera (prostorna navigacija, akordi i mapiranje dugmadi).",
+        "enableLabel": "Omogućite tastaturu kao kontroler",
+        "enableHint": "Kada je omogućeno, mapirani tasteri deluju kao tasteri kontrolera. Tasteri sa strelicama, Enter i Escape su prethodno vezani za D-Pad i A/B. Nemapirani ključevi zadržavaju svoje normalno ponašanje. Dok kucate u okviru za pretragu, slova i tasteri za uređivanje (Enter, Backspace) nastavljaju da rade normalno, dok D-Pad i Escape i dalje deluju kao tasteri kontrolera tako da se možete pomeriti. Kliknite na dugme ispod, a zatim pritisnite taster koji želite da dodelite.",
+        "reset": "Resetujte veze tastera",
+        "pressKey": "Pritisnite tipku...",
+        "unmapped": "Unmapped",
+        "unmap": "Unbind"
+      },
       "remoteCustomizer": {
         "title": "Prilagođavanje daljinskog za telefon",
         "subtitle": "Personalizujte virtuelni daljinski s prilagođenim temama, remapiranim dugmadima i vidljivim karticama.",

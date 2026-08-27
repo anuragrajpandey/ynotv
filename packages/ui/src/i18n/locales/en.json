@@ -2429,6 +2429,16 @@
           "left_trigger": "L2",
           "right_trigger": "R2"
         }
+      },
+      "keyboard": {
+        "title": "Keyboard as Controller",
+        "description": "Bind keyboard keys to pretend to be controller buttons, so an HTPC wireless keyboard/remote can drive the controller UI (spatial navigation, chords, and button mappings).",
+        "enableLabel": "Enable Keyboard as Controller",
+        "enableHint": "When enabled, mapped keys act as controller buttons. Arrow keys, Enter, and Escape are pre-bound to the D-Pad and A/B. Unmapped keys keep their normal behavior. While typing in a search box, letters and editing keys (Enter, Backspace) keep working normally, while the D-Pad and Escape still act as controller buttons so you can move away. Click a key button below, then press the key you want to assign.",
+        "reset": "Reset Key Bindings",
+        "pressKey": "Press a key...",
+        "unmapped": "Unmapped",
+        "unmap": "Unbind"
       }
     },
     "favoriteManager": {

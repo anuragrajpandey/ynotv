@@ -119,7 +119,7 @@ import { useTimeshift } from './hooks/useTimeshift';
 import { useDvrEvents } from './hooks/useDvrEvents';
 import { useDvrUrlResolver } from './hooks/useDvrUrlResolver';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useGamepad } from './hooks/useGamepad';
+import { useGamepad, useKeyboardAsController } from './hooks/useGamepad';
 import { focusFirstInteractive, applyTvFocus, tryRestoreFocus, hasFocusMemory, focusViewOnOpen } from './services/spatialNavigation';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { UpdateModal } from './components/UpdateModal';
@@ -4192,6 +4192,9 @@ function useTmdbPresencePoster(
   // Gamepad & Virtual Phone Remote Event Router
   // ==========================================================================
   useGamepad();
+  // Keyboard-as-controller: lets mapped keyboard keys drive the controller UI
+  // (spatial nav / chords) for HTPC wireless keyboard remotes.
+  useKeyboardAsController();
 
   const remoteRefs = useRef({
     activeView,

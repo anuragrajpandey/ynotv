@@ -703,3 +703,85 @@
 .mapping-select:focus {
   border-color: #3b82f6;
 }
+
+/* Keyboard-as-controller */
+.kb-controller-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color, #ffffff);
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+.kb-controller-toggle input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.mapping-key-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.mapping-key-btn {
+  background: #181b26;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  min-width: 96px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mapping-key-btn:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.mapping-key-btn.bound {
+  color: #f3f4f6;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.mapping-key-btn.capturing {
+  color: #38bdf8;
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  animation: kb-capture-pulse 1s ease-in-out infinite;
+}
+
+@keyframes kb-capture-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.25);
+  }
+}
+
+.mapping-key-clear {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mapping-key-clear:hover {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.5);
+}

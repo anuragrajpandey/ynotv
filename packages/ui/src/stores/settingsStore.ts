@@ -591,6 +591,11 @@ export interface SettingsState {
   controllerMappings: Record<string, string>;
   setControllerMappings: (mappings: Record<string, string>) => void;
   resetControllerMappings: () => void;
+  keyboardControllerEnabled: boolean;
+  setKeyboardControllerEnabled: (enabled: boolean) => void;
+  keyboardControllerMappings: Record<string, string>;
+  setKeyboardControllerMappings: (mappings: Record<string, string>) => void;
+  resetKeyboardControllerMappings: () => void;
   controllerChords: Record<string, string>;
   setControllerChords: (chords: Record<string, string>) => void;
   resetControllerChords: () => void;
@@ -699,6 +704,22 @@ export const DEFAULT_CONTROLLER_MAPPINGS: Record<string, string> = {
   start: 'play_pause',
   select: 'toggle_livetv',
   guide: 'toggle_livetv',
+};
+
+// Keyboard-as-controller: physical keys (e.code) mapped to controller buttons.
+// When keyboardControllerEnabled is on, a mapped key is translated into the
+// controller button's action through the same pipeline as a gamepad press
+// (controllerMappings + chords), so an HTPC wireless keyboard/remote can drive
+// the controller UI. Keys use e.code (physical position) so layouts don't
+// matter; the values are controller button ids (same vocabulary as
+// DEFAULT_CONTROLLER_MAPPINGS).
+export const DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS: Record<string, string> = {
+  ArrowUp: 'dpad_up',
+  ArrowDown: 'dpad_down',
+  ArrowLeft: 'dpad_left',
+  ArrowRight: 'dpad_right',
+  Enter: 'south',
+  Escape: 'east',
 };
 
 // Button-combination chords: hold a modifier (shoulder/trigger) and press a
@@ -1789,6 +1810,22 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   resetControllerMappings: () => {
     set({ controllerMappings: { ...DEFAULT_CONTROLLER_MAPPINGS } });
     persistSettings({ controllerMappings: { ...DEFAULT_CONTROLLER_MAPPINGS } });
+  },
+  // Keyboard-as-controller is opt-in and independent of physical controller
+  // support — an HTPC remote can drive the controller UI on its own.
+  keyboardControllerEnabled: cachedSettings?.keyboardControllerEnabled ?? false,
+  setKeyboardControllerEnabled: (enabled) => {
+    set({ keyboardControllerEnabled: enabled });
+    persistSettings({ keyboardControllerEnabled: enabled });
+  },
+  keyboardControllerMappings: cachedSettings?.keyboardControllerMappings ?? DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS,
+  setKeyboardControllerMappings: (mappings) => {
+    set({ keyboardControllerMappings: mappings });
+    persistSettings({ keyboardControllerMappings: mappings });
+  },
+  resetKeyboardControllerMappings: () => {
+    set({ keyboardControllerMappings: { ...DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS } });
+    persistSettings({ keyboardControllerMappings: { ...DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS } });
   },
   controllerChords: cachedSettings?.controllerChords ?? DEFAULT_CONTROLLER_CHORDS,
   setControllerChords: (chords) => {

@@ -315,6 +315,7 @@ const SETTINGS_SEARCH_INDEX: SettingsSearchResult[] = [
   { id: 'controller-repeat-delay', label: 'D-Pad Hold Delay', description: 'How long to hold a D-Pad direction before it starts repeating.', tabId: 'controllers', tabLabel: 'Controllers & Remote', section: 'Controllers & Remote' },
   { id: 'controller-repeat-speed', label: 'D-Pad Repeat Speed', description: 'Base time between repeat presses while holding a D-Pad direction.', tabId: 'controllers', tabLabel: 'Controllers & Remote', section: 'Controllers & Remote' },
   { id: 'controller-epg-shift', label: 'EPG Shift Buttons', description: 'Map a controller button to move the EPG backward or forward by an hour in LiveTV.', tabId: 'controllers', tabLabel: 'Controllers & Remote', section: 'Controllers & Remote' },
+  { id: 'keyboard-as-controller', label: 'Keyboard as Controller', description: 'Bind keyboard keys to pretend to be controller buttons, so an HTPC wireless keyboard/remote can drive the controller UI.', tabId: 'controllers', tabLabel: 'Controllers & Remote', section: 'Controllers & Remote' },
 
   // --- Export / Import ---
   { id: 'export-import-tab', label: 'Export / Import', tabId: 'export-import', tabLabel: 'Export / Import', section: 'Export / Import' },
