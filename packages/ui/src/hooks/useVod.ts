@@ -1409,21 +1409,25 @@ export function useRecentlyWatchedSeries(limit = 20) {
                 }
               }
 
-              // Fallback: the saved episode no longer exists in the catalog, so find the
-              // first uncompleted episode (or the last episode if all are completed).
-              for (const ep of episodes) {
-                const eh = epHistMap.get(ep.id);
-                const dur = eh?.total_duration ?? ep.duration ?? 0;
-                const pos = eh?.progress_seconds ?? 0;
-                const isEpCompleted = eh ? (
-                  eh.completed === 1 || 
-                  (dur > 0 && (pos / dur) >= 0.90)
-                ) : false;
+              // Fallback (only when the episode saved in vod_history is no longer in the
+              // catalog): find the first uncompleted episode (or the last episode if all
+              // are completed). Must NOT override the saved episode - that is what made
+              // "Recent" jump to S1E1 or an earlier skipped episode.
+              if (!targetEp) {
+                for (const ep of episodes) {
+                  const eh = epHistMap.get(ep.id);
+                  const dur = eh?.total_duration ?? ep.duration ?? 0;
+                  const pos = eh?.progress_seconds ?? 0;
+                  const isEpCompleted = eh ? (
+                    eh.completed === 1 || 
+                    (dur > 0 && (pos / dur) >= 0.90)
+                  ) : false;
 
-                if (!isEpCompleted) {
-                  targetEp = ep;
-                  targetHist = eh || null;
-                  break;
+                  if (!isEpCompleted) {
+                    targetEp = ep;
+                    targetHist = eh || null;
+                    break;
+                  }
                 }
               }
 
