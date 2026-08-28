@@ -323,6 +323,7 @@ pub async fn init_mpv_with_params<R: Runtime>(
 
     // Capture libmpv log-message events for the Diagnostics panel
     spawn_log_capture(
+        app.clone(),
         mpv_arc.clone(),
         state.is_shutting_down.clone(),
         state.log_lines.clone(),
@@ -368,9 +369,11 @@ fn spawn_status_monitor<R: Runtime>(
             let video_format: Option<String> = mpv.get_property("video-format").ok();
             let vid: Option<i64> = mpv.get_property("vid").ok();
 
-            // Emit file-loaded & playback-restart events on transition from idle to active
+            // Emit playback-restart on transition from idle to active. The
+            // mpv-file-loaded event is emitted by the event loop at the real
+            // FileLoaded event (which also suppresses mpv's auto-selected
+            // subtitle tracks), so it is not duplicated here.
             if was_idle && !core_idle {
-                let _ = app.emit("mpv-file-loaded", true);
                 let _ = app.emit("mpv-playback-restart", true);
             }
             was_idle = core_idle;
@@ -428,10 +431,12 @@ fn spawn_status_monitor<R: Runtime>(
 }
 
 /// Drain mpv `log-message` events into a bounded ring buffer so the
-/// Diagnostics panel can show in-process libmpv logs. Stops on the same
-/// `is_shutting_down` flag as the status monitor; `mpv_destroy` also wakes the
-/// waiter with a `Shutdown` event, which exits the drain early.
-fn spawn_log_capture(
+/// Diagnostics panel can show in-process libmpv logs, and handle file lifecycle
+/// events (subtitle suppression on load). Stops on the same `is_shutting_down`
+/// flag as the status monitor; `mpv_destroy` also wakes the waiter with a
+/// `Shutdown` event, which exits the drain early.
+fn spawn_log_capture<R: Runtime>(
+    app: AppHandle<R>,
     mpv: Arc<Mpv>,
     shutdown: Arc<std::sync::atomic::AtomicBool>,
     log_lines: Arc<Mutex<VecDeque<String>>>,
@@ -460,6 +465,18 @@ fn spawn_log_capture(
                             buf.pop_front();
                         }
                         buf.push_back(line);
+                    }
+                    Ok(Event::FileLoaded) => {
+                        // mpv auto-selects subtitle tracks when a file finishes
+                        // loading. On live TV that can activate several CEA-608
+                        // closed-caption services and/or a soft WebVTT track at
+                        // once, rendering the same captions stacked 3-5 times.
+                        // Disable all subtitle display here so the frontend's
+                        // autoSelectSubtitle logic can cleanly re-enable exactly
+                        // the right track (mirrors the old sidecar engine's
+                        // file-loaded handler, lost in the libmpv refactor).
+                        let _ = mpv.set_property("sid", "no");
+                        let _ = app.emit("mpv-file-loaded", true);
                     }
                     Ok(Event::Shutdown) => break,
                     _ => {}
