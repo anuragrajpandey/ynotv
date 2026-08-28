@@ -413,7 +413,9 @@ export async function recordPlaylistItemWatch(item: PlaylistItem): Promise<void>
   let duration = 0;
   try {
     const progress = await getEpisodeProgress(item.mediaId);
-    if (progress && (progress.progress_seconds ?? 0) > 10 && (progress.total_duration ?? 0) > 0) {
+    const isCompleted = progress?.completed === 1 || 
+      (progress && (progress.total_duration ?? 0) > 0 && ((progress.progress_seconds ?? 0) / (progress.total_duration ?? 1)) >= 0.95);
+    if (!isCompleted && progress && (progress.progress_seconds ?? 0) > 10 && (progress.total_duration ?? 0) > 0) {
       resumePosition = progress.progress_seconds ?? 0;
       duration = progress.total_duration ?? 0;
     }

@@ -3482,7 +3482,9 @@ function useTmdbPresencePoster(
               console.log(`[AutoPlay] Found next episode: S${nextEpisode.season_num}E${nextEpisode.episode_num}`);
               
               const progress = await getEpisodeProgress(nextEpisode.id);
-              const resumePosition = progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+              const isCompleted = progress?.completed === 1 || 
+                ((progress?.total_duration ?? 0) > 0 && ((progress?.progress_seconds ?? 0) / (progress?.total_duration ?? 1)) >= 0.95);
+              const resumePosition = !isCompleted && progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
               
               const series = await db.vodSeries.get(seriesId);
               const coverUrl = series ? (series.cover || (series as any).stream_icon) : undefined;
@@ -3827,7 +3829,9 @@ function useTmdbPresencePoster(
           ).toLowerCase().replace(/[^a-z0-9]+/g, '_');
           const head = episodes!.find((e) => e.poster) ?? episodes![0];
           const progress = await getEpisodeProgress(prevEpisode.id);
-          const resumePosition = progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+          const isCompleted = progress?.completed === 1 || 
+            ((progress?.total_duration ?? 0) > 0 && ((progress?.progress_seconds ?? 0) / (progress?.total_duration ?? 1)) >= 0.95);
+          const resumePosition = !isCompleted && progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
           void recordVodWatch(
             vodInfo.seriesId,
             'series',
@@ -3863,7 +3867,9 @@ function useTmdbPresencePoster(
         if (prevEpisode) {
           // Get progress for resume
           const progress = await getEpisodeProgress(prevEpisode.id);
-          const resumePosition = progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+          const isCompleted = progress?.completed === 1 || 
+            ((progress?.total_duration ?? 0) > 0 && ((progress?.progress_seconds ?? 0) / (progress?.total_duration ?? 1)) >= 0.95);
+          const resumePosition = !isCompleted && progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
           
           // Record watch history
           void recordVodWatch(
@@ -4007,7 +4013,9 @@ function useTmdbPresencePoster(
           ).toLowerCase().replace(/[^a-z0-9]+/g, '_');
           const head = episodes!.find((e) => e.poster) ?? episodes![0];
           const progress = await getEpisodeProgress(nextEpisode.id);
-          const resumePosition = progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+          const isCompleted = progress?.completed === 1 || 
+            ((progress?.total_duration ?? 0) > 0 && ((progress?.progress_seconds ?? 0) / (progress?.total_duration ?? 1)) >= 0.95);
+          const resumePosition = !isCompleted && progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
           const curDur = durationRef.current;
           const curPos = positionRef.current;
           const curPercent = curDur > 0 ? Math.min(100, (curPos / curDur) * 100) : lastKnownProgressPercentRef.current;
@@ -4047,7 +4055,9 @@ function useTmdbPresencePoster(
         if (nextEpisode) {
           // Get progress for resume
           const progress = await getEpisodeProgress(nextEpisode.id);
-          const resumePosition = progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+          const isCompleted = progress?.completed === 1 || 
+            ((progress?.total_duration ?? 0) > 0 && ((progress?.progress_seconds ?? 0) / (progress?.total_duration ?? 1)) >= 0.95);
+          const resumePosition = !isCompleted && progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
 
           // Stop scrobbling the current episode at its current progress so it is
           // saved as resumable playback (or watched if already >=80%) on Trakt/Simkl

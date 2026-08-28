@@ -3167,14 +3167,6 @@ export async function recordEpisodeWatch(
 ): Promise<void> {
   try {
     const watchedAt = Date.now();
-    // Mark as completed if watched >= 90%, within 5s of end, or explicitly marked (e.g. 1/1)
-    const isCompletedCalc = (totalDuration > 0 && (progressSeconds / totalDuration) >= 0.90) ||
-                           (totalDuration > 0 && progressSeconds >= totalDuration - 5) ||
-                           (totalDuration === 1 && progressSeconds === 1);
-    let completed = isCompletedCalc ? 1 : 0;
-
-    debugLog(`recordEpisodeWatch called: ${episodeId} progress=${progressSeconds}/${totalDuration} completed=${completed}`, 'DB');
-
     const dbInstance = await (db as any).dbPromise;
     
     // Check if entry exists
@@ -3183,29 +3175,26 @@ export async function recordEpisodeWatch(
       [episodeId]
     );
     
+    let effectiveDuration = totalDuration;
+    let completed = 0;
+
     if (existingRecord && existingRecord.length > 0) {
-      // Update existing entry - preserve duration if new value is 0 or invalid, and preserve completed state
+      // Update existing entry - preserve duration if new value is 0 or invalid
       debugLog(`Updating existing episode record: ${episodeId}`, 'DB');
       
-      let effectiveDuration = totalDuration;
       if ((totalDuration === 0 || totalDuration === undefined || totalDuration === null) && 
           existingRecord[0].total_duration > 0) {
         effectiveDuration = existingRecord[0].total_duration;
         debugLog(`Preserving existing duration: ${effectiveDuration} (new value was: ${totalDuration})`, 'DB');
       }
 
-      // If existing record was already completed, keep it completed when the user
-      // scrubs back into a mostly-watched episode (progress >= 50%). This avoids
-      // un-marking a finished episode on a brief rewatch of the ending, while still
-      // letting a genuine re-watch restarting from the beginning clear the flag.
-      const progressRatio = effectiveDuration > 0 ? progressSeconds / effectiveDuration : 0;
-      if (
-        existingRecord[0].completed === 1 &&
-        progressSeconds > 0 &&
-        progressRatio >= 0.5
-      ) {
-        completed = 1;
-      }
+      // Mark as completed if watched >= 90%, within 5s of end, or explicitly marked (e.g. 1/1)
+      const isCompletedCalc = (effectiveDuration > 0 && (progressSeconds / effectiveDuration) >= 0.90) ||
+                             (effectiveDuration > 0 && progressSeconds >= effectiveDuration - 5) ||
+                             (effectiveDuration === 1 && progressSeconds === 1);
+      completed = isCompletedCalc ? 1 : 0;
+
+      debugLog(`recordEpisodeWatch update: ${episodeId} progress=${progressSeconds}/${effectiveDuration} completed=${completed}`, 'DB');
       
       await dbInstance.execute(
         `UPDATE episode_history SET 
@@ -3218,7 +3207,12 @@ export async function recordEpisodeWatch(
       );
     } else {
       // Create new entry
-      debugLog(`Creating new episode record: ${episodeId}`, 'DB');
+      const isCompletedCalc = (totalDuration > 0 && (progressSeconds / totalDuration) >= 0.90) ||
+                             (totalDuration > 0 && progressSeconds >= totalDuration - 5) ||
+                             (totalDuration === 1 && progressSeconds === 1);
+      completed = isCompletedCalc ? 1 : 0;
+
+      debugLog(`Creating new episode record: ${episodeId} progress=${progressSeconds}/${totalDuration} completed=${completed}`, 'DB');
       await dbInstance.execute(
         `INSERT INTO episode_history (episode_id, series_id, source_id, season_num, episode_num, title, watched_at, progress_seconds, total_duration, completed) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

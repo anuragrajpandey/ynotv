@@ -402,7 +402,9 @@ export function SeriesDetail({ series: seriesProp, onClose, onPlayEpisode, apiKe
       // Get current progress for this episode
       const progress = episodeProgress.get(episode.id);
       console.log('[SeriesDetail] Episode progress lookup:', episode.id, progress);
-      const resumePosition = progress && progress.progressSeconds > 10 ? progress.progressSeconds : 0;
+      const isCompleted = progress?.completed || 
+        (progress && progress.totalDuration > 0 && (progress.progressSeconds / progress.totalDuration) >= 0.95);
+      const resumePosition = !isCompleted && progress && progress.progressSeconds > 10 ? progress.progressSeconds : 0;
       console.log('[SeriesDetail] Resume position:', resumePosition);
 
       // Record series watch for Recently Watched with episode info

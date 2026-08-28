@@ -811,7 +811,8 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
         }
 
         const progress = epHistMap.get(targetEp.id);
-        const resumePosition = progress && (progress.progress_seconds ?? 0) > 10 ? (progress.progress_seconds ?? 0) : 0;
+        const isCompleted = progress ? (progress.completed === 1 || ((progress.total_duration ?? 0) > 0 && (progress.progress_seconds ?? 0) / (progress.total_duration ?? 1) >= 0.95)) : false;
+        const resumePosition = !isCompleted && progress && (progress.progress_seconds ?? 0) > 10 ? (progress.progress_seconds ?? 0) : 0;
         const epDuration = targetEp.duration || (targetEp.info?.duration ? Number(targetEp.info.duration) : 0) || 0;
 
         void recordVodWatch(
