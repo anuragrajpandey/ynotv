@@ -171,6 +171,9 @@ export interface SettingsState {
   setEpgTitleFontSize: (size: number) => void;
   epgBodyFontSize: number;
   setEpgBodyFontSize: (size: number) => void;
+  // Program text size in the EPG time grid (--prog-title-font-size / --prog-desc-font-size)
+  epgProgramFontSize: number;
+  setEpgProgramFontSize: (size: number) => void;
 
   // UI scale (--app-zoom)
   uiScale: number;
@@ -841,6 +844,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setEpgBodyFontSize: (size) => {
     set({ epgBodyFontSize: size });
     persistSettings({ epgBodyFontSize: size }, true);
+  },
+  epgProgramFontSize: (cachedSettings?.epgProgramFontSize as number) ?? 14,
+  setEpgProgramFontSize: (size) => {
+    set({ epgProgramFontSize: size });
+    persistSettings({ epgProgramFontSize: size }, true);
   },
 
   // UI scale (--app-zoom)

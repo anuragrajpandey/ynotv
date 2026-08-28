@@ -983,7 +983,9 @@
       "videoBitrate": "Видео битрејт",
       "audioBitrate": "Аудио битрејт",
       "threeColumnView": "Приказ у 3 колоне",
-      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting.",
+      "programFontSize": "Veličina fonta programa",
+      "programNameExample": "Primer naziva programa"
     },
     "subtitles": {
       "tabs": {

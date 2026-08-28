@@ -983,7 +983,9 @@
       "videoBitrate": "Videó bitráta",
       "audioBitrate": "Hang bitráta",
       "threeColumnView": "3 oszlopos nézet",
-      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting.",
+      "programFontSize": "Program betűméret",
+      "programNameExample": "Programnév példa"
     },
     "subtitles": {
       "tabs": {

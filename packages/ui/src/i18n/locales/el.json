@@ -983,7 +983,9 @@
       "videoBitrate": "Bitrate βίντεο",
       "audioBitrate": "Bitrate ήχου",
       "threeColumnView": "Προβολή 3 στηλών",
-      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting.",
+      "programFontSize": "Μέγεθος γραμματοσειράς προγράμματος",
+      "programNameExample": "Παράδειγμα ονόματος προγράμματος"
     },
     "subtitles": {
       "tabs": {

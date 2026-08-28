@@ -137,6 +137,7 @@ export interface AppSettings {
     categoryFontSize?: number;
     epgTitleFontSize?: number;
     epgBodyFontSize?: number;
+    epgProgramFontSize?: number;
     epgDarkenCurrent?: boolean;
     epgHighlightBorderCurrent?: boolean;
     epgBoldChannelNames?: boolean;

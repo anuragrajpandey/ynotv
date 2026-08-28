@@ -2758,10 +2758,10 @@ html.epg-disable-channel-fade .guide-channels {
     padding: 2px 8px;
   }
   .program-block-title {
-    font-size: 0.75rem;
+    font-size: var(--prog-title-font-size, 0.75rem);
   }
   .program-block-desc {
-    font-size: 0.65rem;
+    font-size: var(--prog-desc-font-size, 0.65rem);
     margin-top: 1px;
   }
 }

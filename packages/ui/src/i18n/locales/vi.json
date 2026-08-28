@@ -2528,7 +2528,9 @@
       "videoBitrate": "Bitrate video",
       "audioBitrate": "Bitrate audio",
       "threeColumnView": "Chế độ xem 3 cột",
-      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting.",
+      "programFontSize": "Cỡ chữ chương trình",
+      "programNameExample": "Ví dụ tên chương trình"
     },
     "subtitles": {
       "tabs": {

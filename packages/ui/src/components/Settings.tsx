@@ -720,6 +720,7 @@ export function Settings({
   const [epgMetadataBadgeAudioBitrateSports, setEpgMetadataBadgeAudioBitrateSports] = useState(epgMetadataBadgeAudioBitrateSportsProp ?? false);
   const [epgTitleFontSize, setEpgTitleFontSize] = useState(32);
   const [epgBodyFontSize, setEpgBodyFontSize] = useState(16);
+  const [epgProgramFontSize, setEpgProgramFontSize] = useState(14);
   const epgView = useEpgView();
   const setEpgView = useSetEpgView();
   const epgThreeColumn = useEpgThreeColumn();
@@ -1019,6 +1020,7 @@ export function Settings({
         epgShowDate?: boolean;
         epgTitleFontSize?: number;
         epgBodyFontSize?: number;
+        epgProgramFontSize?: number;
         channelInfoOverlayEnabled?: boolean;
         channelInfoOverlayFontSize?: number;
         channelInfoOverlayLogoSize?: number;
@@ -1318,10 +1320,12 @@ export function Settings({
       // Load EPG font size settings
       const loadedEpgTitleFontSize = settings.epgTitleFontSize ?? 32;
       const loadedEpgBodyFontSize = settings.epgBodyFontSize ?? 16;
+      const loadedEpgProgramFontSize = settings.epgProgramFontSize ?? 14;
       // EPG font-size CSS vars are owned by the DOM applier — already applied
       // at boot/hydration.
       setEpgTitleFontSize(loadedEpgTitleFontSize);
       setEpgBodyFontSize(loadedEpgBodyFontSize);
+      setEpgProgramFontSize(loadedEpgProgramFontSize);
 
       // Load Live View settings
       setChannelInfoOverlayEnabled(settings.channelInfoOverlayEnabled ?? false);
@@ -2146,6 +2150,14 @@ export function Settings({
   const handleEpgBodyFontSizeChange = (size: number) => {
     setEpgBodyFontSize(size);
     useSettingsStore.getState().setEpgBodyFontSize(size);
+  };
+
+  const handleEpgProgramFontSizeChange = (size: number) => {
+    setEpgProgramFontSize(size);
+    // epgProgramFontSize lives in the settings store — the DOM applier owns
+    // --prog-title-font-size / --prog-desc-font-size and the setter persists
+    // (debounced).
+    useSettingsStore.getState().setEpgProgramFontSize(size);
   };
 
   const handleIncludeAllChannelsToPlaylistChange = async (enabled: boolean) => {
@@ -3064,6 +3076,8 @@ export function Settings({
             onEpgTitleFontSizeChange={handleEpgTitleFontSizeChange}
             epgBodyFontSize={epgBodyFontSize}
             onEpgBodyFontSizeChange={handleEpgBodyFontSizeChange}
+            epgProgramFontSize={epgProgramFontSize}
+            onEpgProgramFontSizeChange={handleEpgProgramFontSizeChange}
             transparentGuideHeight={transparentGuideHeight}
             onTransparentGuideHeightChange={handleTransparentGuideHeightChange}
             transparentGuideHideHeader={transparentGuideHideHeader}

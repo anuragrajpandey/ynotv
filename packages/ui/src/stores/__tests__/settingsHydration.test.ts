@@ -205,6 +205,7 @@ describe('settings store hydration', () => {
     expect(s.categoryFontSize).toBe(13);
     expect(s.epgTitleFontSize).toBe(32);
     expect(s.epgBodyFontSize).toBe(16);
+    expect(s.epgProgramFontSize).toBe(14);
     expect(s.uiScale).toBe(100);
     expect(s.transparentGuideHeight).toBe(40);
     expect(s.transparentGuideHideHeader).toBe(false);

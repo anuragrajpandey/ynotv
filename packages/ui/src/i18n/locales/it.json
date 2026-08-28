@@ -983,7 +983,9 @@
       "videoBitrate": "Bitrate video",
       "audioBitrate": "Bitrate audio",
       "threeColumnView": "Vista a 3 colonne",
-      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting.",
+      "programFontSize": "Dimensione carattere programma",
+      "programNameExample": "Esempio nome programma"
     },
     "subtitles": {
       "tabs": {

@@ -983,7 +983,9 @@
       "videoBitrate": "視訊位元速率",
       "audioBitrate": "音訊位元速率",
       "threeColumnView": "三欄視圖",
-      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting.",
+      "programFontSize": "節目字型大小",
+      "programNameExample": "節目名稱範例"
     },
     "subtitles": {
       "tabs": {

@@ -262,6 +262,17 @@ export function applySettingsDom(state: SettingsState): void {
   if (sectionChanged('epgBodyFontSize', { v: state.epgBodyFontSize })) {
     setStyle('--epg-body-font-size', `${state.epgBodyFontSize}px`);
   }
+  // Program text in the EPG time grid (ProgramBlock title/desc). The theme
+  // tokens live under .modern-ui / .modern-ui-v3 on the same element, so the
+  // inline override wins. The description scales proportionally to keep the
+  // block's title/desc hierarchy when the user changes the program size.
+  if (sectionChanged('epgProgramFontSize', { v: state.epgProgramFontSize })) {
+    setStyle('--prog-title-font-size', `${state.epgProgramFontSize}px`);
+    setStyle(
+      '--prog-desc-font-size',
+      `${Math.max(8, Math.round(state.epgProgramFontSize * 0.85))}px`
+    );
+  }
 
   // Stremio/Nuvio detail badge scale (was written inline by App + Settings)
   if (sectionChanged('stremioBadgeSize', { v: state.stremioBadgeSize })) {

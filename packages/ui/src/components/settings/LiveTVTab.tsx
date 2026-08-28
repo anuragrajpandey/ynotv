@@ -95,6 +95,8 @@ interface LiveTVTabProps {
   onEpgTitleFontSizeChange: (size: number) => void;
   epgBodyFontSize: number;
   onEpgBodyFontSizeChange: (size: number) => void;
+  epgProgramFontSize: number;
+  onEpgProgramFontSizeChange: (size: number) => void;
   // Font Size props
   channelFontSize: number;
   onChannelFontSizeChange: (size: number) => void;
@@ -251,6 +253,8 @@ export function LiveTVTab({
   onEpgTitleFontSizeChange,
   epgBodyFontSize,
   onEpgBodyFontSizeChange,
+  epgProgramFontSize,
+  onEpgProgramFontSizeChange,
   channelFontSize,
   onChannelFontSizeChange,
   categoryFontSize,
@@ -1089,6 +1093,27 @@ export function LiveTVTab({
               </div>
             )}
 
+            {/* Program Font Size (EPG time grid) */}
+            <div className="form-group" style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{i18n.t('settings:livetv.programFontSize')}</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <input
+                  type="range"
+                  min="10"
+                  max="24"
+                  value={epgProgramFontSize}
+                  onChange={(e) => onEpgProgramFontSizeChange(parseInt(e.target.value))}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ minWidth: '3rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                  {epgProgramFontSize}px
+                </span>
+              </div>
+              <p className="form-hint" style={{ marginTop: '0.5rem' }}>
+                {i18n.t('settings:livetv.previewLabel')}: <span style={{ fontSize: `${epgProgramFontSize}px`, color: '#00d4ff' }}>{i18n.t('settings:livetv.programNameExample')}</span>
+              </p>
+            </div>
+
             {/* Reset Button */}
             <div style={{ marginTop: '16px' }}>
               <button
@@ -1102,6 +1127,7 @@ export function LiveTVTab({
                     onChannelFontSizeChange(14);
                     onCategoryFontSizeChange(14);
                   }
+                  onEpgProgramFontSizeChange(14);
                 }}
                 style={{ maxWidth: '200px' }}
               >
