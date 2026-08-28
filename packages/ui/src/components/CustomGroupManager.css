@@ -323,22 +323,68 @@
     accent-color: var(--accent-primary, #00d4ff);
 }
 
+.cgm-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.cgm-order-btn {
+    display: none;
+    background: var(--surface-color, rgba(255, 255, 255, 0.06));
+    border: var(--glass-border, 1px solid rgba(255, 255, 255, 0.15));
+    color: var(--text-muted, rgba(255, 255, 255, 0.6));
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+}
+
+.group-channel-item:hover .cgm-order-btn {
+    display: flex;
+}
+
+.cgm-order-btn:hover:not(:disabled) {
+    background: var(--surface-hover, rgba(255, 255, 255, 0.12));
+    border-color: var(--accent-primary, #00d4ff);
+    color: var(--accent-primary, #00d4ff);
+}
+
+.cgm-order-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    border-color: rgba(255, 255, 255, 0.05);
+}
+
 .remove-btn {
     display: none;
     background: none;
     border: none;
     color: #ff5c5c;
-    font-size: 1rem;
+    font-size: 0.95rem;
     cursor: pointer;
-    padding: 2px 5px;
+    padding: 0;
+    width: 22px;
+    height: 22px;
     border-radius: 4px;
     transition: background 0.15s;
     flex-shrink: 0;
     line-height: 1;
+    align-items: center;
+    justify-content: center;
 }
 
 .group-channel-item:hover .remove-btn {
-    display: block;
+    display: flex;
 }
 
 .remove-btn:hover {

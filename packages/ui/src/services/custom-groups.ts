@@ -40,22 +40,21 @@ export async function renameCustomGroup(groupId: string, newName: string): Promi
  */
 export async function addChannelsToGroup(groupId: string, streamIds: string[]): Promise<void> {
     await db.transaction('rw', [db.customGroupChannels], async () => {
-        // Get current max order
-        const lastItem = await db.customGroupChannels
-            .where('group_id').equals(groupId)
-            .reverse() // Sort by ID or order? We should verify schema.
-            // The index is idx_custom_group_channels_order(group_id, display_order)
-            // But Dexie 'reverse' on a compound index might be tricky if not defined in Dexie schema string.
-            // Let's just use toArray and sort for now if count is low, or count().
-            .sortBy('display_order');
+        // Query existing group channels to prevent duplicates
+        const existing = await db.customGroupChannels.where('group_id').equals(groupId).toArray();
+        const existingSet = new Set(existing.map(e => e.stream_id));
+        const uniqueStreamIds = streamIds.filter(id => !existingSet.has(id));
+        if (uniqueStreamIds.length === 0) return;
 
         let nextOrder = 0;
-        if (lastItem && lastItem.length > 0) {
-            nextOrder = (lastItem[0].display_order || 0) + 1;
+        for (const item of existing) {
+            if (item.display_order != null && item.display_order >= nextOrder) {
+                nextOrder = item.display_order + 1;
+            }
         }
 
         const now = Date.now();
-        const items: CustomGroupChannel[] = streamIds.map((streamId, index) => ({
+        const items: CustomGroupChannel[] = uniqueStreamIds.map((streamId, index) => ({
             group_id: groupId,
             stream_id: streamId,
             display_order: nextOrder + index,

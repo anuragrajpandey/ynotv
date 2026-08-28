@@ -1700,8 +1700,13 @@ class YnotvDatabase extends SqliteDatabase {
         DELETE FROM custom_group_channels 
         WHERE group_id NOT IN (SELECT group_id FROM custom_groups)
            OR stream_id NOT IN (SELECT stream_id FROM channels)
+           OR id NOT IN (
+             SELECT MIN(id)
+             FROM custom_group_channels
+             GROUP BY group_id, stream_id
+           )
       `);
-      console.log('[DB] Cleaned up orphaned/invalid custom group channels');
+      console.log('[DB] Cleaned up orphaned/invalid/duplicate custom group channels');
     } catch (e) {
       console.warn('[DB] Failed to clean up orphaned custom group channels:', e);
     }
