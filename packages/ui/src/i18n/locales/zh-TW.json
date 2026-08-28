@@ -287,6 +287,7 @@
     "searchPlaceholder": "搜尋頻道與 EPG",
     "rec": "錄製",
     "live": "直播",
+    "running": "正在播放",
     "ended": "已結束",
     "upcoming": "即將播出",
     "autoSyncFailed": "自動同步失敗：{{name}} - {{error}}",
@@ -980,7 +981,9 @@
       "avgBitrateLocationFailover": "故障切換",
       "avgBitrateLocationSports": "體育頻道關聯",
       "videoBitrate": "視訊位元速率",
-      "audioBitrate": "音訊位元速率"
+      "audioBitrate": "音訊位元速率",
+      "threeColumnView": "三欄視圖",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

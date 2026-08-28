@@ -287,6 +287,7 @@
     "searchPlaceholder": "چینلز اور EPG تلاش کریں",
     "rec": "ریکارڈ",
     "live": "لائیو",
+    "running": "جاری",
     "ended": "ختم",
     "upcoming": "آئندہ",
     "autoSyncFailed": "خودکار سنک ناکام: {{name}} - {{error}}",
@@ -980,7 +981,9 @@
       "avgBitrateLocationFailover": "فیل اوور",
       "avgBitrateLocationSports": "کھیلوں کے چینل لنکنگ",
       "videoBitrate": "ویڈیو بٹ ریٹ",
-      "audioBitrate": "آڈیو بٹ ریٹ"
+      "audioBitrate": "آڈیو بٹ ریٹ",
+      "threeColumnView": "3 کالم ویو",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

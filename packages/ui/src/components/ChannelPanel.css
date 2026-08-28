@@ -136,9 +136,18 @@
 }
 
 .guide-top-section.alternate-view .guide-preview-pane {
+  /* 16:9 height-driven pane (height set inline from the draggable
+     previewHeightPx). Keeping the pane exactly 16:9 matches the traditional
+     view and prevents mpv re-fitting its embedded window when a stream's
+     first frame lands (a non-16:9 pane made the video blow up to
+     ~fullscreen behind the transparent guide). Centered so the surrounding
+     surfaces stay opaque — the only transparent region over the video is the
+     pane itself, identical to the traditional view. */
   flex: none;
-  width: 100%;
-  aspect-ratio: auto;
+  width: auto;
+  aspect-ratio: 16 / 9;
+  align-self: center;
+  max-width: 100%;
   border-right: none;
   border-bottom: var(--guide-preview-border-bottom, var(--glass-border, 1px solid rgba(255, 255, 255, 0.1)));
   margin-bottom: var(--guide-preview-margin-bottom, 0);
@@ -530,10 +539,14 @@
   right: auto;
   top: auto;
   bottom: auto;
-  flex: none;
+  flex: 1;
+  min-height: 0;
   width: 100%;
   height: auto;
   padding: 16px 24px;
+  /* The base info-pane rule is content-box, so width:100% + padding pushed
+     the pane past the right edge of the column (cutting off the schedule). */
+  box-sizing: border-box;
 }
 
 .guide-top-section.alternate-view .guide-info-alternate-container {
@@ -3075,4 +3088,485 @@ html[data-theme]:has(.guide-transparent-mode) .category-strip {
 .modern-ui #epg-slot-container-1,
 .modern-ui-v3 #epg-slot-container-1 {
   background: transparent !important;
+}
+
+/* ==========================================================================
+   3-COLUMN EPG VIEW
+   The guide panel becomes a horizontal split: the channel list is a narrow
+   vertical strip on the left (the grid section, minus the time grid), and the
+   preview pane + live info header + program schedule sit on the right (the
+   top section, stacked). Every surface keeps the same backgrounds/opacity the
+   traditional view uses, so the compositing path is identical (opaque
+   surfaces, single transparent video hole). No translucent regions are
+   introduced that would force the compositor to blend over the native video
+   window.
+   ========================================================================== */
+.guide-panel.alt-view-active {
+  flex-direction: row;
+}
+
+/* Left: channel strip (the grid section; the horizontal program cells are
+   replaced by the row-level current-program line via ChannelRow altView). Its
+   width is driven by --epg-channel-column-width so the existing channel-column
+   resizer (dragging the 8px handle) already resizes it. */
+.guide-panel.alt-view-active .guide-grid-section {
+  order: 0;
+  flex: 0 0 var(--epg-channel-column-width, 300px);
+  min-width: 180px;
+  max-width: 640px;
+  border-right: var(--glass-surface-border-right, var(--glass-border, 1px solid rgba(255, 255, 255, 0.08)));
+  border-radius: 0;
+}
+
+/* The resizer handle lives inside the grid section and is positioned at the
+   column-width from its left edge — exactly the strip's right boundary. */
+.guide-panel.alt-view-active .epg-channel-resizer {
+  left: var(--epg-channel-column-width, 300px);
+}
+
+/* v3 floating-card look: round ALL corners of the strip (previously the
+   right corners were flat and flush against the right column, so the right
+   side looked cut off with no border). A gap separates the strip from the
+   right column so the rounded right edge is visible. overflow:hidden on the
+   grid section clips the header/search/list to the rounded corners. */
+.modern-ui-v3 .guide-panel.alt-view-active {
+  gap: 16px;
+}
+.modern-ui-v3 .guide-panel.alt-view-active .guide-grid-section {
+  border-radius: var(--glass-panel-radius, 24px);
+}
+.modern-ui-v3 .guide-panel.alt-view-active .guide-top-section {
+  border-radius: var(--glass-panel-radius, 24px);
+}
+
+/* Right: preview on top, live header + schedule below (the top section
+   already becomes a column via .guide-top-section.alternate-view) */
+.guide-panel.alt-view-active .guide-top-section {
+  order: 1;
+  flex: 1;
+  min-width: 0;
+}
+
+/* No time ruler in the strip view */
+.guide-panel.alt-view-active .guide-time-header {
+  display: none;
+}
+
+/* The previous/now/next navigation only matters for a horizontal time grid —
+   hidden in the strip view. The close (X) button moves to the end of the
+   right-pane toolbar (.guide-alt-toolbar .guide-alt-close), so it's also
+   hidden from the strip header here. */
+.guide-panel.alt-view-active .guide-nav {
+  display: none;
+}
+.guide-panel.alt-view-active .guide-header-right .guide-close {
+  display: none;
+}
+
+/* 3-column channel strip search row — the time header that hosts the channel
+   search on the timeline views is hidden in the strip view, so render the
+   search box here above the channel list. */
+.guide-alt-channel-search {
+  flex: none;
+  padding: 8px 10px;
+  border-bottom: var(--glass-border, 1px solid rgba(255, 255, 255, 0.08));
+  background: var(--guide-header-bg, var(--surface-color, rgba(20, 20, 20, 0.85)));
+}
+
+/* In the strip view the management buttons (Manage Channels, Refresh Source,
+   EPG shift, Playlist editor, Failover group, Probe) move to a proper
+   horizontal toolbar in the right schedule pane below the preview
+   (.guide-alt-toolbar), so the strip header stays minimal: just the clock and
+   the right cluster (resolution filter, A-Z, popout/embedded, close) in a
+   tighter header bar. The numeric clock is hidden since there's no timeline
+   to anchor to — program times live in the right pane's live header. */
+.guide-panel.alt-view-active .guide-header {
+  padding: 8px 12px;
+}
+.guide-panel.alt-view-active .guide-header-left {
+  gap: 10px;
+  row-gap: 4px;
+}
+.guide-panel.alt-view-active .guide-header-left .guide-current-time {
+  display: none;
+}
+
+/* The current-time indicators span the program cells — hidden with them */
+.guide-panel.alt-view-active .guide-channels .guide-current-time-indicator,
+.guide-panel.alt-view-active .guide-grid-section .guide-current-time-indicator {
+  display: none;
+}
+
+/* ---- Strip rows: number + logo + name + current program line ---- */
+.guide-panel.alt-view-active .guide-channel-row {
+  position: relative;
+  overflow: hidden;
+}
+
+/* The alt row is a single cell: the info column fills the whole row and the
+   program info lives under the name (rendered in the name container). */
+.guide-panel.alt-view-active .guide-channel-info.alt-mode {
+  flex: 1 1 auto;
+  gap: 10px;
+  padding: 6px 12px;
+  border-right: none;
+  min-height: 56px;
+}
+
+/* Favorite toggle (replaces the channel number) in the strip row */
+.guide-panel.alt-view-active .guide-channel-info.alt-mode .favorite-btn {
+  flex-shrink: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Metadata badges as a 3rd line under the channel name + current program in
+   the strip row (shown only when at least one badge is enabled) */
+.guide-panel.alt-view-active .guide-channel-info.alt-mode .guide-channel-alt-metadata {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+  min-width: 0;
+}
+
+/* The 3-column row uses the same logo sizing as the timeline grid: the
+   channel-logo-size setting (--channel-logo-size) and the square/rectangle
+   shape classes apply here too, so no width/height override is set. */
+
+/* Channel name is bold in the strip */
+.guide-panel.alt-view-active .guide-channel-info.alt-mode .guide-channel-name {
+  font-weight: 600;
+}
+
+/* Current program line inside the strip row */
+.guide-channel-alt-program-title {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.guide-channel-alt-no-program {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.45));
+  font-style: italic;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Thin progress bar pinned to the bottom of the strip row */
+.guide-channel-alt-progress-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--glass-border, rgba(255, 255, 255, 0.1));
+  overflow: hidden;
+  pointer-events: none;
+}
+.guide-channel-alt-progress-fill {
+  height: 100%;
+  background: var(--accent, #3b82f6);
+  transition: width 0.3s ease;
+}
+
+/* Selected/playing row gets a teal-tinted highlight. Kept as a solid color
+   (no blur) so it stays GPU-cheap. */
+.guide-panel.alt-view-active .guide-channel-row.currently-playing .guide-channel-info.alt-mode {
+  background: color-mix(in srgb, var(--accent, #00d4ff) 14%, var(--guide-info-current-bg, var(--surface-hover, rgba(255, 255, 255, 0.05))));
+}
+
+/* ---- Right pane: live info header + program schedule ---- */
+/* The info pane's ::before/::after spacers vertically center its content in
+   the traditional view; the alt right pane manages its own scroll, so drop
+   the spacers and let the pane fill the section. */
+.guide-top-section.alternate-view .guide-info-pane.alt-mode::before,
+.guide-top-section.alternate-view .guide-info-pane.alt-mode::after {
+  display: none;
+}
+/* In 3-column mode the info pane has width:100% (not the absolutely-positioned
+   left/right of the traditional view), so the v3 margin-left:16px would overrun
+   the right edge by 16px and push the border flush against the app window. Reset
+   it so the pane spans the rounded right card edge-to-edge, giving symmetric
+   left/right padding. */
+.guide-top-section.alternate-view .guide-info-pane.alt-mode {
+  overflow: hidden;
+  margin-left: 0;
+}
+.guide-top-section.alternate-view .guide-info-pane.alt-mode > .guide-alt-right-pane {
+  flex: 1;
+}
+
+.guide-alt-right-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 12px;
+}
+
+/* 3-column management toolbar: full labelled buttons in a horizontal row
+   below the preview, above the live header/schedule. Labels are always
+   visible here (unlike the header's hover-expand) since it's a proper
+   toolbar; the row wraps instead of stacking vertically. */
+.guide-alt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  flex: none;
+  background: var(--glass-info-bg, var(--bg-overlay, rgba(0, 0, 0, 0.95)));
+  border: var(--glass-surface-border, none);
+  border-radius: var(--glass-surface-radius, 8px);
+  box-shadow: var(--glass-surface-shadow, none);
+}
+/* Toolbar buttons behave like the timeline header buttons: icon-only by
+   default, label slides in on hover so the row stays compact. The sync-status
+   span below isn't a button and stays fully visible. */
+.guide-alt-toolbar .btn-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, margin 0.2s ease;
+  margin-left: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+.guide-alt-toolbar button:hover .btn-label {
+  max-width: 180px;
+  opacity: 1;
+  margin-left: 6px;
+}
+.guide-alt-toolbar .guide-epg-sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+/* Close button at the end of the 3-column toolbar (moved out of the strip
+   header). Pushed to the right edge of the toolbar row. */
+.guide-alt-toolbar .guide-alt-close {
+  margin-left: auto;
+}
+
+/* 3-column empty state when no channel is selected */
+.guide-alt-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  padding: 12px 14px;
+}
+.guide-alt-empty .guide-program-title {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.45));
+  font-style: italic;
+}
+
+/* 3-column LIVE TV header bar */
+.guide-alt-live-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  background: var(--glass-info-bg, var(--bg-overlay, rgba(0, 0, 0, 0.95)));
+  border: var(--glass-surface-border, none);
+  border-radius: var(--glass-surface-radius, 8px);
+  box-shadow: var(--glass-surface-shadow, none);
+}
+
+.guide-alt-live-badge {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background: #00c6a2;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.guide-alt-live-channel {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.guide-alt-live-program {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.8));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.guide-alt-live-times {
+  font-size: 0.75rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.5));
+  white-space: nowrap;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-alt-live-progress {
+  flex-basis: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--glass-border, rgba(255, 255, 255, 0.12));
+  overflow: hidden;
+}
+.guide-alt-live-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent, #00d4ff);
+  transition: width 0.3s ease;
+}
+
+/* Catchup: "Show older programs" toggle above the schedule list */
+.guide-alt-schedule-toggle {
+  align-self: flex-start;
+  flex: none;
+  padding: 5px 12px;
+  border: var(--glass-border, 1px solid rgba(255, 255, 255, 0.15));
+  border-radius: 6px;
+  background: var(--surface-color, rgba(255, 255, 255, 0.07));
+  color: var(--text-secondary, rgba(255, 255, 255, 0.8));
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.guide-alt-schedule-toggle:hover,
+.guide-alt-schedule-toggle.active {
+  background: color-mix(in srgb, var(--accent-primary, #00d4ff) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent-primary, #00d4ff) 55%, transparent);
+  color: var(--accent-primary, #00d4ff);
+}
+
+/* Program schedule list (3-column style: times + title + description) with a
+   Nuvio-style glowing scrollbar that lights up when hovered */
+.guide-alt-schedule {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-primary, #00d4ff) transparent;
+}
+.guide-alt-schedule::-webkit-scrollbar {
+  width: 6px;
+}
+.guide-alt-schedule::-webkit-scrollbar-track {
+  background: transparent;
+}
+.guide-alt-schedule::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 255, 0.35);
+  border-radius: 4px;
+  box-shadow: 0 0 6px rgba(0, 212, 255, 0.35);
+}
+.guide-alt-schedule:hover::-webkit-scrollbar-thumb,
+.guide-alt-schedule::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary, #00d4ff);
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.7);
+}
+
+.guide-alt-schedule-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 14px;
+  background: var(--glass-info-bg, var(--bg-overlay, rgba(0, 0, 0, 0.95)));
+  border: var(--glass-surface-border, none);
+  border-left: 3px solid transparent;
+  border-radius: var(--glass-surface-radius, 6px);
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+
+.guide-alt-schedule-row.running {
+  border-left-color: var(--accent, #00d4ff);
+  background: color-mix(in srgb, var(--accent, #00d4ff) 10%, var(--glass-info-bg, var(--bg-overlay, rgba(0, 0, 0, 0.95))));
+}
+
+.guide-alt-schedule-row.clickable {
+  cursor: pointer;
+}
+.guide-alt-schedule-row.clickable:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.05));
+}
+
+.guide-alt-schedule-time {
+  font-size: 0.72rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.5));
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-alt-schedule-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guide-alt-schedule-running {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent, #00d4ff);
+  border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 50%, transparent);
+  border-radius: 3px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+
+.guide-alt-schedule-desc {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.guide-alt-schedule-empty {
+  font-size: 0.85rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.45));
+  font-style: italic;
+  padding: 12px 14px;
 }

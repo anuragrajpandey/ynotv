@@ -287,6 +287,7 @@
     "searchPlaceholder": "جستجوی کانال‌ها و EPG",
     "rec": "ضبط",
     "live": "زنده",
+    "running": "در حال پخش",
     "ended": "پایان یافته",
     "upcoming": "آینده",
     "autoSyncFailed": "همگام‌سازی خودکار ناموفق: {{name}} - {{error}}",
@@ -980,7 +981,9 @@
       "avgBitrateLocationFailover": "فیل‌اوور",
       "avgBitrateLocationSports": "پیوند کانال‌های ورزشی",
       "videoBitrate": "بیت‌ریت ویدیو",
-      "audioBitrate": "بیت‌ریت صدا"
+      "audioBitrate": "بیت‌ریت صدا",
+      "threeColumnView": "نمای ۳ ستونه",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

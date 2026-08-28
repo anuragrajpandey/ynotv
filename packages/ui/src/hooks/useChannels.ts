@@ -2050,13 +2050,31 @@ export function useProgramsInRange(
 
 // Hook to get programs for a list of channel IDs (queries local DB - EPG is synced upfront)
 export function usePrograms(streamIds: string[]): Map<string, StoredProgram | null> {
+  // Reference to the last returned map. Two jobs:
+  // 1. MERGE, not replace: each live-query run only fetches the CURRENT
+  //    window of ids, but the map persists across runs. Without this, rows
+  //    that scrolled out of the window lose their entry (map is rebuilt with
+  //    only the current window), and scrolling back to a range that was
+  //    already queried doesn't re-run the query at all (the live-query deps
+  //    are the id join, which is unchanged) — leaving those rows blank until
+  //    the user scrolls somewhere new. With merge, channels keep their
+  //    program and it's instantly available when they come back into view.
+  // 2. STABILIZE references: fresh program objects are rebuilt from SQLite
+  //    every run. Memoized rows (e.g. the alternate view's channel strip)
+  //    compare programs by object identity, so reusing the previous object
+  //    for an unchanged program (same id + times) keeps those rows still.
+  const prevResultRef = useRef<Map<string, StoredProgram | null> | null>(null);
+
   const programs = useLiveQuery(
     async () => {
       if (streamIds.length === 0) return new Map();
       const now = Date.now();
       const fromIso = new Date(now - EPG_WINDOW_BACK_MS).toISOString();
       const toIso = new Date(now + EPG_WINDOW_FWD_MS).toISOString();
-      const result = new Map<string, StoredProgram | null>();
+      // Start from the previous merged map so out-of-window channels keep
+      // their program; null out the current window's ids so a channel that
+      // no longer airs anything (or never had EPG) drops its stale program.
+      const result = new Map<string, StoredProgram | null>(prevResultRef.current ?? []);
       for (const id of streamIds) result.set(id, null);
 
       const dbInstance = await (db as any).dbPromise;
@@ -2075,6 +2093,7 @@ export function usePrograms(streamIds: string[]): Map<string, StoredProgram | nu
 
       // Latest-start programme covering `now` per channel, picked in JS so
       // mixed timestamp formats compare correctly.
+      const prevResult = prevResultRef.current;
       const bestStart = new Map<string, number>();
       for (const prog of allPrograms) {
         const startMs = epgTimeMs(prog.start);
@@ -2083,10 +2102,21 @@ export function usePrograms(streamIds: string[]): Map<string, StoredProgram | nu
         const prev = bestStart.get(prog.stream_id);
         if (prev === undefined || startMs > prev) {
           bestStart.set(prog.stream_id, startMs);
-          result.set(prog.stream_id, prog);
+          // Keep the previous object reference when this channel's current
+          // program is unchanged, so memoized consumers skip re-rendering.
+          const prevProg = prevResult?.get(prog.stream_id);
+          result.set(
+            prog.stream_id,
+            prevProg && prevProg.id === prog.id
+              ? epgTimeMs(prevProg.start) === startMs && epgTimeMs(prevProg.end) === endMs
+                ? prevProg
+                : prog
+              : prog
+          );
         }
       }
 
+      prevResultRef.current = result;
       return result;
     },
     [streamIds.join(',')],

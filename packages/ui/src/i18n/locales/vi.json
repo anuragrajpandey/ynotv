@@ -350,6 +350,7 @@
     "searchPlaceholder": "Tìm kênh và EPG",
     "rec": "REC",
     "live": "TRỰC TIẾP",
+    "running": "Đang phát",
     "ended": "ĐÃ KẾT THÚC",
     "upcoming": "SẮP TỚI",
     "autoSyncFailed": "Tự đồng bộ thất bại: {{name}} - {{error}}",
@@ -2525,7 +2526,9 @@
       "avgBitrateLocationFailover": "Failover",
       "avgBitrateLocationSports": "Liên kết kênh thể thao",
       "videoBitrate": "Bitrate video",
-      "audioBitrate": "Bitrate audio"
+      "audioBitrate": "Bitrate audio",
+      "threeColumnView": "Chế độ xem 3 cột",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

@@ -287,6 +287,7 @@
     "searchPlaceholder": "Kërko kanale dhe EPG",
     "rec": "REC",
     "live": "LIVE",
+    "running": "Në transmetim",
     "ended": "PËRFUNDOI",
     "upcoming": "SË SHPEJTI",
     "autoSyncFailed": "Sinkronizimi automatik dështoi: {{name}} - {{error}}",
@@ -980,7 +981,9 @@
       "avgBitrateLocationFailover": "Failover",
       "avgBitrateLocationSports": "Lidhja e kanaleve sportive",
       "videoBitrate": "Bitrate video",
-      "audioBitrate": "Bitrate audio"
+      "audioBitrate": "Bitrate audio",
+      "threeColumnView": "Pamje 3 kolona",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

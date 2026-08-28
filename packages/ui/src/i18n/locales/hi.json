@@ -287,6 +287,7 @@
     "searchPlaceholder": "चैनल और EPG खोजें",
     "rec": "रिकॉर्ड",
     "live": "लाइव",
+    "running": "चल रहा है",
     "ended": "समाप्त",
     "upcoming": "आगामी",
     "autoSyncFailed": "स्वतः-सिंक विफल: {{name}} - {{error}}",
@@ -980,7 +981,9 @@
       "avgBitrateLocationFailover": "फ़ेलओवर",
       "avgBitrateLocationSports": "खेल चैनल लिंकिंग",
       "videoBitrate": "वीडियो बिटरेट",
-      "audioBitrate": "ऑडियो बिटरेट"
+      "audioBitrate": "ऑडियो बिटरेट",
+      "threeColumnView": "3 कॉलम दृश्य",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

@@ -287,6 +287,7 @@
     "searchPlaceholder": "ابحث في القنوات ودليل البرامج",
     "rec": "تسجيل",
     "live": "مباشر",
+    "running": "قيد التشغيل",
     "ended": "انتهى",
     "upcoming": "قادم",
     "autoSyncFailed": "فشلت المزامنة التلقائية: {{name}} — {{error}}",
@@ -980,7 +981,9 @@
       "avgBitrateLocationFailover": "فيل أوفر",
       "avgBitrateLocationSports": "ربط القنوات الرياضية",
       "videoBitrate": "بت الفيديو",
-      "audioBitrate": "بت الصوت"
+      "audioBitrate": "بت الصوت",
+      "threeColumnView": "عرض 3 أعمدة",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

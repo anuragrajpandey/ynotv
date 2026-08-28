@@ -287,6 +287,7 @@
     "searchPlaceholder": "Поиск каналов и EPG",
     "rec": "ЗАПИСЬ",
     "live": "ЭФИР",
+    "running": "В эфире",
     "ended": "ЗАВЕРШЕНО",
     "upcoming": "СКОРО",
     "autoSyncFailed": "Не удалась автосинхронизация: {{name}} — {{error}}",
@@ -980,7 +981,9 @@
       "avgBitrateLocationFailover": "Фейловер",
       "avgBitrateLocationSports": "Привязка спортивных каналов",
       "videoBitrate": "Видео битрейт",
-      "audioBitrate": "Аудио битрейт"
+      "audioBitrate": "Аудио битрейт",
+      "threeColumnView": "Просмотр 3 столбца",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

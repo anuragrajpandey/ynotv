@@ -287,6 +287,7 @@
     "searchPlaceholder": "Pretraži kanale i EPG",
     "rec": "REC",
     "live": "UŽIVO",
+    "running": "U tijeku",
     "ended": "ZAVRŠENO",
     "upcoming": "USKORO",
     "autoSyncFailed": "Automatska sinkronizacija nije uspjela: {{name}} - {{error}}",
@@ -980,7 +981,9 @@
       "avgBitrateLocationFailover": "Failover",
       "avgBitrateLocationSports": "Povezivanje sportskih kanala",
       "videoBitrate": "Video bitrate",
-      "audioBitrate": "Audio bitrate"
+      "audioBitrate": "Audio bitrate",
+      "threeColumnView": "Prikaz u 3 stupca",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

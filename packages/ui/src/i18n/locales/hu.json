@@ -287,6 +287,7 @@
     "searchPlaceholder": "Csatornák és EPG keresése",
     "rec": "FELV",
     "live": "ÉLŐ",
+    "running": "Folyamatban",
     "ended": "VÉGET ÉRT",
     "upcoming": "KÖVETKEZŐ",
     "autoSyncFailed": "Automatikus szinkronizálás sikertelen: {{name}} - {{error}}",
@@ -980,7 +981,9 @@
       "avgBitrateLocationFailover": "Failover",
       "avgBitrateLocationSports": "Sportcsatorna-társítás",
       "videoBitrate": "Videó bitráta",
-      "audioBitrate": "Hang bitráta"
+      "audioBitrate": "Hang bitráta",
+      "threeColumnView": "3 oszlopos nézet",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

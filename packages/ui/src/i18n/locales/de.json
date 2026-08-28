@@ -287,6 +287,7 @@
     "searchPlaceholder": "Kanäle und EPG suchen",
     "rec": "REC",
     "live": "LIVE",
+    "running": "Läuft",
     "ended": "BEENDET",
     "upcoming": "DEMNÄCHST",
     "autoSyncFailed": "Auto-Synchronisierung fehlgeschlagen: {{name}} - {{error}}",
@@ -980,7 +981,9 @@
       "avgBitrateLocationFailover": "Failover",
       "avgBitrateLocationSports": "Sport-Kanalverknüpfung",
       "videoBitrate": "Video-Bitrate",
-      "audioBitrate": "Audio-Bitrate"
+      "audioBitrate": "Audio-Bitrate",
+      "threeColumnView": "3-Spalten-Ansicht",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

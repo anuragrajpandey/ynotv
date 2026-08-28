@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Source } from '@ynotv/core';
-import { useEpgView, useSetEpgView, useSetEpgVisibleHours, useSetEpgClockFormat, useSetEpgShowDate, useUIStore, useIncludeAllChannelsToPlaylist, useSetIncludeAllChannelsToPlaylist } from '../stores/uiStore';
+import { useEpgView, useSetEpgView, useSetEpgVisibleHours, useSetEpgClockFormat, useSetEpgShowDate, useUIStore, useIncludeAllChannelsToPlaylist, useSetIncludeAllChannelsToPlaylist, useEpgThreeColumn, useSetEpgThreeColumn } from '../stores/uiStore';
 import { SettingsSidebar, SETTINGS_TAB_LABEL_KEYS, type SettingsTabId } from './settings/SettingsSidebar';
 import { searchSettings, type SettingsSearchResult } from './settings/SettingsSearchIndex';
 import { SourcesTab } from './settings/SourcesTab';
@@ -722,6 +722,8 @@ export function Settings({
   const [epgBodyFontSize, setEpgBodyFontSize] = useState(16);
   const epgView = useEpgView();
   const setEpgView = useSetEpgView();
+  const epgThreeColumn = useEpgThreeColumn();
+  const setEpgThreeColumn = useSetEpgThreeColumn();
   const setEpgVisibleHours = useSetEpgVisibleHours();
   const [epgVisibleHours, setEpgVisibleHoursState] = useState<'auto' | number>('auto');
   const setEpgClockFormat = useSetEpgClockFormat();
@@ -2103,6 +2105,13 @@ export function Settings({
     }
   };
 
+  const handleEpgThreeColumnChange = async (enabled: boolean) => {
+    setEpgThreeColumn(enabled);
+    if (window.storage) {
+      await window.storage.updateSettings({ epgThreeColumn: enabled });
+    }
+  };
+
   const handleEpgVisibleHoursChange = async (hours: 'auto' | number) => {
     setEpgVisibleHoursState(hours);
     setEpgVisibleHours(hours);
@@ -3049,6 +3058,8 @@ export function Settings({
             onEpgMetadataBadgeAudioBitrateSportsChange={handleEpgMetadataBadgeAudioBitrateSportsChange}
             epgView={epgView}
             onEpgViewChange={handleEpgViewChange}
+            epgThreeColumn={epgThreeColumn}
+            onEpgThreeColumnChange={handleEpgThreeColumnChange}
             epgTitleFontSize={epgTitleFontSize}
             onEpgTitleFontSizeChange={handleEpgTitleFontSizeChange}
             epgBodyFontSize={epgBodyFontSize}

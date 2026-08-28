@@ -288,6 +288,7 @@
     "searchPlaceholder": "Search Channels & EPG",
     "rec": "REC",
     "live": "LIVE",
+    "running": "Running",
     "ended": "ENDED",
     "upcoming": "UPCOMING",
     "scheduled": "SCHEDULED",
@@ -981,7 +982,9 @@
       "avgBitrateLocationFailover": "Failover",
       "avgBitrateLocationSports": "Sports Channel Linking",
       "videoBitrate": "Avg Video Bitrate",
-      "audioBitrate": "Avg Audio Bitrate"
+      "audioBitrate": "Avg Audio Bitrate",
+      "threeColumnView": "3 Column View",
+      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting."
     },
     "subtitles": {
       "tabs": {

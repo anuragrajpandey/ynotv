@@ -89,6 +89,8 @@ interface LiveTVTabProps {
   onEpgMetadataBadgeAudioBitrateSportsChange: (enabled: boolean) => void;
   epgView: 'traditional' | 'alternate';
   onEpgViewChange: (view: 'traditional' | 'alternate') => void;
+  epgThreeColumn: boolean;
+  onEpgThreeColumnChange: (enabled: boolean) => void;
   epgTitleFontSize: number;
   onEpgTitleFontSizeChange: (size: number) => void;
   epgBodyFontSize: number;
@@ -243,6 +245,8 @@ export function LiveTVTab({
   onEpgMetadataBadgeAudioBitrateSportsChange,
   epgView,
   onEpgViewChange,
+  epgThreeColumn,
+  onEpgThreeColumnChange,
   epgTitleFontSize,
   onEpgTitleFontSizeChange,
   epgBodyFontSize,
@@ -830,6 +834,22 @@ export function LiveTVTab({
                     <option value="traditional">{i18n.t('settings:livetv.traditionalView')}</option>
                     <option value="alternate">{i18n.t('settings:livetv.alternateView')}</option>
                   </select>
+                </div>
+
+                {/* Three-Column Guide Toggle */}
+                <div className="timeshift-toggle-row">
+                  <div className="timeshift-toggle-info">
+                    <span className="timeshift-toggle-label">{i18n.t('settings:livetv.threeColumnView')}</span>
+                    <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.threeColumnViewSub')}</span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={epgThreeColumn}
+                      onChange={(e) => onEpgThreeColumnChange(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                  </label>
                 </div>
 
               </div>
