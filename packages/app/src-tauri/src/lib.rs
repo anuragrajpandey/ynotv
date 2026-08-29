@@ -728,7 +728,12 @@ pub(crate) async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) ->
                     if size > 0 {
                         debug!("[MPV] Subtitle font size configured: {}", size);
                         args.push(format!("--sub-font-size={}", size));
-                        let scale = (size as f64 / 35.0).clamp(0.2, 3.0);
+                        let ass_override = sub_settings.get("subAssOverride").and_then(|v| v.as_str()).unwrap_or("yes");
+                        let scale = if ass_override == "scale" {
+                            (size as f64 / 35.0).clamp(0.2, 3.0)
+                        } else {
+                            1.0
+                        };
                         args.push(format!("--sub-scale={:.2}", scale));
                     }
                 }

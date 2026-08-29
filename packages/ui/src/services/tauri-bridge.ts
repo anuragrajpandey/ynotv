@@ -279,6 +279,13 @@ function guessMimeType(url: string, fallbackUrl?: string): string {
     return 'application/x-mpegURL';
 }
 
+export function resolveSubAssOverride(override?: string): 'no' | 'scale' | 'force' | 'strip' {
+    if (override === 'no') return 'no';
+    if (override === 'scale') return 'scale';
+    if (override === 'force') return 'force';
+    return 'strip';
+}
+
 export const Bridge = {
     isTauri: true,
 
@@ -613,9 +620,8 @@ export const Bridge = {
             try {
                 const ss = useSettingsStore.getState().subtitleSettings;
                 const size = ss?.defaultSize || 35;
-                const override = ss?.subAssOverride || 'yes';
-                const effectiveOverride = override === 'no' ? 'no' : (override === 'scale' ? 'scale' : 'strip');
-                const scale = Math.max(0.2, Math.min(3.0, size / 35));
+                const effectiveOverride = resolveSubAssOverride(ss?.subAssOverride);
+                const scale = effectiveOverride === 'scale' ? Math.max(0.2, Math.min(3.0, size / 35)) : 1.0;
                 await invoke('mpv_set_property', { name: 'sub-font-size', value: size }).catch(() => {});
                 await invoke('mpv_set_property', { name: 'sub-scale', value: scale }).catch(() => {});
                 await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
@@ -679,9 +685,8 @@ export const Bridge = {
 
     async setSubtitleSize(size: number) {
         const ss = useSettingsStore.getState().subtitleSettings;
-        const override = ss?.subAssOverride || 'yes';
-        const effectiveOverride = override === 'no' ? 'no' : (override === 'scale' ? 'scale' : (override === 'force' ? 'force' : 'strip'));
-        const scale = Math.max(0.2, Math.min(3.0, size / 35));
+        const effectiveOverride = resolveSubAssOverride(ss?.subAssOverride);
+        const scale = effectiveOverride === 'scale' ? Math.max(0.2, Math.min(3.0, size / 35)) : 1.0;
         await invoke('mpv_set_property', { name: 'sub-font-size', value: size }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-scale', value: scale }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
@@ -694,15 +699,8 @@ export const Bridge = {
     },
 
     async setSubAssOverride(override: string) {
-        if (override === 'yes' || override === 'strip') {
-            await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'strip' }).catch(() => {});
-        } else if (override === 'force') {
-            await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'force' }).catch(() => {});
-        } else if (override === 'no') {
-            await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'no' }).catch(() => {});
-        } else {
-            await invoke('mpv_set_property', { name: 'sub-ass-override', value: override }).catch(() => {});
-        }
+        const effectiveOverride = resolveSubAssOverride(override);
+        await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
     },
 
     async setSubtitleColor(color: string) {
@@ -734,8 +732,7 @@ export const Bridge = {
 
     async setSubtitlePos(pos: number) {
         const ss = useSettingsStore.getState().subtitleSettings;
-        const override = ss?.subAssOverride || 'yes';
-        const effectiveOverride = override === 'no' ? 'no' : (override === 'scale' ? 'scale' : (override === 'force' ? 'force' : 'strip'));
+        const effectiveOverride = resolveSubAssOverride(ss?.subAssOverride);
         await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
         return invoke('mpv_set_property', { name: 'sub-pos', value: pos });
     },
@@ -743,8 +740,7 @@ export const Bridge = {
     async setSubtitleAlign(align: string) {
         const alignX = align === 'left' ? 'left' : (align === 'right' ? 'right' : 'center');
         const ss = useSettingsStore.getState().subtitleSettings;
-        const override = ss?.subAssOverride || 'yes';
-        const effectiveOverride = override === 'no' ? 'no' : (override === 'scale' ? 'scale' : (override === 'force' ? 'force' : 'strip'));
+        const effectiveOverride = resolveSubAssOverride(ss?.subAssOverride);
         await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-align-x', value: alignX }).catch(() => {});
     },

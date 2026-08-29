@@ -5,7 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { StoredChannel } from '../db';
 import { getFailoverCandidatesAfter, getPrimaryChannelForGroup } from '../services/failover-groups';
 import type { VodPlayInfo } from '../types/media';
-import { Bridge, registerOnAppClose, unregisterOnAppClose } from '../services/tauri-bridge';
+import { Bridge, registerOnAppClose, unregisterOnAppClose, resolveSubAssOverride } from '../services/tauri-bridge';
 import { resolvePlayUrl } from '../services/stream-resolver';
 import { addToRecentChannels } from '../utils/recentChannels';
 import { db, recordVodWatch, updateVodWatchProgress, getVodWatchProgress, recordEpisodeWatch, getEpisodeProgress, updateDvrRecordingProgress } from '../db';
@@ -73,8 +73,7 @@ async function applySubtitleSettings() {
     const size = ss.defaultSize || 35;
     await Bridge.setSubtitleSize(size).catch(() => {});
 
-    const assOverride = ss.subAssOverride || 'yes';
-    const effectiveOverride = assOverride === 'no' ? 'no' : (assOverride === 'scale' ? 'scale' : 'strip');
+    const effectiveOverride = resolveSubAssOverride(ss.subAssOverride);
     await Bridge.setSubAssOverride(effectiveOverride).catch(() => {});
     await Bridge.setProperty('sub-ass-scale-with-window', true).catch(() => {});
 
@@ -442,6 +441,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
   const pendingResumeSeekRef = useRef<number | null>(null);
   const isInitialSeekPendingRef = useRef(false);
   const cancelPendingSeekRef = useRef<(() => void) | null>(null);
+  const wasSeekingRef = useRef(false);
 
   // Trailer playback recovery: YouTube streams can die a few seconds in when
   // the CDN 403s the media segments. Track load time + retry count so an
@@ -452,6 +452,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
   const seekWithRetry = useCallback((targetSeek: number, description: string, onSuccess?: () => void) => {
     cancelPendingSeekRef.current?.();
+    wasSeekingRef.current = true;
 
     let attempts = 0;
     const maxAttempts = 15;
@@ -2041,6 +2042,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen('mpv-playback-restart', async () => {
+        const wasSeeking = wasSeekingRef.current;
+        wasSeekingRef.current = false;
+
         // Read the currently active/selected subtitle track (from Bridge or MPV track list)
         let currentSubId = Bridge.getSubtitleTrackId?.() ?? null;
 
@@ -2055,7 +2059,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
           } catch {}
         }
 
-        if (currentSubId !== null && currentSubId > 0) {
+        if (wasSeeking && currentSubId !== null && currentSubId > 0) {
           logInfo(`[Subtitle] Playback-restart after seek — cycling subtitle track ${currentSubId} to clear libass/CC decoder cache`);
           // Toggle sid to 0 then restore target ID to purge stale dialogue events and reset the CC decoder
           await invoke('mpv_set_subtitle', { id: 0 }).catch(() => {});
@@ -2310,6 +2314,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
   const handleCatchupSeek = useCallback(async (channel: StoredChannel, programTitle: string, startTimeMs: number, durationMinutes: number, seekSeconds: number, programDesc?: string) => {
     seekingRef.current = true;
+    wasSeekingRef.current = true;
     clearPendingSeeks();
     const startPaddingSecs = catchupStartPaddingRef.current * 60;
     pendingCatchupSeekRef.current = seekSeconds + startPaddingSecs;
@@ -2761,6 +2766,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
   const handleSeek = useCallback(async (seconds: number) => {
     seekingRef.current = true;
+    wasSeekingRef.current = true;
     setPosition(seconds);
     try {
       await Bridge.seek(seconds);
