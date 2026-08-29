@@ -2944,6 +2944,112 @@ export function ChannelPanel({
     </div>
   );
 
+  // The 3-column right pane: toolbar + live header + schedule list. Shared by
+  // the plain 3-column view and the multiview-in-3-column layout (where the
+  // video grid renders above this pane).
+  const renderAltRightPane = () => (
+    <div className="guide-alt-right-pane">
+      {/* 3-column toolbar below the preview: the management
+          buttons (when available) plus the close button at the
+          end, which moved out of the strip header. */}
+      <div className="guide-alt-toolbar">
+        {renderGuideManageButtons()}
+        {onTogglePopoutMode && renderPopoutToggle()}
+        <button
+          className="guide-epg-shift-btn guide-alt-close"
+          onClick={onClose}
+          title={t('close')}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+          <span className="btn-label">{t('close')}</span>
+        </button>
+      </div>
+      {selectedChannel ? (
+        <>
+          {/* 3-column live info header */}
+          <div className="guide-alt-live-header">
+            <span className="guide-alt-live-badge">● {i18n.t('common:live', { defaultValue: 'LIVE' })}</span>
+            <span className="guide-alt-live-channel" title={selectedChannel.name}>
+              {selectedChannel.name}
+            </span>
+            <span className="guide-alt-live-program" title={selectedProgram?.title}>
+              {selectedProgram?.title || i18n.t('common:noProgramInfo', { defaultValue: 'No Program Information' })}
+            </span>
+            <span className="guide-alt-live-times">
+              {selectedProgram ? `${formatEpgTime(new Date(selectedProgram.start))} - ${formatEpgTime(new Date(selectedProgram.end))}` : ''}
+            </span>
+            {selectedProgram && (
+              <div className="guide-alt-live-progress">
+                <div className="guide-alt-live-progress-fill" style={{ width: `${progressPercent}%` }} />
+              </div>
+            )}
+          </div>
+          {/* Catchup: expand the history list beyond the default
+              lookback for channels with tv_archive */}
+          {selectedChannel && (Boolean(selectedChannel.tv_archive) || selectedChannel.tv_archive === 1) && (
+            <button
+              className={`guide-alt-schedule-toggle ${altScheduleShowOlder ? 'active' : ''}`}
+              onClick={() => setAltScheduleShowOlder((v) => !v)}
+              title={
+                altScheduleShowOlder
+                  ? i18n.t('live:showRecentPrograms', { defaultValue: 'Show recent programs' })
+                  : i18n.t('live:showOlderPrograms', { defaultValue: 'Show older programs' })
+              }
+            >
+              {altScheduleShowOlder
+                ? i18n.t('live:showRecentPrograms', { defaultValue: 'Show recent programs' })
+                : i18n.t('live:showOlderPrograms', { defaultValue: 'Show older programs' })}
+            </button>
+          )}
+          {/* 3-column schedule list (current + upcoming) */}
+          <div className="guide-alt-schedule">
+            {altSchedulePrograms.map(({ program, startMs, endMs }) => {
+              const now = currentTime.getTime();
+              const isCurrent = now >= startMs && now < endMs;
+              const isPast = endMs <= now;
+              const catchupAvailable = Boolean(selectedChannel.tv_archive) || selectedChannel.tv_archive === 1;
+              const clickable = (isPast || isCurrent) && catchupAvailable && !!onPlayCatchup;
+              return (
+                <button
+                  key={program.id}
+                  className={`guide-alt-schedule-row ${isCurrent ? 'running' : ''} ${clickable ? 'clickable' : ''}`}
+                  onClick={() => {
+                    if (!clickable) return;
+                    const durationMins = Math.max(1, Math.round((endMs - startMs) / 60000));
+                    const rawStartMs = program.raw_start ? new Date(program.raw_start).getTime() : startMs;
+                    onPlayCatchup!(selectedChannel, program.title, rawStartMs, durationMins, program.description);
+                  }}
+                >
+                  <span className="guide-alt-schedule-time">
+                    {formatEpgTime(new Date(startMs))} - {formatEpgTime(new Date(endMs))}
+                  </span>
+                  <span className="guide-alt-schedule-title" title={program.title}>
+                    {program.title}
+                    {isCurrent && <span className="guide-alt-schedule-running">{i18n.t('common:running', { defaultValue: 'Running' })}</span>}
+                  </span>
+                  {program.description && (
+                    <span className="guide-alt-schedule-desc">{program.description}</span>
+                  )}
+                </button>
+              );
+            })}
+            {altSchedulePrograms.length === 0 && (
+              <div className="guide-alt-schedule-empty">
+                {i18n.t('common:noProgramInfo', { defaultValue: 'No Program Information' })}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="guide-alt-empty">
+          <div className="guide-program-title">{t('selectAChannel')}</div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div
       ref={gridContainerRef}
@@ -2952,10 +3058,34 @@ export function ChannelPanel({
       {/* Top Section: Preview & Info — hidden in transparent guide mode */}
       {!guideTransparent && (
       <div 
-        className={`guide-top-section ${epgThreeColumn || epgView === 'alternate' ? 'alternate-view' : ''} ${showMultiviewGrid ? 'multiview-grid-active' : ''}`}
+        className={`guide-top-section ${epgThreeColumn || epgView === 'alternate' ? 'alternate-view' : ''} ${showMultiviewGrid && !epgThreeColumn ? 'multiview-grid-active' : ''}`}
         style={epgView !== 'alternate' && !showMultiviewGrid ? { '--preview-width': `${previewWidthPct}%` } as React.CSSProperties : undefined}
       >
-        {showMultiviewGrid ? (
+        {(showMultiviewGrid || showMultiviewSplit) && epgThreeColumn ? (
+          <>
+            {/* Multiview in the 3-column view: the video grid renders above
+                the schedule pane (renderAltRightPane), which stays visible. */}
+            <div className={`guide-multiview-3col ${showMultiviewGrid ? 'four-up' : 'two-up'}`}>
+              {/* Cell 1: Main MPV player */}
+              <div id="epg-slot-container-1" className="guide-preview-grid-cell">
+                {renderPreviewPane()}
+              </div>
+              {/* Cell 2: Viewer 2 */}
+              <div id="epg-slot-container-2" className="guide-preview-grid-cell" />
+              {showMultiviewGrid && (
+                <>
+                  {/* Cell 3: Viewer 3 */}
+                  <div id="epg-slot-container-3" className="guide-preview-grid-cell" />
+                  {/* Cell 4: Viewer 4 */}
+                  <div id="epg-slot-container-4" className="guide-preview-grid-cell" />
+                </>
+              )}
+            </div>
+            <div className="guide-info-pane alt-mode">
+              {renderAltRightPane()}
+            </div>
+          </>
+        ) : showMultiviewGrid ? (
           <div className="guide-preview-line-1x4">
             {/* Cell 1: Main MPV player */}
             <div id="epg-slot-container-1" className="guide-preview-grid-cell">
@@ -2973,109 +3103,10 @@ export function ChannelPanel({
             {renderPreviewPane()}
             {(epgThreeColumn || epgView !== 'alternate') && (
               <div className={`guide-info-pane ${showMultiviewSplit ? 'multiview-split-active' : ''} ${epgThreeColumn ? 'alt-mode' : ''}`}>
-                {showMultiviewSplit ? (
+                {epgThreeColumn ? (
+                  renderAltRightPane()
+                ) : showMultiviewSplit ? (
                   <div id="epg-slot-container-2" className="guide-preview-split-cell" />
-                ) : epgThreeColumn ? (
-                  <div className="guide-alt-right-pane">
-                    {/* 3-column toolbar below the preview: the management
-                        buttons (when available) plus the close button at the
-                        end, which moved out of the strip header. */}
-                    <div className="guide-alt-toolbar">
-                      {renderGuideManageButtons()}
-                      {onTogglePopoutMode && renderPopoutToggle()}
-                      <button
-                        className="guide-epg-shift-btn guide-alt-close"
-                        onClick={onClose}
-                        title={t('close')}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-                          <path d="M18 6L6 18M6 6l12 12" />
-                        </svg>
-                        <span className="btn-label">{t('close')}</span>
-                      </button>
-                    </div>
-                    {selectedChannel ? (
-                      <>
-                    {/* 3-column live info header */}
-                    <div className="guide-alt-live-header">
-                      <span className="guide-alt-live-badge">● {i18n.t('common:live', { defaultValue: 'LIVE' })}</span>
-                      <span className="guide-alt-live-channel" title={selectedChannel.name}>
-                        {selectedChannel.name}
-                      </span>
-                      <span className="guide-alt-live-program" title={selectedProgram?.title}>
-                        {selectedProgram?.title || i18n.t('common:noProgramInfo', { defaultValue: 'No Program Information' })}
-                      </span>
-                      <span className="guide-alt-live-times">
-                        {selectedProgram ? `${formatEpgTime(new Date(selectedProgram.start))} - ${formatEpgTime(new Date(selectedProgram.end))}` : ''}
-                      </span>
-                      {selectedProgram && (
-                        <div className="guide-alt-live-progress">
-                          <div className="guide-alt-live-progress-fill" style={{ width: `${progressPercent}%` }} />
-                        </div>
-                      )}
-                    </div>
-                    {/* Catchup: expand the history list beyond the default
-                        lookback for channels with tv_archive */}
-                    {selectedChannel && (Boolean(selectedChannel.tv_archive) || selectedChannel.tv_archive === 1) && (
-                      <button
-                        className={`guide-alt-schedule-toggle ${altScheduleShowOlder ? 'active' : ''}`}
-                        onClick={() => setAltScheduleShowOlder((v) => !v)}
-                        title={
-                          altScheduleShowOlder
-                            ? i18n.t('live:showRecentPrograms', { defaultValue: 'Show recent programs' })
-                            : i18n.t('live:showOlderPrograms', { defaultValue: 'Show older programs' })
-                        }
-                      >
-                        {altScheduleShowOlder
-                          ? i18n.t('live:showRecentPrograms', { defaultValue: 'Show recent programs' })
-                          : i18n.t('live:showOlderPrograms', { defaultValue: 'Show older programs' })}
-                      </button>
-                    )}
-                    {/* 3-column schedule list (current + upcoming) */}
-                    <div className="guide-alt-schedule">
-                      {altSchedulePrograms.map(({ program, startMs, endMs }) => {
-                        const now = currentTime.getTime();
-                        const isCurrent = now >= startMs && now < endMs;
-                        const isPast = endMs <= now;
-                        const catchupAvailable = Boolean(selectedChannel.tv_archive) || selectedChannel.tv_archive === 1;
-                        const clickable = (isPast || isCurrent) && catchupAvailable && !!onPlayCatchup;
-                        return (
-                          <button
-                            key={program.id}
-                            className={`guide-alt-schedule-row ${isCurrent ? 'running' : ''} ${clickable ? 'clickable' : ''}`}
-                            onClick={() => {
-                              if (!clickable) return;
-                              const durationMins = Math.max(1, Math.round((endMs - startMs) / 60000));
-                              const rawStartMs = program.raw_start ? new Date(program.raw_start).getTime() : startMs;
-                              onPlayCatchup!(selectedChannel, program.title, rawStartMs, durationMins, program.description);
-                            }}
-                          >
-                            <span className="guide-alt-schedule-time">
-                              {formatEpgTime(new Date(startMs))} - {formatEpgTime(new Date(endMs))}
-                            </span>
-                            <span className="guide-alt-schedule-title" title={program.title}>
-                              {program.title}
-                              {isCurrent && <span className="guide-alt-schedule-running">{i18n.t('common:running', { defaultValue: 'Running' })}</span>}
-                            </span>
-                            {program.description && (
-                              <span className="guide-alt-schedule-desc">{program.description}</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                      {altSchedulePrograms.length === 0 && (
-                        <div className="guide-alt-schedule-empty">
-                          {i18n.t('common:noProgramInfo', { defaultValue: 'No Program Information' })}
-                        </div>
-                      )}
-                    </div>
-                      </>
-                    ) : (
-                      <div className="guide-alt-empty">
-                        <div className="guide-program-title">{t('selectAChannel')}</div>
-                      </div>
-                    )}
-                  </div>
                 ) : selectedChannel ? (
                   <>
                     <div className="guide-program-title">

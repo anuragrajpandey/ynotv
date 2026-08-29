@@ -2992,6 +2992,48 @@ html[data-theme]:has(.guide-transparent-mode) .category-strip {
   flex: 1;
 }
 
+/* Multiview grid inside the 3-column view: the video cells render as a grid
+   ABOVE the schedule pane (.guide-info-pane), which stays visible. 4-view
+   layouts (2x2, bigbottom) get a proper 2x2 grid; 2-view layouts (sbs, pip)
+   get a side-by-side pair. Cells reuse .guide-preview-grid-cell styling. */
+.guide-panel.alt-view-active .guide-multiview-3col {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  flex: none;
+}
+
+.guide-panel.alt-view-active .guide-multiview-3col.four-up {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  aspect-ratio: 16 / 9;
+  max-height: 52vh;
+}
+
+.guide-panel.alt-view-active .guide-multiview-3col.two-up {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  aspect-ratio: 32 / 9;
+  max-height: 40vh;
+}
+
+/* 16:9 cutouts: multiview cells never stretch to their track's shape. Height
+   drives the box (height:100%), width derives from aspect-ratio and is capped
+   by the track width, so a wide/short track yields a centered 16:9 cell with
+   the pane background around it instead of a horizontally-stretched video. */
+.guide-preview-line-1x4 .guide-preview-grid-cell,
+.guide-multiview-3col .guide-preview-grid-cell {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
+  justify-self: center;
+  align-self: center;
+}
+
 .guide-preview-grid-cell {
   position: relative;
   width: 100%;

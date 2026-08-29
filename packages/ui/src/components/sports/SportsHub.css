@@ -330,8 +330,8 @@
 
 .sports-mv-sbs .sports-mv-main,
 .sports-mv-sbs .sports-mv-slot {
-  width: 100%;
-  height: auto;
+  height: 100%;
+  width: auto;
   max-width: calc(50% - 1px);
   max-height: 100%;
   aspect-ratio: 16 / 9;
@@ -358,8 +358,8 @@
 
 .sports-mv-2x2 .sports-mv-quad .sports-mv-main,
 .sports-mv-2x2 .sports-mv-quad .sports-mv-slot {
-  width: 100%;
-  height: auto;
+  height: 100%;
+  width: auto;
   max-width: 100%;
   max-height: 100%;
   aspect-ratio: 16 / 9;
