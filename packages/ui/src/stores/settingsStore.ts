@@ -1259,7 +1259,10 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ oledBlack: enabled });
     persistSettings({ oledBlack: enabled });
   },
-  epgLazyLoadingEnabled: false,
+  // Default ON: load only the visible EPG window (visible channels x visible
+  // time range) instead of every program for every channel — essential for
+  // large libraries where the full EPG is hundreds of MB.
+  epgLazyLoadingEnabled: true,
   setEpgLazyLoadingEnabled: (enabled) => {
     set({ epgLazyLoadingEnabled: enabled });
     persistSettings({ epgLazyLoadingEnabled: enabled });

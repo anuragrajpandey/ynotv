@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "مدیریت ترتیب موردعلاقه‌ها",
     "noChannels": "بدون کانال",
     "noChannelsFound": "کانالی یافت نشد",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "در حال حاضر برنامه زنده‌ای وجود ندارد",
     "noResultsFound": "نتیجه‌ای یافت نشد",
     "noUpcomingPrograms": "برنامه‌ای در پیش نیست",

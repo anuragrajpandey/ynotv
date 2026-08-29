@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "Διαχείριση σειράς αγαπημένων",
     "noChannels": "Κανένα Κανάλι",
     "noChannelsFound": "Δεν Βρέθηκαν Κανάλια",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "Κανένα ζωντανό πρόγραμμα αυτή τη στιγμή",
     "noResultsFound": "Δεν βρέθηκαν αποτελέσματα",
     "noUpcomingPrograms": "Κανένα επερχόμενο πρόγραμμα",

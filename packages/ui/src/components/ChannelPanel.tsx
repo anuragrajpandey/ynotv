@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useSourceVersion } from '../contexts/SourceVersionContext';
 import { VirtualList, type VirtualListHandle } from './common/VirtualList';
-import { useChannels, useCategories, useAllPrograms, useProgramsInRange, parseCategoryIds } from '../hooks/useChannels';
+import { useChannels, useCategories, useAllPrograms, useProgramsInRange, useChannelCount, parseCategoryIds } from '../hooks/useChannels';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useLiveQuery } from '../hooks/useSqliteLiveQuery';
 import { useTimeGrid } from '../hooks/useTimeGrid';
@@ -284,6 +284,10 @@ const SearchResultRowVirtuoso = memo(function SearchResultRowVirtuoso({
 // overscan-inflated ones (otherwise the list only scrolls after the channel
 // has already left the viewport).
 const CHANNEL_LIST_OVERS = 5;
+// Above this many total channels, the "All Channels" view stops materializing
+// the full list (multi-second transfer + parse for big libraries) and shows a
+// notice instead. Categories/search remain the paths for huge libraries.
+const ALL_CHANNELS_SOFT_CAP = 10000;
 
 interface ChannelPanelProps {
   categoryId: string | null;
@@ -493,9 +497,15 @@ export function ChannelPanel({
   const channelSortOrder = useChannelSortOrder();
   const epgHiddenButtons = useUIStore((s) => s.epgHiddenButtons);
   const epgResolutionFilterEnabled = useSettingsStore((s) => s.epgResolutionFilterEnabled);
-  // Optimization: Skip loading the main channel grid when in Search or Watchlist mode, or when the panel is hidden
+  // Soft-cap the "All Channels" view: beyond this many channels the full list
+  // is unusable (a multi-second block to transfer + parse every channel), so we
+  // skip materializing it and show a notice pointing at categories/search
+  // instead. Only applies to the true All-Channels view (categoryId === null).
+  const totalChannelCount = useChannelCount();
+  const allChannelsCapped = !categoryId && totalChannelCount > ALL_CHANNELS_SOFT_CAP;
+  // Optimization: Skip loading the main channel grid when in Search or Watchlist mode, when the panel is hidden
   // This prevents loading 40k+ channels in the background which causes UI lag
-  const shouldSkipGrid = !visible || isSearchMode || isWatchlistMode;
+  const shouldSkipGrid = !visible || isSearchMode || isWatchlistMode || allChannelsCapped;
   const channels = useChannels(categoryId, channelSortOrder, { skip: shouldSkipGrid });
 
   // Channel Search Filter
@@ -3464,7 +3474,7 @@ export function ChannelPanel({
         {/* Channel search — in 3-column view the time header (which hosts the
             search on the timeline views) is hidden, so render it here above the
             channel list. */}
-        {epgThreeColumn && !isSearchMode && !isWatchlistMode && !epgHiddenButtons.includes('channel-search') && (
+        {epgThreeColumn && !isSearchMode && !isWatchlistMode && !allChannelsCapped && !epgHiddenButtons.includes('channel-search') && (
           <div className="guide-alt-channel-search">
             <div className={`channel-search-input-wrapper ${channelSearchFocused ? 'focused' : ''}`}>
               <svg className="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -3501,7 +3511,7 @@ export function ChannelPanel({
         {!isWatchlistMode && (!isSearchMode || (effectiveSearchTab === 'channels' && searchScope !== 'epg' && searchChannels && searchChannels.length > 0)) && (
           <div className="guide-time-header">
             <div className="guide-time-header-spacer" style={{ width: 'var(--epg-channel-column-width, 264px)' }}>
-              {!isSearchMode && !epgHiddenButtons.includes('channel-search') && (
+              {!isSearchMode && !allChannelsCapped && !epgHiddenButtons.includes('channel-search') && (
                 <div className="channel-search-container">
                   <div className={`channel-search-input-wrapper ${channelSearchFocused ? 'focused' : ''}`}>
                     <svg className="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -3768,7 +3778,14 @@ export function ChannelPanel({
             filteredChannels.length === 0 ? (
               <div ref={handleGuideScrollerRef} className="guide-channels overflow-y-auto flex-1 min-h-0">
                 <div className="guide-empty">
-                  <h3>{channelSearchQuery ? t('noChannelsFound') : t('noChannels')}</h3>
+                  {allChannelsCapped ? (
+                    <>
+                      <h3>{t('allChannelsTooMany')}</h3>
+                      <p>{t('allChannelsTooManyHint')}</p>
+                    </>
+                  ) : (
+                    <h3>{channelSearchQuery ? t('noChannelsFound') : t('noChannels')}</h3>
+                  )}
                 </div>
               </div>
             ) : (

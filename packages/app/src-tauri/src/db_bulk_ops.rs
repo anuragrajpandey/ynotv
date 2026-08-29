@@ -347,7 +347,7 @@ fn bulk_upsert_channels_inner(db: &DvrDatabase, channels: Vec<BulkChannel>) -> R
     let mut inserted = 0;
     let mut updated = 0;
 
-    for channel in channels {
+    for channel in &channels {
         match stmt.execute(params![
             channel.stream_id,
             channel.source_id,
@@ -381,6 +381,31 @@ fn bulk_upsert_channels_inner(db: &DvrDatabase, channels: Vec<BulkChannel>) -> R
     }
 
     stmt.finalize()?;
+
+    // Rebuild the channel_categories membership map for every affected source,
+    // derived from the (now current) channels table so it can never drift from
+    // category_ids. Atomic with the upsert; a full source sync is one indexed
+    // json_each scan per source.
+    let mut sources: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for ch in &channels {
+        if !ch.source_id.is_empty() {
+            sources.insert(ch.source_id.as_str());
+        }
+    }
+    for src in &sources {
+        tx.execute(
+            "DELETE FROM channel_categories WHERE source_id = ?1",
+            params![src],
+        )?;
+        tx.execute(
+            "INSERT OR IGNORE INTO channel_categories (stream_id, source_id, category_id)
+             SELECT stream_id, source_id, value
+             FROM channels, json_each(channels.category_ids)
+             WHERE source_id = ?1",
+            params![src],
+        )?;
+    }
+
     tx.commit()?;
 
     let duration_ms = start.elapsed().as_millis() as u64;
@@ -815,6 +840,17 @@ pub fn bulk_delete_channels(db: &DvrDatabase, stream_ids: Vec<String>) -> Result
 
     let deleted = stmt.execute(rusqlite::params_from_iter(params.iter()))?;
     stmt.finalize()?;
+
+    // Keep the channel_categories membership map in sync with the deleted rows
+    // (no FK cascades are enabled, so this must be explicit).
+    let map_sql = format!(
+        "DELETE FROM channel_categories WHERE stream_id IN ({})",
+        placeholders.join(", ")
+    );
+    let mut map_stmt = tx.prepare(&map_sql)?;
+    map_stmt.execute(rusqlite::params_from_iter(params.iter()))?;
+    map_stmt.finalize()?;
+
     tx.commit()?;
 
     info!("Bulk deleted {} channels", deleted);

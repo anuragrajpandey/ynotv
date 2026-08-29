@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "管理收藏顺序",
     "noChannels": "无频道",
     "noChannelsFound": "未找到频道",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "当前没有直播节目",
     "noResultsFound": "未找到结果",
     "noUpcomingPrograms": "没有即将播出的节目",

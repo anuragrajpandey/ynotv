@@ -1,5 +1,6 @@
 import { useLiveQuery } from './useSqliteLiveQuery';
 import { db, getLastCategory, setLastCategory, getFavoriteSourceOrder } from '../db';
+import { normalizeRow } from '../db/sqlite-adapter';
 import type { StoredChannel, StoredCategory, SourceMeta, StoredProgram } from '../db';
 import { decompressEpgDescription } from '../utils/compression';
 import { epgTimeMs, pickCurrentProgram, EPG_WINDOW_BACK_MS, EPG_WINDOW_FWD_MS } from '../utils/epgTime';
@@ -21,7 +22,11 @@ export function useEnabledSources(): Set<string> | null {
     const result = await window.storage.getSources();
     if (!result.data) return null;
     return result.data.filter(s => s.enabled !== false);
-  }, [version]); // Re-run when version changes
+  }, [version], undefined, 0,
+    // Reads the source list (Tauri store), which only changes on source
+    // syncs/manual edits. Scoping to sourcesMeta keeps it from re-running on
+    // every DB write anywhere; the `version` dep above covers source changes.
+    'sourcesMeta'); // Re-run when version changes
 
   // Memoize the Set creation based on sources array
   return useMemo(() => {
@@ -274,7 +279,12 @@ export function useCategories() {
     [enabledSourceKey, recentVersion],
     undefined, // defaultResult
     30000, // staleTime: 30 seconds - categories rarely change during session
-    undefined // Watch all tables - custom groups are in customGroups table, not categories table
+    // Watch only the tables this query reads: categories (main), custom_groups
+    // + custom_group_channels (virtual custom-group categories + their counts),
+    // and channels (favorite/recent counts). Previously watched every table,
+    // so e.g. EPG or watch-progress writes re-ran the whole category pipeline.
+    // NOTE: names must be the raw SQLite table names dbEvents notifies with.
+    ['categories', 'custom_groups', 'channels', 'custom_group_channels']
   );
   return categories ?? [];
 }
@@ -376,15 +386,29 @@ export function useChannels(categoryId: string | null, sortOrder: 'alphabetical'
     [enabledSourceIds]
   );
   
-  // Determine which table to watch based on category type
-  // Custom groups need to watch customGroupChannels table for updates
-  const tableName = useMemo(() => {
-    if (!categoryId) return 'channels';
-    if (categoryId === '__recent__' || categoryId === '__favorites__' || categoryId.startsWith('__favsrc_')) return 'channels';
-    // For custom groups (UUID format), watch both channels and customGroupChannels
-    // We'll use a special indicator and handle it in the effect
-    return 'channels'; // Default, we'll add custom subscription
-  }, [categoryId]);
+  // Tables this query reads for the active category type — subscribe only to
+  // those so unrelated DB writes (watch progress, EPG sync, VOD tables) don't
+  // re-run the whole channel pipeline on every change. epg_channel_overrides
+  // is always read (logo overrides); epg_channels only when EPG logos are
+  // preferred. NOTE: names must be the raw SQLite table names dbEvents
+  // notifies with (custom_groups, playlist_category_links, …).
+  const watchedTables = useMemo(() => {
+    const tables: string[] = ['channels', 'epg_channel_overrides'];
+    if (categoryId === '__recent__' || categoryId === '__favorites__' || (categoryId?.startsWith('__favsrc_') ?? false)) {
+      // applyHomeCategoryFilterWords() reads categories
+      tables.push('categories');
+    } else if (categoryId?.startsWith('__plcat_') || categoryId?.startsWith('__allsrc_pl_')) {
+      tables.push('playlist_category_links', 'playlist_individual_channels');
+    } else if (categoryId?.startsWith('__plindiv_')) {
+      tables.push('playlist_individual_channels');
+    } else if (categoryId && !categoryId.startsWith('__allsrc_')) {
+      // Native category or custom group: category lookup/filter words, manual
+      // additions, and custom-group membership.
+      tables.push('categories', 'playlist_individual_channels', 'custom_groups', 'custom_group_channels');
+    }
+    if (epgPreferEpgLogos) tables.push('epg_channels');
+    return tables;
+  }, [categoryId, epgPreferEpgLogos]);
   
   const channels = useLiveQuery(
     async () => {
@@ -494,10 +518,13 @@ export function useChannels(categoryId: string | null, sortOrder: 'alphabetical'
           if (!link) {
             results = [];
           } else {
-            results = await db.channels.whereRaw(
-              `source_id = ? AND EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false'))`,
+            results = await db.query<StoredChannel>(
+              `SELECT c.* FROM channels c
+               JOIN channel_categories cc ON cc.stream_id = c.stream_id
+               WHERE cc.source_id = ? AND cc.category_id = ?
+                 AND (c.enabled IS NULL OR c.enabled NOT IN (0, '0', 'false'))`,
               [link.source_id, link.category_id]
-            ).toArray();
+            ).then(rows => rows.map(r => normalizeRow(r, 'channels') as StoredChannel));
 
             // Fetch manually added individual channels for this category link
             let manualMappings = await db.playlistIndividualChannels
@@ -553,10 +580,13 @@ export function useChannels(categoryId: string | null, sortOrder: 'alphabetical'
           const allResults: StoredChannel[] = [];
           const seenStreamIds = new Set<string>();
           for (const link of links) {
-            const linkChannels = await db.channels.whereRaw(
-              `source_id = ? AND EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false'))`,
+            const linkChannels = await db.query<StoredChannel>(
+              `SELECT c.* FROM channels c
+               JOIN channel_categories cc ON cc.stream_id = c.stream_id
+               WHERE cc.source_id = ? AND cc.category_id = ?
+                 AND (c.enabled IS NULL OR c.enabled NOT IN (0, '0', 'false'))`,
               [link.source_id, link.category_id]
-            ).toArray();
+            ).then(rows => rows.map(r => normalizeRow(r, 'channels') as StoredChannel));
             for (const ch of linkChannels) {
               if (!seenStreamIds.has(ch.stream_id)) {
                 seenStreamIds.add(ch.stream_id);
@@ -628,18 +658,20 @@ export function useChannels(categoryId: string | null, sortOrder: 'alphabetical'
         } else {
           // Channels in this category
           const category = await db.categories.get(categoryId);
-          if (category) {
-            // Fetch this category's channels with a single indexed SQL query
-            // (idx_channels_source + json_each match + enabled filter). This
-            // avoids the old once-per-session full-table scan over every
-            // channel row, and pushes the enabled filter into SQL so disabled
-            // rows for this category aren't transferred into JS at all. Same
-            // query shape as the playlist-category branches below. ORDER BY
-            // rowid keeps table (insertion) order for the provider sort.
-            results = await db.channels.whereRaw(
-              `source_id = ? AND EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false')) ORDER BY rowid`,
-              [category.source_id, category.category_id]
-            ).toArray();
+          if (category) {              // Fetch this category's channels via the channel_categories map:
+              // an index seek on (source_id, category_id) instead of scanning
+              // every row of the source with a per-row json_each match. The
+              // enabled filter stays in SQL so disabled rows aren't transferred.
+              // ORDER BY c.rowid keeps table (insertion) order for the provider
+              // sort. Rows are normalized to match whereRaw().toArray() output.
+              results = await db.query<StoredChannel>(
+                `SELECT c.* FROM channels c
+                 JOIN channel_categories cc ON cc.stream_id = c.stream_id
+                 WHERE cc.source_id = ? AND cc.category_id = ?
+                   AND (c.enabled IS NULL OR c.enabled NOT IN (0, '0', 'false'))
+                 ORDER BY c.rowid`,
+                [category.source_id, category.category_id]
+              ).then(rows => rows.map(r => normalizeRow(r, 'channels') as StoredChannel));
             if (enabledSourceIds) {
               results = results.filter(ch => enabledSourceIds.has(ch.source_id));
             }
@@ -699,29 +731,34 @@ export function useChannels(categoryId: string | null, sortOrder: 'alphabetical'
         const logoPaddingMap = new Map<string, string>();
         const epgIdMap = new Map<string, string>();
 
-        // Load overrides only for this category's channels (indexed IN query)
-        // instead of scanning the whole epg_channel_overrides table on every
-        // category swap.
-        const OVERRIDES_CHUNK = 500;
-        for (let i = 0; i < results.length; i += OVERRIDES_CHUNK) {
-          const chunkStreamIds = results.slice(i, i + OVERRIDES_CHUNK).map(ch => ch.stream_id);
-          const overrides = await db.epgChannelOverrides
-            .where('stream_id')
-            .anyOf(chunkStreamIds)
-            .select(['stream_id', 'stream_icon', 'logo_background', 'logo_padding', 'epg_channel_id'])
-            .toArray();
-          for (const o of overrides) {
-            if (o.stream_icon) logoMap.set(o.stream_id, o.stream_icon);
-            if (o.logo_background) logoBgMap.set(o.stream_id, o.logo_background);
-            if (o.logo_padding) logoPaddingMap.set(o.stream_id, o.logo_padding);
-            if (o.epg_channel_id) epgIdMap.set(o.stream_id, o.epg_channel_id);
-          }
+        // Load overrides with a single query: join on json_each over the ids so
+        // there's no SQLite variable-count limit and no chunked round-trips
+        // (the old loop made one IPC query per 500 channels).
+        const overrideRows = await db.query<{
+          stream_id: string;
+          stream_icon: string | null;
+          logo_background: string | null;
+          logo_padding: string | null;
+          epg_channel_id: string | null;
+        }>(
+          `SELECT stream_id, stream_icon, logo_background, logo_padding, epg_channel_id
+           FROM epg_channel_overrides
+           WHERE stream_id IN (SELECT value FROM json_each(?))`,
+          [JSON.stringify(results.map(ch => ch.stream_id))]
+        );
+        for (const o of overrideRows) {
+          if (o.stream_icon) logoMap.set(o.stream_id, o.stream_icon);
+          if (o.logo_background) logoBgMap.set(o.stream_id, o.logo_background);
+          if (o.logo_padding) logoPaddingMap.set(o.stream_id, o.logo_padding);
+          if (o.epg_channel_id) epgIdMap.set(o.stream_id, o.epg_channel_id);
         }
 
         let epgIconMap = new Map<string, string>();
         if (epgPreferEpgLogos) {
           try {
-            const epgChannels = await db.epgChannels.toArray();
+            // Only id/icon_url are used for the logo map — don't pull every
+            // column of every EPG channel row across the IPC boundary.
+            const epgChannels = await db.epgChannels.select(['id', 'icon_url']).toArray();
             for (const ec of epgChannels) {
               if (ec.icon_url) epgIconMap.set(ec.id, ec.icon_url);
             }
@@ -858,21 +895,25 @@ export function useChannels(categoryId: string | null, sortOrder: 'alphabetical'
     [categoryId, sortOrder, enabledSourceKey, options?.skip, epgPreferEpgLogos],
     undefined, // defaultResult  
     15000, // staleTime: 15 seconds - instant switching between recently viewed categories
-    // Watch all tables to capture updates to links, manual additions, and ordering when viewing a category
-    categoryId ? undefined : 'channels'
+    // Watch only the tables this category type reads (channels + the lookup
+    // tables for links/manual additions/ordering) instead of every table, so
+    // unrelated DB writes don't re-run the whole channel pipeline.
+    watchedTables
   );
   return channels ?? [];
 }
 
 // Hook to get total channel count
 export function useChannelCount() {
-  const count = useLiveQuery(() => db.channels.count());
+  // Scoped: only re-run when channels change (cheap COUNT either way).
+  const count = useLiveQuery(() => db.channels.count(), [], undefined, 0, 'channels');
   return count ?? 0;
 }
 
 // Hook to get sync metadata for all sources
 export function useSyncStatus() {
-  const status = useLiveQuery(() => db.sourcesMeta.toArray());
+  // Only re-run when sourcesMeta changes (it's the only table this reads)
+  const status = useLiveQuery(() => db.sourcesMeta.toArray(), [], undefined, 0, 'sourcesMeta');
   return status ?? [];
 }
 
@@ -1315,28 +1356,34 @@ export function useChannelSearch(
         const logoPaddingMap = new Map<string, string>();
         const epgIdMap = new Map<string, string>();
 
-        // Load overrides only for the search results (indexed IN query)
-        // instead of scanning the whole epg_channel_overrides table on every search.
-        const OVERRIDES_CHUNK = 500;
-        for (let i = 0; i < filteredChannels.length; i += OVERRIDES_CHUNK) {
-          const chunkStreamIds = filteredChannels.slice(i, i + OVERRIDES_CHUNK).map(ch => ch.stream_id);
-          const overrides = await db.epgChannelOverrides
-            .where('stream_id')
-            .anyOf(chunkStreamIds)
-            .select(['stream_id', 'stream_icon', 'logo_background', 'logo_padding', 'epg_channel_id'])
-            .toArray();
-          for (const o of overrides) {
-            if (o.stream_icon) logoMap.set(o.stream_id, o.stream_icon);
-            if (o.logo_background) logoBgMap.set(o.stream_id, o.logo_background);
-            if (o.logo_padding) logoPaddingMap.set(o.stream_id, o.logo_padding);
-            if (o.epg_channel_id) epgIdMap.set(o.stream_id, o.epg_channel_id);
-          }
+        // Load overrides with a single query: join on json_each over the ids so
+        // there's no SQLite variable-count limit and no chunked round-trips
+        // (the old loop made one IPC query per 500 channels).
+        const overrideRows = await db.query<{
+          stream_id: string;
+          stream_icon: string | null;
+          logo_background: string | null;
+          logo_padding: string | null;
+          epg_channel_id: string | null;
+        }>(
+          `SELECT stream_id, stream_icon, logo_background, logo_padding, epg_channel_id
+           FROM epg_channel_overrides
+           WHERE stream_id IN (SELECT value FROM json_each(?))`,
+          [JSON.stringify(filteredChannels.map(ch => ch.stream_id))]
+        );
+        for (const o of overrideRows) {
+          if (o.stream_icon) logoMap.set(o.stream_id, o.stream_icon);
+          if (o.logo_background) logoBgMap.set(o.stream_id, o.logo_background);
+          if (o.logo_padding) logoPaddingMap.set(o.stream_id, o.logo_padding);
+          if (o.epg_channel_id) epgIdMap.set(o.stream_id, o.epg_channel_id);
         }
 
         let epgIconMap = new Map<string, string>();
         if (epgPreferEpgLogos) {
           try {
-            const epgChannels = await db.epgChannels.toArray();
+            // Only id/icon_url are used for the logo map — don't pull every
+            // column of every EPG channel row across the IPC boundary.
+            const epgChannels = await db.epgChannels.select(['id', 'icon_url']).toArray();
             for (const ec of epgChannels) {
               if (ec.icon_url) epgIconMap.set(ec.id, ec.icon_url);
             }
@@ -1413,7 +1460,21 @@ export function useChannelSearch(
 
       return filteredChannels as StoredChannel[];
     },
-    [query, limit, includeSourceInSearch, order, sourceNameMap, categoryNameMap, enabledSourceKey, filterKey, epgPreferEpgLogos]
+    [query, limit, includeSourceInSearch, order, sourceNameMap, categoryNameMap, enabledSourceKey, filterKey, epgPreferEpgLogos],
+    undefined, // defaultResult
+    0, // staleTime
+    // Watch only the tables this search reads (channels, category/link lookup
+    // tables, logo overrides); unrelated writes (programs, watch progress,
+    // VOD tables) shouldn't re-run the search. NOTE: raw SQLite table names.
+    [
+      'channels',
+      'categories',
+      'playlist_category_links',
+      'playlist_individual_channels',
+      'custom_playlists',
+      'epg_channel_overrides',
+      ...(epgPreferEpgLogos ? ['epg_channels'] : []),
+    ]
   );
   return channels ?? [];
 }
@@ -1710,19 +1771,21 @@ export function useCategoriesBySource(): SourceWithCategories[] {
         if (sourceIdsList.length > 0) {
           const sourcePlaceholders = sourceIdsList.map(() => '?').join(',');
           countQuery = `
-            SELECT cat.value as cat_id, COUNT(*) as cnt
-            FROM channels c, json_each(c.category_ids) AS cat
-            WHERE c.source_id IN (${sourcePlaceholders})
+            SELECT cc.category_id as cat_id, COUNT(*) as cnt
+            FROM channel_categories cc
+            JOIN channels c ON c.stream_id = cc.stream_id
+            WHERE cc.source_id IN (${sourcePlaceholders})
             AND (c.enabled IS NULL OR c.enabled != 0)
-            GROUP BY cat.value
+            GROUP BY cc.category_id
           `;
           countParams = sourceIdsList;
         } else {
           countQuery = `
-            SELECT cat.value as cat_id, COUNT(*) as cnt
-            FROM channels c, json_each(c.category_ids) AS cat
+            SELECT cc.category_id as cat_id, COUNT(*) as cnt
+            FROM channel_categories cc
+            JOIN channels c ON c.stream_id = cc.stream_id
             WHERE (c.enabled IS NULL OR c.enabled != 0)
-            GROUP BY cat.value
+            GROUP BY cc.category_id
           `;
           countParams = [];
         }
@@ -1785,7 +1848,12 @@ export function useCategoriesBySource(): SourceWithCategories[] {
 
       return finalArray;
     },
-    [enabledSourceKey, version, categorySortOrder]
+    [enabledSourceKey, version, categorySortOrder],
+    undefined, // defaultResult
+    0, // staleTime
+    // Reads categories + channels (count join) and source order from storage
+    // (covered by the `version` dep). Scoped so EPG/VOD writes don't re-run it.
+    ['categories', 'channels']
   );
 
   return data ?? [];
@@ -1814,9 +1882,10 @@ export function useCategoriesWithCounts(): CategoryWithCount[] {
 
       if (categoryIds.length > 0) {
         const countQuery = `
-          SELECT cat.value as cat_id, COUNT(*) as cnt
-          FROM channels c, json_each(c.category_ids) AS cat
-          GROUP BY cat.value
+          SELECT cc.category_id as cat_id, COUNT(*) as cnt
+          FROM channel_categories cc
+          JOIN channels c ON c.stream_id = cc.stream_id
+          GROUP BY cc.category_id
         `;
 
         try {
@@ -1836,7 +1905,10 @@ export function useCategoriesWithCounts(): CategoryWithCount[] {
 
       return withCounts;
     },
-    [enabledSourceKey]
+    [enabledSourceKey],
+    undefined, // defaultResult
+    0, // staleTime
+    ['categories', 'channels'] // only tables this query reads
   );
   return data ?? [];
 }
@@ -1996,6 +2068,10 @@ export function useNextProgram(streamId: string | null): StoredProgram | null {
 
 // Chunk size for SQLite IN clause limit (SQLite default max is 999, use 500 for safety)
 const SQL_CHUNK_SIZE = 500;
+// Upper bound on channels whose programs the merge cache may retain. Keeps the
+// lazy-window benefit (small in-memory footprint) intact while still covering
+// several scroll windows of adjacent channels.
+const MAX_MERGED_PROGRAM_CHANNELS = 2000;
 
 // Hook to get all programs for channels within a time range (for EPG grid)
 export function useProgramsInRange(
@@ -2005,15 +2081,39 @@ export function useProgramsInRange(
   options?: { skip?: boolean }
 ): Map<string, StoredProgram[]> {
   const skip = options?.skip ?? false;
+  // Merge cache (mirrors usePrograms): keeps the previous window's programs so
+  // scrolling the channel list back up renders instantly instead of a
+  // blank-then-refill. Two guards:
+  // 1. Keyed by the TIME window — when the grid's visible time range changes
+  //    (goBack/goForward), cached data belongs to a different window and must
+  //    NOT be merged (stale times would render).
+  // 2. Bounded — only channels near the current window are retained, so
+  //    scrolling a huge library doesn't accumulate every channel's programs in
+  //    memory (which would defeat the lazy-EPG memory win).
+  const prevRef = useRef<{ startMs: number; endMs: number; map: Map<string, StoredProgram[]> } | null>(null);
+
   const programs = useLiveQuery(
     async () => {
-      if (skip || streamIds.length === 0) return new Map<string, StoredProgram[]>();
-
-      const result = new Map<string, StoredProgram[]>();
-      for (const id of streamIds) result.set(id, []);
+      if (skip || streamIds.length === 0) {
+        // Never resurrect a stale window after a skip (or while nothing is
+        // requested); the next real run starts from a clean slate.
+        prevRef.current = null;
+        return new Map<string, StoredProgram[]>();
+      }
 
       const startIso = windowStart.toISOString();
       const endIso = windowEnd.toISOString();
+      const startMs = windowStart.getTime();
+      const endMs = windowEnd.getTime();
+
+      const prev = prevRef.current;
+      const sameTimeWindow = prev !== null && prev.startMs === startMs && prev.endMs === endMs;
+
+      // Seed from the previous run only when the time window is unchanged;
+      // null out the current window's ids so channels with no (or changed) EPG
+      // don't keep stale rows, then refill them from the query below.
+      const result = sameTimeWindow ? new Map(prev!.map) : new Map<string, StoredProgram[]>();
+      for (const id of streamIds) result.set(id, []);
 
       // Query programs_effective in chunks to respect SQLite variable limit
       const dbInstance = await (db as any).dbPromise;
@@ -2040,7 +2140,21 @@ export function useProgramsInRange(
         result.set(prog.stream_id, existing);
       }
 
-      for (const [, progs] of result) {
+      // Bound the merge cache: drop out-of-window channels (FIFO by insertion
+      // order) until we're back under the cap.
+      if (result.size > MAX_MERGED_PROGRAM_CHANNELS) {
+        const currentIds = new Set(streamIds);
+        for (const id of result.keys()) {
+          if (result.size <= MAX_MERGED_PROGRAM_CHANNELS) break;
+          if (!currentIds.has(id)) result.delete(id);
+        }
+      }
+
+      // Sort only the current window's arrays; merged arrays are already sorted
+      // and never mutate after being cached.
+      for (const id of streamIds) {
+        const progs = result.get(id);
+        if (!progs) continue;
         progs.sort((a, b) => {
           const aStart = a.start instanceof Date ? a.start.getTime() : new Date(a.start).getTime();
           const bStart = b.start instanceof Date ? b.start.getTime() : new Date(b.start).getTime();
@@ -2048,9 +2162,15 @@ export function useProgramsInRange(
         });
       }
 
+      prevRef.current = { startMs, endMs, map: result };
       return result;
     },
-    [streamIds.join(','), windowStart.getTime(), windowEnd.getTime(), skip]
+    [streamIds.join(','), windowStart.getTime(), windowEnd.getTime(), skip],
+    undefined, // defaultResult
+    0, // staleTime
+    // Only re-run when programs change — this hook reads programs_effective
+    // exclusively, so unrelated DB writes shouldn't re-query it.
+    'programs'
   );
 
   return programs ?? new Map();

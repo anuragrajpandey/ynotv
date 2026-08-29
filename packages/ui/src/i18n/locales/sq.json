@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "Menaxho renditjen e të preferuarave",
     "noChannels": "Asnjë kanal",
     "noChannelsFound": "Nuk u gjetën kanale",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "Asnjë program live për momentin",
     "noResultsFound": "Nuk u gjetën rezultate",
     "noUpcomingPrograms": "Asnjë program i ardhshëm",

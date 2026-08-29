@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "Управление порядком избранного",
     "noChannels": "Нет каналов",
     "noChannelsFound": "Каналы не найдены",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "Сейчас нет прямых эфиров",
     "noResultsFound": "Ничего не найдено",
     "noUpcomingPrograms": "Нет предстоящих программ",

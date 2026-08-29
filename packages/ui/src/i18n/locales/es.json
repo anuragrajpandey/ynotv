@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "Gestionar orden de favoritos",
     "noChannels": "Sin canales",
     "noChannelsFound": "No se encontraron canales",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "No hay programas en directo en este momento",
     "noResultsFound": "No se encontraron resultados",
     "noUpcomingPrograms": "No hay programas próximos",

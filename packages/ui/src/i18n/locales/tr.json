@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "Favori sırasını yönet",
     "noChannels": "Kanal Yok",
     "noChannelsFound": "Kanal Bulunamadı",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "Şu anda canlı program yok",
     "noResultsFound": "Sonuç bulunamadı",
     "noUpcomingPrograms": "Yaklaşan program yok",

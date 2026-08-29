@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "Управљање редоследом омиљених",
     "noChannels": "Нема канала",
     "noChannelsFound": "Нема пронађених канала",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "Тренутно нема програма уживо",
     "noResultsFound": "Нема пронађених резултата",
     "noUpcomingPrograms": "Нема надолазећих програма",

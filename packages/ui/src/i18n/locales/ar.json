@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "إدارة ترتيب المفضلة",
     "noChannels": "لا توجد قنوات",
     "noChannelsFound": "لا توجد قنوات",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "لا توجد برامج مباشرة في الوقت الحالي",
     "noResultsFound": "لا توجد نتائج",
     "noUpcomingPrograms": "لا توجد برامج قادمة",

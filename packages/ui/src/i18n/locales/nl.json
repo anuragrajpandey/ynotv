@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "Favorieten volgorde beheren",
     "noChannels": "Geen kanalen",
     "noChannelsFound": "Geen kanalen gevonden",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "Op dit moment geen live programma's",
     "noResultsFound": "Geen resultaten gevonden",
     "noUpcomingPrograms": "Geen aankomende programma's",

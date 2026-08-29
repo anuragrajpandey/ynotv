@@ -445,7 +445,7 @@ async function hydrateSettingsStore(): Promise<void> {
         disableThemeBackdropBlur: data.disableThemeBackdropBlur ?? false,
         reduceEffectsWhileScrolling: data.reduceEffectsWhileScrolling ?? false,
         oledBlack: data.oledBlack ?? false,
-        epgLazyLoadingEnabled: data.epgLazyLoadingEnabled ?? false,
+        epgLazyLoadingEnabled: data.epgLazyLoadingEnabled ?? true,
         disableEpgTransitions: data.disableEpgTransitions ?? false,
         epgReduceGpuLayers: data.epgReduceGpuLayers ?? false,
         epgDisableChannelFade: data.epgDisableChannelFade ?? false,

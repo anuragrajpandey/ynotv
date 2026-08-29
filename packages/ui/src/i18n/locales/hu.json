@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "Kedvencek sorrendjének kezelése",
     "noChannels": "Nincs csatorna",
     "noChannelsFound": "Nem találhatók csatornák",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "Jelenleg nincs élő műsor",
     "noResultsFound": "Nincs találat",
     "noUpcomingPrograms": "Nincs közelgő műsor",

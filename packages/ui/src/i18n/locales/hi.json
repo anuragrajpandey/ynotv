@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "पसंदीदा क्रम प्रबंधित करें",
     "noChannels": "कोई चैनल नहीं",
     "noChannelsFound": "कोई चैनल नहीं मिला",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "अभी कोई लाइव प्रोग्राम नहीं है",
     "noResultsFound": "कोई परिणाम नहीं मिला",
     "noUpcomingPrograms": "कोई आगामी प्रोग्राम नहीं है",

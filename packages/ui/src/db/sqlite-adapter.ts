@@ -22,6 +22,12 @@ type TableListener = {
 // Simple Event Emitter for Live Queries
 class DbEvents {
     private listeners: TableListener[] = [];
+    // Sync gate: while gateDepth > 0, notify() calls are coalesced (one event
+    // per affected table) and delivered when the last gate closes. Bulk syncs
+    // (channels/EPG/VOD) open a gate so live queries don't re-run dozens of
+    // times mid-write, only once after the sync finishes.
+    private gateDepth = 0;
+    private gatedTables = new Set<string>();
 
     // Subscribe to all events (backward compatible)
     subscribe(listener: Listener): () => void;
@@ -49,7 +55,32 @@ class DbEvents {
         };
     }
 
+    openSyncGate() {
+        this.gateDepth++;
+    }
+
+    closeSyncGate() {
+        if (this.gateDepth > 0) this.gateDepth--;
+        // Only when ALL nested gates have closed do we flush the coalesced
+        // events. Table-scoped subscribers get one event per affected table;
+        // the live-query 50ms debounce folds them into a single re-run.
+        if (this.gateDepth === 0 && this.gatedTables.size > 0) {
+            const tables = Array.from(this.gatedTables);
+            this.gatedTables.clear();
+            for (const t of tables) {
+                this.notify(t, 'update');
+            }
+        }
+    }
+
     notify(tableName: string, type: ChangeType, keys?: any[]) {
+        // While a sync gate is open, remember the table and defer delivery.
+        // The write itself still happened; listeners just refresh once at the end.
+        if (this.gateDepth > 0) {
+            this.gatedTables.add(tableName);
+            return;
+        }
+
         const event: DbEvent = { tableName, type, keys };
         
         // Only notify listeners that:
@@ -64,6 +95,18 @@ class DbEvents {
 }
 
 export const dbEvents = new DbEvents();
+
+// Run a bulk operation with live-query notifications coalesced: open the gate,
+// run fn, always close it (delivering one event per touched table on the last
+// close). Nesting is supported via the depth counter.
+export async function withSyncGate<T>(fn: () => Promise<T>): Promise<T> {
+    dbEvents.openSyncGate();
+    try {
+        return await fn();
+    } finally {
+        dbEvents.closeSyncGate();
+    }
+}
 
 // Helper to convert SQLite values to proper JavaScript types
 // SQLite stores BOOLEAN as 0/1 integers, but Tauri plugin may return them as strings
@@ -88,7 +131,7 @@ const JSON_FIELDS: Record<string, string[]> = {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-function normalizeRow(row: any, tableName: string): any {
+export function normalizeRow(row: any, tableName: string): any {
     if (!row || typeof row !== 'object') return row;
 
     const normalized = { ...row };
@@ -310,6 +353,58 @@ export class SqliteTable<T, TKey> {
         return q;
     }
 
+    // ── channel_categories maintenance ──────────────────────────────────────────
+    // The category membership map is denormalized from channels.category_ids.
+    // These helpers keep it in sync for adapter-level channel writes (imports,
+    // single edits). Raw bulk-sync paths (bulkOps → Rust) maintain it on their
+    // own. The map is always re-derived FROM the channels table, so it can
+    // never drift; failures are logged and healed by the next source sync.
+    private async maintainChannelCategoryMap(streamIds: string[]): Promise<void> {
+        if (this.tableName !== 'channels' || streamIds.length === 0) return;
+        try {
+            const db = await this.getDb();
+            const MAX_CHUNK = 500;
+            for (let i = 0; i < streamIds.length; i += MAX_CHUNK) {
+                const chunk = streamIds.slice(i, i + MAX_CHUNK);
+                const placeholders = chunk.map((_, idx) => `$${idx + 1}`).join(',');
+                await db.execute(`DELETE FROM channel_categories WHERE stream_id IN (${placeholders})`, chunk);
+                await db.execute(
+                    `INSERT OR IGNORE INTO channel_categories (stream_id, source_id, category_id)
+                     SELECT stream_id, source_id, value FROM channels, json_each(channels.category_ids)
+                     WHERE stream_id IN (${placeholders})`,
+                    chunk
+                );
+            }
+        } catch (e) {
+            console.warn('[SqliteAdapter] channel_categories maintenance failed:', e);
+        }
+    }
+
+    private async clearChannelCategoryMap(streamIds: string[]): Promise<void> {
+        if (this.tableName !== 'channels' || streamIds.length === 0) return;
+        try {
+            const db = await this.getDb();
+            const MAX_CHUNK = 500;
+            for (let i = 0; i < streamIds.length; i += MAX_CHUNK) {
+                const chunk = streamIds.slice(i, i + MAX_CHUNK);
+                const placeholders = chunk.map((_, idx) => `$${idx + 1}`).join(',');
+                await db.execute(`DELETE FROM channel_categories WHERE stream_id IN (${placeholders})`, chunk);
+            }
+        } catch (e) {
+            console.warn('[SqliteAdapter] channel_categories cleanup failed:', e);
+        }
+    }
+
+    private async clearAllChannelCategories(): Promise<void> {
+        if (this.tableName !== 'channels') return;
+        try {
+            const db = await this.getDb();
+            await db.execute('DELETE FROM channel_categories');
+        } catch (e) {
+            console.warn('[SqliteAdapter] channel_categories clear failed:', e);
+        }
+    }
+
     async add(item: T): Promise<TKey> {
         return writeLock.run(async () => {
             const db = await this.getDb();
@@ -352,6 +447,11 @@ export class SqliteTable<T, TKey> {
             const result = await db.select('SELECT last_insert_rowid() as id') as Array<{ id: number }>;
             const newId = result[0]?.id as TKey;
 
+            // Maintain the category map BEFORE notifying so the debounced
+            // live-query re-run reads consistent data.
+            if (this.tableName === 'channels') {
+                await this.maintainChannelCategoryMap([(item as any)[this.primaryKey] as string]);
+            }
             dbEvents.notify(this.tableName, 'add');
             return newId;
         });
@@ -396,6 +496,9 @@ export class SqliteTable<T, TKey> {
                 values
             );
 
+            if (this.tableName === 'channels') {
+                await this.maintainChannelCategoryMap([(item as any)[this.primaryKey] as string]);
+            }
             dbEvents.notify(this.tableName, 'update');
             return (item as any)[this.primaryKey] as TKey;
         });
@@ -431,6 +534,9 @@ export class SqliteTable<T, TKey> {
                 }
             }
 
+            if (this.tableName === 'channels') {
+                await this.maintainChannelCategoryMap(items.map(i => (i as any)[this.primaryKey] as string));
+            }
             dbEvents.notify(this.tableName, 'add');
         };
 
@@ -549,6 +655,9 @@ export class SqliteTable<T, TKey> {
                 }
             }
 
+            if (this.tableName === 'channels') {
+                await this.maintainChannelCategoryMap(items.map(i => (i as any)[this.primaryKey] as string));
+            }
             dbEvents.notify(this.tableName, 'update');
         };
 
@@ -609,6 +718,7 @@ export class SqliteTable<T, TKey> {
         return writeLock.run(async () => {
             const db = await this.getDb();
             await db.execute(`DELETE FROM ${this.tableName} WHERE ${this.primaryKey} = $1`, [key]);
+            await this.clearChannelCategoryMap([key as string]);
             dbEvents.notify(this.tableName, 'delete');
         });
     }
@@ -617,6 +727,7 @@ export class SqliteTable<T, TKey> {
         return writeLock.run(async () => {
             const db = await this.getDb();
             await db.execute(`DELETE FROM ${this.tableName}`);
+            await this.clearAllChannelCategories();
             dbEvents.notify(this.tableName, 'clear');
         });
     }
@@ -650,6 +761,7 @@ export class SqliteTable<T, TKey> {
                 const placeholders = chunk.map((_, idx) => `$${idx + 1}`).join(',');
                 await db.execute(`DELETE FROM ${this.tableName} WHERE ${this.primaryKey} IN (${placeholders})`, chunk);
             }
+            await this.clearChannelCategoryMap(keys as string[]);
             dbEvents.notify(this.tableName, 'delete');
         });
     }
@@ -704,6 +816,11 @@ export class SqliteTable<T, TKey> {
                 values
             );
 
+            // Category membership edits are rare, but keep the map consistent
+            // when category_ids itself changes (before notifying).
+            if (this.tableName === 'channels' && keys.includes('category_ids')) {
+                await this.maintainChannelCategoryMap([key as string]);
+            }
             dbEvents.notify(options?.notifyTable || this.tableName, 'update');
             return result.rowsAffected;
         });
@@ -922,6 +1039,16 @@ class SqliteQuery<T> {
             }
 
             await db.execute(query, params);
+            // A query-based channels delete can't enumerate which stream_ids were
+            // removed, so sweep orphaned category-map rows. All reads JOIN
+            // channels (orphans are already invisible to them); this keeps the
+            // map clean for hygiene / any future non-join consumer. Runs before
+            // the notify so the debounced re-query sees a consistent map.
+            if (tableName === 'channels') {
+                await db.execute(
+                    'DELETE FROM channel_categories WHERE stream_id NOT IN (SELECT stream_id FROM channels)'
+                );
+            }
             dbEvents.notify(tableName, 'delete');
         });
     }

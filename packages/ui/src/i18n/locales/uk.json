@@ -230,6 +230,8 @@
     "manageFavoritesOrder": "Керування порядком обраного",
     "noChannels": "Ні каналів",
     "noChannelsFound": "Канали не знайдено",
+    "allChannelsTooMany": "Too Many Channels",
+    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
     "noLivePrograms": "Зараз ні прямих ефірів",
     "noResultsFound": "Нічого не знайдено",
     "noUpcomingPrograms": "Ні майбутніх програм",

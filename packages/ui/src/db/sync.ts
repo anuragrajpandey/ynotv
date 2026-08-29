@@ -6,7 +6,7 @@ import { useUIStore } from '../stores/uiStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { bulkOps, type BulkChannel, type BulkCategory } from '../services/bulk-ops';
 import { epgStreaming, getEpgUrlCandidates, type EpgProgressCallback, type EpgParseResult } from '../services/epg-streaming';
-import { dbEvents } from './sqlite-adapter';
+import { dbEvents, withSyncGate } from './sqlite-adapter';
 import { matchAllMoviesLazy, matchAllSeriesLazy } from '../services/title-match';
 import type { GlobalEpgLink } from '../types/app';
 
@@ -771,6 +771,18 @@ export async function syncStalkerShortEpg(
   onProgress?: (completed: number, total: number) => void,
   force: boolean = false
 ): Promise<number> {
+  // Gate program notifications: this fetches EPG per-channel in a loop and
+  // each batch would otherwise re-run every program query mid-fetch.
+  return withSyncGate(() => syncStalkerShortEpgInternal(source, channels, categoryId, onProgress, force));
+}
+
+async function syncStalkerShortEpgInternal(
+  source: any,
+  channels: any[],
+  categoryId: string | null = null,
+  onProgress?: (completed: number, total: number) => void,
+  force: boolean = false
+): Promise<number> {
   source = await resolveSourceUserAgent(source);
   if (!source || !source.mac || channels.length === 0) return 0;
 
@@ -1373,7 +1385,9 @@ export async function syncAllStaleGlobalEpgLinks(
     return globalEpgPostSyncInFlight;
   }
 
-  globalEpgPostSyncInFlight = syncAllStaleGlobalEpgLinksImpl(onProgress, sourceIds).finally(() => {
+  // Gate live-query notifications: a global EPG sync streams thousands of
+  // program batches, and each batch would otherwise re-run every program query.
+  globalEpgPostSyncInFlight = withSyncGate(() => syncAllStaleGlobalEpgLinksImpl(onProgress, sourceIds)).finally(() => {
     globalEpgPostSyncInFlight = null;
   });
 
@@ -1459,7 +1473,8 @@ export async function syncGlobalEpgLinkStandalone(
     return inFlight;
   }
 
-  const syncPromise = syncGlobalEpgLinkStandaloneImpl(epgLink, onProgress).finally(() => {
+  // Gate live-query notifications while the streaming parser inserts programs.
+  const syncPromise = withSyncGate(() => syncGlobalEpgLinkStandaloneImpl(epgLink, onProgress)).finally(() => {
     globalEpgLinkSyncsInFlight.delete(epgLink.id);
   });
   globalEpgLinkSyncsInFlight.set(epgLink.id, syncPromise);
@@ -1886,6 +1901,14 @@ export async function enrichM3uWithXtreamCatchup(
 }
 
 export async function syncSource(source: Source, onProgress?: (msg: string) => void, staggerAlignment = false): Promise<SyncResult> {
+  // Gate live-query notifications for the duration of the sync: bulk channel +
+  // EPG writes happen throughout, and we don't want every batch write to
+  // re-run the channel/program queries mid-sync. One coalesced refresh fires
+  // when the gate closes.
+  return withSyncGate(() => syncSourceInternal(source, onProgress, staggerAlignment));
+}
+
+async function syncSourceInternal(source: Source, onProgress?: (msg: string) => void, staggerAlignment = false): Promise<SyncResult> {
   source = await resolveSourceUserAgent(source);
   // Try primary URL first
   const result = await _doSyncSourceImpl(source, onProgress, staggerAlignment);
@@ -3643,6 +3666,12 @@ export async function fetchVodProviderTrailerInfo(
 
 // Exported VOD sync wrapper with backup URL failover support
 export async function syncVodForSource(source: Source): Promise<VodSyncResult> {
+  // Same gate as syncSource: bulk VOD writes shouldn't re-run live queries
+  // (movies/series/episodes tables) on every batch, only once at the end.
+  return withSyncGate(() => syncVodForSourceInternal(source));
+}
+
+async function syncVodForSourceInternal(source: Source): Promise<VodSyncResult> {
   source = await resolveSourceUserAgent(source);
   if (source.live_tv_only) {
     return {

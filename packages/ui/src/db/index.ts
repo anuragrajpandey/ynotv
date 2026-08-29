@@ -524,6 +524,10 @@ class YnotvDatabase extends SqliteDatabase {
     const rawPromise = this.dbPromise;
     this.dbPromise = rawPromise.then(async (db) => {
       await this.initSchema(db);
+      // One-time background backfill of channel_categories for existing DBs
+      // (new syncs maintain it incrementally). Not awaited — must not block
+      // startup; missing rows are harmless and rebuilt on the next sync.
+      void backfillChannelCategories(db);
       return db;
     });
 
@@ -607,6 +611,19 @@ class YnotvDatabase extends SqliteDatabase {
         catchup_source TEXT,
         catchup_days INTEGER
       )`);
+
+    // ── channel_categories: denormalized category membership map ──────────────
+    // (stream_id, source_id, category_id) rows used for indexed category lookups
+    // and counts instead of a per-row json_each scan over the source's channels.
+    // Always derived FROM channels.category_ids (rebuilt by the bulk write paths
+    // and the one-time startup backfill below), so it can never drift.
+    await db.execute(`CREATE TABLE IF NOT EXISTS channel_categories (
+        stream_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        category_id TEXT NOT NULL,
+        PRIMARY KEY (stream_id, category_id)
+      )`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_channel_categories_lookup ON channel_categories(source_id, category_id)`);
 
     // ─── Versioned migrations via PRAGMA user_version ─────────────────────────
     // Each version block runs exactly ONCE. To add new columns in the future,
@@ -1717,6 +1734,45 @@ class YnotvDatabase extends SqliteDatabase {
 
 export const db = new YnotvDatabase();
 
+/**
+ * One-time backfill of channel_categories for existing databases (new syncs
+ * maintain the map incrementally via the bulk write paths). Runs in the
+ * background so startup isn't blocked; chunked per source so a huge library
+ * doesn't do one giant statement. Missing rows are harmless — the next sync
+ * of a source rebuilds its slice.
+ */
+async function backfillChannelCategories(db: Database): Promise<void> {
+  try {
+    // Per-source existence check (NOT a global count): a concurrent sync may
+    // have populated some sources, or a previous backfill may have been
+    // interrupted — either way we only skip sources that already have rows, so
+    // the map can never be permanently left incomplete.
+    const mappedSources = await db.select(
+      'SELECT DISTINCT source_id FROM channel_categories'
+    ) as { source_id: string }[];
+    const mappedSet = new Set(mappedSources.map(r => r.source_id));
+
+    const sources = await db.select('SELECT DISTINCT source_id FROM channels WHERE source_id IS NOT NULL') as { source_id: string }[];
+    for (const { source_id } of sources) {
+      if (mappedSet.has(source_id)) continue; // already mapped (by sync or prior run)
+      await db.execute(
+        `INSERT OR IGNORE INTO channel_categories (stream_id, source_id, category_id)
+         SELECT stream_id, source_id, value FROM channels, json_each(channels.category_ids)
+         WHERE source_id = ?`,
+        [source_id]
+      );
+      // Yield between sources so the UI stays responsive during backfill.
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    console.log('[DB] channel_categories backfill complete');
+    // Wake up the category/count live queries so they re-read the now-complete map.
+    dbEvents.notify('categories', 'update');
+    dbEvents.notify('channels', 'update');
+  } catch (e) {
+    console.warn('[DB] channel_categories backfill failed (rebuilt on next sync):', e);
+  }
+}
+
 // Helper to clear all data for a source (before re-sync or on delete)
 export async function clearSourceData(sourceId: string): Promise<void> {
   // Use raw SQL deletes for better performance and fewer events
@@ -1730,6 +1786,7 @@ export async function clearSourceData(sourceId: string): Promise<void> {
   await dbInstance.execute('DELETE FROM dvr_schedules WHERE source_id = $1', [sourceId]);
 
   await dbInstance.execute('DELETE FROM channels WHERE source_id = $1', [sourceId]);
+  await dbInstance.execute('DELETE FROM channel_categories WHERE source_id = $1', [sourceId]);
   await dbInstance.execute('DELETE FROM categories WHERE source_id = $1', [sourceId]);
   await dbInstance.execute('DELETE FROM sourcesMeta WHERE source_id = $1', [sourceId]);
   await dbInstance.execute('DELETE FROM programs WHERE source_id = $1', [sourceId]);
