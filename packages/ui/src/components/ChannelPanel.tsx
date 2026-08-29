@@ -2173,8 +2173,20 @@ export function ChannelPanel({
     // scroll starts as the channel approaches the edge — keeping at least
     // PADDING channels above/below — instead of waiting until the channel
     // has already scrolled out of view.
-    const visibleStart = startIndex > 0 ? startIndex + CHANNEL_LIST_OVERS : 0;
-    const visibleEnd = endIndex < filteredChannels.length - 1 ? endIndex - CHANNEL_LIST_OVERS : endIndex;
+    //
+    // The overscan must always be subtracted/added: it is present on both
+    // sides of the rendered range regardless of whether that range touches the
+    // list's first/last row (a boundary only truncates it, never removes it).
+    // Guarding the subtraction on `endIndex < len-1` meant that once overscan
+    // reached the final row, `visibleEnd` was overestimated by the full
+    // overscan, so no scroll fired until the selection had fallen most of the
+    // way into the invisible overscan region and only 'caught up' at the very
+    // last (or first) row.
+    const visibleStart = Math.min(
+      filteredChannels.length - 1,
+      startIndex + CHANNEL_LIST_OVERS
+    );
+    const visibleEnd = Math.max(0, endIndex - CHANNEL_LIST_OVERS);
 
     const PADDING = 2; // Keep at least 2 items below/above
 

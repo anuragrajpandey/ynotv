@@ -894,7 +894,8 @@
         "recentlyViewed": "Son Görüntülenenler",
         "customGroups": "Özel Gruplar",
         "searchCategories": "Kategorileri ara…",
-        "noCategoriesFound": "Kategori bulunamadı"
+        "noCategoriesFound": "Kategori bulunamadı",
+        "defaultCategoryHint": "LiveTV için başlangıç görünümünü seçin. Belirli bir kategori, çalma listesi kaynağı, özel grup, Favoriler, İzleme Listesi veya Tüm Kanallar'ı seçebilirsiniz."
       },
       "logos": {
         "small32": "Küçük (32px)",

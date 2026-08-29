@@ -894,7 +894,8 @@
         "recentlyViewed": "हाल में देखे गए",
         "customGroups": "कस्टम समूह",
         "searchCategories": "श्रेणियाँ खोजें…",
-        "noCategoriesFound": "कोई श्रेणी नहीं मिली"
+        "noCategoriesFound": "कोई श्रेणी नहीं मिली",
+        "defaultCategoryHint": "LiveTV के लिए अपना शुरुआती दृश्य चुनें। आप एक विशिष्ट श्रेणी, प्लेलिस्ट स्रोत, कस्टम समूह, पसंदीदा, वॉचलिस्ट या सभी चैनल चुन सकते हैं।"
       },
       "logos": {
         "small32": "छोटा (32)",

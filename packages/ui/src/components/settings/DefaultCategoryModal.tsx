@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { matchesSearch } from '../../utils/searchNormalization';
@@ -66,6 +66,27 @@ export function DefaultCategoryModal({
   onSelect,
 }: DefaultCategoryModalProps) {
   const [query, setQuery] = useState('');
+  const [expandedSources, setExpandedSources] = useState<Set<string>>(() => new Set());
+
+  // Reset search query and collapse all sources upon opening the modal
+  useEffect(() => {
+    if (isOpen) {
+      setQuery('');
+      setExpandedSources(new Set());
+    }
+  }, [isOpen]);
+
+  const toggleSource = (sourceId: string) => {
+    setExpandedSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(sourceId)) {
+        next.delete(sourceId);
+      } else {
+        next.add(sourceId);
+      }
+      return next;
+    });
+  };
 
   // Sidebar visibility flags — the picker mirrors the LiveTV sidebar, so it
   // respects the same toggles (hidden sidebar entries are not offered).
@@ -191,11 +212,24 @@ export function DefaultCategoryModal({
           {visibleGroups.map((src) => {
             const sourceName = sourceNames[src.sourceId] || src.sourceId;
             if (!q && src.categories.length === 0) return null;
+            const isExpanded = q ? true : expandedSources.has(src.sourceId);
             return (
-              <div key={src.sourceId}>
-                <div className="default-cat-section-title">{sourceName}</div>
-                {src.categories.map((cat) =>
-                  row(cat.category_id, cat.alias || cat.category_name, cat.channelCount)
+              <div key={src.sourceId} className="default-cat-source-group">
+                <button
+                  type="button"
+                  className={`default-cat-source-header ${isExpanded ? 'expanded' : ''}`}
+                  onClick={() => toggleSource(src.sourceId)}
+                >
+                  <span className="default-cat-source-chevron">{isExpanded ? '▾' : '▸'}</span>
+                  <span className="default-cat-source-title">{sourceName}</span>
+                  <span className="default-cat-source-count">{src.categories.length}</span>
+                </button>
+                {isExpanded && (
+                  <div className="default-cat-source-categories">
+                    {src.categories.map((cat) =>
+                      row(cat.category_id, cat.alias || cat.category_name, cat.channelCount)
+                    )}
+                  </div>
                 )}
               </div>
             );

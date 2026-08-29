@@ -2439,7 +2439,8 @@
         "recentlyViewed": "Đã Xem Gần Đây",
         "customGroups": "Nhóm tùy chỉnh",
         "searchCategories": "Tìm danh mục…",
-        "noCategoriesFound": "Không tìm thấy danh mục"
+        "noCategoriesFound": "Không tìm thấy danh mục",
+        "defaultCategoryHint": "Chọn chế độ xem khởi động cho LiveTV. Bạn có thể chọn một danh mục cụ thể, nguồn danh sách phát, nhóm tùy chỉnh, Mục yêu thích, Danh sách xem hoặc Tất cả kênh."
       },
       "logos": {
         "small32": "Nhỏ (32px)",

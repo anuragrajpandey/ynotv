@@ -898,7 +898,8 @@
         "searchResultsOrderSub": "Choose how search results are sorted. \"Default\" shows results in database order. \"Alphabetical\" sorts channels and programs by name (A-Z).",
         "launchProbe": "Launch Channel Probe",
         "probeSection": "Channel Stream Probe & Health Checker",
-        "probeSectionSub": "Scan channels to validate stream health, detect geoblocks/DRM, and automatically populate resolution, FPS, and audio quality badges."
+        "probeSectionSub": "Scan channels to validate stream health, detect geoblocks/DRM, and automatically populate resolution, FPS, and audio quality badges.",
+        "defaultCategoryHint": "Select your startup view for LiveTV. You can choose a specific category, playlist source, custom group, Favorites, Watchlist, or All Channels."
       },
       "logos": {
         "small32": "Small (32px)",

@@ -894,7 +894,8 @@
         "recentlyViewed": "最近觀看",
         "customGroups": "自訂群組",
         "searchCategories": "搜尋分類…",
-        "noCategoriesFound": "找不到分類"
+        "noCategoriesFound": "找不到分類",
+        "defaultCategoryHint": "選擇 LiveTV 的啟動檢視。您可以選擇特定分類、播放清單來源、自訂群組、我的最愛、待播清單或所有頻道。"
       },
       "logos": {
         "small32": "小（32px）",

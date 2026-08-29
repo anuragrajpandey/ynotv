@@ -894,7 +894,8 @@
         "recentlyViewed": "Skoro gledano",
         "customGroups": "Prilagođene grupe",
         "searchCategories": "Pretraži kategorije…",
-        "noCategoriesFound": "Nema pronađenih kategorija"
+        "noCategoriesFound": "Nema pronađenih kategorija",
+        "defaultCategoryHint": "Odaberite početni prikaz za LiveTV. Možete odabrati određenu kategoriju, izvor liste, prilagođenu grupu, Favorite, Listu za gledanje ili Sve kanale."
       },
       "logos": {
         "small32": "Mali (32px)",

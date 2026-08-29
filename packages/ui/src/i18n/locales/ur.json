@@ -894,7 +894,8 @@
         "recentlyViewed": "حالیہ دیکھے گئے",
         "customGroups": "اپنی مرضی کے گروپ",
         "searchCategories": "زمرے تلاش کریں…",
-        "noCategoriesFound": "کوئی زمرہ نہیں ملا"
+        "noCategoriesFound": "کوئی زمرہ نہیں ملا",
+        "defaultCategoryHint": "LiveTV کے لیے اپنا ابتدائی منظر منتخب کریں۔ آپ ایک مخصوص زمرہ، پلے لسٹ ماخذ، حسب ضرورت گروپ، پسندیدہ، واچ لسٹ، یا تمام چینلز منتخب کر سکتے ہیں۔"
       },
       "logos": {
         "small32": "چھوٹا (32px)",

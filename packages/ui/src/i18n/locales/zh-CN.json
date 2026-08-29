@@ -894,7 +894,8 @@
         "recentlyViewed": "最近观看",
         "customGroups": "自定义分组",
         "searchCategories": "搜索分类…",
-        "noCategoriesFound": "未找到分类"
+        "noCategoriesFound": "未找到分类",
+        "defaultCategoryHint": "选择 LiveTV 的启动视图。你可以选择特定分类、播放列表源、自定义分组、收藏夹、待播清单或所有频道。"
       },
       "logos": {
         "small32": "小（32px）",

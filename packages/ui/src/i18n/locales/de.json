@@ -894,7 +894,8 @@
         "recentlyViewed": "Zuletzt gesehen",
         "customGroups": "Benutzerdefinierte Gruppen",
         "searchCategories": "Kategorien suchen…",
-        "noCategoriesFound": "Keine Kategorien gefunden"
+        "noCategoriesFound": "Keine Kategorien gefunden",
+        "defaultCategoryHint": "Wählen Sie Ihre Startansicht für LiveTV. Sie können eine bestimmte Kategorie, Playlist-Quelle, benutzerdefinierte Gruppe, Favoriten, Merkliste oder Alle Kanäle auswählen."
       },
       "logos": {
         "small32": "Klein (32px)",

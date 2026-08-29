@@ -161,7 +161,56 @@ export function ChannelsTab({
             </div>
           </div>
 
-          <div className="settings-section">
+          {/* Default Category */}
+          <div className="settings-section" style={{ marginTop: '24px' }}>
+            <div className="section-header">
+              <h3>{i18n.t('settings:livetv.channels.defaultCategory')}</h3>
+            </div>
+
+            <p className="section-description">
+              {i18n.t('settings:livetv.channels.defaultCategorySub')}
+            </p>
+
+            <div className="refresh-settings">
+              <div className="form-group inline">
+                <label>{i18n.t('settings:livetv.channels.defaultCategory')}</label>
+                <button
+                  type="button"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    padding: '8px 14px',
+                    border: '1px solid var(--surface-border, rgba(255, 255, 255, 0.1))',
+                    borderRadius: '4px',
+                    background: 'var(--surface-color, rgba(255, 255, 255, 0.03))',
+                    color: 'var(--text-primary, white)',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    minWidth: '180px',
+                    maxWidth: '320px',
+                    flex: '0 0 auto',
+                    fontWeight: 500,
+                  }}
+                  onClick={() => setShowDefaultCategoryModal(true)}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {defaultCategoryLabel}
+                  </span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" style={{ flexShrink: 0, opacity: 0.7 }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <p className="form-hint" style={{ marginTop: '0.75rem' }}>
+              {i18n.t('settings:livetv.channels.defaultCategoryHint')}
+            </p>
+          </div>
+
+          <div className="settings-section" style={{ marginTop: '24px' }}>
             <div className="section-header">
               <h3>{i18n.t('settings:livetv.channels.channelDisplay')}</h3>
             </div>
@@ -220,44 +269,6 @@ export function ChannelsTab({
               {i18n.t('settings:livetv.channels.defaultHint')}
               {i18n.t('settings:livetv.channels.alphabeticalCategoryHint')}
             </p>
-
-            {/* Default Category */}
-            <div className="refresh-settings" style={{ marginTop: '20px' }}>
-              <div className="form-group inline">
-                <label>{i18n.t('settings:livetv.channels.defaultCategory')}</label>
-                <button
-                  type="button"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px',
-                    padding: '8px 14px',
-                    border: '1px solid var(--surface-border, rgba(255, 255, 255, 0.1))',
-                    borderRadius: '4px',
-                    background: 'var(--surface-color, rgba(255, 255, 255, 0.03))',
-                    color: 'var(--text-primary, white)',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    minWidth: '180px',
-                    maxWidth: '320px',
-                    flex: '0 0 auto',
-                    fontWeight: 500,
-                  }}
-                  onClick={() => setShowDefaultCategoryModal(true)}
-                >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {defaultCategoryLabel}
-                  </span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" style={{ flexShrink: 0, opacity: 0.7 }}>
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-              </div>
-              <p className="form-hint" style={{ marginTop: '0.5rem' }}>
-                {i18n.t('settings:livetv.channels.defaultCategorySub')}
-              </p>
-            </div>
 
             <div className="refresh-settings" style={{ marginTop: '16px' }}>
               <div className="form-group inline">

@@ -894,7 +894,8 @@
         "recentlyViewed": "Récemment consultés",
         "customGroups": "Groupes personnalisés",
         "searchCategories": "Rechercher des catégories…",
-        "noCategoriesFound": "Aucune catégorie trouvée"
+        "noCategoriesFound": "Aucune catégorie trouvée",
+        "defaultCategoryHint": "Sélectionnez la vue de démarrage pour LiveTV. Vous pouvez choisir une catégorie spécifique, une source de playlist, un groupe personnalisé, les Favoris, la Liste de lecture ou Toutes les chaînes."
       },
       "logos": {
         "small32": "Petit (32 px)",
