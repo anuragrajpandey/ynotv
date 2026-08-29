@@ -76,7 +76,6 @@ async function applySubtitleSettings() {
     const assOverride = ss.subAssOverride || 'yes';
     const effectiveOverride = assOverride === 'no' ? 'no' : (assOverride === 'scale' ? 'scale' : 'strip');
     await Bridge.setSubAssOverride(effectiveOverride).catch(() => {});
-    await Bridge.setProperty('sub-use-media-style', assOverride === 'no').catch(() => {});
     await Bridge.setProperty('sub-ass-scale-with-window', true).catch(() => {});
 
     const align = ss.subAlign || 'center';

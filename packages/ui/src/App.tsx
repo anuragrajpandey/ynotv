@@ -1292,6 +1292,7 @@ function App() {
   const nav = useNavigation({
     playing,
     multiviewLayout,
+    categoryId,
     setCategoryId,
     overlayAutohideTimer,
     overlayOnClickOnly,

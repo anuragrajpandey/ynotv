@@ -52,13 +52,14 @@ export interface NavigationState {
 interface UseNavigationOptions {
   playing: boolean;
   multiviewLayout: import('./useLayoutPersistence').LayoutMode;
+  categoryId?: string | null;
   setCategoryId: (catId: string | null) => void;
   overlayAutohideTimer: number;
   overlayOnClickOnly: boolean;
 }
 
 export function useNavigation(options: UseNavigationOptions): NavigationState {
-  const { playing, multiviewLayout, setCategoryId, overlayAutohideTimer, overlayOnClickOnly } = options;
+  const { playing, multiviewLayout, categoryId, setCategoryId, overlayAutohideTimer, overlayOnClickOnly } = options;
 
   // View state
   const [activeView, setActiveView] = useState<View>('none');
@@ -76,7 +77,12 @@ export function useNavigation(options: UseNavigationOptions): NavigationState {
   const [isSearchMode, setIsSearchMode] = useState(false);
 
   // Watchlist mode
-  const [isWatchlistMode, setIsWatchlistMode] = useState(false);
+  const [isWatchlistMode, setIsWatchlistMode] = useState(categoryId === '__watchlist__');
+
+  // Keep watchlist mode in sync when categoryId changes externally (e.g. initial load or defaultCategory)
+  useEffect(() => {
+    setIsWatchlistMode(categoryId === '__watchlist__');
+  }, [categoryId]);
 
   // Controls visibility
   const [showControls, setShowControls] = useState(true);

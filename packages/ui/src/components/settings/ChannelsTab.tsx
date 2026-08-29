@@ -227,14 +227,29 @@ export function ChannelsTab({
                 <label>{i18n.t('settings:livetv.channels.defaultCategory')}</label>
                 <button
                   type="button"
-                  className="save-btn"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '9px 18px', cursor: 'pointer', fontWeight: 500 }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    padding: '8px 14px',
+                    border: '1px solid var(--surface-border, rgba(255, 255, 255, 0.1))',
+                    borderRadius: '4px',
+                    background: 'var(--surface-color, rgba(255, 255, 255, 0.03))',
+                    color: 'var(--text-primary, white)',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    minWidth: '180px',
+                    maxWidth: '320px',
+                    flex: '0 0 auto',
+                    fontWeight: 500,
+                  }}
                   onClick={() => setShowDefaultCategoryModal(true)}
                 >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '260px' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {defaultCategoryLabel}
                   </span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" style={{ flexShrink: 0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" style={{ flexShrink: 0, opacity: 0.7 }}>
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
                 </button>

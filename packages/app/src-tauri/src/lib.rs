@@ -768,10 +768,7 @@ pub(crate) async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) ->
                 debug!("[MPV] Subtitle ASS override configured: {}", effective_ass);
                 args.push(format!("--sub-ass-override={}", effective_ass));
                 if effective_ass != "no" {
-                    args.push("--sub-use-media-style=no".to_string());
                     args.push("--sub-ass-scale-with-window=yes".to_string());
-                } else {
-                    args.push("--sub-use-media-style=yes".to_string());
                 }
                 args.push("--sub-clear-on-seek=yes".to_string());
 

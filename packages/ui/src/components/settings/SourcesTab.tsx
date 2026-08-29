@@ -1719,78 +1719,36 @@ export function SourcesTab({
 
 
   return (
-    <div className="settings-tab-content">
+    <div className="playback-tab-content" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Sub-tabs */}
-      <div className="sub-tabs" style={{ display: 'flex', gap: '2px', marginBottom: '16px', borderBottom: '1px solid var(--surface-border)' }}>
+      <div className="settings-tabs" style={{ padding: '0 20px', flexShrink: 0 }}>
         <button
-          className={`sub-tab-btn ${activeSubTab === 'source' ? 'active' : ''}`}
+          className={`settings-tab ${activeSubTab === 'source' ? 'active' : ''}`}
           onClick={() => setActiveSubTab('source')}
-          style={{
-            padding: '10px 20px',
-            background: activeSubTab === 'source' ? 'var(--surface-color)' : 'transparent',
-            border: 'none',
-            borderBottom: activeSubTab === 'source' ? '2px solid var(--accent-primary, #00d4ff)' : '2px solid transparent',
-            color: activeSubTab === 'source' ? 'var(--text-primary)' : 'var(--text-secondary)',
-            cursor: 'pointer',
-            fontSize: '0.9rem',
-            fontWeight: 500,
-            transition: 'all 0.2s ease',
-          }}
         >
           {i18n.t('settings:sources.tabs.source')}
         </button>
         <button
-          className={`sub-tab-btn ${activeSubTab === 'epg' ? 'active' : ''}`}
+          className={`settings-tab ${activeSubTab === 'epg' ? 'active' : ''}`}
           onClick={() => setActiveSubTab('epg')}
-          style={{
-            padding: '10px 20px',
-            background: activeSubTab === 'epg' ? 'var(--surface-color)' : 'transparent',
-            border: 'none',
-            borderBottom: activeSubTab === 'epg' ? '2px solid var(--accent-primary, #00d4ff)' : '2px solid transparent',
-            color: activeSubTab === 'epg' ? 'var(--text-primary)' : 'var(--text-secondary)',
-            cursor: 'pointer',
-            fontSize: '0.9rem',
-            fontWeight: 500,
-            transition: 'all 0.2s ease',
-          }}
         >
           {i18n.t('settings:sources.tabs.epg')}
         </button>
         <button
-          className={`sub-tab-btn ${activeSubTab === 'refresh' ? 'active' : ''}`}
+          className={`settings-tab ${activeSubTab === 'refresh' ? 'active' : ''}`}
           onClick={() => setActiveSubTab('refresh')}
-          style={{
-            padding: '10px 20px',
-            background: activeSubTab === 'refresh' ? 'var(--surface-color)' : 'transparent',
-            border: 'none',
-            borderBottom: activeSubTab === 'refresh' ? '2px solid var(--accent-primary, #00d4ff)' : '2px solid transparent',
-            color: activeSubTab === 'refresh' ? 'var(--text-primary)' : 'var(--text-secondary)',
-            cursor: 'pointer',
-            fontSize: '0.9rem',
-            fontWeight: 500,
-            transition: 'all 0.2s ease',
-          }}
         >
           {i18n.t('settings:sources.tabs.refresh')}
         </button>
         <button
-          className={`sub-tab-btn ${activeSubTab === 'global_ua' ? 'active' : ''}`}
+          className={`settings-tab ${activeSubTab === 'global_ua' ? 'active' : ''}`}
           onClick={() => setActiveSubTab('global_ua')}
-          style={{
-            padding: '10px 20px',
-            background: activeSubTab === 'global_ua' ? 'var(--surface-color)' : 'transparent',
-            border: 'none',
-            borderBottom: activeSubTab === 'global_ua' ? '2px solid var(--accent-primary, #00d4ff)' : '2px solid transparent',
-            color: activeSubTab === 'global_ua' ? 'var(--text-primary)' : 'var(--text-secondary)',
-            cursor: 'pointer',
-            fontSize: '0.9rem',
-            fontWeight: 500,
-            transition: 'all 0.2s ease',
-          }}
         >
           {i18n.t('settings:sources.tabs.globalUa')}
         </button>
       </div>
+
+      <div className="settings-tab-content" style={{ flex: 1, minHeight: 0 }}>
 
       {activeSubTab === 'source' && (
         <>
@@ -2880,6 +2838,8 @@ export function SourcesTab({
           </div>
         </div>
       )}
+
+      </div>
 
 
 

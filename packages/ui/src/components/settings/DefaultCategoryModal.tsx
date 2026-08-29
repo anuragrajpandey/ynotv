@@ -36,10 +36,9 @@ export function defaultCategoryDisplayLabel(
   if (mode === DEFAULT_CATEGORY_FAVORITES) return t('settings:livetv.channels.favorites');
   if (mode === DEFAULT_CATEGORY_WATCHLIST) return t('settings:livetv.channels.watchlist');
   if (mode === DEFAULT_CATEGORY_RECENT) return t('settings:livetv.channels.recentlyViewed');
-  if (mode.startsWith('custom:')) {
-    const group = ctx.customGroups.find((g) => g.group_id === mode);
-    if (group) return group.name;
-  }
+  const customId = mode.startsWith('custom:') ? mode.replace('custom:', '') : mode;
+  const group = ctx.customGroups.find((g) => g.group_id === mode || g.group_id === customId);
+  if (group) return group.name;
   for (const src of ctx.grouped) {
     const cat = src.categories.find((c) => c.category_id === mode);
     if (cat) return cat.alias || cat.category_name;

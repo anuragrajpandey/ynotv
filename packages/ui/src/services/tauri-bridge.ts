@@ -619,7 +619,6 @@ export const Bridge = {
                 await invoke('mpv_set_property', { name: 'sub-font-size', value: size }).catch(() => {});
                 await invoke('mpv_set_property', { name: 'sub-scale', value: scale }).catch(() => {});
                 await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
-                await invoke('mpv_set_property', { name: 'sub-use-media-style', value: override === 'no' }).catch(() => {});
                 await invoke('mpv_set_property', { name: 'sub-ass-scale-with-window', value: true }).catch(() => {});
                 if (ss?.subColor) {
                     await invoke('mpv_set_property', { name: 'sub-color', value: ss.subColor }).catch(() => {});
@@ -686,7 +685,6 @@ export const Bridge = {
         await invoke('mpv_set_property', { name: 'sub-font-size', value: size }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-scale', value: scale }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
-        await invoke('mpv_set_property', { name: 'sub-use-media-style', value: override === 'no' }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-ass-scale-with-window', value: true }).catch(() => {});
         return;
     },
@@ -698,16 +696,12 @@ export const Bridge = {
     async setSubAssOverride(override: string) {
         if (override === 'yes' || override === 'strip') {
             await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'strip' }).catch(() => {});
-            await invoke('mpv_set_property', { name: 'sub-use-media-style', value: false }).catch(() => {});
         } else if (override === 'force') {
             await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'force' }).catch(() => {});
-            await invoke('mpv_set_property', { name: 'sub-use-media-style', value: false }).catch(() => {});
         } else if (override === 'no') {
             await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'no' }).catch(() => {});
-            await invoke('mpv_set_property', { name: 'sub-use-media-style', value: true }).catch(() => {});
         } else {
             await invoke('mpv_set_property', { name: 'sub-ass-override', value: override }).catch(() => {});
-            await invoke('mpv_set_property', { name: 'sub-use-media-style', value: false }).catch(() => {});
         }
     },
 
