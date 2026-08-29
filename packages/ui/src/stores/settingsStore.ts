@@ -198,6 +198,7 @@ export interface SettingsState {
   setModernUiEnabled: (value: 'v1' | 'v2' | 'v3' | false) => void;
   v3DefaultMigrated: boolean;
   volumePercentDefaultMigrated: boolean;
+  subAssOverrideDefaultMigrated: boolean;
 
   // Category display
   categorySortOrder: 'default' | 'alphabetical';
@@ -902,6 +903,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   },
   v3DefaultMigrated: (cachedSettings?.v3DefaultMigrated as boolean) ?? false,
   volumePercentDefaultMigrated: (cachedSettings?.volumePercentDefaultMigrated as boolean) ?? false,
+  subAssOverrideDefaultMigrated: (cachedSettings?.subAssOverrideDefaultMigrated as boolean) ?? false,
 
   // Category display
   categorySortOrder: 'default',

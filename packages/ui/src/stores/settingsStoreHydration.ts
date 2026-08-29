@@ -68,7 +68,7 @@ const BOOLEAN_KEYS = new Set([
   'showWatchlist', 'showRecentlyViewed', 'collapseSourceCategoriesOnStartup',
   'showVodAll', 'showVodFavorites', 'showVodPlaylists', 'showVodLocal', 'showVodRecent',
   'useEventBasedReconnect', 'stallDetectionEnabled', 'showLoadingScreen',
-  'transparentGuideHideHeader', 'allowLanSources', 'v3DefaultMigrated', 'volumePercentDefaultMigrated',
+  'transparentGuideHideHeader', 'allowLanSources', 'v3DefaultMigrated', 'volumePercentDefaultMigrated', 'subAssOverrideDefaultMigrated',
   'hdrTonemapToSdr', 'showHdrQuickToggle', 'controllerEnabled', 'controllerBackgroundListening', 'remoteControlEnabled',
 ] as const);
 
@@ -232,6 +232,26 @@ async function hydrateSettingsStore(): Promise<void> {
         }
       }
 
+      // subAssOverride default 'yes' migration: runs once for users upgrading.
+      // Sets subAssOverride to 'yes' so Closed Captions / ASS subtitles immediately inherit player styling & resizing.
+      // If a user later explicitly changes it to 'no', 'scale', or 'force', subAssOverrideDefaultMigrated remains true,
+      // so it will never overwrite their preference.
+      if (!data.subAssOverrideDefaultMigrated) {
+        data.subtitleSettings = {
+          ...(data.subtitleSettings ?? {}),
+          subAssOverride: 'yes',
+        };
+        data.subAssOverrideDefaultMigrated = true;
+        try {
+          window.storage.updateSettings({
+            subtitleSettings: data.subtitleSettings,
+            subAssOverrideDefaultMigrated: true,
+          }).catch(() => {});
+        } catch (e) {
+          console.warn('[settingsHydration] Failed to persist subAssOverrideDefaultMigrated:', e);
+        }
+      }
+
       if (data.savedVolume !== undefined) {
         try {
           if (localStorage.getItem('ynotv_volume') === null) {
@@ -268,6 +288,7 @@ async function hydrateSettingsStore(): Promise<void> {
         modernUiEnabled: data.modernUiEnabled ?? 'v3',
         v3DefaultMigrated: data.v3DefaultMigrated ?? false,
         volumePercentDefaultMigrated: data.volumePercentDefaultMigrated ?? false,
+        subAssOverrideDefaultMigrated: data.subAssOverrideDefaultMigrated ?? false,
         categorySortOrder: data.categorySortOrder ?? 'default',
         includeAllChannelsToPlaylist: data.includeAllChannelsToPlaylist ?? false,
         hideDisabledSources: data.hideDisabledSources ?? false,

@@ -42,6 +42,7 @@ let windowSyncListeners: { move?: UnlistenFn; resize?: UnlistenFn; focus?: Unlis
 let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let focusSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let fullscreenRestoreMaximized: boolean | null = null;
+let activeSubtitleTrackId: number | null = null;
 
 function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -420,6 +421,7 @@ export const Bridge = {
             }
         }
         try {
+            activeSubtitleTrackId = null;
             await invoke('mpv_load', { url });
             return { success: true };
         } catch (e: any) {
@@ -461,6 +463,7 @@ export const Bridge = {
     },
 
     async stop() {
+        activeSubtitleTrackId = null;
         if (REDIRECT_CONTROLS_TO_CAST && isCasting) {
             try {
                 return await invoke('cast_pause');
@@ -587,6 +590,10 @@ export const Bridge = {
         return appWindow.isMaximized();
     },
 
+    getSubtitleTrackId(): number | null {
+        return activeSubtitleTrackId;
+    },
+
     async getTrackList(): Promise<any[]> {
         const result = await invoke('mpv_get_track_list');
         return result as any[] || [];
@@ -597,6 +604,7 @@ export const Bridge = {
     },
 
     async setSubtitleTrack(id: number) {
+        activeSubtitleTrackId = id;
         const res = await invoke('mpv_set_subtitle', { id });
         if (id > 0) {
             // Force rendering on. A user-supplied --sub-visibility=no in custom
@@ -671,11 +679,14 @@ export const Bridge = {
     },
 
     async setSubtitleSize(size: number) {
+        const ss = useSettingsStore.getState().subtitleSettings;
+        const override = ss?.subAssOverride || 'yes';
+        const effectiveOverride = override === 'no' ? 'no' : (override === 'scale' ? 'scale' : (override === 'force' ? 'force' : 'strip'));
         const scale = Math.max(0.2, Math.min(3.0, size / 35));
         await invoke('mpv_set_property', { name: 'sub-font-size', value: size }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-scale', value: scale }).catch(() => {});
-        await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'strip' }).catch(() => {});
-        await invoke('mpv_set_property', { name: 'sub-use-media-style', value: false }).catch(() => {});
+        await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
+        await invoke('mpv_set_property', { name: 'sub-use-media-style', value: override === 'no' }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-ass-scale-with-window', value: true }).catch(() => {});
         return;
     },
@@ -685,14 +696,18 @@ export const Bridge = {
     },
 
     async setSubAssOverride(override: string) {
-        if (override === 'yes' || override === 'force' || override === 'strip') {
+        if (override === 'yes' || override === 'strip') {
             await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'strip' }).catch(() => {});
+            await invoke('mpv_set_property', { name: 'sub-use-media-style', value: false }).catch(() => {});
+        } else if (override === 'force') {
+            await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'force' }).catch(() => {});
             await invoke('mpv_set_property', { name: 'sub-use-media-style', value: false }).catch(() => {});
         } else if (override === 'no') {
             await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'no' }).catch(() => {});
             await invoke('mpv_set_property', { name: 'sub-use-media-style', value: true }).catch(() => {});
         } else {
             await invoke('mpv_set_property', { name: 'sub-ass-override', value: override }).catch(() => {});
+            await invoke('mpv_set_property', { name: 'sub-use-media-style', value: false }).catch(() => {});
         }
     },
 
@@ -724,13 +739,19 @@ export const Bridge = {
     },
 
     async setSubtitlePos(pos: number) {
-        await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'strip' }).catch(() => {});
+        const ss = useSettingsStore.getState().subtitleSettings;
+        const override = ss?.subAssOverride || 'yes';
+        const effectiveOverride = override === 'no' ? 'no' : (override === 'scale' ? 'scale' : (override === 'force' ? 'force' : 'strip'));
+        await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
         return invoke('mpv_set_property', { name: 'sub-pos', value: pos });
     },
 
     async setSubtitleAlign(align: string) {
         const alignX = align === 'left' ? 'left' : (align === 'right' ? 'right' : 'center');
-        await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'strip' }).catch(() => {});
+        const ss = useSettingsStore.getState().subtitleSettings;
+        const override = ss?.subAssOverride || 'yes';
+        const effectiveOverride = override === 'no' ? 'no' : (override === 'scale' ? 'scale' : (override === 'force' ? 'force' : 'strip'));
+        await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-align-x', value: alignX }).catch(() => {});
     },
 

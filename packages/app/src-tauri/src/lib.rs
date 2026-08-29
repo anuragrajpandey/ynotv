@@ -723,11 +723,13 @@ pub(crate) async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) ->
                     }
                 }
 
-                // Subtitle font size
+                // Subtitle font size & scale
                 if let Some(size) = sub_settings.get("defaultSize").and_then(|v| v.as_u64()) {
                     if size > 0 {
                         debug!("[MPV] Subtitle font size configured: {}", size);
                         args.push(format!("--sub-font-size={}", size));
+                        let scale = (size as f64 / 35.0).clamp(0.2, 3.0);
+                        args.push(format!("--sub-scale={:.2}", scale));
                     }
                 }
 
@@ -756,12 +758,22 @@ pub(crate) async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) ->
                 }
 
                 // Subtitle ASS override
-                if let Some(ass) = sub_settings.get("subAssOverride").and_then(|v| v.as_str()) {
-                    if !ass.is_empty() {
-                        debug!("[MPV] Subtitle ASS override configured: {}", ass);
-                        args.push(format!("--sub-ass-override={}", ass));
-                    }
+                let ass_setting = sub_settings.get("subAssOverride").and_then(|v| v.as_str()).unwrap_or("yes");
+                let effective_ass = match ass_setting {
+                    "no" => "no",
+                    "scale" => "scale",
+                    "force" => "force",
+                    _ => "strip", // "yes" or default maps to "strip" so CC & ASS subtitles respect custom size/pos/colors immediately
+                };
+                debug!("[MPV] Subtitle ASS override configured: {}", effective_ass);
+                args.push(format!("--sub-ass-override={}", effective_ass));
+                if effective_ass != "no" {
+                    args.push("--sub-use-media-style=no".to_string());
+                    args.push("--sub-ass-scale-with-window=yes".to_string());
+                } else {
+                    args.push("--sub-use-media-style=yes".to_string());
                 }
+                args.push("--sub-clear-on-seek=yes".to_string());
 
                 // Subtitle alignment
                 if let Some(align) = sub_settings.get("subAlign").and_then(|v| v.as_str()) {

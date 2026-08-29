@@ -758,11 +758,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
   // main player was intentionally stopped (e.g. popout opened with "stop main").
   const intentionallyStoppedRef = useRef(false);
   // Tracks whether we're currently playing a stalker_portal VOD over HLS (.m3u8).
-  // Used to apply seek-time subtitle cleanup exclusive to that context.
   const isStalkerVodRef = useRef(false);
-  // Holds the subtitle track id that was active before a stalker VOD seek, so we
-  // can restore it (instead of clobbering the user's choice) on playback-restart.
-  const stalkerSubTrackIdRef = useRef<number | null>(null);
   // Cleanup autoSelectTimer on unmount
   useEffect(() => {
     return () => {
@@ -2029,50 +2025,43 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
     }
   }, []);
 
-  // ── Stalker VOD seek subtitle cleanup ──────────────────────────────────────
-  // On stalker portal HLS VODs, seeking can cause mpv to re-activate both the
-  // embedded CEA-608 CC track and the soft WebVTT track simultaneously, producing
-  // duplicate/triple subtitle rendering. We suppress subs on seek-start and
-  // re-trigger autoSelectSubtitle when playback restarts after the seek.
+  // ── Universal seek subtitle cleanup ────────────────────────────────────────
+  // On Live TV (timeshifting/seeking) and Stalker/HLS VODs, seeking backwards or
+  // forwards can cause mpv's libass / FFmpeg EIA-608 CC decoder to retain past
+  // dialogue events and decode duplicate dialogue events at the same timestamps,
+  // producing double/triple/multi-layered stacked subtitles.
+  // We do NOT disable subtitles during mid-seek scrubbing (which causes tracks to
+  // unselect during seekbar drag). Instead, when seeking finishes (playback-restart),
+  // we re-apply the user's active subtitle track so libass decodes cleanly from the
+  // new timestamp with proper styling.
   useEffect(() => {
     if (!Bridge.isTauri) return;
 
-    let unlistenSeek: (() => void) | null = null;
     let unlistenRestart: (() => void) | null = null;
     let disposed = false;
 
     import('@tauri-apps/api/event').then(({ listen }) => {
-      listen('mpv-seek', async () => {
-        if (!isStalkerVodRef.current) return;
-        logInfo('[Subtitle] Stalker VOD seek detected — disabling subs during seek');
-        // Remember the user's currently selected subtitle track so we can restore
-        // exactly that one after the seek (instead of clobbering it with auto-select).
-        try {
-          const trackList = await Bridge.getTrackList();
-          const selected = (trackList as any[]).find((t: any) => t.type === 'sub' && t.selected);
-          stalkerSubTrackIdRef.current = selected ? selected.id : 0;
-        } catch {
-          stalkerSubTrackIdRef.current = null;
-        }
-        Bridge.setSubtitleTrack(0).catch(() => {});
-      }).then((fn) => {
-        if (disposed) fn();
-        else unlistenSeek = fn;
-      });
-
       listen('mpv-playback-restart', async () => {
-        if (!isStalkerVodRef.current) return;
-        const restoreId = stalkerSubTrackIdRef.current;
-        stalkerSubTrackIdRef.current = null;
+        // Read the currently active/selected subtitle track (from Bridge or MPV track list)
+        let currentSubId = Bridge.getSubtitleTrackId?.() ?? null;
 
-        if (restoreId !== null && restoreId !== undefined && restoreId > 0) {
-          // Restore the user's selection — fixes duplicate CC/WebVTT rendering while
-          // respecting the track they had enabled before the seek.
-          logInfo(`[Subtitle] Stalker VOD playback-restart — restoring subtitle track ${restoreId}`);
-          await Bridge.setSubtitleTrack(restoreId).catch(() => {});
-          hasAutoSelectedSubRef.current = true;
-        } else {
-          // Nothing was selected before the seek — re-run default-language auto-select.
+        if (currentSubId === null) {
+          // If we don't have a track recorded in Bridge, check MPV's track list
+          try {
+            const trackList = await Bridge.getTrackList();
+            const selected = (trackList as any[]).find((t: any) => t.type === 'sub' && t.selected);
+            if (selected && selected.id > 0) {
+              currentSubId = selected.id;
+            }
+          } catch {}
+        }
+
+        if (currentSubId !== null && currentSubId > 0) {
+          logInfo(`[Subtitle] Playback-restart after seek — cycling subtitle track ${currentSubId} to clear libass/CC decoder cache`);
+          // Toggle sid to 0 then restore target ID to purge stale dialogue events and reset the CC decoder
+          await invoke('mpv_set_subtitle', { id: 0 }).catch(() => {});
+          await Bridge.setSubtitleTrack(currentSubId).catch(() => {});
+        } else if (isStalkerVodRef.current && !subAutoSelectEverCompletedRef.current) {
           logInfo('[Subtitle] Stalker VOD playback-restart — re-running subtitle auto-select');
           hasAutoSelectedSubRef.current = false;
           lastSubTracksCountRef.current = 0;
@@ -2086,10 +2075,17 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
     return () => {
       disposed = true;
-      unlistenSeek?.();
       unlistenRestart?.();
     };
   }, [autoSelectSubtitle]);
+
+  // Synchronize live MPV playback when subtitle settings change in store
+  const subtitleSettings = useSettingsStore((s) => s.subtitleSettings);
+  useEffect(() => {
+    if (playing) {
+      applySubtitleSettings().catch(() => {});
+    }
+  }, [subtitleSettings, playing]);
 
   const autoSelectAudio = useCallback(async (providedAudioTracks?: any[]) => {
     const ss = useSettingsStore.getState().subtitleSettings;
