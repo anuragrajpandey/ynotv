@@ -366,6 +366,12 @@ export function SportsHub({
 
     // Listen for window move events to keep the MPV window aligned during dragging
     let unlistenMove: (() => void) | null = null;
+    // On Windows, mpv's embedded window follows the parent via a
+    // WM_WINDOWPOSCHANGED hook and re-fits itself to the FULL parent on
+    // activation (clicking another program, then clicking back). That leaves
+    // the video full-screen with the preview pane showing only a cutout. Re-
+    // assert the preview rect whenever the window regains focus.
+    let unlistenFocus: (() => void) | null = null;
     let disposed = false;
 
     import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
@@ -387,6 +393,24 @@ export function SportsHub({
       }).then((unlisten) => {
         if (disposed) unlisten();
         else unlistenMove = unlisten;
+      }).catch(() => {});
+
+      appWindow.onFocusChanged(({ payload: focused }) => {
+        if (!focused) return;
+        forceNextUpdate = true;
+        lastGeometry = ''; // reset cache so the geometry call is never skipped
+        scheduleVideoPositionUpdate();
+        // Safety pass: outlast any async mpv re-fit that lands after the JS
+        // focus event. Idempotent, so the extra call is harmless.
+        setTimeout(() => {
+          if (disposed) return;
+          forceNextUpdate = true;
+          lastGeometry = '';
+          scheduleVideoPositionUpdate();
+        }, 150);
+      }).then((unlisten) => {
+        if (disposed) unlisten();
+        else unlistenFocus = unlisten;
       }).catch(() => {});
     }).catch(() => {});
 
@@ -410,6 +434,7 @@ export function SportsHub({
       observer.disconnect();
       window.removeEventListener('resize', handleWindowResize);
       if (unlistenMove) unlistenMove();
+      if (unlistenFocus) unlistenFocus();
       if (dragSettleTimer !== null) clearTimeout(dragSettleTimer);
       if (rafId !== null) cancelAnimationFrame(rafId);
       cancelAnimationFrame(animationFrameId);

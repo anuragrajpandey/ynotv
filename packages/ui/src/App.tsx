@@ -2190,6 +2190,33 @@ function useTmdbPresencePoster(
     }
   }, [previewVideoRect, activeView, multiviewLayout, syncMpvGeometry]);
 
+  // On Windows, mpv's embedded window follows the parent via a
+  // WM_WINDOWPOSCHANGED hook and re-fits itself to the FULL parent on
+  // activation (clicking another program, then clicking back). The LiveTV and
+  // sports previews re-assert their rects from their own focus listeners; this
+  // one covers the hero page and its multiview cell layouts.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let disposed = false;
+    import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+      getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+        if (!focused || activeView !== 'none') return;
+        if (multiviewLayout === 'main') {
+          invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
+        } else {
+          syncMpvGeometry(multiviewLayout);
+        }
+      }).then((u) => {
+        if (disposed) u();
+        else unlisten = u;
+      }).catch(() => { });
+    }).catch(() => { });
+    return () => {
+      disposed = true;
+      if (unlisten) unlisten();
+    };
+  }, [activeView, multiviewLayout, syncMpvGeometry]);
+
   const triggerChannelChangeFlash = useCallback(() => {
     if (!channelInfoOverlayEnabled) return;
     setChannelChangeFlash(true);
