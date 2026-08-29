@@ -882,7 +882,18 @@
         "searchResultsOrderSub": "Wählen Sie, wie Suchergebnisse sortiert werden. \"Standard\" zeigt Ergebnisse in Datenbankreihenfolge. \"Alphabetisch\" sortiert Sender und Programme nach Name (A-Z).",
         "launchProbe": "Stream-Test starten",
         "probeSection": "Sender-Stream-Test und Zustandsprüfung",
-        "probeSectionSub": "Sender scannen, um die Stream-Gesundheit zu prüfen, Geoblocks/DRM zu erkennen und automatisch Auflösungs-, FPS- und Audioqualitäts-Badges zu füllen."
+        "probeSectionSub": "Sender scannen, um die Stream-Gesundheit zu prüfen, Geoblocks/DRM zu erkennen und automatisch Auflösungs-, FPS- und Audioqualitäts-Badges zu füllen.",
+        "defaultCategory": "Standardkategorie",
+        "defaultCategorySub": "Wählen Sie, welche Kategorie beim Öffnen von LiveTV angezeigt wird. „Zuletzt geöffnete Kategorie“ stellt die zuletzt angesehene Kategorie wieder her.",
+        "lastOpenedCategory": "Zuletzt geöffnete Kategorie",
+        "lastOpenedCategorySub": "Stellt die zuletzt angesehene Kategorie wieder her.",
+        "allChannels": "Alle Sender",
+        "favorites": "Favoriten",
+        "watchlist": "Merkliste",
+        "recentlyViewed": "Zuletzt gesehen",
+        "customGroups": "Benutzerdefinierte Gruppen",
+        "searchCategories": "Kategorien suchen…",
+        "noCategoriesFound": "Keine Kategorien gefunden"
       },
       "logos": {
         "small32": "Klein (32px)",

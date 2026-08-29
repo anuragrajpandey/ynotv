@@ -882,7 +882,18 @@
         "searchResultsOrderSub": "選擇搜尋結果的排序方式。\"預設\"按資料庫順序顯示結果。\"按字母順序\"按名稱對頻道和節目排序（A-Z）。",
         "launchProbe": "啟動串流偵測",
         "probeSection": "頻道串流偵測與健康檢查",
-        "probeSectionSub": "掃描頻道以驗證串流健康狀況，偵測地理封鎖/DRM，並自動填充分辨率、FPS 和音訊品質徽章。"
+        "probeSectionSub": "掃描頻道以驗證串流健康狀況，偵測地理封鎖/DRM，並自動填充分辨率、FPS 和音訊品質徽章。",
+        "defaultCategory": "預設分類",
+        "defaultCategorySub": "選擇 LiveTV 載入時開啟的分類。'上次開啟的分類'會還原上次檢視的分類。",
+        "lastOpenedCategory": "上次開啟的分類",
+        "lastOpenedCategorySub": "還原上次檢視的分類。",
+        "allChannels": "所有頻道",
+        "favorites": "收藏",
+        "watchlist": "觀看列表",
+        "recentlyViewed": "最近觀看",
+        "customGroups": "自訂群組",
+        "searchCategories": "搜尋分類…",
+        "noCategoriesFound": "找不到分類"
       },
       "logos": {
         "small32": "小（32px）",

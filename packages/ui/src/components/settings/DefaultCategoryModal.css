@@ -1,0 +1,152 @@
+/* Default Category picker modal (Settings -> LiveTV -> Sort & Channels) */
+.default-cat-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.default-cat-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 92vw);
+  max-height: min(640px, 82vh);
+  background: var(--surface-color, #16181d);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.default-cat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--surface-border, rgba(255, 255, 255, 0.08));
+}
+
+.default-cat-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.default-cat-close {
+  background: none;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.default-cat-close:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, #fff);
+}
+
+.default-cat-search {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--surface-border, rgba(255, 255, 255, 0.08));
+}
+
+.default-cat-search input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.14));
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary, #fff);
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.default-cat-search input:focus {
+  border-color: var(--accent-primary, #00d4ff);
+}
+
+.default-cat-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.default-cat-section-title {
+  padding: 10px 10px 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #94a3b8);
+  position: sticky;
+  top: 0;
+  background: var(--surface-color, #16181d);
+  z-index: 1;
+}
+
+.default-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-primary, #fff);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.default-cat-row:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.07));
+}
+
+.default-cat-row.selected {
+  background: color-mix(in srgb, var(--accent-primary, #00d4ff) 12%, transparent);
+  color: var(--text-primary, #fff);
+}
+
+.default-cat-row .default-cat-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.default-cat-row .default-cat-sub {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 1px;
+}
+
+.default-cat-count {
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+  flex-shrink: 0;
+}
+
+.default-cat-check {
+  flex-shrink: 0;
+  color: var(--accent-primary, #00d4ff);
+  font-size: 0.95rem;
+}
+
+.default-cat-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.88rem;
+}

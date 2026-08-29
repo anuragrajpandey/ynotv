@@ -881,8 +881,16 @@ export function useSelectedCategory() {
   const [categoryId, setCategoryIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load last category on mount
+  // Load the default category on mount. When the user picked a fixed default
+  // (Settings -> LiveTV -> Sort & Channels -> Default Category) that wins over
+  // the last-opened category; otherwise restore the last category as before.
   useEffect(() => {
+    const mode = useSettingsStore.getState().defaultCategory;
+    if (mode && mode !== '__last__') {
+      setCategoryIdState(mode === '__all__' ? null : mode);
+      setLoading(false);
+      return;
+    }
     getLastCategory().then((lastCat) => {
       setCategoryIdState(lastCat);
       setLoading(false);

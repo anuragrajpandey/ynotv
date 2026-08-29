@@ -2427,7 +2427,18 @@
         "searchResultsOrderSub": "Chọn cách sắp xếp kết quả tìm kiếm. \"Mặc Định\" hiển thị kết quả theo thứ tự cơ sở dữ liệu. \"Thứ Tự Chữ Cái\" sắp xếp kênh và chương trình theo tên (A-Z).",
         "launchProbe": "Bắt đầu kiểm tra luồng phát",
         "probeSection": "Kiểm tra luồng phát kênh và đánh giá tình trạng",
-        "probeSectionSub": "Quét các kênh để xác thực tình trạng luồng phát, phát hiện chặn địa lý/DRM và tự động điền huy hiệu độ phân giải, FPS và chất lượng âm thanh."
+        "probeSectionSub": "Quét các kênh để xác thực tình trạng luồng phát, phát hiện chặn địa lý/DRM và tự động điền huy hiệu độ phân giải, FPS và chất lượng âm thanh.",
+        "defaultCategory": "Danh mục mặc định",
+        "defaultCategorySub": "Chọn danh mục mở khi LiveTV tải. 'Danh mục mở gần đây' khôi phục danh mục đã xem gần đây nhất.",
+        "lastOpenedCategory": "Danh mục mở gần đây",
+        "lastOpenedCategorySub": "Khôi phục danh mục đã xem gần đây nhất.",
+        "allChannels": "Tất Cả Kênh",
+        "favorites": "Yêu Thích",
+        "watchlist": "Danh Sách Xem",
+        "recentlyViewed": "Đã Xem Gần Đây",
+        "customGroups": "Nhóm tùy chỉnh",
+        "searchCategories": "Tìm danh mục…",
+        "noCategoriesFound": "Không tìm thấy danh mục"
       },
       "logos": {
         "small32": "Nhỏ (32px)",

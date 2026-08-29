@@ -882,7 +882,18 @@
         "searchResultsOrderSub": "Arama sonuçlarının nasıl sıralanacağını seçin. \"Varsayılan\" sonuçları veritabanı sırasında gösterir. \"Alfabetik\" kanalları ve programları ada göre sıralar (A-Z).",
         "launchProbe": "Yayın testini başlat",
         "probeSection": "Kanal yayını testi ve sağlık kontrolü",
-        "probeSectionSub": "Yayın sağlığını doğrulamak, coğrafi engellemeleri/DRM'yi tespit etmek ve çözünürlük, FPS ve ses kalitesi rozetlerini otomatik doldurmak için kanalları tarayın."
+        "probeSectionSub": "Yayın sağlığını doğrulamak, coğrafi engellemeleri/DRM'yi tespit etmek ve çözünürlük, FPS ve ses kalitesi rozetlerini otomatik doldurmak için kanalları tarayın.",
+        "defaultCategory": "Varsayılan Kategori",
+        "defaultCategorySub": "LiveTV yüklendiğinde açılacak kategoriyi seçin. «Son Açılan Kategori» son görüntülenen kategoriyi geri yükler.",
+        "lastOpenedCategory": "Son Açılan Kategori",
+        "lastOpenedCategorySub": "Son görüntülenen kategoriyi geri yükler.",
+        "allChannels": "Tüm Kanallar",
+        "favorites": "Sık Kullanılanlar",
+        "watchlist": "İzleme Listesi",
+        "recentlyViewed": "Son Görüntülenenler",
+        "customGroups": "Özel Gruplar",
+        "searchCategories": "Kategorileri ara…",
+        "noCategoriesFound": "Kategori bulunamadı"
       },
       "logos": {
         "small32": "Küçük (32px)",

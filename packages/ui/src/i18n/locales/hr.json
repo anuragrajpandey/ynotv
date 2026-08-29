@@ -882,7 +882,18 @@
         "searchResultsOrderSub": "Izaberite kako se rezultati pretrage sortiraju. „Podrazumijevano\" prikazuje rezultate u redoslijedu baze podataka. „Abecedno\" sortira kanale i programe po nazivu (A-Z).",
         "launchProbe": "Pokreni test streama",
         "probeSection": "Test streamova kanala i provjera zdravlja",
-        "probeSectionSub": "Skenirajte kanale kako biste provjerili zdravlje streama, otkrili geo-blokade/DRM i automatski popunili bedževe rezolucije, FPS-a i kvalitete zvuka."
+        "probeSectionSub": "Skenirajte kanale kako biste provjerili zdravlje streama, otkrili geo-blokade/DRM i automatski popunili bedževe rezolucije, FPS-a i kvalitete zvuka.",
+        "defaultCategory": "Zadana kategorija",
+        "defaultCategorySub": "Odaberite koja se kategorija otvara kada se učita LiveTV. „Posljednja otvorena kategorija“ vraća posljednju pregledanu kategoriju.",
+        "lastOpenedCategory": "Posljednja otvorena kategorija",
+        "lastOpenedCategorySub": "Vraća posljednju pregledanu kategoriju.",
+        "allChannels": "Svi kanali",
+        "favorites": "Omiljeno",
+        "watchlist": "Lista za gledanje",
+        "recentlyViewed": "Skoro gledano",
+        "customGroups": "Prilagođene grupe",
+        "searchCategories": "Pretraži kategorije…",
+        "noCategoriesFound": "Nema pronađenih kategorija"
       },
       "logos": {
         "small32": "Mali (32px)",

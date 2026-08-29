@@ -882,7 +882,18 @@
         "searchResultsOrderSub": "Válassza ki a keresési találatok rendezését. Az „Alapértelmezett” adatbázis-sorrendben jeleníti meg a találatokat. A „Betűrend” név szerint (A–Z) rendezi a csatornákat és műsorokat.",
         "launchProbe": "Stream-teszt indítása",
         "probeSection": "Csatorna-stream-teszt és állapotellenőrzés",
-        "probeSectionSub": "Csatornák átvizsgálása a stream állapotának ellenőrzéséhez, geoblokkok/DRM észleléséhez, valamint a felbontás-, FPS- és hangminőség-jelvények automatikus kitöltéséhez."
+        "probeSectionSub": "Csatornák átvizsgálása a stream állapotának ellenőrzéséhez, geoblokkok/DRM észleléséhez, valamint a felbontás-, FPS- és hangminőség-jelvények automatikus kitöltéséhez.",
+        "defaultCategory": "Alapértelmezett kategória",
+        "defaultCategorySub": "Válassza ki, melyik kategória nyíljon meg a LiveTV betöltésekor. A „Legutóbb megnyitott kategória“ visszaállítja a legutóbb megtekintett kategóriát.",
+        "lastOpenedCategory": "Legutóbb megnyitott kategória",
+        "lastOpenedCategorySub": "Visszaállítja a legutóbb megtekintett kategóriát.",
+        "allChannels": "Összes csatorna",
+        "favorites": "Kedvencek",
+        "watchlist": "Figyelőlista",
+        "recentlyViewed": "Legutóbb megtekintve",
+        "customGroups": "Egyéni csoportok",
+        "searchCategories": "Kategóriák keresése…",
+        "noCategoriesFound": "Nem található kategória"
       },
       "logos": {
         "small32": "Kicsi (32px)",

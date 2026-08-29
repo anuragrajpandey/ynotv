@@ -211,6 +211,7 @@ describe('settings store hydration', () => {
     expect(s.transparentGuideHideHeader).toBe(false);
     expect(s.transparentGuideOverlayOpacity).toBe(55);
     expect(s.transparentGuideSidebarOpacity).toBe(55);
+    expect(s.defaultCategory).toBe('__last__');
     expect(s.allowLanSources).toBe(false);
   });
 

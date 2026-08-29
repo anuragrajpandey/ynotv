@@ -882,7 +882,18 @@
         "searchResultsOrderSub": "Zgjidh si të renditen rezultatet e kërkimit. „Parazgjedhur\" tregon rezultatet në rendin e bazës së të dhënave. „Alfabetik\" rendit kanalet dhe programet sipas emrit (A-Z).",
         "launchProbe": "Fillo testin e transmetimit",
         "probeSection": "Test i transmetimeve të kanaleve dhe kontroll shëndeti",
-        "probeSectionSub": "Skanoni kanalet për të verifikuar shëndetin e transmetimit, për të zbuluar blloqe gjeografike/DRM dhe për të plotësuar automatikisht distinktivët e rezolucionit, FPS-së dhe cilësisë së audios."
+        "probeSectionSub": "Skanoni kanalet për të verifikuar shëndetin e transmetimit, për të zbuluar blloqe gjeografike/DRM dhe për të plotësuar automatikisht distinktivët e rezolucionit, FPS-së dhe cilësisë së audios.",
+        "defaultCategory": "Kategoria e paracaktuar",
+        "defaultCategorySub": "Zgjidhni cilën kategori të hapet kur ngarkohet LiveTV. „Kategoria e fundit e hapur“ rikthen kategorinë e fundit të shikuar.",
+        "lastOpenedCategory": "Kategoria e fundit e hapur",
+        "lastOpenedCategorySub": "Rikthen kategorinë e fundit të shikuar.",
+        "allChannels": "Të gjithë kanalet",
+        "favorites": "Të preferuarat",
+        "watchlist": "Lista e shikimit",
+        "recentlyViewed": "Shikuar së fundmi",
+        "customGroups": "Grupet e personalizuara",
+        "searchCategories": "Kërko kategori…",
+        "noCategoriesFound": "Nuk u gjet asnjë kategori"
       },
       "logos": {
         "small32": "I vogël (32px)",

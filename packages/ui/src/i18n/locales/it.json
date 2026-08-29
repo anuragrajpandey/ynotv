@@ -882,7 +882,18 @@
         "searchResultsOrderSub": "Scegli come ordinare i risultati di ricerca. \"Predefinito\" mostra i risultati nell'ordine del database. \"Alfabetico\" ordina canali e programmi per nome (A-Z).",
         "launchProbe": "Avvia analisi flusso",
         "probeSection": "Analisi flusso canali e controllo salute",
-        "probeSectionSub": "Analizza i canali per validare la salute del flusso, rilevare blocchi geografici/DRM e compilare automaticamente i badge di risoluzione, FPS e qualità audio."
+        "probeSectionSub": "Analizza i canali per validare la salute del flusso, rilevare blocchi geografici/DRM e compilare automaticamente i badge di risoluzione, FPS e qualità audio.",
+        "defaultCategory": "Categoria predefinita",
+        "defaultCategorySub": "Scegli quale categoria aprire quando si carica LiveTV. «Ultima categoria aperta» ripristina l’ultima categoria visualizzata.",
+        "lastOpenedCategory": "Ultima categoria aperta",
+        "lastOpenedCategorySub": "Ripristina l’ultima categoria visualizzata.",
+        "allChannels": "Tutti i canali",
+        "favorites": "Preferiti",
+        "watchlist": "Lista di visione",
+        "recentlyViewed": "Visti di recente",
+        "customGroups": "Gruppi personalizzati",
+        "searchCategories": "Cerca categorie…",
+        "noCategoriesFound": "Nessuna categoria trovata"
       },
       "logos": {
         "small32": "Piccolo (32px)",

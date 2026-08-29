@@ -364,6 +364,13 @@ export interface SettingsState {
   setCategorySettings: (partial: Partial<CategorySettings>) => void;
   setCollapseSourceCategoriesOnStartup: (enabled: boolean) => void;
 
+  // Default category opened when LiveTV loads: '__last__' (last opened, the
+  // default behavior) or a concrete sidebar category id — '__all__' for All
+  // Channels, '__favorites__', '__watchlist__', '__recent__', a 'custom:...'
+  // group id, or a native category id.
+  defaultCategory: string;
+  setDefaultCategory: (mode: string) => void;
+
   // VOD category sidebar visibility (Movies and Series sidebar)
   showVodAll: boolean;
   showVodFavorites: boolean;
@@ -1692,6 +1699,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   showWatchlist: true,
   showRecentlyViewed: true,
   favoritesMode: 'global',
+  defaultCategory: (cachedSettings?.defaultCategory as string) ?? '__last__',
+  setDefaultCategory: (mode) => {
+    set({ defaultCategory: mode });
+    persistSettings({ defaultCategory: mode }, true);
+  },
   setCategorySettings: (partial) => {
     const patch: Record<string, any> = {};
     if (partial.showAllChannels !== undefined) patch.showAllChannels = partial.showAllChannels;

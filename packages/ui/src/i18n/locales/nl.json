@@ -882,7 +882,18 @@
         "searchResultsOrderSub": "Kies hoe zoekresultaten worden gesorteerd. «Standaard» toont resultaten in databasevolgorde. «Alfabetisch» sorteert kanalen en programma's op naam (A-Z).",
         "launchProbe": "Streamtest starten",
         "probeSection": "Kanaal-streamtest en gezondheidscontrole",
-        "probeSectionSub": "Scan kanalen om de streamgezondheid te valideren, geoblocks/DRM te detecteren en automatisch resolutie-, FPS- en audiokwaliteitsbadges in te vullen."
+        "probeSectionSub": "Scan kanalen om de streamgezondheid te valideren, geoblocks/DRM te detecteren en automatisch resolutie-, FPS- en audiokwaliteitsbadges in te vullen.",
+        "defaultCategory": "Standaardcategorie",
+        "defaultCategorySub": "Kies welke categorie wordt geopend wanneer LiveTV wordt geladen. «Laatst geopende categorie» herstelt de laatst bekeken categorie.",
+        "lastOpenedCategory": "Laatst geopende categorie",
+        "lastOpenedCategorySub": "Herstelt de laatst bekeken categorie.",
+        "allChannels": "Alle kanalen",
+        "favorites": "Favorieten",
+        "watchlist": "Kijklijst",
+        "recentlyViewed": "Recent bekeken",
+        "customGroups": "Aangepaste groepen",
+        "searchCategories": "Categorieën zoeken…",
+        "noCategoriesFound": "Geen categorieën gevonden"
       },
       "logos": {
         "small32": "Klein (32px)",

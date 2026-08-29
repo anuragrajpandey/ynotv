@@ -882,7 +882,18 @@
         "searchResultsOrderSub": "选择搜索结果的排序方式。\"默认\"按数据库顺序显示结果。\"按字母顺序\"按名称对频道和节目排序（A-Z）。",
         "launchProbe": "启动流检测",
         "probeSection": "频道流检测与健康检查",
-        "probeSectionSub": "扫描频道以验证流健康状况，检测地理封锁/DRM，并自动填充分辨率、FPS 和音频质量徽章。"
+        "probeSectionSub": "扫描频道以验证流健康状况，检测地理封锁/DRM，并自动填充分辨率、FPS 和音频质量徽章。",
+        "defaultCategory": "默认分类",
+        "defaultCategorySub": "选择 LiveTV 加载时打开的分类。'上次打开的分类'会恢复上次查看的分类。",
+        "lastOpenedCategory": "上次打开的分类",
+        "lastOpenedCategorySub": "恢复上次查看的分类。",
+        "allChannels": "所有频道",
+        "favorites": "收藏",
+        "watchlist": "观看列表",
+        "recentlyViewed": "最近观看",
+        "customGroups": "自定义分组",
+        "searchCategories": "搜索分类…",
+        "noCategoriesFound": "未找到分类"
       },
       "logos": {
         "small32": "小（32px）",

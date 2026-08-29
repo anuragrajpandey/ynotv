@@ -128,6 +128,8 @@ export interface AppSettings {
     categorySortOrder?: 'default' | 'alphabetical';
     // Favorites placement in the LiveTV sidebar: 'global' (top-level), 'perSource' (nested under each source), or 'both'
     favoritesMode?: 'global' | 'perSource' | 'both';
+    // Default category opened when LiveTV loads: '__last__' or a sidebar category id
+    defaultCategory?: string;
     // Automated backups (same JSON format as Settings -> Export / Import)
     autoBackupEnabled?: boolean;
     autoBackupIntervalHours?: number;

@@ -882,7 +882,18 @@
         "searchResultsOrderSub": "Wybierz sposób sortowania wyników wyszukiwania. „Domyślnie\" pokazuje wyniki w kolejności bazy danych. „Alfabetycznie\" sortuje kanały i programy według nazwy (A-Z).",
         "launchProbe": "Uruchom test strumienia",
         "probeSection": "Test strumieni kanałów i sprawdzanie stanu",
-        "probeSectionSub": "Skanuj kanały, aby sprawdzić stan strumieni, wykryć blokady geograficzne/DRM i automatycznie wypełnić znaczki rozdzielczości, FPS i jakości dźwięku."
+        "probeSectionSub": "Skanuj kanały, aby sprawdzić stan strumieni, wykryć blokady geograficzne/DRM i automatycznie wypełnić znaczki rozdzielczości, FPS i jakości dźwięku.",
+        "defaultCategory": "Domyślna kategoria",
+        "defaultCategorySub": "Wybierz kategorię otwieraną po załadowaniu LiveTV. «Ostatnio otwarta kategoria» przywraca ostatnio oglądaną kategorię.",
+        "lastOpenedCategory": "Ostatnio otwarta kategoria",
+        "lastOpenedCategorySub": "Przywraca ostatnio oglądaną kategorię.",
+        "allChannels": "Wszystkie kanały",
+        "favorites": "Ulubione",
+        "watchlist": "Lista do obejrzenia",
+        "recentlyViewed": "Ostatnio oglądane",
+        "customGroups": "Własne grupy",
+        "searchCategories": "Szukaj kategorii…",
+        "noCategoriesFound": "Nie znaleziono kategorii"
       },
       "logos": {
         "small32": "Mały (32px)",
