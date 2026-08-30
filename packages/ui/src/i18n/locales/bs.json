@@ -230,8 +230,8 @@
     "manageFavoritesOrder": "Upravljanje redoslijedom omiljenih",
     "noChannels": "Nema kanala",
     "noChannelsFound": "Nema pronađenih kanala",
-    "allChannelsTooMany": "Too Many Channels",
-    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
+    "allChannelsTooMany": "Previše kanala",
+    "allChannelsTooManyHint": "Vaša biblioteka ima previše kanala da biste ih sve prikazali odjednom. Odaberite kategoriju s bočne trake ili koristite pretragu da pronađete kanal.",
     "noLivePrograms": "Trenutno nema programa uživo",
     "noResultsFound": "Nema pronađenih rezultata",
     "noUpcomingPrograms": "Nema nadolazećih programa",
@@ -998,7 +998,7 @@
       "videoBitrate": "Video bitrate",
       "audioBitrate": "Audio bitrate",
       "threeColumnView": "Prikaz u 3 kolone",
-      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting.",
+      "threeColumnViewSub": "Zamijenite EPG vremensku mrežu trakom kanala u 3 kolone i rasporedom. Nezavisno od postavke Rasporeda EPG prikaza.",
       "programFontSize": "Veličina fonta programa",
       "programNameExample": "Primjer naziva programa"
     },
@@ -2409,8 +2409,8 @@
         "enableHint": "Kada je omogućeno, mapirani tasteri deluju kao tasteri kontrolera. Tasteri sa strelicama, Enter i Escape su prethodno vezani za D-Pad i A/B. Nemapirani ključevi zadržavaju svoje normalno ponašanje. Dok kucate u okviru za pretragu, slova i tasteri za uređivanje (Enter, Backspace) nastavljaju da rade normalno, dok D-Pad i Escape i dalje deluju kao tasteri kontrolera tako da se možete pomeriti. Kliknite na dugme ispod, a zatim pritisnite taster koji želite da dodelite.",
         "reset": "Resetujte veze tastera",
         "pressKey": "Pritisnite tipku...",
-        "unmapped": "Unmapped",
-        "unmap": "Unbind"
+        "unmapped": "Nije mapirano",
+        "unmap": "Odveži"
       },
       "remoteCustomizer": {
         "title": "Prilagođavanje daljinskog za telefon",

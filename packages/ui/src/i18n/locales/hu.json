@@ -230,8 +230,8 @@
     "manageFavoritesOrder": "Kedvencek sorrendjének kezelése",
     "noChannels": "Nincs csatorna",
     "noChannelsFound": "Nem találhatók csatornák",
-    "allChannelsTooMany": "Too Many Channels",
-    "allChannelsTooManyHint": "Your library has too many channels to list all at once. Pick a category from the sidebar or use Search to find a channel.",
+    "allChannelsTooMany": "Túl sok csatorna",
+    "allChannelsTooManyHint": "A könyvtára túl sok csatornát tartalmaz ahhoz, hogy egyszerre mindet megjelenítse. Válasszon egy kategóriát az oldalsávból, vagy használja a keresést a csatorna megtalálásához.",
     "noLivePrograms": "Jelenleg nincs élő műsor",
     "noResultsFound": "Nincs találat",
     "noUpcomingPrograms": "Nincs közelgő műsor",
@@ -998,7 +998,7 @@
       "videoBitrate": "Videó bitráta",
       "audioBitrate": "Hang bitráta",
       "threeColumnView": "3 oszlopos nézet",
-      "threeColumnViewSub": "Replace the EPG time grid with a 3-column channel strip and schedule. Independent of the EPG View Layout setting.",
+      "threeColumnViewSub": "Kicseréli az EPG időrácsot egy 3 oszlopos csatornasávra és műsorlistára. Független az EPG nézetelrendezés beállítástól.",
       "programFontSize": "Program betűméret",
       "programNameExample": "Programnév példa"
     },
@@ -2407,7 +2407,7 @@
         "description": "Kösd össze a billentyűzet billentyűit úgy, mintha vezérlőgombok lennének, így a HTPC vezeték nélküli billentyűzet/távirányító kezelni tudja a vezérlő felhasználói felületét (térbeli navigáció, akkordok és gombleképezések).",
         "enableLabel": "Billentyűzet engedélyezése vezérlőként",
         "enableHint": "Ha engedélyezve van, a leképezett billentyűk vezérlőgombként működnek. A nyílbillentyűk, az Enter és az Escape előre vannak kötve a D-Pad-hez és az A/B-hez. A leképezés nélküli kulcsok megtartják normál viselkedésüket. A keresőmezőbe való beírás közben a betűk és a szerkesztő billentyűk (Enter, Backspace) továbbra is normálisan működnek, míg a D-Pad és az Escape továbbra is vezérlőgombként működik, így távolodhat. Kattintson az alábbi gombokra, majd nyomja meg a hozzárendelni kívánt gombot.",
-        "reset": "Reset Key Bindings",
+        "reset": "Billentyű-hozzárendelések visszaállítása",
         "pressKey": "Nyomj meg egy gombot...",
         "unmapped": "Feltérképezetlen",
         "unmap": "Kiold"
