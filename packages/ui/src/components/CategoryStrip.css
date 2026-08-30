@@ -1194,16 +1194,18 @@
    every scroll/interaction. content-visibility: auto makes the browser skip
    off-screen rows entirely (same trick already used for EPG program blocks).
 
-   Applied ONLY to ordinary (non-pinned) category rows. Source headers, folder
-   headers, and pinned categories rely on position: sticky (source/folder
-   headers are sticky when expanded; pinned rows stick via the sortable
-   wrapper) and content-visibility containment on sticky elements is risky in
-   Chromium, so those are excluded and sticky pins keep working exactly as
-   before. Non-pinned rows are the overwhelming majority, so the rendering win
-   is unchanged. Fixed row heights make the intrinsic-size hints exact. Pure
-   rendering hint — no visual change.
+   Applied ONLY to ordinary (non-pinned) category rows, and ONLY in the legacy
+   renderer (the virtualized renderer already unmounts off-screen rows, so
+   content-visibility would be redundant there, and its containment can
+   interfere with the sticky overlay). Source headers, folder headers, and
+   pinned categories rely on position: sticky (source/folder headers are
+   sticky when expanded; pinned rows stick via the sortable wrapper) and
+   content-visibility containment on sticky elements is risky in Chromium, so
+   those are excluded and sticky pins keep working exactly as before. Fixed row
+   heights make the intrinsic-size hints exact. Pure rendering hint — no visual
+   change.
    --------------------------------------------------------------------------- */
-.category-strip-scrollable .category-item.nested:not(.is-pinned) {
+.category-strip-scrollable .category-item.nested:not(.is-pinned):not(.virtualized-sidebar .category-item.nested) {
   content-visibility: auto;
   contain-intrinsic-size: auto 38px;
 }

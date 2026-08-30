@@ -144,37 +144,39 @@ function parseCategoryIds(raw: string | string[] | number[] | undefined): string
 
 const CategoryStripVisibilityContext = createContext(true);
 
-// --- Virtualized-sidebar feature gate (ON by default) ----------------------
-// Opt-out: the virtualized renderer is the default; set
-// localStorage['ynotv.virtualized-sidebar'] to '0' (off switch) and reload to
-// force legacy. The fallback boundary below also persists '0' and reloads into
-// legacy automatically if the virtualized path ever crashes on a user's data.
+// --- Virtualized-sidebar render path (hard default) ------------------------
+// The virtualized renderer is the ONLY default; there is no user-facing opt-out
+// flag. The only thing that can turn it off is the crash boundary below, which
+// sets a ONE-SHOT per-session sentinel on error so the legacy renderer boots
+// once for that session (never a dead sidebar) and then asks again next boot.
+const VIRT_CRASH_KEY = 'ynotv:virtualized-crashed';
 function useVirtualizedSidebar(): boolean {
-  // Opt-out default: enabled unless explicitly disabled with '0' (missing,
-  // malformed, or '1' all enable it). '0' is the off switch — set it manually
-  // to fall back, or rely on the fallback boundary which persists '0' and
-  // reloads into legacy if the virtualized path ever crashes on a user's data.
-  // Read once at mount; a re-toggle requires reload.
+  // Enabled unless a crash boundary set the session sentinel (then legacy runs
+  // for the remainder of this session and the sentinel is cleared).
   return useState(() => {
     try {
-      return window.localStorage.getItem('ynotv.virtualized-sidebar') !== '0';
+      if (window.sessionStorage.getItem(VIRT_CRASH_KEY) === '1') {
+        window.sessionStorage.removeItem(VIRT_CRASH_KEY);
+        return false;
+      }
     } catch {
-      return true;
+      /* ignore storage failures */
     }
+    return true;
   })[0];
 }
 
-// Safety net for the flag-on path: if the virtualized renderer ever crashes on
-// a user's data (an unusual playlist/folder shape the mock can't cover), the
-// sidebar must not brick. On error we persist ynotv.virtualized-sidebar=0 and
-// reload once, so the legacy renderer boots cleanly — never a dead sidebar.
+// Safety net: if the virtualized renderer ever crashes on a user's data (an
+// unusual playlist/folder shape the mock can't cover), the sidebar must not
+// brick. On error we set a ONE-SHOT session sentinel and reload once, so the
+// legacy renderer boots cleanly for this session.
 class VirtualizedSidebarFallback extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   private reloaded = false;
 
   static getDerivedStateFromError() {
     try {
-      window.localStorage.setItem('ynotv.virtualized-sidebar', '0');
+      window.sessionStorage.setItem(VIRT_CRASH_KEY, '1');
     } catch {
       /* ignore storage failures */
     }
@@ -182,7 +184,7 @@ class VirtualizedSidebarFallback extends Component<{ children: ReactNode }, { fa
   }
 
   componentDidCatch(err: unknown) {
-    console.error('[virtualized-sidebar] crashed; falling back to legacy renderer', err);
+    console.error('[virtualized-sidebar] crashed; falling back to legacy renderer for this session', err);
     if (!this.reloaded) {
       this.reloaded = true;
       setTimeout(() => window.location.reload(), 0);
@@ -906,13 +908,14 @@ const RealSourceContent = memo(function RealSourceContent(props: RealSourceConte
 });
 
 // ---------------------------------------------------------------------------
-// Slice 1-3 (flag-gated, OFF by default): flattened virtualized renderer.
+// The (hard-default) flattened virtualized renderer.
 // Renders the SAME SidebarRow[] the shared model produces, through a single
 // TanStack virtualizer on the .category-strip-scrollable container, so only
 // visible rows are mounted regardless of how many sources/categories are
 // expanded.
-//   * Dragging is intentionally disabled; pointer drag via DragOverlay +
-//     auto-scroll lands in a later slice.
+//   * Pointer drag via DragOverlay + auto-scroll; folders are not dnd items
+//     (parity with legacy `handleCategoryDragEnd`, which only handles
+//     native/link rows).
 //   * Pinned rows keep their natural slot (a same-height spacer once their row
 //     is "stuck") and their single live copy renders in a sticky top overlay
 //     that stacks with cumulative tops. Overlay pins start at top: 0 on purpose:
@@ -1355,12 +1358,17 @@ function VirtualizedSidebarContent({
     if (stuckKeys.has(row.key)) {
       // Same-height spacer keeps the slot's scroll position/to-be-measured height
       // exact: explicit width/display/boxSizing/margin so no inherited row CSS can
-      // shift VirtualList's measureElement and invalidate pin thresholds.
+      // shift VirtualList's measureElement and invalidate pin thresholds. Use the
+      // row's MEASURED height when available (so the spacer equals the height the
+      // row returns to on un-stick and matches the overlay copy's footprint); fall
+      // back to the height-of estimator when not yet measured so the slot never
+      // collapses to 0.
+      const slotHeight = rowMeasurements.get(row.key)?.size ?? heightOf(row);
       return (
         <div
           key={row.key}
           className="virtualized-pin-slot-spacer"
-          style={{ height: `${heightOf(row)}px`, width: '100%', display: 'block', boxSizing: 'border-box', margin: 0, padding: 0 }}
+          style={{ height: `${slotHeight}px`, width: '100%', display: 'block', boxSizing: 'border-box', margin: 0, padding: 0 }}
         />
       );
     }
