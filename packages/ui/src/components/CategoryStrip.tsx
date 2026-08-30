@@ -210,6 +210,13 @@ const rowHeightFor = (row: SidebarRow): number => {
   return 38;
 };
 
+// Shared drag-owner id for all top-level source/playlist headers in the
+// virtualized sidebar. Headers reorder within this single owner (source-over-
+// source, playlist-over-playlist, cross-type all resolve to the same global
+// list reorder), while dragging a header onto a category/link row is a no-op
+// because their owner id differs.
+const SOURCES_OWNER_ID = '__sources__';
+
 // Explicit pin-stack policy. Overlay pins currently start at the viewport top
 // because source headers are NOT sticky in the virtualized slice — there is no
 // header above a pin to reserve. If a later slice makes source headers sticky,
@@ -957,6 +964,7 @@ interface VirtualizedSidebarContentProps {
   onDragOver: (event: DragOverEvent) => void;
   onDragCancel: () => void;
   onCategoryDragEnd: (sourceId: string, currentList: { id: string | number; type: 'native' | 'link'; nativeCat?: any; customLink?: any }[], event: DragEndEvent) => Promise<void>;
+  onSourceDragEnd: (event: DragEndEvent) => void;
 }
 
 // Per-row dnd-kit wrapper for the virtualized list (Slice 4). Uses the row's
@@ -1039,6 +1047,7 @@ function VirtualizedSidebarContent({
   onDragOver,
   onDragCancel,
   onCategoryDragEnd,
+  onSourceDragEnd,
 }: VirtualizedSidebarContentProps) {
   const { t } = useTranslation('live');
 
@@ -1372,7 +1381,7 @@ function VirtualizedSidebarContent({
         />
       );
     }
-    if (row.type === 'category' || row.type === 'link') {
+    if (row.type === 'category' || row.type === 'link' || row.type === 'source' || row.type === 'playlist') {
       return (
         <VirtualSortableRow
           rowKey={row.key}
@@ -1380,7 +1389,7 @@ function VirtualizedSidebarContent({
           activeDragId={activeDragId}
           overDragId={overDragId}
           sortableIds={sortableIds}
-          ownerId={ownerOf(row)}
+          ownerId={row.type === 'source' || row.type === 'playlist' ? SOURCES_OWNER_ID : ownerOf(row)}
           activeOwnerId={activeOwnerId}
         >
           {renderRow(row)}
@@ -1390,18 +1399,26 @@ function VirtualizedSidebarContent({
     return renderRow(row);
   };
 
-  // Sortable ids are the rows' globally-unique flat keys (categories + links
-  // only). One shared SortableContext across owners: cross-owner drags resolve
-  // to a no-op in the persistence handler, while within-owner drags reorder
-  // exactly like the legacy per-source lists.
+  // Sortable ids are the rows' globally-unique flat keys: categories + links
+  // (which reorder within their own source/playlist owner) plus the top-level
+  // source/playlist headers (which reorder within the single SOURCES_OWNER_ID
+  // owner — this was the gap that made source dragging silently disappear when
+  // the virtualized sidebar became the default: headers were never registered
+  // as sortable or wrapped in VirtualSortableRow). One shared SortableContext
+  // spans owners: cross-owner drags resolve to a no-op in the persistence
+  // handler, while within-owner drags reorder like the legacy lists.
   const sortableIds = useMemo(
-    () => rows.filter((r) => r.type === 'category' || r.type === 'link').map((r) => r.key),
+    () => rows
+      .filter((r) => r.type === 'category' || r.type === 'link' || r.type === 'source' || r.type === 'playlist')
+      .map((r) => r.key),
     [rows]
   );
   const activeRow = activeDragId ? rows.find((r) => r.key === activeDragId) : undefined;
   const ownerOf = ownerOfRow;
-  const activeOwnerId = activeRow && (activeRow.type === 'category' || activeRow.type === 'link')
-    ? ownerOf(activeRow)
+  const activeOwnerId = activeRow
+    ? activeRow.type === 'source' || activeRow.type === 'playlist'
+      ? SOURCES_OWNER_ID
+      : (activeRow.type === 'category' || activeRow.type === 'link') ? ownerOf(activeRow) : null
     : null;
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -1412,6 +1429,25 @@ function VirtualizedSidebarContent({
     }
     const activeRow_ = rows.find((r) => r.key === active.id);
     const overRow_ = rows.find((r) => r.key === over.id);
+    if (!activeRow_ || !overRow_) {
+      onDragCancel();
+      return;
+    }
+
+    // Top-level source / playlist reorder: both endpoints must be headers
+    // (the same SOURCES_OWNER_ID owner). Dropping a header on a category/link
+    // row is a cross-owner no-op. id match = row key = combinedSources id, so
+    // the shared legacy persistence handler reorders/persists exactly like the
+    // old non-virtualized source list.
+    if (activeRow_.type === 'source' || activeRow_.type === 'playlist') {
+      if (overRow_.type === 'source' || overRow_.type === 'playlist') {
+        onSourceDragEnd(event);
+      } else {
+        onDragCancel();
+      }
+      return;
+    }
+
     const draggable = (r?: SidebarRow) => !!r && (r.type === 'category' || r.type === 'link');
     if (!draggable(activeRow_) || !draggable(overRow_)) {
       onDragCancel();
@@ -2889,6 +2925,7 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
             onDragOver={handleDragOver}
             onDragCancel={handleDragCancel}
             onCategoryDragEnd={handleCategoryDragEnd}
+            onSourceDragEnd={handleSourceDragEnd}
             />
           </VirtualizedSidebarFallback>
         ) : (
