@@ -2957,6 +2957,8 @@
     "gameCount_zero": "({{count}} wedstrijden)"
   },
   "vod": {
+    "loadingPage": "Pagina {{current}} laden...",
+    "loadingPageOf": "Pagina {{current}} van {{total}} laden...",
     "itemCount_one": "{{count}} artikel",
     "itemCount_other": "{{count}} artikelen",
     "sort": "Sorteren:",

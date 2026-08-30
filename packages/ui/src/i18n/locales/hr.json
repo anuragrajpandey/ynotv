@@ -2957,6 +2957,8 @@
     "gameCount_zero": "({{count}} igre)"
   },
   "vod": {
+    "loadingPage": "Učitavam stranicu {{current}}...",
+    "loadingPageOf": "Učitavam stranicu {{current}} od {{total}}...",
     "itemCount_one": "{{count}} stavka",
     "itemCount_other": "{{count}} predmeta",
     "sort": "Sortiraj:",

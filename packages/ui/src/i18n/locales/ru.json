@@ -2957,6 +2957,8 @@
     "gameCount_zero": "({{count}} игры)"
   },
   "vod": {
+    "loadingPage": "Загрузка страницы {{current}}...",
+    "loadingPageOf": "Загрузка страницы {{current}} из {{total}}...",
     "itemCount_one": "{{count}} элемент",
     "itemCount_other": "{{count}} предметов",
     "sort": "Сортировка:",

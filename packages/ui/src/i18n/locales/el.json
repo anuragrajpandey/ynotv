@@ -2957,6 +2957,8 @@
     "gameCount_zero": "({{count}} παιχνίδια)"
   },
   "vod": {
+    "loadingPage": "Φόρτωση σελίδας {{current}}...",
+    "loadingPageOf": "Φόρτωση σελίδας {{current}} από {{total}}...",
     "itemCount_one": "{{count}} στοιχείο",
     "itemCount_other": "{{count}} στοιχεία",
     "sort": "Ταξινόμηση:",

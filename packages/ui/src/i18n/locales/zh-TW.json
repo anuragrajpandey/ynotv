@@ -2957,6 +2957,8 @@
     "gameCount_zero": "（{{count}} 場比賽）"
   },
   "vod": {
+    "loadingPage": "正在載入第 {{current}} 頁...",
+    "loadingPageOf": "正在載入第 {{current}} 頁，共 {{total}} 頁...",
     "itemCount_one": "{{count}} 個項目",
     "itemCount_other": "{{count}} 個項目",
     "sort": "排序：",

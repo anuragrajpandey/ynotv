@@ -2957,6 +2957,8 @@
     "gameCount_zero": "({{count}} matchs)"
   },
   "vod": {
+    "loadingPage": "Chargement de la page {{current}}...",
+    "loadingPageOf": "Chargement de la page {{current}} sur {{total}}...",
     "itemCount_one": "{{count}} élément",
     "itemCount_other": "{{count}} éléments",
     "sort": "Trier :",

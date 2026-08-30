@@ -3090,6 +3090,8 @@
     "removeFromRecent": "Remove from Recently Watched",
     "loadingMore": "Loading more...",
     "loading": "Loading...",
+    "loadingPage": "Loading page {{current}}...",
+    "loadingPageOf": "Loading page {{current}} of {{total}}...",
     "noItemsFound": "No {{type}} found",
     "noResultsInCategory": "No results for \"{{search}}\" in {{category}}",
     "noItemsInCategory": "No {{type}} available in {{category}}",

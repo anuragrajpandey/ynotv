@@ -2727,8 +2727,19 @@ export async function syncStalkerCategory(
 
   try {
     const fetchType = type === 'movies' ? 'vod' : 'series';
-    // Use the new getCategoryItems method with progress
-    const items = await client.getCategoryItems(categoryId, fetchType, onProgress);
+    // Use the new getCategoryItems method with progress. The client reports
+    // page counts (1-indexed); localize them here so the UI can show
+    // "Loading page X of Y..." while a Stalker category paginates (14/page).
+    const items = await client.getCategoryItems(categoryId, fetchType, (percent, currentPage, totalPages) => {
+      if (!onProgress) return;
+      let msg = '';
+      if (currentPage != null) {
+        msg = totalPages != null
+          ? i18n.t('vod:loadingPageOf', { current: currentPage, total: totalPages })
+          : i18n.t('vod:loadingPage', { current: currentPage });
+      }
+      onProgress(percent, msg);
+    });
 
     if (items.length === 0) {
       debugLog(`[LazyLoad] No items found in category ${categoryId}`, 'sync');
@@ -2738,49 +2749,46 @@ export async function syncStalkerCategory(
     debugLog(`[LazyLoad] Storing ${items.length} items for category ${categoryId}`, 'sync');
     if (onProgress) onProgress(100, i18n.t('common:savingToDatabase'));
 
-    // Removed db.transaction mock wrapper to prevent inner lock deadlocks
-    if (true) {
-      if (type === 'movies') {
-        // Sanitize items to ensure they match StoredMovie schema
-        const movieItems = items.map((item: any) => sanitizeMovie(item));
-        await db.vodMovies.bulkPut(movieItems);
-      } else {
-        // Map Channel items to StoredSeries
-        const seriesItems = items.map((item: any) => {
-          // Destructure to exclude movie-specific fields from series object
-          const { stream_id: _stream_id, epg_channel_id: _epg_channel_id, channel_num: _channel_num, container_extension: _container_extension, ...rest } = item;
-          // Extract raw Stalker ID from direct_url for episode fetching
-          // Some portals use compound IDs like "15754:15754" - use first part
-          const rawIdFromUrl = item.direct_url?.replace('stalker_series:', '') || item.id;
-          const rawStalkerId = rawIdFromUrl?.toString().split(':')[0];
+    if (type === 'movies') {
+      // Sanitize items to ensure they match StoredMovie schema
+      const movieItems = items.map((item: any) => sanitizeMovie(item));
+      await db.vodMovies.bulkPut(movieItems);
+    } else {
+      // Map Channel items to StoredSeries
+      const seriesItems = items.map((item: any) => {
+        // Destructure to exclude movie-specific fields from series object
+        const { stream_id: _stream_id, epg_channel_id: _epg_channel_id, channel_num: _channel_num, container_extension: _container_extension, ...rest } = item;
+        // Extract raw Stalker ID from direct_url for episode fetching
+        // Some portals use compound IDs like "15754:15754" - use first part
+        const rawIdFromUrl = item.direct_url?.replace('stalker_series:', '') || item.id;
+        const rawStalkerId = rawIdFromUrl?.toString().split(':')[0];
 
-          return {
-            ...rest,
-            series_id: item.series_id || item.stream_id?.toString() || '',
-            cover: item.cover || item.stream_icon || '',
-            plot: item.plot || '',
-            cast: item.cast || '',
-            director: item.director || '',
-            genre: item.genre || '',
-            releaseDate: item.releaseDate || '',
-            last_modified: item.last_modified || '',
-            rating: item.rating || '',
-            rating_5based: item.rating_5based || 0,
-            backdrop_path: item.backdrop_path || undefined,
-            youtube_trailer: item.youtube_trailer || '',
-            episode_run_time: item.episode_run_time || '',
-            // category_ids is already set by Stalker client as an array, just need to stringify it
-            category_ids: Array.isArray(item.category_ids)
-              ? JSON.stringify(item.category_ids)
-              : JSON.stringify([categoryId]),
-            // Store raw Stalker ID for episode fetching
-            _stalker_raw_id: rawStalkerId
-          };
-        });
+        return {
+          ...rest,
+          series_id: item.series_id || item.stream_id?.toString() || '',
+          cover: item.cover || item.stream_icon || '',
+          plot: item.plot || '',
+          cast: item.cast || '',
+          director: item.director || '',
+          genre: item.genre || '',
+          releaseDate: item.releaseDate || '',
+          last_modified: item.last_modified || '',
+          rating: item.rating || '',
+          rating_5based: item.rating_5based || 0,
+          backdrop_path: item.backdrop_path || undefined,
+          youtube_trailer: item.youtube_trailer || '',
+          episode_run_time: item.episode_run_time || '',
+          // category_ids is already set by Stalker client as an array, just need to stringify it
+          category_ids: Array.isArray(item.category_ids)
+            ? JSON.stringify(item.category_ids)
+            : JSON.stringify([categoryId]),
+          // Store raw Stalker ID for episode fetching
+          _stalker_raw_id: rawStalkerId
+        };
+      });
 
-        await db.vodSeries.bulkPut(seriesItems as any[]);
-      }
-    } // End removed transaction block
+      await db.vodSeries.bulkPut(seriesItems as any[]);
+    }
 
     debugLog(`[LazyLoad] Sync complete`, 'sync');
     return items.length;

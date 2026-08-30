@@ -357,6 +357,20 @@ export function VodBrowse({
           <span className="vod-browse__item-count">{i18n.t('vod:itemCount', { count: sortedItems.length })}</span>
         </div>
         <div className="vod-browse__toolbar-right">
+          {lazyLoading && hasCache && message && (
+            <div className="vod-browse__sync-status" title={message}>
+              <div className="vod-browse__spinner" />
+              <span>{message}</span>
+              {progress > 0 && (
+                <div className="vod-browse__sync-progress">
+                  <div
+                    className="vod-browse__sync-progress-fill"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
           <div className="vod-browse__sort-container">
             <span className="vod-browse__sort-label">{i18n.t('vod:sort')}</span>
             <select

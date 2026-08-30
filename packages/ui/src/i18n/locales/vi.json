@@ -4391,6 +4391,8 @@
     "close": "Đóng"
   },
   "vod": {
+    "loadingPage": "Đang tải trang {{current}}...",
+    "loadingPageOf": "Đang tải trang {{current}} / {{total}}...",
     "itemCount_one": "{{count}} mục",
     "itemCount_other": "{{count}} mục",
     "sort": "Sắp xếp:",

@@ -2957,6 +2957,8 @@
     "gameCount_zero": "({{count}} खेल)"
   },
   "vod": {
+    "loadingPage": "पृष्ठ {{current}} लोड हो रहा है...",
+    "loadingPageOf": "पृष्ठ {{current}} / {{total}} लोड हो रहा है...",
     "itemCount_one": "{{count}} आइटम",
     "itemCount_other": "{{count}} आइटम",
     "sort": "क्रमबद्ध करें:",

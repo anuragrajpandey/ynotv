@@ -358,6 +358,45 @@
   flex-shrink: 0;
 }
 
+/* Inline "Loading page X of Y" status shown in the toolbar while a cached
+   Stalker category re-syncs in the background (grid stays visible). */
+.vod-browse__sync-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.vod-browse__sync-status .vod-browse__spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.vod-browse__sync-progress {
+  width: 80px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.vod-browse__sync-progress-fill {
+  height: 100%;
+  background: var(--primary, #007bff);
+  transition: width 0.3s ease;
+}
+
+@media (max-width: 640px) {
+  .vod-browse__sync-status {
+    display: none;
+  }
+}
+
 .vod-browse__sort-container {
   display: flex;
   align-items: center;

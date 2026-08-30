@@ -2957,6 +2957,8 @@
     "gameCount_zero": "({{count}} partite)"
   },
   "vod": {
+    "loadingPage": "Caricamento pagina {{current}}...",
+    "loadingPageOf": "Caricamento pagina {{current}} di {{total}}...",
     "itemCount_one": "{{count}} elemento",
     "itemCount_other": "{{count}} elementi",
     "sort": "Ordina:",

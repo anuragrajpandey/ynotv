@@ -2957,6 +2957,8 @@
     "gameCount_zero": "({{count}} بازی)"
   },
   "vod": {
+    "loadingPage": "در حال بارگذاری صفحه {{current}}...",
+    "loadingPageOf": "در حال بارگذاری صفحه {{current}} از {{total}}...",
     "itemCount_one": "{{count}} مورد",
     "itemCount_other": "{{count}} مورد",
     "sort": "مرتبسازی:",

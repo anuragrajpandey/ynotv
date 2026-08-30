@@ -2957,6 +2957,8 @@
     "noGamesScheduled_few": "لا توجد مباريات مجدولة في الأيام {{count}} القادمة."
   },
   "vod": {
+    "loadingPage": "جارٍ تحميل الصفحة {{current}}...",
+    "loadingPageOf": "جارٍ تحميل الصفحة {{current}} من {{total}}...",
     "itemCount_one": "{{count}} عنصر",
     "itemCount_other": "{{count}} مادة",
     "sort": "ترتيب:",

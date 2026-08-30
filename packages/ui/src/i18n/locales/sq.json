@@ -2957,6 +2957,8 @@
     "gameCount_zero": "({{count}} ndeshje)"
   },
   "vod": {
+    "loadingPage": "Duke ngarkuar faqen {{current}}...",
+    "loadingPageOf": "Duke ngarkuar faqen {{current}} nga {{total}}...",
     "itemCount_one": "{{count}} element",
     "itemCount_other": "{{count}} elemente",
     "sort": "Rendit:",

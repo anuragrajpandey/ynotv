@@ -2957,6 +2957,8 @@
     "gameCount_zero": "({{count}} игре)"
   },
   "vod": {
+    "loadingPage": "Учитавање странице {{current}}...",
+    "loadingPageOf": "Учитавање странице {{current}} од {{total}}...",
     "itemCount_one": "{{count}} ставка",
     "itemCount_other": "{{count}} предмета",
     "sort": "Сортирај:",
