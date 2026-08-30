@@ -3205,6 +3205,27 @@ html[data-theme]:has(.guide-transparent-mode) .category-strip {
   display: none;
 }
 
+/* Transparent 3-column overlay: the strip's ✕ normally lives in the right
+   pane toolbar (.guide-alt-toolbar), which is inside the top section that
+   transparent mode hides; the time-bar ✕ lives in the time header, which
+   alt-view hides. Restore the header ✕ here so the overlay can be closed
+   with the mouse (otherwise only the shortcut key works). */
+.guide-panel.alt-view-active.guide-transparent-mode .guide-header-right .guide-close {
+  display: flex;
+}
+
+/* Hide-header + 3-column: the header (with its restored ✕ above) is removed
+   by the transparent-guide-hide-header setting, so float the close button at
+   the overlay's top-right. The base .guide-transparent-close-btn centers
+   itself in the time header; alt-view overrides that to a plain top-right
+   position. */
+[data-theme] .guide-panel.guide-transparent-mode.alt-view-active .guide-transparent-close-btn.guide-alt-float-close {
+  top: 10px;
+  right: 12px;
+  transform: none;
+  display: flex;
+}
+
 /* 3-column channel strip search row — the time header that hosts the channel
    search on the timeline views is hidden in the strip view, so render the
    search box here above the channel list. */
@@ -3400,6 +3421,26 @@ html[data-theme]:has(.guide-transparent-mode) .category-strip {
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
 }
 
+/* Right-edge group of the 3-column toolbar: popout/external mode toggle +
+   close button, kept together and pushed to the right even when the toolbar
+   wraps. */
+.guide-alt-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* The Catch-up Programs toggle and the popout/external mode toggle keep
+   their labels visible at all times (not just on hover) so they're easy to
+   identify. */
+.guide-alt-toolbar .guide-alt-schedule-toggle .btn-label,
+.guide-alt-toolbar .guide-alt-popout .btn-label {
+  max-width: none;
+  opacity: 1;
+  margin-left: 6px;
+}
+
 /* Close button at the end of the 3-column toolbar (moved out of the strip
    header). Pushed to the right edge of the toolbar row. */
 .guide-alt-toolbar .guide-alt-close {
@@ -3472,6 +3513,18 @@ html[data-theme]:has(.guide-transparent-mode) .category-strip {
   font-variant-numeric: tabular-nums;
 }
 
+.guide-alt-live-desc {
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+}
+
 .guide-alt-live-progress {
   flex-basis: 100%;
   height: 4px;
@@ -3486,22 +3539,34 @@ html[data-theme]:has(.guide-transparent-mode) .category-strip {
   transition: width 0.3s ease;
 }
 
-/* Catchup: "Show older programs" toggle above the schedule list */
+/* Catchup: "Show older programs" toggle. Lives in the 3-column toolbar row
+   (below the preview) and matches the toolbar button style: icon-only by
+   default with the label sliding in on hover. */
 .guide-alt-schedule-toggle {
-  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  align-self: center;
   flex: none;
-  padding: 5px 12px;
-  border: var(--glass-border, 1px solid rgba(255, 255, 255, 0.15));
-  border-radius: 6px;
-  background: var(--surface-color, rgba(255, 255, 255, 0.07));
-  color: var(--text-secondary, rgba(255, 255, 255, 0.8));
-  font-size: 0.75rem;
-  font-weight: 500;
+  padding: var(--guide-btn-padding, 6px 8px);
+  border: var(--guide-btn-border, var(--glass-border, 1px solid rgba(255, 255, 255, 0.2)));
+  border-radius: var(--guide-btn-radius, 6px);
+  background: var(--guide-btn-bg, var(--surface-color, rgba(255, 255, 255, 0.08)));
+  color: var(--guide-btn-color, var(--text-secondary, rgba(255, 255, 255, 0.8)));
+  font-size: var(--guide-btn-font-size, 0.75rem);
+  font-weight: var(--guide-btn-font-weight, 500);
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: var(--guide-btn-transition, all 0.2s ease);
+  box-sizing: border-box;
+  white-space: nowrap;
 }
-.guide-alt-schedule-toggle:hover,
+.guide-alt-schedule-toggle:hover {
+  background: var(--guide-btn-hover-bg, var(--surface-hover, rgba(255, 255, 255, 0.15)));
+  border-color: var(--guide-btn-hover-border-color, var(--accent-primary, rgba(255, 255, 255, 0.35)));
+  color: var(--guide-btn-hover-color, var(--text-primary, white));
+  padding: 6px 10px;
+}
 .guide-alt-schedule-toggle.active {
   background: color-mix(in srgb, var(--accent-primary, #00d4ff) 18%, transparent);
   border-color: color-mix(in srgb, var(--accent-primary, #00d4ff) 55%, transparent);
@@ -3566,6 +3631,20 @@ html[data-theme]:has(.guide-transparent-mode) .category-strip {
   background: var(--surface-hover, rgba(255, 255, 255, 0.05));
 }
 
+.guide-alt-schedule-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guide-alt-schedule-date {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent-primary, #00d4ff);
+  letter-spacing: 0.02em;
+}
+
 .guide-alt-schedule-time {
   font-size: 0.72rem;
   color: var(--text-muted, rgba(255, 255, 255, 0.5));
@@ -3604,6 +3683,30 @@ html[data-theme]:has(.guide-transparent-mode) .category-strip {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.guide-alt-schedule .virtual-list {
+  flex: 1;
+  min-height: 0;
+}
+
+.guide-alt-schedule-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-primary, #00d4ff);
+  padding: 10px 2px 4px;
+}
+
+.guide-alt-schedule-day::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--accent-primary, #00d4ff) 30%, transparent);
 }
 
 .guide-alt-schedule-empty {

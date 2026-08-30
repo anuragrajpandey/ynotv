@@ -190,6 +190,12 @@ export interface SettingsState {
   transparentGuideSidebarOpacity: number;
   setTransparentGuideSidebarOpacity: (opacity: number) => void;
 
+  // Auto-hide the category sidebar in LiveTV: hidden by default, pops open
+  // over the guide on left-edge hover, and hides again after a category click
+  // or when the mouse leaves it. When off, the classic persistent sidebar.
+  categorySidebarAutohide: boolean;
+  setCategorySidebarAutohide: (enabled: boolean) => void;
+
   // LAN source security gate (SourcesTab save-time check)
   allowLanSources: boolean;
   setAllowLanSources: (allowed: boolean) => void;
@@ -200,6 +206,9 @@ export interface SettingsState {
   v3DefaultMigrated: boolean;
   volumePercentDefaultMigrated: boolean;
   subAssOverrideDefaultMigrated: boolean;
+  // One-time flag: first boot after EPG lazy loading became the default forces
+  // it ON once, then never overrides the user's choice again.
+  epgLazyLoadingDefaultMigrated: boolean;
 
   // Category display
   categorySortOrder: 'default' | 'alphabetical';
@@ -896,6 +905,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     persistSettings({ transparentGuideSidebarOpacity: opacity });
   },
 
+  categorySidebarAutohide: (cachedSettings?.categorySidebarAutohide as boolean) ?? false,
+  setCategorySidebarAutohide: (enabled) => {
+    set({ categorySidebarAutohide: enabled });
+    persistSettings({ categorySidebarAutohide: enabled });
+  },
+
   // LAN source security gate
   allowLanSources: (cachedSettings?.allowLanSources as boolean) ?? false,
   setAllowLanSources: (allowed) => {
@@ -912,6 +927,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   v3DefaultMigrated: (cachedSettings?.v3DefaultMigrated as boolean) ?? false,
   volumePercentDefaultMigrated: (cachedSettings?.volumePercentDefaultMigrated as boolean) ?? false,
   subAssOverrideDefaultMigrated: (cachedSettings?.subAssOverrideDefaultMigrated as boolean) ?? false,
+  epgLazyLoadingDefaultMigrated: (cachedSettings?.epgLazyLoadingDefaultMigrated as boolean) ?? false,
 
   // Category display
   categorySortOrder: 'default',

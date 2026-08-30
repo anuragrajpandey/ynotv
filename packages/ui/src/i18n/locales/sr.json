@@ -999,6 +999,8 @@
       "audioBitrate": "Аудио битрејт",
       "threeColumnView": "Приказ у 3 колоне",
       "threeColumnViewSub": "Замењује временску мрежу EPG траком канала у 3 колоне и распоредом. Независно од подешавања Распоред EPG приказа.",
+      "categorySidebarAutohide": "Automatski sakrij bočnu traku kategorija",
+      "categorySidebarAutohideSub": "Drži bočnu traku kategorija skrivenom i izvuci je preko vodiča kada miš pomerite na levu ivicu. Zatvara se nakon izbora kategorije ili pomeranja miša.",
       "programFontSize": "Veličina fonta programa",
       "programNameExample": "Primer naziva programa"
     },

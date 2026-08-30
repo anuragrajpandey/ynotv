@@ -45,6 +45,14 @@ A feature-rich, open source IPTV player for Windows built on [Tauri v2](https://
 - **Grid-style EPG** - with an integrated preview window
 - **Catchup & Cache Time Shift** - instant replays on supported channels
 - **Automatic Stream Fallback** - detects and switches away from stalled or dead streams
+- **Smart Auto-Group for Failover** - Auto-cluster duplicate channels into failover groups, with Always Play Primary
+- **Controllers & Phone Remote** - Full gamepad support with spatial navigation, remappable buttons, and chord combos. Use your phone as a remote with QR pairing (guide browser, sports, and multiview tabs)
+- **Channel Stream Probe & IPTV Checker** - Bulk stream health checks (alive/dead/geoblocked/DRM), auto-fill resolution/FPS/bitrate badges, one-click disable of dead channels, and sort groups by quality
+- **Local Library** - Add local movie/series folders auto-matched with TMDB metadata, with watch progress and backup inclusion
+- **Sports Team Channel Linking** - Link teams to channels for one-tap game watching, with auto-linking and backup streams with auto-swap
+- **Simkl, Discord & OpenSubtitles Integration** - Scrobble to Simkl, show what you're watching on Discord, and download subtitles from OpenSubtitles
+- **24 UI Languages** - Full localization support
+- **Transparent EPG Guide, Category Folders & Logo Editor** - Translucent overlay guide, folder grouping of categories, and bulk logo customization
 - **Sports Tab** - real-time scores and detailed game stats with instant search to find channel
 - **Cast to TV** - Cast to any supported TV devices on your local network
 - **Export Playlist to M3U** - Export any modifications you've done into an .m3u
@@ -282,7 +290,12 @@ ynoTV builds on the following open source projects and services:
 - [Stremio](https://www.stremio.com/) — for building an open addon ecosystem that makes third-party integration possible
 - [Nuvio](https://nuvio.tv/) — for creating a fantastic open source media platform and making their codebase publicly available
 - [Harbor](https://github.com/harborstremio/harbor) — Stremio integration and various features
-- [MY-1 Mac Stalker Player](https://github.com/Cyogenus/IPTV-MAC-STALKER-PLAYER-BY-MY-1) — Stalker integration
+- [Simkl](https://simkl.com) — scrobbling support for movies and series
+- [OpenSubtitles](https://www.opensubtitles.com) — subtitle downloads in the player
+- [SubSource](https://www.subsource.net) — subtitle search for movies and series
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — YouTube trailer playback
+- [RatingPosterDB](https://ratingposterdb.com) — rating badges on VOD posters
+
 
 ---
 

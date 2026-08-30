@@ -999,6 +999,8 @@
       "audioBitrate": "Ses Bit Hızı",
       "threeColumnView": "3 sütunlu görünüm",
       "threeColumnViewSub": "EPG zaman ızgarasını 3 sütunlu bir kanal şeridi ve programıyla değiştirir. Rehber Görünüm Düzeni ayarından bağımsız.",
+      "categorySidebarAutohide": "Kategori kenar çubuğunu otomatik gizle",
+      "categorySidebarAutohideSub": "Kategori kenar çubuğunu gizli tutun ve fareyi sol kenara getirdiğinizde rehberin üzerinde dışarı kaydırın. Bir kategori seçtikten veya fareyi uzaklaştırdıktan sonra kapanır.",
       "programFontSize": "Program Yazı Boyutu",
       "programNameExample": "Program Adı Örneği"
     },

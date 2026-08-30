@@ -999,6 +999,8 @@
       "audioBitrate": "Bitrate audio",
       "threeColumnView": "Widok 3 kolumnowy",
       "threeColumnViewSub": "Zastępuje siatkę czasową EPG paskiem kanałów w 3 kolumnach i programem. Niezależne od ustawienia Układ widoku EPG.",
+      "categorySidebarAutohide": "Automatycznie ukrywaj pasek boczny kategorii",
+      "categorySidebarAutohideSub": "Trzymaj pasek boczny kategorii ukryty i wysuń go nad przewodnikiem, gdy mysz dotrze do lewej krawędzi. Zamyka się po wybraniu kategorii lub odsunięciu myszy.",
       "programFontSize": "Rozmiar czcionki programu",
       "programNameExample": "Przykładowa nazwa programu"
     },

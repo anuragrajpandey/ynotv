@@ -9,6 +9,7 @@ import { useTimeGrid } from '../hooks/useTimeGrid';
 import { useVirtuosoListHeight } from '../hooks/useVirtuosoListHeight';
 import { useActiveRecordings } from '../hooks/useActiveRecordings';
 import { ChannelRow } from './ChannelRow';
+import { ProgramContextMenu } from './ProgramContextMenu';
 import { SearchResultRow } from './SearchResultRow';
 import { WatchlistRow } from './WatchlistRow';
 import { ChannelManager } from './settings/ChannelManager';
@@ -482,6 +483,13 @@ export function ChannelPanel({
   const { t } = useTranslation();
   const epgView = useEpgView();
   const epgThreeColumn = useEpgThreeColumn();
+  // The preview pane is sized by *height* (dragged via the bottom-center
+  // vertical resizer) in both the alternate layout and the 3-column view;
+  // only the traditional side-by-side layout drags its width/flex. Using
+  // `epgView === 'alternate'` alone here made 3-column mode (which keeps
+  // epgView 'traditional') drag an invisible flex value, so the height
+  // always snapped back to the default on release.
+  const isAltPreviewLayout = epgThreeColumn || epgView === 'alternate';
   const epgVisibleHours = useEpgVisibleHours();
   const epgClockFormat = useEpgClockFormat();
   const epgShowDate = useEpgShowDate();
@@ -489,6 +497,7 @@ export function ChannelPanel({
   const layoutSettingsLoaded = useSettingsStore((s) => s.layoutSettingsLoaded);
   const showFailoverLiveTvWidget = useSettingsStore((s) => s.showFailoverLiveTvWidget);
   const audioMaxVolume = useSettingsStore((s) => s.subtitleSettings?.audioMaxVolume || 100);
+  const transparentGuideHideHeader = useSettingsStore((s) => s.transparentGuideHideHeader);
 
   useEffect(() => {
     if (error) console.log('[ChannelPanel] Received error prop:', error);
@@ -1750,7 +1759,7 @@ export function ChannelPanel({
     const startY = e.clientY;
     
     let startPct = previewWidthPct;
-    if (previewPaneRef.current && epgView === 'traditional') {
+    if (previewPaneRef.current && epgView === 'traditional' && !epgThreeColumn) {
       const match = previewPaneRef.current.style.flex.match(/0 0 ([\d.]+)%/);
       if (match && match[1]) {
         startPct = parseFloat(match[1]);
@@ -1758,7 +1767,7 @@ export function ChannelPanel({
     }
 
     let startHeightPx = previewHeightPx;
-    if (previewPaneRef.current && epgView === 'alternate') {
+    if (previewPaneRef.current && isAltPreviewLayout) {
       const heightStr = previewPaneRef.current.style.height;
       if (heightStr && heightStr.endsWith('px')) {
          startHeightPx = parseInt(heightStr);
@@ -1773,7 +1782,7 @@ export function ChannelPanel({
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isResizingRef.current || !previewPaneRef.current) return;
       
-      if (epgView === 'alternate') {
+      if (isAltPreviewLayout) {
         const dy = moveEvent.clientY - startY;
         let newHeightPx = startHeightPx + dy;
         // Clamp height
@@ -1808,7 +1817,7 @@ export function ChannelPanel({
       document.removeEventListener('mouseup', handleMouseUp);
       
       if (previewPaneRef.current) {
-        if (epgView === 'alternate') {
+        if (isAltPreviewLayout) {
           const heightStr = previewPaneRef.current.style.height;
           if (heightStr && heightStr.endsWith('px')) {
             const finalHeight = parseInt(heightStr);
@@ -1828,12 +1837,12 @@ export function ChannelPanel({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [previewWidthPct, previewHeightPx, epgView]);
+  }, [previewWidthPct, previewHeightPx, epgView, epgThreeColumn, isAltPreviewLayout]);
 
   const handleResizeContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (epgView === 'alternate') {
+    if (isAltPreviewLayout) {
       setPreviewHeightPx(360);
       localStorage.setItem('guidePreviewHeight', '360');
       if (previewPaneRef.current) {
@@ -1849,7 +1858,7 @@ export function ChannelPanel({
         }
       }
     }
-  }, [epgView]);
+  }, [epgView, epgThreeColumn, isAltPreviewLayout]);
 
   // ── Drag-to-resize for EPG channel column ─────────────────────────────────
   const isResizingChannelCol = useRef(false);
@@ -2066,9 +2075,59 @@ export function ChannelPanel({
     return Math.min(100, Math.max(0, ((now - start) / total) * 100));
   }, [selectedProgram, currentTime, isCatchup, catchupInfo, selectedChannel, position, duration]);
 
-  // "Show older programs" toggle for the 3-column schedule list — catchup
+  // "Catch-up Programs" toggle for the 3-column schedule list — catchup
   // channels can look further back than the default 1-hour window.
   const [altScheduleShowOlder, setAltScheduleShowOlder] = useState(false);
+  // Full catch-up history for the selected channel, fetched on demand while
+  // the toggle is active so the schedule shows ALL past programs instead of
+  // only the ones inside the loaded EPG window.
+  const [altScheduleHistory, setAltScheduleHistory] = useState<StoredProgram[] | null>(null);
+  // How many past programs to load for a channel's full catch-up history and
+  // how many total rows the schedule can render. The list is virtualized, so
+  // hundreds/thousands of rows only mount a visible window and stay smooth.
+  const CATCHUP_HISTORY_LIMIT = 1000;
+  const ALT_SCHEDULE_MAX_ROWS = 1000;
+
+  useEffect(() => {
+    if (!altScheduleShowOlder || !selectedChannel) {
+      setAltScheduleHistory(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const dbInstance = await (db as any).dbPromise;
+        const rows = await dbInstance.select(
+          `SELECT * FROM programs_effective
+           WHERE stream_id = ?
+             AND end <= ?
+           ORDER BY start DESC
+           LIMIT ${CATCHUP_HISTORY_LIMIT}`,
+          [selectedChannel.stream_id, currentTime.toISOString()]
+        ) as StoredProgram[];
+        if (cancelled) return;
+        setAltScheduleHistory(rows.map((p) => ({
+          ...p,
+          description: decompressEpgDescription(p.description) ?? p.description,
+        })));
+      } catch (err) {
+        console.error('[ChannelPanel] Failed to load catch-up history:', err);
+        if (!cancelled) setAltScheduleHistory([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [altScheduleShowOlder, selectedChannel?.stream_id, currentTime]);
+
+  // Short date label for schedule rows so catch-up entries spanning multiple
+  // days are easy to identify.
+  const formatScheduleDate = useCallback((date: Date) => {
+    const d = new Date(date);
+    const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diffDays = Math.round((startOfDay(currentTime) - startOfDay(d)) / 86400000);
+    if (diffDays === 0) return i18n.t('common:today', { defaultValue: 'Today' });
+    if (diffDays === 1) return i18n.t('common:yesterday', { defaultValue: 'Yesterday' });
+    return formatDate(d, { month: 'short', day: 'numeric' });
+  }, [currentTime]);
 
   // Alternate view: the schedule for the selected channel (current + upcoming
   // programs within the EPG window), used by the 3-column info pane.
@@ -2076,21 +2135,123 @@ export function ChannelPanel({
     if (!selectedChannel) return [];
     const channelPrograms = programs.get(selectedChannel.stream_id) || [];
     const now = currentTime.getTime();
-    // Default: current + past hour (catchup) + upcoming. When "Show older" is
-    // toggled (catchup channels), widen the lookback and raise the row cap.
-    const LOOKBACK_MS = altScheduleShowOlder ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
-    const MAX_ROWS = altScheduleShowOlder ? 48 : 12;
-    return channelPrograms
-      .map((p) => ({
-        program: p,
-        startMs: p.start instanceof Date ? p.start.getTime() : new Date(p.start).getTime(),
-        endMs: p.end instanceof Date ? p.end.getTime() : new Date(p.end).getTime(),
-      }))
-      .filter((x) => Number.isFinite(x.startMs) && Number.isFinite(x.endMs))
-      .sort((a, b) => a.startMs - b.startMs)
-      .filter((x) => x.endMs > now - LOOKBACK_MS)
-      .slice(0, MAX_ROWS);
-  }, [selectedChannel, programs, currentTime, altScheduleShowOlder]);
+    const toEntry = (p: StoredProgram) => ({
+      program: p,
+      startMs: p.start instanceof Date ? p.start.getTime() : new Date(p.start).getTime(),
+      endMs: p.end instanceof Date ? p.end.getTime() : new Date(p.end).getTime(),
+    });
+    const entries = channelPrograms
+      .map(toEntry)
+      .filter((x) => Number.isFinite(x.startMs) && Number.isFinite(x.endMs));
+
+    let past: ReturnType<typeof toEntry>[];
+    if (altScheduleShowOlder && altScheduleHistory) {
+      // Catch-up mode: ALL past programs from the DB, not just the loaded window.
+      past = altScheduleHistory
+        .map(toEntry)
+        .filter((x) => Number.isFinite(x.startMs) && Number.isFinite(x.endMs));
+    } else {
+      // Default: just the last hour of finished programs, so the list keeps
+      // "what just aired" context without pushing the current show down.
+      const LOOKBACK_MS = 60 * 60 * 1000;
+      past = entries.filter((x) => x.endMs <= now && x.endMs > now - LOOKBACK_MS);
+    }
+
+    // Anchor the schedule on the currently airing program: the running show is
+    // always the first row (current → upcoming chronologically → past, most
+    // recent first), so the list starts at the live program instead of at
+    // whatever program happened to end within the lookback hour.
+    const current = entries.find((x) => x.startMs <= now && x.endMs > now) ?? null;
+    const upcoming = entries.filter((x) => x.startMs > now);
+    return [
+      ...(current ? [current] : []),
+      ...upcoming.sort((a, b) => a.startMs - b.startMs),
+      ...past.sort((a, b) => b.startMs - a.startMs),
+    ].slice(0, ALT_SCHEDULE_MAX_ROWS);
+  }, [selectedChannel, programs, currentTime, altScheduleShowOlder, altScheduleHistory]);
+
+  type AltScheduleRowEntry = {
+    program: StoredProgram;
+    startMs: number;
+    endMs: number;
+    isCurrent: boolean;
+    isPast: boolean;
+    clickable: boolean;
+  };
+  type AltScheduleDisplayItem =
+    | { kind: 'header'; dateLabel: string; key: string }
+    | { kind: 'row'; row: AltScheduleRowEntry; key: string };
+
+  // Flattened display list for the virtualized schedule: a per-day date
+  // header before each group of programs (Today / Yesterday / short date),
+  // followed by the program rows for that day.
+  const altScheduleDisplay = useMemo<AltScheduleDisplayItem[]>(() => {
+    const items: AltScheduleDisplayItem[] = [];
+    let lastDayKey: string | null = null;
+    const now = currentTime.getTime();
+    const catchupAvailable = Boolean(selectedChannel?.tv_archive) || selectedChannel?.tv_archive === 1;
+    for (const entry of altSchedulePrograms) {
+      const d = new Date(entry.startMs);
+      const dayKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime().toString();
+      if (dayKey !== lastDayKey) {
+        items.push({ kind: 'header', dateLabel: formatScheduleDate(d), key: `day-${dayKey}` });
+        lastDayKey = dayKey;
+      }
+      const isCurrent = now >= entry.startMs && now < entry.endMs;
+      const isPast = entry.endMs <= now;
+      const clickable = (isPast || isCurrent) && catchupAvailable && !!onPlayCatchup;
+      items.push({
+        kind: 'row',
+        row: { program: entry.program, startMs: entry.startMs, endMs: entry.endMs, isCurrent, isPast, clickable },
+        key: `prog-${entry.program.id}`,
+      });
+    }
+    return items;
+  }, [altSchedulePrograms, currentTime, selectedChannel, onPlayCatchup, formatScheduleDate]);
+
+  // Right-click context menu (same ProgramContextMenu as the timeline grid)
+  // for the 3-column schedule rows.
+  const [scheduleContextMenu, setScheduleContextMenu] = useState<{ program: StoredProgram; x: number; y: number } | null>(null);
+  const handleScheduleContextMenu = useCallback((e: React.MouseEvent, program: StoredProgram) => {
+    e.preventDefault();
+    setScheduleContextMenu({ program, x: e.clientX, y: e.clientY });
+  }, []);
+
+  // Scroll container for the 3-column schedule list (virtualized) and the
+  // VirtualList handle used to keep the current program in view.
+  const altScheduleRef = useRef<HTMLDivElement>(null);
+  const altScheduleListRef = useRef<VirtualListHandle>(null);
+
+  // Auto-scroll the 3-column schedule so the current (running) program stays
+  // visible when the selected channel changes or catch-up history loads in.
+  // Deliberately NOT keyed on altScheduleDisplay: that memo rebuilds every 60s
+  // (currentTime tick), so depending on it yanked the list back to the current
+  // program every minute and made it impossible to scroll away. A ref keeps the
+  // latest display available to the retry loop (programs load async) without
+  // re-triggering the effect on time-driven rebuilds.
+  const altScheduleDisplayRef = useRef(altScheduleDisplay);
+  altScheduleDisplayRef.current = altScheduleDisplay;
+  useEffect(() => {
+    if (!selectedChannel) return;
+    let cancelled = false;
+    let retries = 20;
+    const tryScroll = () => {
+      if (cancelled) return;
+      const now = Date.now();
+      const idx = altScheduleDisplayRef.current.findIndex(
+        (it) => it.kind === 'row' && now >= it.row.startMs && now < it.row.endMs
+      );
+      if (idx >= 0) {
+        // The current program is the anchor row (index 0), so align it to the
+        // top of the list — the running show should be the first thing visible.
+        altScheduleListRef.current?.scrollToIndex({ index: idx, align: 'start' });
+        return;
+      }
+      if (retries-- > 0) setTimeout(tryScroll, 150);
+    };
+    tryScroll();
+    return () => { cancelled = true; };
+  }, [selectedChannel?.stream_id, altScheduleShowOlder, altScheduleHistory]);
 
   // Ref for the video preview container (now points to video sub-container)
   const previewRef = useRef<HTMLDivElement>(null);
@@ -2700,7 +2861,7 @@ export function ChannelPanel({
       {/* Resizer Handle */}
       {!showMultiviewGrid && (
         <div 
-          className={`guide-preview-resizer ${epgView === 'alternate' ? 'vertical' : 'horizontal'}`} 
+          className={`guide-preview-resizer ${isAltPreviewLayout ? 'vertical' : 'horizontal'}`}
           onMouseDown={handleResizeMouseDown}
           onContextMenu={handleResizeContextMenu}
           title={t('dragResizePreview')}
@@ -2964,17 +3125,39 @@ export function ChannelPanel({
           end, which moved out of the strip header. */}
       <div className="guide-alt-toolbar">
         {renderGuideManageButtons()}
-        {onTogglePopoutMode && renderPopoutToggle()}
-        <button
-          className="guide-epg-shift-btn guide-alt-close"
-          onClick={onClose}
-          title={t('close')}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-          <span className="btn-label">{t('close')}</span>
-        </button>
+        {/* Catchup: expand the schedule history beyond the default lookback
+            for channels with tv_archive (moved into the toolbar row). */}
+        {selectedChannel && (Boolean(selectedChannel.tv_archive) || selectedChannel.tv_archive === 1) && (
+          <button
+            className={`guide-alt-schedule-toggle ${altScheduleShowOlder ? 'active' : ''}`}
+            onClick={() => setAltScheduleShowOlder((v) => !v)}
+            title={i18n.t('live:catchupPrograms', { defaultValue: 'Catch-up Programs' })}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="9" />
+              <polyline points="12 7 12 12 15 14" />
+              <path d="M3.5 12a8.5 8.5 0 1 0 8.5-8.5" />
+            </svg>
+            <span className="btn-label">
+              {i18n.t('live:catchupPrograms', { defaultValue: 'Catch-up Programs' })}
+            </span>
+          </button>
+        )}
+        {/* Embedded/popout/external mode + close, grouped at the right edge of
+            the toolbar so they stay together even when the row wraps. */}
+        <div className="guide-alt-toolbar-right">
+          {onTogglePopoutMode && renderPopoutToggle()}
+          <button
+            className="guide-epg-shift-btn guide-alt-close"
+            onClick={onClose}
+            title={t('close')}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+            <span className="btn-label">{t('close')}</span>
+          </button>
+        </div>
       </div>
       {selectedChannel ? (
         <>
@@ -2990,67 +3173,81 @@ export function ChannelPanel({
             <span className="guide-alt-live-times">
               {selectedProgram ? `${formatEpgTime(new Date(selectedProgram.start))} - ${formatEpgTime(new Date(selectedProgram.end))}` : ''}
             </span>
+            {selectedProgram?.description && (
+              <span className="guide-alt-live-desc" title={selectedProgram.description}>
+                {selectedProgram.description}
+              </span>
+            )}
             {selectedProgram && (
               <div className="guide-alt-live-progress">
                 <div className="guide-alt-live-progress-fill" style={{ width: `${progressPercent}%` }} />
               </div>
             )}
           </div>
-          {/* Catchup: expand the history list beyond the default
-              lookback for channels with tv_archive */}
-          {selectedChannel && (Boolean(selectedChannel.tv_archive) || selectedChannel.tv_archive === 1) && (
-            <button
-              className={`guide-alt-schedule-toggle ${altScheduleShowOlder ? 'active' : ''}`}
-              onClick={() => setAltScheduleShowOlder((v) => !v)}
-              title={
-                altScheduleShowOlder
-                  ? i18n.t('live:showRecentPrograms', { defaultValue: 'Show recent programs' })
-                  : i18n.t('live:showOlderPrograms', { defaultValue: 'Show older programs' })
-              }
-            >
-              {altScheduleShowOlder
-                ? i18n.t('live:showRecentPrograms', { defaultValue: 'Show recent programs' })
-                : i18n.t('live:showOlderPrograms', { defaultValue: 'Show older programs' })}
-            </button>
-          )}
-          {/* 3-column schedule list (current + upcoming) */}
-          <div className="guide-alt-schedule">
-            {altSchedulePrograms.map(({ program, startMs, endMs }) => {
-              const now = currentTime.getTime();
-              const isCurrent = now >= startMs && now < endMs;
-              const isPast = endMs <= now;
-              const catchupAvailable = Boolean(selectedChannel.tv_archive) || selectedChannel.tv_archive === 1;
-              const clickable = (isPast || isCurrent) && catchupAvailable && !!onPlayCatchup;
-              return (
-                <button
-                  key={program.id}
-                  className={`guide-alt-schedule-row ${isCurrent ? 'running' : ''} ${clickable ? 'clickable' : ''}`}
-                  onClick={() => {
-                    if (!clickable) return;
-                    const durationMins = Math.max(1, Math.round((endMs - startMs) / 60000));
-                    const rawStartMs = program.raw_start ? new Date(program.raw_start).getTime() : startMs;
-                    onPlayCatchup!(selectedChannel, program.title, rawStartMs, durationMins, program.description);
-                  }}
-                >
-                  <span className="guide-alt-schedule-time">
-                    {formatEpgTime(new Date(startMs))} - {formatEpgTime(new Date(endMs))}
-                  </span>
-                  <span className="guide-alt-schedule-title" title={program.title}>
-                    {program.title}
-                    {isCurrent && <span className="guide-alt-schedule-running">{i18n.t('common:running', { defaultValue: 'Running' })}</span>}
-                  </span>
-                  {program.description && (
-                    <span className="guide-alt-schedule-desc">{program.description}</span>
-                  )}
-                </button>
-              );
-            })}
-            {altSchedulePrograms.length === 0 && (
+          {/* 3-column schedule list (current + upcoming), virtualized so
+              Catch-up Programs mode with hundreds of history rows stays
+              smooth. Per-day date headers group the rows. */}
+          <div ref={altScheduleRef} className="guide-alt-schedule">
+            <VirtualList
+              ref={altScheduleListRef}
+              items={altScheduleDisplay}
+              scrollRef={altScheduleRef}
+              estimateItemHeight={(index) => {
+                const item = altScheduleDisplay[index];
+                return item?.kind === 'header' ? 30 : item?.row.program.description ? 78 : 52;
+              }}
+              overscan={6}
+              getKey={(item) => item.key}
+              renderItem={(item) => {
+                if (item.kind === 'header') {
+                  return <div className="guide-alt-schedule-day">{item.dateLabel}</div>;
+                }
+                const { program, startMs, endMs, isCurrent, clickable } = item.row;
+                return (
+                  <button
+                    className={`guide-alt-schedule-row ${isCurrent ? 'running' : ''} ${clickable ? 'clickable' : ''}`}
+                    onClick={() => {
+                      if (!clickable) return;
+                      const durationMins = Math.max(1, Math.round((endMs - startMs) / 60000));
+                      const rawStartMs = program.raw_start ? new Date(program.raw_start).getTime() : startMs;
+                      onPlayCatchup!(selectedChannel, program.title, rawStartMs, durationMins, program.description);
+                    }}
+                    onContextMenu={(e) => handleScheduleContextMenu(e, program)}
+                  >
+                    <div className="guide-alt-schedule-meta">
+                      <span className="guide-alt-schedule-time">
+                        {formatEpgTime(new Date(startMs))} - {formatEpgTime(new Date(endMs))}
+                      </span>
+                    </div>
+                    <span className="guide-alt-schedule-title" title={program.title}>
+                      {program.title}
+                      {isCurrent && <span className="guide-alt-schedule-running">{i18n.t('common:running', { defaultValue: 'Running' })}</span>}
+                    </span>
+                    {program.description && (
+                      <span className="guide-alt-schedule-desc">{program.description}</span>
+                    )}
+                  </button>
+                );
+              }}
+            />
+            {altScheduleDisplay.length === 0 && (
               <div className="guide-alt-schedule-empty">
                 {i18n.t('common:noProgramInfo', { defaultValue: 'No Program Information' })}
               </div>
             )}
           </div>
+          {/* Right-click context menu (same ProgramContextMenu as the timeline grid) */}
+          {scheduleContextMenu && selectedChannel && (
+            <ProgramContextMenu
+              program={scheduleContextMenu.program}
+              sourceId={selectedChannel.source_id}
+              channelId={selectedChannel.stream_id}
+              channelName={selectedChannel.name}
+              position={{ x: scheduleContextMenu.x, y: scheduleContextMenu.y }}
+              onClose={() => setScheduleContextMenu(null)}
+              isCatchupAvailable={Boolean(selectedChannel.tv_archive) || selectedChannel.tv_archive === 1}
+            />
+          )}
         </>
       ) : (
         <div className="guide-alt-empty">
@@ -3178,6 +3375,23 @@ export function ChannelPanel({
 
       {/* Bottom Section: EPG Grid */}
       <div className="guide-grid-section">
+        {/* 3-column transparent overlay close — the header ✕ (restored for
+            transparent 3-column) lives in the header row, which the
+            transparent-guide-hide-header setting removes; the time-bar close
+            lives in the time header, which alt-view hides. Without this the
+            overlay could only be closed via the shortcut key. */}
+        {guideTransparent && epgThreeColumn && transparentGuideHideHeader && (
+          <button
+            className="guide-transparent-close-btn guide-alt-float-close"
+            onClick={onClose}
+            title={t('closeTransparentGuide')}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        )}
         {/* Transparent Guide Resizer Handle */}
         {guideTransparent && (
           <div

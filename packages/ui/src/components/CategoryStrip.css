@@ -215,6 +215,28 @@
   transform: translateY(-50%) translateX(0) scale(1.05);
 }
 
+/* Auto-hide mode: full-length vertical handle on the left edge. Always visible
+   while the sidebar is hidden so users can find it; hovering it pops the
+   sidebar open OVER the guide (higher z-index, no content reflow). */
+.category-strip-autohide-handle {
+  position: fixed;
+  left: 0;
+  top: var(--page-top, 32px);
+  bottom: 0;
+  width: 5px;
+  z-index: 95;
+  cursor: pointer;
+  background: linear-gradient(90deg, rgba(128, 128, 128, 0.35), transparent);
+  border-right: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  transition: width 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.category-strip-autohide-handle:hover {
+  width: 9px;
+  background: linear-gradient(90deg, var(--accent-primary, rgba(0, 212, 255, 0.45)), transparent);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+}
+
 /* Search Input Styles */
 .category-search-container {
   padding: 2px 0 0 0;

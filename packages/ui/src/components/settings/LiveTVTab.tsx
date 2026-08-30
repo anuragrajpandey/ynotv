@@ -91,6 +91,8 @@ interface LiveTVTabProps {
   onEpgViewChange: (view: 'traditional' | 'alternate') => void;
   epgThreeColumn: boolean;
   onEpgThreeColumnChange: (enabled: boolean) => void;
+  categorySidebarAutohide: boolean;
+  onCategorySidebarAutohideChange: (enabled: boolean) => void;
   epgTitleFontSize: number;
   onEpgTitleFontSizeChange: (size: number) => void;
   epgBodyFontSize: number;
@@ -249,6 +251,8 @@ export function LiveTVTab({
   onEpgViewChange,
   epgThreeColumn,
   onEpgThreeColumnChange,
+  categorySidebarAutohide,
+  onCategorySidebarAutohideChange,
   epgTitleFontSize,
   onEpgTitleFontSizeChange,
   epgBodyFontSize,
@@ -388,6 +392,38 @@ export function LiveTVTab({
           <>
             <div className="settings-section">
               <div className="timeshift-settings" style={{ marginTop: 0 }}>
+                {/* Three-Column Guide Toggle */}
+                <div className="timeshift-toggle-row">
+                  <div className="timeshift-toggle-info">
+                    <span className="timeshift-toggle-label">{i18n.t('settings:livetv.threeColumnView')}</span>
+                    <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.threeColumnViewSub')}</span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={epgThreeColumn}
+                      onChange={(e) => onEpgThreeColumnChange(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+
+                {/* Auto-hide Category Sidebar Toggle */}
+                <div className="timeshift-toggle-row">
+                  <div className="timeshift-toggle-info">
+                    <span className="timeshift-toggle-label">{i18n.t('settings:livetv.categorySidebarAutohide')}</span>
+                    <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.categorySidebarAutohideSub')}</span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={categorySidebarAutohide}
+                      onChange={(e) => onCategorySidebarAutohideChange(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+
                 {/* EPG Visible Hours */}
                 <div className="timeshift-toggle-row">
                   <div className="timeshift-toggle-info">
@@ -407,6 +443,10 @@ export function LiveTVTab({
                     <option value="4">{i18n.t('settings:livetv.hours', { count: 4 })}</option>
                     <option value="5">{i18n.t('settings:livetv.hours', { count: 5 })}</option>
                     <option value="6">{i18n.t('settings:livetv.hours', { count: 6 })}</option>
+                    <option value="7">{i18n.t('settings:livetv.hours', { count: 7 })}</option>
+                    <option value="8">{i18n.t('settings:livetv.hours', { count: 8 })}</option>
+                    <option value="9">{i18n.t('settings:livetv.hours', { count: 9 })}</option>
+                    <option value="10">{i18n.t('settings:livetv.hours', { count: 10 })}</option>
                   </select>
                 </div>
 
@@ -838,22 +878,6 @@ export function LiveTVTab({
                     <option value="traditional">{i18n.t('settings:livetv.traditionalView')}</option>
                     <option value="alternate">{i18n.t('settings:livetv.alternateView')}</option>
                   </select>
-                </div>
-
-                {/* Three-Column Guide Toggle */}
-                <div className="timeshift-toggle-row">
-                  <div className="timeshift-toggle-info">
-                    <span className="timeshift-toggle-label">{i18n.t('settings:livetv.threeColumnView')}</span>
-                    <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.threeColumnViewSub')}</span>
-                  </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={epgThreeColumn}
-                      onChange={(e) => onEpgThreeColumnChange(e.target.checked)}
-                    />
-                    <span className="slider"></span>
-                  </label>
                 </div>
 
               </div>

@@ -68,7 +68,7 @@ const BOOLEAN_KEYS = new Set([
   'showWatchlist', 'showRecentlyViewed', 'collapseSourceCategoriesOnStartup',
   'showVodAll', 'showVodFavorites', 'showVodPlaylists', 'showVodLocal', 'showVodRecent',
   'useEventBasedReconnect', 'stallDetectionEnabled', 'showLoadingScreen',
-  'transparentGuideHideHeader', 'allowLanSources', 'v3DefaultMigrated', 'volumePercentDefaultMigrated', 'subAssOverrideDefaultMigrated',
+  'transparentGuideHideHeader', 'allowLanSources', 'categorySidebarAutohide', 'v3DefaultMigrated', 'volumePercentDefaultMigrated', 'subAssOverrideDefaultMigrated', 'epgLazyLoadingDefaultMigrated',
   'hdrTonemapToSdr', 'showHdrQuickToggle', 'controllerEnabled', 'controllerBackgroundListening', 'remoteControlEnabled',
 ] as const);
 
@@ -252,6 +252,22 @@ async function hydrateSettingsStore(): Promise<void> {
         }
       }
 
+      // EPG lazy loading default ON migration: runs once for users upgrading or
+      // installing. If the flag is missing, force epgLazyLoadingEnabled ON once
+      // and mark the migration done. If a user later turns it off, the flag
+      // stays true, so it will never be forced back on automatically.
+      if (!data.epgLazyLoadingDefaultMigrated) {
+        data.epgLazyLoadingEnabled = true;
+        data.epgLazyLoadingDefaultMigrated = true;
+        try {
+          window.storage
+            .updateSettings({ epgLazyLoadingEnabled: true, epgLazyLoadingDefaultMigrated: true })
+            .catch(() => {});
+        } catch (e) {
+          console.warn('[settingsHydration] Failed to persist epgLazyLoadingDefaultMigrated:', e);
+        }
+      }
+
       if (data.savedVolume !== undefined) {
         try {
           if (localStorage.getItem('ynotv_volume') === null) {
@@ -284,11 +300,13 @@ async function hydrateSettingsStore(): Promise<void> {
         transparentGuideHideHeader: data.transparentGuideHideHeader ?? false,
         transparentGuideOverlayOpacity: data.transparentGuideOverlayOpacity ?? 55,
         transparentGuideSidebarOpacity: data.transparentGuideSidebarOpacity ?? 55,
+        categorySidebarAutohide: data.categorySidebarAutohide ?? false,
         allowLanSources: data.allowLanSources ?? false,
         modernUiEnabled: data.modernUiEnabled ?? 'v3',
         v3DefaultMigrated: data.v3DefaultMigrated ?? false,
         volumePercentDefaultMigrated: data.volumePercentDefaultMigrated ?? false,
         subAssOverrideDefaultMigrated: data.subAssOverrideDefaultMigrated ?? false,
+        epgLazyLoadingDefaultMigrated: data.epgLazyLoadingDefaultMigrated ?? false,
         categorySortOrder: data.categorySortOrder ?? 'default',
         includeAllChannelsToPlaylist: data.includeAllChannelsToPlaylist ?? false,
         hideDisabledSources: data.hideDisabledSources ?? false,

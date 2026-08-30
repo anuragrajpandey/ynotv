@@ -335,6 +335,7 @@ function App() {
   const setTransparentGuideOnZap = useSettingsStore((s) => s.setTransparentGuideOnZap);
   const overlayAutohideTimer = useSettingsStore((s) => s.overlayAutohideTimer);
   const setOverlayAutohideTimer = useSettingsStore((s) => s.setOverlayAutohideTimer);
+  const categorySidebarAutohide = useSettingsStore((s) => s.categorySidebarAutohide);
   const overlayOnClickOnly = useSettingsStore((s) => s.overlayOnClickOnly);
   const setOverlayOnClickOnly = useSettingsStore((s) => s.setOverlayOnClickOnly);
   const popoutStopMain = useSettingsStore((s) => s.popoutStopMain);
@@ -2188,6 +2189,16 @@ function useTmdbPresencePoster(
       setCategoriesHidden(false);
     }
   }, [setCategoriesOpen, guideTransparent, setCategoriesHiddenTransparent, setCategoriesHidden]);
+
+  // Auto-hide category sidebar: entering LiveTV starts with the sidebar closed
+  // (it pops open on left-edge hover). The effect only fires on view/setting
+  // changes — never while the user is already in the guide with it open, so a
+  // hover-pop-open is never yanked shut.
+  useEffect(() => {
+    if (categorySidebarAutohide && activeView === 'guide') {
+      setCategoriesOpen(false);
+    }
+  }, [categorySidebarAutohide, activeView, setCategoriesOpen]);
   const [isTransparentGuideZapActive, setIsTransparentGuideZapActive] = useState(false);
   const [liveTvDesign, setLiveTvDesign] = useState<'v1' | 'v2' | 'v3'>('v3');
   // Design version comes from the settings store (hydration latches the
@@ -6243,8 +6254,8 @@ function useTmdbPresencePoster(
         onSelectCategory={handleCategorySelect}
         visible={categoriesOpen && activeView === 'guide'}
         onEditSource={handleCategoryEditSource}
-        onClose={handleCategoryClose}
-        onShow={handleCategoryShow}
+        onClose={categorySidebarAutohide ? () => setCategoriesOpen(false) : handleCategoryClose}
+        onShow={categorySidebarAutohide ? () => setCategoriesOpen(true) : handleCategoryShow}
         isLiveTV={activeView === 'guide'}
       />
 
@@ -6252,7 +6263,7 @@ function useTmdbPresencePoster(
       <ChannelPanel
         categoryId={isSearchMode || isWatchlistMode ? null : categoryId}
         visible={activeView === 'guide'}
-        categoryStripOpen={categoriesOpen}
+        categoryStripOpen={categoriesOpen && !categorySidebarAutohide}
         onPlayChannel={handlePlayChannelWrapper}
         popoutMode={popoutMode}
         onTogglePopoutMode={cyclePopoutMode}

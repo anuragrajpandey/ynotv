@@ -1722,6 +1722,49 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
     }
   }, [visible, isLiveTV]);
 
+  // -------------------------------------------------------------------------
+  // Auto-hide category sidebar (Settings → LiveTV → EPG): hidden by default,
+  // pops open over the guide on left-edge hover, closes after a category click
+  // or when the mouse leaves the panel. All of this is gated on the setting —
+  // when off, the classic persistent sidebar behaves exactly as before.
+  // -------------------------------------------------------------------------
+  const autohide = useSettingsStore((s) => s.categorySidebarAutohide);
+
+  // Auto-close after the user picks a category (one interaction, then done).
+  // While hidden the ref tracks the selection so the reopen-restore path that
+  // fires in the same render as visible=true never immediately closes it.
+  const autohidePrevSelRef = useRef(selectedCategoryId);
+  useEffect(() => {
+    if (!autohide) return;
+    if (visible) {
+      if (autohidePrevSelRef.current !== selectedCategoryId && selectedCategoryId) {
+        onClose?.();
+      }
+      autohidePrevSelRef.current = selectedCategoryId;
+    } else {
+      autohidePrevSelRef.current = selectedCategoryId;
+    }
+  }, [autohide, visible, selectedCategoryId, onClose]);
+
+  // Auto-close when the mouse leaves the open panel (short grace delay so
+  // small jitters across the border don't slam it shut).
+  const autohideCloseTimer = useRef<number | null>(null);
+  const clearAutohideClose = useCallback(() => {
+    if (autohideCloseTimer.current !== null) {
+      window.clearTimeout(autohideCloseTimer.current);
+      autohideCloseTimer.current = null;
+    }
+  }, []);
+  const scheduleAutohideClose = useCallback(() => {
+    if (!autohide) return;
+    clearAutohideClose();
+    autohideCloseTimer.current = window.setTimeout(() => {
+      autohideCloseTimer.current = null;
+      onClose?.();
+    }, 500);
+  }, [autohide, clearAutohideClose, onClose]);
+  useEffect(() => () => clearAutohideClose(), [clearAutohideClose]);
+
   // Custom Groups additions
   const { showModal, showConfirm, showPrompt, ModalComponent } = useModal();
   const [managingGroup, setManagingGroup] = useState<{ id: string, name: string } | null>(null);
@@ -1944,7 +1987,14 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
 
   // After a folder is expanded, reset the scroll so its header and first
   // category are visible below the source header and pinned rows.
+  // Legacy renderer only: the virtualized sidebar is a flat list whose own
+  // scroll-to-selected handles visibility, and this jump fights the
+  // virtualizer — it yanks the whole list to put the folder at the very top
+  // (no .category-source-group in flat mode → stickyOffset 0), moving the
+  // controller highlight out from under the user ("focus resets somewhere
+  // else instead of staying in place").
   useLayoutEffect(() => {
+    if (virtualizedSidebar) return;
     const folderId = lastExpandedFolderRef.current;
     if (!folderId) return;
     lastExpandedFolderRef.current = null;
@@ -2677,7 +2727,11 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
   return (
     <CategoryStripVisibilityContext.Provider value={visible}>
     <>
-      <div className={`category-strip ${visible ? 'visible' : 'hidden'} ${isDragActive ? 'drag-hotkey-active' : ''}`}>
+      <div
+        className={`category-strip ${visible ? 'visible' : 'hidden'} ${isDragActive ? 'drag-hotkey-active' : ''}`}
+        onMouseEnter={clearAutohideClose}
+        onMouseLeave={scheduleAutohideClose}
+      >
         {/* Resizer Handle */}
         <div
           className="category-strip-resizer"
@@ -3400,8 +3454,20 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
       )}
       </div>
 
+      {/* Auto-hide: full-length left-edge handle. Pops the sidebar open over
+          the guide (overlay — the guide never reflows in this mode) on hover.
+          Replaces the small chevron button / hint in autohide mode. */}
+      {autohide && !visible && isLiveTV && (
+        <div
+          className="category-strip-autohide-handle"
+          onMouseEnter={() => onShow?.()}
+          onClick={() => onShow?.()}
+          title={t('showSidebar')}
+        />
+      )}
+
       {/* Sidebar hint - subtle indicator when hovering left edge outside middle zone */}
-      {isNearLeftEdgeOutsideMiddle && (
+      {!autohide && isNearLeftEdgeOutsideMiddle && (
         <div
           className="sidebar-hint-indicator"
           style={{
@@ -3419,8 +3485,8 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
         />
       )}
 
-      {/* Show Sidebar Button - visible when sidebar is hidden, in LiveTV, and hovering middle-left */}
-      {!visible && onShow && isLiveTV && (
+      {/* Show Sidebar Button - visible when sidebar is hidden, in LiveTV, and hovering middle-left (not in autohide mode, which uses the full-length handle) */}
+      {!autohide && !visible && onShow && isLiveTV && (
         <button
           className={`show-sidebar-btn ${isInMiddleLeftZone ? 'visible' : ''}`}
           onClick={onShow}

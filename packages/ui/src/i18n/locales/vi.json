@@ -2548,6 +2548,8 @@
       "audioBitrate": "Bitrate audio",
       "threeColumnView": "Chế độ xem 3 cột",
       "threeColumnViewSub": "Thay lưới thời gian EPG bằng dải kênh 3 cột và lịch xem. Độc lập với tùy chọn Bố Cục Chế Độ Xem EPG.",
+      "categorySidebarAutohide": "Tự động ẩn thanh bên danh mục",
+      "categorySidebarAutohideSub": "Giữ thanh bên danh mục ẩn và trượt nó lên trên hướng dẫn khi di chuyển chuột đến mép trái. Nó đóng sau khi bạn chọn một danh mục hoặc di chuyển chuột ra xa.",
       "programFontSize": "Cỡ chữ chương trình",
       "programNameExample": "Ví dụ tên chương trình"
     },

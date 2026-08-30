@@ -677,6 +677,8 @@ export function Settings({
   const setLogoDefaultBackground = useSettingsStore((s) => s.setLogoDefaultBackground);
   const epgPreferEpgLogos = useSettingsStore((s) => s.epgPreferEpgLogos);
   const setEpgPreferEpgLogos = useSettingsStore((s) => s.setEpgPreferEpgLogos);
+  const categorySidebarAutohide = useSettingsStore((s) => s.categorySidebarAutohide);
+  const setCategorySidebarAutohide = useSettingsStore((s) => s.setCategorySidebarAutohide);
   const epgLogoDisplay = useSettingsStore((s) => s.epgLogoDisplay);
   const setEpgLogoDisplay = useSettingsStore((s) => s.setEpgLogoDisplay);
   const oledBlack = useSettingsStore((s) => s.oledBlack);
@@ -3072,6 +3074,8 @@ export function Settings({
             onEpgViewChange={handleEpgViewChange}
             epgThreeColumn={epgThreeColumn}
             onEpgThreeColumnChange={handleEpgThreeColumnChange}
+            categorySidebarAutohide={categorySidebarAutohide}
+            onCategorySidebarAutohideChange={setCategorySidebarAutohide}
             epgTitleFontSize={epgTitleFontSize}
             onEpgTitleFontSizeChange={handleEpgTitleFontSizeChange}
             epgBodyFontSize={epgBodyFontSize}
