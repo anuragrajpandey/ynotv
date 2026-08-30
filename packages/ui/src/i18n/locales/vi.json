@@ -2300,14 +2300,18 @@
       "title": "Bộ Nhớ Đệm Dịch Chuyển Thời Gian",
       "description": "Khi bật, MPV giữ một bộ đệm trong bộ nhớ lăn của luồng trực tiếp để bạn có thể tua lại và tua nhanh trong cửa sổ đệm.",
       "enableTimeshift": "Bật Dịch Chuyển Thời Gian",
-      "enableTimeshiftSub": "Cho phép tua lại TV trực tiếp trong cửa sổ đệm. Có hiệu lực ở lần khởi động lại tiếp theo.",
+      "enableTimeshiftSub": "Cho phép tua lại truyền hình trực tiếp trong giới hạn bộ nhớ đệm.",
       "cacheSize": "Kích Thước Bộ Nhớ Đệm",
       "streamQuality": "Chất Lượng Luồng",
       "estimatedWindow": "Cửa Sổ Tua Lại Ước Tính",
       "liveBufferOffset": "Độ Lệch Đệm Trực Tiếp",
       "liveBufferOffsetHint": "Khi nhấn \"Về Trực Tiếp\" trong lúc dịch chuyển thời gian, tua tới vị trí cách điểm trực tiếp vài giây. Giúp tránh treo đệm trên một số mạng.",
-      "timeshiftNote": "⚠️ Các thay đổi có hiệu lực ở lần khởi động lại tiếp theo. Bộ đệm chỉ tồn tại trong RAM và được đặt lại khi chuyển kênh.",
-      "checkMpvCache": "Kiểm Tra Cài Đặt Bộ Nhớ Đệm MPV"
+      "timeshiftNote": "⚠️ Bộ đệm chỉ lưu trong RAM và được đặt lại khi chuyển kênh. Thay đổi có hiệu lực ngay lập tức hoặc khi bắt đầu kênh tiếp theo.",
+      "checkMpvCache": "Kiểm Tra Cài Đặt Bộ Nhớ Đệm MPV",
+      "customSize": "Kích thước tùy chỉnh (MB)",
+      "customSizeError": "Nhập một số nguyên từ 16 đến 16384 MB.",
+      "custom": "Tùy chỉnh",
+      "apply": "Áp dụng"
     },
     "livetv": {
       "tabs": {

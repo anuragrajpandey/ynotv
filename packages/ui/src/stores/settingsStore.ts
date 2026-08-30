@@ -146,6 +146,7 @@ export interface SettingsState {
   // Timeshift
   timeshiftEnabled: boolean;
   timeshiftCacheBytes: number;
+  setTimeshiftCacheBytes: (bytes: number) => void;
   liveBufferOffset: number;
 
   // Search
@@ -806,7 +807,14 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   // Timeshift
   timeshiftEnabled: true,
-  timeshiftCacheBytes: 268_435_456, // Default 256MB
+  timeshiftCacheBytes: (cachedSettings?.timeshiftCacheBytes as number) ?? 268_435_456, // Default 256MB
+  setTimeshiftCacheBytes: (bytes) => {
+    set({ timeshiftCacheBytes: bytes });
+    persistSettings({ timeshiftCacheBytes: bytes });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mpv-cache-size-changed', { detail: { bytes } }));
+    }
+  },
   liveBufferOffset: 0,
 
   // Search

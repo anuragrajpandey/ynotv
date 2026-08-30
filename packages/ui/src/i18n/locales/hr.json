@@ -1633,14 +1633,18 @@
       "title": "Vremensko pomicanje keša",
       "description": "Kada je uključeno, MPV održava pokretni bafer strima uživo u memoriji tako da možete da se vratite unazad i napred unutar okvira keša.",
       "enableTimeshift": "Omogući vremensko pomicanje",
-      "enableTimeshiftSub": "Omogućava vraćanje unazad TV-a uživo do okvira keša. Stupa na snagu pri sljedećem ponovnom pokretanju.",
+      "enableTimeshiftSub": "Omogućuje premotavanje TV-a uživo unutar prozora predmemorije.",
       "cacheSize": "Veličina keša",
       "streamQuality": "Kvalitet strima",
       "estimatedWindow": "Procena prozora za vraćanje unazad",
       "liveBufferOffset": "Pomak bafera uživo",
       "liveBufferOffsetHint": "Pri pritisku na „Idi uživo\" tokom vremenskog pomicanja, idite ovu količinu sekundi iza ivice uživo. Pomaže u izbegavanju zaustavljanja bafera na nekim mrežama.",
-      "timeshiftNote": "⚠️ Izmjene stupaju na snagu pri sljedećem ponovnom pokretanju. Bafer postoji samo u RAM-u i resetuje se pri promjeni kanala.",
-      "checkMpvCache": "Proveri MPV keš postavke"
+      "timeshiftNote": "⚠️ Međuspremnik se nalazi samo u RAM-u i poništava se pri promjeni kanala. Promjene stupaju na snagu odmah ili pri pokretanju sljedećeg kanala.",
+      "checkMpvCache": "Proveri MPV keš postavke",
+      "customSize": "Prilagođena veličina (MB)",
+      "customSizeError": "Unesite cijeli broj između 16 i 16384 MB.",
+      "custom": "Prilagođeno",
+      "apply": "Primijeni"
     },
     "security": {
       "title": "Mrežna bezbednost",

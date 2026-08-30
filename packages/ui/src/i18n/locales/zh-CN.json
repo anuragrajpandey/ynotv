@@ -1633,14 +1633,18 @@
       "title": "缓存时移",
       "description": "启用后，MPV 会保留直播流的滚动内存缓冲区，以便您在缓存窗口内快退和快进。",
       "enableTimeshift": "启用时移",
-      "enableTimeshiftSub": "允许将直播电视快退到缓存窗口。下次重启时生效。",
+      "enableTimeshiftSub": "允许在缓存窗口内回退直播电视。",
       "cacheSize": "缓存大小",
       "streamQuality": "流质量",
       "estimatedWindow": "预计快退窗口",
       "liveBufferOffset": "实时现在缓冲区偏移",
       "liveBufferOffsetHint": "时移期间按\"转到直播\"时，跳到直播边缘之后这么多秒。有助于防止某些网络上的缓冲停滞。",
-      "timeshiftNote": "⚠️ 更改在下次重启时生效。缓冲区仅存在于 RAM 中，切换频道时会重置。",
-      "checkMpvCache": "检查 MPV 缓存设置"
+      "timeshiftNote": "⚠️ 缓存仅保留在内存中，换台时会重置。更改会立即或在下次切台时生效。",
+      "checkMpvCache": "检查 MPV 缓存设置",
+      "customSize": "自定义大小 (MB)",
+      "customSizeError": "请输入介于 16 到 16384 MB 之间的整数。",
+      "custom": "自定义",
+      "apply": "应用"
     },
     "security": {
       "title": "网络安全",

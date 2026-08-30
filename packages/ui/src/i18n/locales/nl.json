@@ -1633,14 +1633,18 @@
       "title": "Tijdverschuiving van cache",
       "description": "Wanneer ingeschakeld, houdt MPV een doorlopende buffer in het geheugen van de livestream bij, zodat je binnen het gebufferde venster kunt terugspoelen en vooruitspoelen.",
       "enableTimeshift": "Tijdverschuiving inschakelen",
-      "enableTimeshiftSub": "Maakt terugspoelen van live-tv tot aan het cachevenster mogelijk. Wordt effectief bij de volgende herstart.",
+      "enableTimeshiftSub": "Maakt het mogelijk om live tv terug te spoelen tot het cachevenster.",
       "cacheSize": "Cachegrootte",
       "streamQuality": "Streamkwaliteit",
       "estimatedWindow": "Geschat terugspoelvenster",
       "liveBufferOffset": "Live-bufferoffset",
       "liveBufferOffsetHint": "Bij het indrukken van \"Naar live\" tijdens tijdverschuiving, spoel naar dit aantal seconden achter de live-rand. Helpt bufferstoringen op sommige netwerken voorkomen.",
-      "timeshiftNote": "⚠️ Wijzigingen worden effectief bij de volgende herstart. De buffer leeft alleen in het RAM en wordt gereset bij kanaalwissel.",
-      "checkMpvCache": "MPV-cache-instellingen controleren"
+      "timeshiftNote": "⚠️ De buffer bevindt zich alleen in het RAM en wordt gereset bij het wisselen van kanaal. Wijzigingen worden direct of bij de volgende kanaalstart van kracht.",
+      "checkMpvCache": "MPV-cache-instellingen controleren",
+      "customSize": "Aangepaste grootte (MB)",
+      "customSizeError": "Voer een geheel getal in tussen 16 en 16384 MB.",
+      "custom": "Aangepast",
+      "apply": "Toepassen"
     },
     "security": {
       "title": "Netwerkbeveiliging",

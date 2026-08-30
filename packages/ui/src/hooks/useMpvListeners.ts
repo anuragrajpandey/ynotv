@@ -122,6 +122,14 @@ export function useMpvListeners(options: UseMpvListenersOptions = {}) {
         };
     }, [options.timeshiftEnabled, options.timeshiftCacheBytes]);
 
+    // Cache limits are MPV properties, so update the active player immediately
+    // when the user changes the setting; no restart is required.
+    useEffect(() => {
+        if (!mpvReady || options.timeshiftCacheBytes == null) return;
+        Bridge.setProperty('demuxer-max-back-bytes', options.timeshiftCacheBytes).catch(() => {});
+        Bridge.setProperty('demuxer-max-bytes', options.timeshiftCacheBytes).catch(() => {});
+    }, [mpvReady, options.timeshiftCacheBytes]);
+
     useEffect(() => {
         if (!Bridge.isTauri) {
             setError(i18n.t('player:mpvApiUnavailable'));

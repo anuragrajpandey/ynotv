@@ -1633,14 +1633,18 @@
       "title": "Masquage temporel du cache (Time Shift)",
       "description": "Lorsqu’il est activé, MPV conserve un tampon mémoire du flux en direct afin de vous permettre de reculer et d'avancer dans la fenêtre en cache.",
       "enableTimeshift": "Activer le Time Shift",
-      "enableTimeshiftSub": "Permet de reculer la TV en direct dans la limite du cache. Prend effet au prochain redémarrage.",
+      "enableTimeshiftSub": "Permet de revenir en arrière dans le direct jusqu'à la limite du cache.",
       "cacheSize": "Taille du cache",
       "streamQuality": "Qualité du flux",
       "estimatedWindow": "Fenêtre de retour estimée",
       "liveBufferOffset": "Décalage du tampon du direct",
       "liveBufferOffsetHint": "Lors du clic sur \"Passer au direct\", se positionner ce nombre de secondes avant le direct. Aide à éviter les blocages de mise en mémoire tampon sur certains réseaux.",
-      "timeshiftNote": "⚠️ Les modifications prennent effet au prochain redémarrage. Le tampon réside uniquement en RAM et se réinitialise au changement de chaîne.",
-      "checkMpvCache": "Vérifier les paramètres de cache MPV"
+      "timeshiftNote": "⚠️ Le tampon réside uniquement dans la RAM et est réinitialisé lors du changement de chaîne. Les modifications prennent effet immédiatement ou au prochain démarrage de chaîne.",
+      "checkMpvCache": "Vérifier les paramètres de cache MPV",
+      "customSize": "Taille personnalisée (Mo)",
+      "customSizeError": "Entrez un nombre entier compris entre 16 et 16384 Mo.",
+      "custom": "Personnalisé",
+      "apply": "Appliquer"
     },
     "security": {
       "title": "Sécurité réseau",

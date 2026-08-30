@@ -1633,14 +1633,18 @@
       "title": "Przesunięcie w czasie pamięci podręcznej",
       "description": "Po włączeniu MPV utrzymuje ruchomy bufor strumienia na żywo w pamięci, dzięki czemu możesz cofać się i przewijać w obrębie okna pamięci podręcznej.",
       "enableTimeshift": "Włącz przesunięcie w czasie",
-      "enableTimeshiftSub": "Pozwala cofać telewizję na żywo do okna pamięci podręcznej. Ma wpływ przy następnym restarcie.",
+      "enableTimeshiftSub": "Umożliwia przewijanie telewizji na żywo do limitu pamięci podręcznej.",
       "cacheSize": "Rozmiar pamięci podręcznej",
       "streamQuality": "Jakość strumienia",
       "estimatedWindow": "Szacowane okno cofania",
       "liveBufferOffset": "Przesunięcie bufora na żywo",
       "liveBufferOffsetHint": "Po naciśnięciu „Na żywo\" podczas przesunięcia w czasie przejdź o tę liczbę sekund przed krawędź na żywo. Pomaga uniknąć zatrzymań buforowania na niektórych sieciach.",
-      "timeshiftNote": "⚠️ Zmiany mają wpływ przy następnym restarcie. Bufor istnieje tylko w pamięci RAM i jest resetowany przy zmianie kanału.",
-      "checkMpvCache": "Sprawdź ustawienia pamięci podręcznej MPV"
+      "timeshiftNote": "⚠️ Bufor znajduje się tylko w pamięci RAM i jest resetowany przy zmianie kanału. Zmiany wchodzą w życie natychmiast lub przy następnym uruchomieniu kanału.",
+      "checkMpvCache": "Sprawdź ustawienia pamięci podręcznej MPV",
+      "customSize": "Rozmiar niestandardowy (MB)",
+      "customSizeError": "Wprowadź liczbę całkowitą z zakresu od 16 do 16384 MB.",
+      "custom": "Niestandardowy",
+      "apply": "Zastosuj"
     },
     "security": {
       "title": "Bezpieczeństwo sieci",

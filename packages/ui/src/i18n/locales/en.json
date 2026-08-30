@@ -1633,14 +1633,18 @@
       "title": "Cache Time Shift",
       "description": "When enabled, MPV keeps a rolling in-memory buffer of the live stream so you can rewind and fast-forward within the cached window.",
       "enableTimeshift": "Enable Time Shift",
-      "enableTimeshiftSub": "Allows rewinding live TV up to the cache window. Takes effect on next restart.",
+      "enableTimeshiftSub": "Allows rewinding live TV up to the cache window.",
       "cacheSize": "Cache Size",
       "streamQuality": "Stream Quality",
       "estimatedWindow": "Estimated Rewind Window",
       "liveBufferOffset": "Live Now Buffer Offset",
       "liveBufferOffsetHint": "When pressing \"Go Live\" during time shift, seek to this many seconds behind the live edge. Helps prevent buffer stalls on some networks.",
-      "timeshiftNote": "⚠️ Changes take effect on next restart. Buffer lives only in RAM and is reset on channel change.",
-      "checkMpvCache": "Check MPV Cache Settings"
+      "timeshiftNote": "⚠️ Buffer lives only in RAM and is reset on channel change. Changes take effect immediately or on next channel start.",
+      "checkMpvCache": "Check MPV Cache Settings",
+      "customSize": "Custom Size (MB)",
+      "customSizeError": "Enter a whole number between 16 and 16384 MB.",
+      "custom": "Custom",
+      "apply": "Apply"
     },
     "security": {
       "title": "Network Security",

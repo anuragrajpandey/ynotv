@@ -1633,14 +1633,18 @@
       "title": "Cambio de tiempo de caché",
       "description": "Cuando está activado, MPV mantiene un búfer móvil en memoria del flujo en vivo para que puedas retroceder y avanzar dentro de la ventana de caché.",
       "enableTimeshift": "Activar cambio de tiempo",
-      "enableTimeshiftSub": "Permite retroceder la TV en vivo hasta la ventana de caché. Surte efecto en el próximo reinicio.",
+      "enableTimeshiftSub": "Permite rebobinar la televisión en vivo hasta el límite de la caché.",
       "cacheSize": "Tamaño de caché",
       "streamQuality": "Calidad del flujo",
       "estimatedWindow": "Ventana de retroceso estimada",
       "liveBufferOffset": "Desplazamiento de búfer de directo",
       "liveBufferOffsetHint": "Al pulsar \"Ir a directo\" durante el cambio de tiempo, ve a esta cantidad de segundos detrás del borde en vivo. Ayuda a prevenir cortes de búfer en algunas redes.",
-      "timeshiftNote": "⚠️ Los cambios surten efecto en el próximo reinicio. El búfer vive solo en RAM y se restablece al cambiar de canal.",
-      "checkMpvCache": "Comprobar ajustes de caché de MPV"
+      "timeshiftNote": "⚠️ El búfer solo reside en la RAM y se restablece al cambiar de canal. Los cambios surten efecto de inmediato o al iniciar el siguiente canal.",
+      "checkMpvCache": "Comprobar ajustes de caché de MPV",
+      "customSize": "Tamaño personalizado (MB)",
+      "customSizeError": "Introduce un número entero entre 16 y 16384 MB.",
+      "custom": "Personalizado",
+      "apply": "Aplicar"
     },
     "security": {
       "title": "Seguridad de red",

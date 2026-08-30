@@ -1211,7 +1211,7 @@ export function Settings({
       setMpvParams(settings.mpvParams ?? '');
       setMpvHwdecEnabled(settings.mpvHwdecEnabled ?? true);
       setTimeshiftEnabled(settings.timeshiftEnabled ?? true);
-      setTimeshiftCacheBytes(settings.timeshiftCacheBytes ?? 268_435_456);
+      useSettingsStore.getState().setTimeshiftCacheBytes(settings.timeshiftCacheBytes ?? 268_435_456);
       setLiveBufferOffset(settings.liveBufferOffset ?? 0);
       setStreamWatchdogSeconds(settings.streamWatchdogSeconds ?? 10);
       setStreamMaxRetries(settings.streamMaxRetries ?? 20);
@@ -1813,7 +1813,7 @@ export function Settings({
 
   const handleTimeshiftChange = async (enabled: boolean, cacheBytes: number, bufferOffset?: number) => {
     setTimeshiftEnabled(enabled);
-    setTimeshiftCacheBytes(cacheBytes);
+    useSettingsStore.getState().setTimeshiftCacheBytes(cacheBytes);
     if (bufferOffset !== undefined) {
       setLiveBufferOffset(bufferOffset);
     }

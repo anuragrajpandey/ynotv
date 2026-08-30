@@ -1633,14 +1633,18 @@
       "title": "Time-shift della cache",
       "description": "Quando attivo, MPV mantiene un buffer mobile in memoria dello stream live così puoi tornare indietro e avanzare nella finestra della cache.",
       "enableTimeshift": "Attiva time-shift",
-      "enableTimeshiftSub": "Consente di tornare indietro nella TV Live fino alla finestra della cache. Ha effetto al prossimo riavvio.",
+      "enableTimeshiftSub": "Consente di riavvolgere la TV in diretta fino alla finestra della cache.",
       "cacheSize": "Dimensione cache",
       "streamQuality": "Qualità stream",
       "estimatedWindow": "Finestra di riavvolgimento stimata",
       "liveBufferOffset": "Offset buffer live",
       "liveBufferOffsetHint": "Quando premi \"Vai al live\" durante il time-shift, vai a questa quantità di secondi prima del bordo live. Aiuta a evitare interruzioni del buffering su alcune reti.",
-      "timeshiftNote": "⚠️ Le modifiche hanno effetto al prossimo riavvio. Il buffer esiste solo in RAM e viene azzerato al cambio canale.",
-      "checkMpvCache": "Controlla le impostazioni della cache MPV"
+      "timeshiftNote": "⚠️ Il buffer risiede solo nella RAM e viene reimpostato al cambio di canale. Le modifiche hanno effetto immediato o al prossimo avvio del canale.",
+      "checkMpvCache": "Controlla le impostazioni della cache MPV",
+      "customSize": "Dimensione personalizzata (MB)",
+      "customSizeError": "Inserisci un numero intero compreso tra 16 e 16384 MB.",
+      "custom": "Personalizzato",
+      "apply": "Applica"
     },
     "security": {
       "title": "Sicurezza di rete",

@@ -5138,7 +5138,7 @@ function useTmdbPresencePoster(
             {/* Segmented Control for View Switching */}
             <div className="title-bar-segmented">
               <button
-                className={`segmented-btn ${activeView === 'guide' || (activeView === 'none' && categoriesOpen) ? 'active' : ''}`}
+                className={`segmented-btn ${activeView === 'guide' ? 'active' : ''}`}
                 onClick={() => {
                   if (activeView === 'guide') {
                     if (guideTransparent) {
@@ -6210,7 +6210,7 @@ function useTmdbPresencePoster(
           }
           handleSelectCategory(catId);
         }}
-        visible={categoriesOpen}
+        visible={categoriesOpen && activeView === 'guide'}
         onEditSource={(sourceId) => {
           setSettingsTab('sources');
           setEditSourceId(sourceId);

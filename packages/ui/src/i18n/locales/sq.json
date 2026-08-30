@@ -1633,14 +1633,18 @@
       "title": "Zhvendosja në kohë e cache-së",
       "description": "Kur aktivizohet, MPV mban një bufer të lëvizshëm të transmetimit live në memorie, kështu që mund të kthehesh prapa dhe të lëvizësh brenda dritares së cache-së.",
       "enableTimeshift": "Aktivizo zhvendosjen në kohë",
-      "enableTimeshiftSub": "Të lejon ta kthesh TV-në live prapa te dritarja e cache-së. Ka efekt në rinisjen tjetër.",
+      "enableTimeshiftSub": "Lejon kthimin prapa të televizionit live deri në kufirin e memories së fshehtë.",
       "cacheSize": "Madhësia e cache-së",
       "streamQuality": "Cilësia e transmetimit",
       "estimatedWindow": "Dritarja e vlerësuar e kthimit prapa",
       "liveBufferOffset": "Zhvendosja e buferit live",
       "liveBufferOffsetHint": "Pas shtypjes së „Live\" gjatë zhvendosjes në kohë, kalo në këtë numër sekondash përpara skajit live. Ndihmon të shmangen ndalimet e buferimit në disa rrjete.",
-      "timeshiftNote": "⚠️ Ndryshimet kanë efekt në rinisjen tjetër. Buferi ekziston vetëm në RAM dhe rivendoset kur ndërron kanali.",
-      "checkMpvCache": "Kontrollo cilësimet e cache-së së MPV-së"
+      "timeshiftNote": "⚠️ Bufferi jeton vetëm në RAM dhe rivendoset me ndërrimin e kanalit. Ndryshimet hyjnë në fuqi menjëherë ose në nisjen tjetër të kanalit.",
+      "checkMpvCache": "Kontrollo cilësimet e cache-së së MPV-së",
+      "customSize": "Madhësia e personalizuar (MB)",
+      "customSizeError": "Futni një numër të plotë midis 16 dhe 16384 MB.",
+      "custom": "E personalizuar",
+      "apply": "Zbato"
     },
     "security": {
       "title": "Siguria e rrjetit",

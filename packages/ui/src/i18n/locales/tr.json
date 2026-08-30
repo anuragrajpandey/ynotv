@@ -1633,14 +1633,18 @@
       "title": "Önbellek Zaman Kaydırması",
       "description": "Etkinleştirildiğinde MPV canlı akış için kayan bir bellek içi tampon tutar; böylece önbellek penceresi içinde geri sarabilir ve ileri sarabilirsiniz.",
       "enableTimeshift": "Zaman Kaydırmayı Etkinleştir",
-      "enableTimeshiftSub": "Canlı TV'de önbellek penceresine kadar geri sarmaya olanak tanır. Sonraki yeniden başlatmada etkili olur.",
+      "enableTimeshiftSub": "Canlı TV'yi önbellek aralığına kadar geri sarmanıza olanak tanır.",
       "cacheSize": "Önbellek Boyutu",
       "streamQuality": "Akış Kalitesi",
       "estimatedWindow": "Tahmini Geri Sarma Penceresi",
       "liveBufferOffset": "Canlı Şimdi Tampon Dengelemesi",
       "liveBufferOffsetHint": "\"Canlıya Git\" seçeneğine bastığınızda zaman kaydırması sırasında canlı kenarın bu kadar saniye gerisine gidin. Bazı ağlarda tampon takılmalarını önlemeye yardımcı olur.",
-      "timeshiftNote": "⚠️ Değişiklikler sonraki yeniden başlatmada etkili olur. Tampon yalnızca RAM'de bulunur ve kanal değiştirildiğinde sıfırlanır.",
-      "checkMpvCache": "MPV Önbellek Ayarlarını Kontrol Et"
+      "timeshiftNote": "⚠️ Arabellek yalnızca RAM'de bulunur ve kanal değişiminde sıfırlanır. Değişiklikler anında veya bir sonraki kanal başlangıcında geçerli olur.",
+      "checkMpvCache": "MPV Önbellek Ayarlarını Kontrol Et",
+      "customSize": "Özel Boyut (MB)",
+      "customSizeError": "16 ile 16384 MB arasında bir tam sayı girin.",
+      "custom": "Özel",
+      "apply": "Uygula"
     },
     "security": {
       "title": "Ağ Güvenliği",

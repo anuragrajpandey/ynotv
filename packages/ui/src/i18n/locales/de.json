@@ -1633,14 +1633,18 @@
       "title": "Cache-Time-Shift",
       "description": "Wenn aktiviert, hält MPV einen mobilen Speicherpuffer des Live-Streams, sodass Sie innerhalb des Cache-Fensters zurück- und vorspulen können.",
       "enableTimeshift": "Time-Shift aktivieren",
-      "enableTimeshiftSub": "Ermöglicht das Zurückspulen von Live-TV bis zum Cache-Fenster. Wirkt beim nächsten Neustart.",
+      "enableTimeshiftSub": "Ermöglicht das Zurückspulen von Live-TV bis zum Cache-Fenster.",
       "cacheSize": "Cache-Größe",
       "streamQuality": "Stream-Qualität",
       "estimatedWindow": "Geschätztes Rückspulfenster",
       "liveBufferOffset": "Live-Buffer-Offset",
       "liveBufferOffsetHint": "Beim Drücken von \"Zum Live-Stream\" während des Time-Shifts wird zu dieser Anzahl Sekunden vor dem Live-Rand gesprungen. Hilft, Pufferunterbrechungen in manchen Netzwerken zu vermeiden.",
-      "timeshiftNote": "⚠️ Änderungen wirken beim nächsten Neustart. Der Puffer existiert nur im RAM und wird beim Senderwechsel zurückgesetzt.",
-      "checkMpvCache": "MPV-Cache-Einstellungen prüfen"
+      "timeshiftNote": "⚠️ Der Puffer befindet sich nur im RAM und wird beim Kanalwechsel zurückgesetzt. Änderungen werden sofort oder beim nächsten Kanalstart wirksam.",
+      "checkMpvCache": "MPV-Cache-Einstellungen prüfen",
+      "customSize": "Benutzerdefinierte Größe (MB)",
+      "customSizeError": "Geben Sie eine ganze Zahl zwischen 16 und 16384 MB ein.",
+      "custom": "Benutzerdefiniert",
+      "apply": "Anwenden"
     },
     "security": {
       "title": "Netzwerksicherheit",

@@ -1633,14 +1633,18 @@
       "title": "快取時移",
       "description": "啟用後，MPV 會保留直播流的捲動記憶體緩衝區，以便您在快取視窗內快退和快進。",
       "enableTimeshift": "啟用時移",
-      "enableTimeshiftSub": "允許將直播電視快退到快取視窗。下次重啟時生效。",
+      "enableTimeshiftSub": "允許在快取視窗內倒轉直播電視。",
       "cacheSize": "快取大小",
       "streamQuality": "流質量",
       "estimatedWindow": "預計快退視窗",
       "liveBufferOffset": "即時現在緩衝區偏移",
       "liveBufferOffsetHint": "時移期間按\"轉到直播\"時，跳到直播邊緣之後這麼多秒。有助於防止某些網路上的緩衝停滯。",
-      "timeshiftNote": "⚠️ 更改在下次重啟時生效。緩衝區僅存在於 RAM 中，切換頻道時會重置。",
-      "checkMpvCache": "檢查 MPV 快取設定"
+      "timeshiftNote": "⚠️ 快取僅保留在記憶體中，換台時會重設。變更會立即或在下次切台時生效。",
+      "checkMpvCache": "檢查 MPV 快取設定",
+      "customSize": "自訂大小 (MB)",
+      "customSizeError": "請輸入介於 16 到 16384 MB 之間的整數。",
+      "custom": "自訂",
+      "apply": "套用"
     },
     "security": {
       "title": "網路安全",

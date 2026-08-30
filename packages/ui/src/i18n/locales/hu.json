@@ -1633,14 +1633,18 @@
       "title": "Gyorsítótár timeshift",
       "description": "Ha engedélyezve van, az MPV az élő adásfolyam gördülő memóriabeli pufferét tartja, így a gyorsítótárazott ablakon belül vissza- és előretekerhet.",
       "enableTimeshift": "Time Shift engedélyezése",
-      "enableTimeshiftSub": "Lehetővé teszi az élő TV visszatekerését a gyorsítótár-ablakig. A következő újraindításkor lép érvénybe.",
+      "enableTimeshiftSub": "Lehetővé teszi az élő TV visszatekerését a gyorsítótár ablakáig.",
       "cacheSize": "Gyorsítótár mérete",
       "streamQuality": "Adásfolyam-minőség",
       "estimatedWindow": "Becsült visszatekerési ablak",
       "liveBufferOffset": "Élő puffer eltolás",
       "liveBufferOffsetHint": "A „Ugrás az élőhöz” megnyomásakor timeshift közben ennyi másodperccel az élő széle mögé teker. Segít megelőzni a pufferleállásokat egyes hálózatokon.",
-      "timeshiftNote": "⚠️ A módosítások a következő újraindításkor lépnek érvénybe. A puffer csak a RAM-ban él, és csatornaváltáskor visszaáll.",
-      "checkMpvCache": "MPV gyorsítótár-beállítások ellenőrzése"
+      "timeshiftNote": "⚠️ A puffer csak a RAM-ban él, és csatornaváltáskor visszaáll. A változtatások azonnal vagy a következő csatorna indításakor lépnek érvénybe.",
+      "checkMpvCache": "MPV gyorsítótár-beállítások ellenőrzése",
+      "customSize": "Egyéni méret (MB)",
+      "customSizeError": "Adjon meg egy 16 és 16384 MB közötti egész számot.",
+      "custom": "Egyéni",
+      "apply": "Alkalmaz"
     },
     "security": {
       "title": "Hálózati biztonság",

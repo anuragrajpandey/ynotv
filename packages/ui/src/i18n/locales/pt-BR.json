@@ -1633,14 +1633,18 @@
       "title": "Deslocamento de tempo do cache",
       "description": "Quando ativado, o MPV mantém um buffer móvel em memória do stream ao vivo para que você possa retroceder e avançar dentro da janela de cache.",
       "enableTimeshift": "Ativar deslocamento de tempo",
-      "enableTimeshiftSub": "Permite retroceder a TV ao vivo até a janela de cache. Tem efeito no próximo reinício.",
+      "enableTimeshiftSub": "Permite retroceder a TV ao vivo até a janela do cache.",
       "cacheSize": "Tamanho do cache",
       "streamQuality": "Qualidade do stream",
       "estimatedWindow": "Janela de retrocesso estimada",
       "liveBufferOffset": "Deslocamento de buffer do ao vivo",
       "liveBufferOffsetHint": "Ao pressionar \"Ir ao vivo\" durante o deslocamento de tempo, vá para esta quantidade de segundos atrás da borda ao vivo. Ajuda a evitar travamentos de buffer em algumas redes.",
-      "timeshiftNote": "⚠️ As alterações têm efeito no próximo reinício. O buffer existe apenas na RAM e é redefinido ao trocar de canal.",
-      "checkMpvCache": "Verificar configurações de cache do MPV"
+      "timeshiftNote": "⚠️ O buffer reside apenas na RAM e é redefinido ao mudar de canal. As alterações entram em vigor imediatamente ou na próxima inicialização do canal.",
+      "checkMpvCache": "Verificar configurações de cache do MPV",
+      "customSize": "Tamanho personalizado (MB)",
+      "customSizeError": "Insira um número inteiro entre 16 e 16384 MB.",
+      "custom": "Personalizado",
+      "apply": "Aplicar"
     },
     "security": {
       "title": "Segurança de rede",
