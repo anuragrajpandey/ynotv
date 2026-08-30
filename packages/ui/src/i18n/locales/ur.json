@@ -375,7 +375,8 @@
     "resultsCount_few": "{{count}} نتائج",
     "resultsCount_many": "{{count}} نتائج",
     "resultsCount_two": "{{count}} نتائج",
-    "resultsCount_zero": "{{count}} نتائج"
+    "resultsCount_zero": "{{count}} نتائج",
+    "syncPerformanceNote": "ہم آہنگی کے دوران، کارکردگی سست ہو سکتی ہے۔"
   },
   "nav": {
     "epgButtons": {

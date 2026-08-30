@@ -479,7 +479,7 @@ export function Settings({
   }>({
     modernUiEnabled: 'v3',
     minimizeToTray: false,
-    collapseSourceCategoriesOnStartup: false,
+    collapseSourceCategoriesOnStartup: true,
     overlayAutohideTimer: 3,
     overlayOnClickOnly: false,
     uiScale: 100,

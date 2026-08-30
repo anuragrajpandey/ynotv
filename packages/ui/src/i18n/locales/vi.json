@@ -438,7 +438,8 @@
     "resultsCount_few": "{{count}} kết quả",
     "resultsCount_many": "{{count}} kết quả",
     "resultsCount_two": "{{count}} kết quả",
-    "resultsCount_zero": "{{count}} kết quả"
+    "resultsCount_zero": "{{count}} kết quả",
+    "syncPerformanceNote": "Trong khi đồng bộ, hiệu suất có thể chậm hơn."
   },
   "dvr": {
     "title": "DVR & Tải Xuống",
@@ -1953,7 +1954,7 @@
         "enableHint": "Khi được bật, các phím được ánh xạ sẽ hoạt động như các nút điều khiển. Các phím mũi tên, Enter và Escape được liên kết sẵn với D-Pad và A/B. Các phím chưa được ánh xạ sẽ giữ hoạt động bình thường của chúng. Khi gõ vào ô tìm kiếm, các chữ cái và phím soạn thảo (Enter, Backspace) vẫn hoạt động bình thường, trong khi D-Pad và Escape vẫn đóng vai trò là nút điều khiển để bạn có thể di chuyển ra xa. Bấm vào nút phím bên dưới, sau đó bấm phím bạn muốn gán.",
         "reset": "Đặt lại các ràng buộc chính",
         "pressKey": "Nhấn một phím...",
-        "unmapped": "Chưa được lập bản đồ",
+        "unmapped": "Chưa được gán",
         "unmap": "Hủy liên kết"
       },
       "remoteCustomizer": {

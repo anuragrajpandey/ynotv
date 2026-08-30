@@ -68,7 +68,7 @@ const BOOLEAN_KEYS = new Set([
   'showWatchlist', 'showRecentlyViewed', 'collapseSourceCategoriesOnStartup',
   'showVodAll', 'showVodFavorites', 'showVodPlaylists', 'showVodLocal', 'showVodRecent',
   'useEventBasedReconnect', 'stallDetectionEnabled', 'showLoadingScreen',
-  'transparentGuideHideHeader', 'allowLanSources', 'categorySidebarAutohide', 'v3DefaultMigrated', 'volumePercentDefaultMigrated', 'subAssOverrideDefaultMigrated', 'epgLazyLoadingDefaultMigrated',
+  'transparentGuideHideHeader', 'allowLanSources', 'categorySidebarAutohide', 'v3DefaultMigrated', 'volumePercentDefaultMigrated', 'subAssOverrideDefaultMigrated', 'epgLazyLoadingDefaultMigrated', 'collapseSourceCategoriesOnStartupDefaultMigrated',
   'hdrTonemapToSdr', 'showHdrQuickToggle', 'controllerEnabled', 'controllerBackgroundListening', 'remoteControlEnabled',
 ] as const);
 
@@ -268,6 +268,22 @@ async function hydrateSettingsStore(): Promise<void> {
         }
       }
 
+      // collapseSourceCategoriesOnStartup default ON migration: runs once for
+      // users upgrading or installing. If the flag is missing, force it ON once
+      // and mark the migration done. If a user later turns it off, the flag
+      // stays true, so it will never be forced back on automatically.
+      if (!data.collapseSourceCategoriesOnStartupDefaultMigrated) {
+        data.collapseSourceCategoriesOnStartup = true;
+        data.collapseSourceCategoriesOnStartupDefaultMigrated = true;
+        try {
+          window.storage
+            .updateSettings({ collapseSourceCategoriesOnStartup: true, collapseSourceCategoriesOnStartupDefaultMigrated: true })
+            .catch(() => {});
+        } catch (e) {
+          console.warn('[settingsHydration] Failed to persist collapseSourceCategoriesOnStartupDefaultMigrated:', e);
+        }
+      }
+
       if (data.savedVolume !== undefined) {
         try {
           if (localStorage.getItem('ynotv_volume') === null) {
@@ -307,6 +323,7 @@ async function hydrateSettingsStore(): Promise<void> {
         volumePercentDefaultMigrated: data.volumePercentDefaultMigrated ?? false,
         subAssOverrideDefaultMigrated: data.subAssOverrideDefaultMigrated ?? false,
         epgLazyLoadingDefaultMigrated: data.epgLazyLoadingDefaultMigrated ?? false,
+        collapseSourceCategoriesOnStartupDefaultMigrated: data.collapseSourceCategoriesOnStartupDefaultMigrated ?? false,
         categorySortOrder: data.categorySortOrder ?? 'default',
         includeAllChannelsToPlaylist: data.includeAllChannelsToPlaylist ?? false,
         hideDisabledSources: data.hideDisabledSources ?? false,
@@ -403,7 +420,7 @@ async function hydrateSettingsStore(): Promise<void> {
         showWatchlist: data.showWatchlist ?? true,
         showRecentlyViewed: data.showRecentlyViewed ?? true,
         favoritesMode: data.favoritesMode === 'perSource' || data.favoritesMode === 'both' || data.favoritesMode === 'global' ? data.favoritesMode : 'global',
-        collapseSourceCategoriesOnStartup: data.collapseSourceCategoriesOnStartup ?? false,
+        collapseSourceCategoriesOnStartup: data.collapseSourceCategoriesOnStartup ?? true,
         showVodAll: data.showVodAll ?? true,
         showVodFavorites: data.showVodFavorites ?? true,
         showVodPlaylists: data.showVodPlaylists ?? true,

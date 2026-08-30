@@ -375,7 +375,8 @@
     "programsCount_zero": "{{count}} programa",
     "resultsCount_many": "{{count}} rezultata",
     "resultsCount_two": "{{count}} rezultata",
-    "resultsCount_zero": "{{count}} rezultata"
+    "resultsCount_zero": "{{count}} rezultata",
+    "syncPerformanceNote": "Tokom sinhronizacije, performanse mogu biti sporije."
   },
   "nav": {
     "epgButtons": {
@@ -2412,9 +2413,9 @@
         "title": "Tastatura kao kontroler",
         "description": "Povežite tastere tastature da se pretvaraju da su tasteri kontrolera, tako da HTPC bežična tastatura/daljinski upravljač može upravljati korisničkim interfejsom kontrolera (prostorna navigacija, akordi i mapiranje dugmadi).",
         "enableLabel": "Omogućite tastaturu kao kontroler",
-        "enableHint": "Kada je omogućeno, mapirani tasteri deluju kao tasteri kontrolera. Tasteri sa strelicama, Enter i Escape su prethodno vezani za D-Pad i A/B. Nemapirani ključevi zadržavaju svoje normalno ponašanje. Dok kucate u okviru za pretragu, slova i tasteri za uređivanje (Enter, Backspace) nastavljaju da rade normalno, dok D-Pad i Escape i dalje deluju kao tasteri kontrolera tako da se možete pomeriti. Kliknite na dugme ispod, a zatim pritisnite taster koji želite da dodelite.",
+        "enableHint": "Kada je omogućeno, mapirani tasteri deluju kao tasteri kontrolera. Tasteri sa strelicama, Enter i Escape su prethodno vezani za D-Pad i A/B. Nemapirani tasteri zadržavaju svoje normalno ponašanje. Dok kucate u okviru za pretragu, slova i tasteri za uređivanje (Enter, Backspace) nastavljaju da rade normalno, dok D-Pad i Escape i dalje deluju kao tasteri kontrolera tako da se možete pomeriti. Kliknite na dugme ispod, a zatim pritisnite taster koji želite da dodelite.",
         "reset": "Resetujte veze tastera",
-        "pressKey": "Pritisnite tipku...",
+        "pressKey": "Pritisnite taster...",
         "unmapped": "Nije mapirano",
         "unmap": "Odveži"
       },

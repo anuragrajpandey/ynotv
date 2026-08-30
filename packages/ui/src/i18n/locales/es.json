@@ -375,7 +375,8 @@
     "resultsCount_few": "{{count}} resultados",
     "resultsCount_many": "{{count}} resultados",
     "resultsCount_two": "{{count}} resultados",
-    "resultsCount_zero": "{{count}} resultados"
+    "resultsCount_zero": "{{count}} resultados",
+    "syncPerformanceNote": "Durante la sincronización, el rendimiento puede ser más lento."
   },
   "nav": {
     "epgButtons": {
@@ -2412,11 +2413,11 @@
         "title": "Teclado como controlador",
         "description": "Vincule las teclas del teclado para que pretendan ser botones del controlador, de modo que un teclado/control remoto inalámbrico HTPC pueda controlar la interfaz de usuario del controlador (navegación espacial, acordes y asignaciones de botones).",
         "enableLabel": "Habilitar teclado como controlador",
-        "enableHint": "Cuando están habilitadas, las teclas asignadas actúan como botones del controlador. Las teclas de flecha, Enter y Escape están preconfiguradas en el D-Pad y A/B. Las claves no asignadas mantienen su comportamiento normal. Mientras escribe en un cuadro de búsqueda, las letras y las teclas de edición (Intro, Retroceso) siguen funcionando normalmente, mientras que el D-Pad y Escape siguen actuando como botones del controlador para que pueda alejarse. Haga clic en un botón de tecla a continuación, luego presione la tecla que desea asignar.",
-        "reset": "Restablecer combinaciones de teclas",
+        "enableHint": "Cuando están habilitadas, las teclas asignadas actúan como botones del controlador. Las teclas de flecha, Enter y Escape están preconfiguradas en el D-Pad y A/B. Las teclas no asignadas mantienen su comportamiento normal. Mientras escribe en un cuadro de búsqueda, las letras y las teclas de edición (Intro, Retroceso) siguen funcionando normalmente, mientras que el D-Pad y Escape siguen actuando como botones del controlador para que pueda alejarse. Haga clic en un botón de tecla a continuación, luego presione la tecla que desea asignar.",
+        "reset": "Restablecer asignaciones de teclas",
         "pressKey": "Pulsa una tecla...",
-        "unmapped": "no mapeado",
-        "unmap": "Desatar"
+        "unmapped": "Sin asignar",
+        "unmap": "Desvincular"
       },
       "remoteCustomizer": {
         "title": "Personalización del control remoto del teléfono",

@@ -375,7 +375,8 @@
     "programsCount_two": "{{count}} programy",
     "programsCount_zero": "{{count}} programy",
     "resultsCount_two": "{{count}} wyniki",
-    "resultsCount_zero": "{{count}} wyniki"
+    "resultsCount_zero": "{{count}} wyniki",
+    "syncPerformanceNote": "Podczas synchronizacji wydajność może być wolniejsza."
   },
   "nav": {
     "epgButtons": {
@@ -2415,8 +2416,8 @@
         "enableHint": "Po włączeniu zamapowane klawisze działają jak przyciski kontrolera. Klawisze strzałek, Enter i Escape są wstępnie powiązane z padem kierunkowym i A/B. Niezamapowane klawisze zachowują swoje normalne zachowanie. Podczas wpisywania w polu wyszukiwania litery i klawisze edycyjne (Enter, Backspace) działają normalnie, natomiast D-Pad i Escape nadal działają jak przyciski kontrolera, dzięki czemu możesz się oddalić. Kliknij przycisk klawisza poniżej, a następnie naciśnij klawisz, który chcesz przypisać.",
         "reset": "Zresetuj powiązania klawiszy",
         "pressKey": "Naciśnij klawisz...",
-        "unmapped": "Niezmapowane",
-        "unmap": "Rozwiązać"
+        "unmapped": "Nieprzypisane",
+        "unmap": "Odwiąż"
       },
       "remoteCustomizer": {
         "title": "Personalizacja pilota telefonicznego",

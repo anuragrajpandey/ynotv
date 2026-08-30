@@ -65,11 +65,13 @@ interface UIState {
   tmdbMatching: boolean;
   cacheClearing: boolean;
   syncStatusMessage: string | null;
+  syncProgress: { done: number; total: number } | null;
   setChannelSyncing: (value: boolean) => void;
   setVodSyncing: (value: boolean) => void;
   setTmdbMatching: (value: boolean) => void;
   setCacheClearing: (value: boolean) => void;
   setSyncStatusMessage: (msg: string | null) => void;
+  setSyncProgress: (progress: { done: number; total: number } | null) => void;
 
   // Channel display settings
   channelSortOrder: 'alphabetical' | 'number' | 'provider';
@@ -236,11 +238,13 @@ export const useUIStore = create<UIState>((set) => ({
   tmdbMatching: false,
   cacheClearing: false,
   syncStatusMessage: null,
+  syncProgress: null,
   setChannelSyncing: (value) => set({ channelSyncing: value }),
   setVodSyncing: (value) => set({ vodSyncing: value }),
   setTmdbMatching: (value) => set({ tmdbMatching: value }),
   setCacheClearing: (value) => set({ cacheClearing: value }),
   setSyncStatusMessage: (msg) => set({ syncStatusMessage: msg }),
+  setSyncProgress: (progress) => set({ syncProgress: progress }),
 
   // Channel display settings
   channelSortOrder: 'provider',
@@ -479,6 +483,8 @@ export const useCacheClearing = () => useUIStore((s) => s.cacheClearing);
 export const useSetCacheClearing = () => useUIStore((s) => s.setCacheClearing);
 export const useSyncStatusMessage = () => useUIStore((s) => s.syncStatusMessage);
 export const useSetSyncStatusMessage = () => useUIStore((s) => s.setSyncStatusMessage);
+export const useSyncProgress = () => useUIStore((s) => s.syncProgress);
+export const useSetSyncProgress = () => useUIStore((s) => s.setSyncProgress);
 
 // Channel display settings selectors
 export const useChannelSortOrder = () => useUIStore((s) => s.channelSortOrder);

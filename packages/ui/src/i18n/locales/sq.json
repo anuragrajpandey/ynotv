@@ -375,7 +375,8 @@
     "resultsCount_few": "{{count}} rezultate",
     "resultsCount_many": "{{count}} rezultate",
     "resultsCount_two": "{{count}} rezultate",
-    "resultsCount_zero": "{{count}} rezultate"
+    "resultsCount_zero": "{{count}} rezultate",
+    "syncPerformanceNote": "Gjatë sinkronizimit, performanca mund të jetë më e ngadaltë."
   },
   "nav": {
     "epgButtons": {
@@ -1635,7 +1636,7 @@
       "title": "Zhvendosja në kohë e cache-së",
       "description": "Kur aktivizohet, MPV mban një bufer të lëvizshëm të transmetimit live në memorie, kështu që mund të kthehesh prapa dhe të lëvizësh brenda dritares së cache-së.",
       "enableTimeshift": "Aktivizo zhvendosjen në kohë",
-      "enableTimeshiftSub": "Lejon kthimin prapa të televizionit live deri në kufirin e memories së fshehtë.",
+      "enableTimeshiftSub": "Lejon kthimin prapa të televizionit live brenda dritares së cache-së.",
       "cacheSize": "Madhësia e cache-së",
       "streamQuality": "Cilësia e transmetimit",
       "estimatedWindow": "Dritarja e vlerësuar e kthimit prapa",
@@ -2410,12 +2411,12 @@
       },
       "keyboard": {
         "title": "Tastiera si kontrollues",
-        "description": "Lidhni tastet e tastierës për t'u pretenduar se janë butona të kontrolluesit, kështu që një tastierë/tekomanda me valë HTPC mund të drejtojë ndërfaqen e përdoruesit të kontrolluesit (navigimi hapësinor, akordet dhe hartëzimi i butonave).",
+        "description": "Lidhni tastet e tastierës për t'u pretenduar se janë butona të kontrolluesit, kështu që një tastierë/telekomanda me valë HTPC mund të drejtojë ndërfaqen e përdoruesit të kontrolluesit (navigimi hapësinor, akordet dhe hartëzimi i butonave).",
         "enableLabel": "Aktivizo tastierën si kontrollues",
-        "enableHint": "Kur aktivizohet, çelësat e hartës veprojnë si butona kontrollues. Tastet me shigjeta, Enter dhe Escape janë të lidhur paraprakisht me D-Pad dhe A/B. Çelësat e pahartuar mbajnë sjelljen e tyre normale. Ndërsa shkruani në një kuti kërkimi, shkronjat dhe butonat e redaktimit (Enter, Backspace) vazhdojnë të punojnë normalisht, ndërsa D-Pad dhe Escape ende veprojnë si butona kontrollues që të mund të largoheni. Klikoni një buton tasti më poshtë, më pas shtypni tastin që dëshironi të caktoni.",
-        "reset": "Rivendos lidhjet kryesore",
-        "pressKey": "Shtypni një çelës...",
-        "unmapped": "Pa hartë",
+        "enableHint": "Kur aktivizohen, tastet e hartuara veprojnë si butona kontrollues. Tastet me shigjeta, Enter dhe Escape janë të lidhur paraprakisht me D-Pad dhe A/B. Tastet e pahartuara mbajnë sjelljen e tyre normale. Ndërsa shkruani në një kuti kërkimi, shkronjat dhe tastet e redaktimit (Enter, Backspace) vazhdojnë të punojnë normalisht, ndërsa D-Pad dhe Escape ende veprojnë si butona kontrollues që të mund të largoheni. Klikoni një tast më poshtë, më pas shtypni tastin që dëshironi të caktoni.",
+        "reset": "Rivendos caktimet e tasteve",
+        "pressKey": "Shtypni një tast...",
+        "unmapped": "I pacaktuar",
         "unmap": "Çlidhe"
       },
       "remoteCustomizer": {

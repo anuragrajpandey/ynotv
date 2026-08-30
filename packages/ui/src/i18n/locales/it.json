@@ -375,7 +375,8 @@
     "resultsCount_few": "{{count}} risultati",
     "resultsCount_many": "{{count}} risultati",
     "resultsCount_two": "{{count}} risultati",
-    "resultsCount_zero": "{{count}} risultati"
+    "resultsCount_zero": "{{count}} risultati",
+    "syncPerformanceNote": "Durante la sincronizzazione, le prestazioni potrebbero essere più lente."
   },
   "nav": {
     "epgButtons": {
@@ -2412,11 +2413,11 @@
         "title": "Tastiera come controller",
         "description": "Associa i tasti della tastiera per fingere di essere pulsanti del controller, in modo che una tastiera/telecomando wireless HTPC possa gestire l'interfaccia utente del controller (navigazione spaziale, accordi e mappature dei pulsanti).",
         "enableLabel": "Abilita la tastiera come controller",
-        "enableHint": "Quando abilitati, i tasti mappati fungono da pulsanti del controller. I tasti freccia, Invio ed Esci sono pre-associati al D-Pad e ad A/B. Le chiavi non mappate mantengono il loro comportamento normale. Durante la digitazione in una casella di ricerca, le lettere e i tasti di modifica (Invio, Backspace) continuano a funzionare normalmente, mentre il D-Pad e il tasto Esc continuano a fungere da pulsanti del controller in modo da poterti allontanare. Fai clic sul pulsante di un tasto qui sotto, quindi premi il tasto che desideri assegnare.",
+        "enableHint": "Quando abilitati, i tasti mappati fungono da pulsanti del controller. I tasti freccia, Invio ed Esci sono pre-associati al D-Pad e ad A/B. I tasti non mappati mantengono il loro comportamento normale. Durante la digitazione in una casella di ricerca, le lettere e i tasti di modifica (Invio, Backspace) continuano a funzionare normalmente, mentre il D-Pad e il tasto Esc continuano a fungere da pulsanti del controller in modo da poterti allontanare. Fai clic sul pulsante di un tasto qui sotto, quindi premi il tasto che desideri assegnare.",
         "reset": "Reimposta le associazioni dei tasti",
         "pressKey": "Premi un tasto...",
         "unmapped": "Non mappato",
-        "unmap": "Slegare"
+        "unmap": "Scollega"
       },
       "remoteCustomizer": {
         "title": "Personalizzazione del telecomando del telefono",

@@ -375,7 +375,8 @@
     "resultsCount_few": "{{count}} Ergebnisse",
     "resultsCount_many": "{{count}} Ergebnisse",
     "resultsCount_two": "{{count}} Ergebnisse",
-    "resultsCount_zero": "{{count}} Ergebnisse"
+    "resultsCount_zero": "{{count}} Ergebnisse",
+    "syncPerformanceNote": "Während der Synchronisierung kann die Leistung langsamer sein."
   },
   "nav": {
     "epgButtons": {
@@ -2412,7 +2413,7 @@
         "title": "Tastatur als Controller",
         "description": "Binden Sie Tastaturtasten so, dass sie so tun, als wären sie Controller-Tasten, sodass eine drahtlose HTPC-Tastatur/Fernbedienung die Controller-Benutzeroberfläche (räumliche Navigation, Akkorde und Tastenzuordnungen) steuern kann.",
         "enableLabel": "Aktivieren Sie die Tastatur als Controller",
-        "enableHint": "Wenn diese Option aktiviert ist, fungieren zugeordnete Tasten als Controller-Tasten. Die Pfeiltasten, Enter und Escape sind vorab an das D-Pad und A/B gebunden. Nicht zugeordnete Schlüssel behalten ihr normales Verhalten. Während Sie in ein Suchfeld tippen, funktionieren Buchstaben und Bearbeitungstasten (Eingabetaste, Rücktaste) weiterhin normal, während das Steuerkreuz und die Escape-Taste weiterhin als Controller-Tasten fungieren, sodass Sie sich wegbewegen können. Klicken Sie unten auf eine Tastenschaltfläche und drücken Sie dann die Taste, die Sie zuweisen möchten.",
+        "enableHint": "Wenn diese Option aktiviert ist, fungieren zugeordnete Tasten als Controller-Tasten. Die Pfeiltasten, Enter und Escape sind vorab an das D-Pad und A/B gebunden. Nicht zugeordnete Tasten behalten ihr normales Verhalten. Während Sie in ein Suchfeld tippen, funktionieren Buchstaben und Bearbeitungstasten (Eingabetaste, Rücktaste) weiterhin normal, während das Steuerkreuz und die Escape-Taste weiterhin als Controller-Tasten fungieren, sodass Sie sich wegbewegen können. Klicken Sie unten auf eine Tastenschaltfläche und drücken Sie dann die Taste, die Sie zuweisen möchten.",
         "reset": "Tastenbelegungen zurücksetzen",
         "pressKey": "Drücken Sie eine Taste...",
         "unmapped": "Nicht zugeordnet",

@@ -375,7 +375,8 @@
     "resultsCount_few": "{{count}} results",
     "resultsCount_many": "{{count}} results",
     "resultsCount_two": "{{count}} results",
-    "resultsCount_zero": "{{count}} results"
+    "resultsCount_zero": "{{count}} results",
+    "syncPerformanceNote": "During sync, performance may be slower."
   },
   "nav": {
     "epgButtons": {

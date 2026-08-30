@@ -375,7 +375,8 @@
     "programsCount_zero": "{{count}} програма",
     "resultsCount_many": "{{count}} резултата",
     "resultsCount_two": "{{count}} резултата",
-    "resultsCount_zero": "{{count}} резултата"
+    "resultsCount_zero": "{{count}} резултата",
+    "syncPerformanceNote": "Tokom sinhronizacije, performanse mogu biti sporije."
   },
   "nav": {
     "epgButtons": {
@@ -999,10 +1000,10 @@
       "audioBitrate": "Аудио битрејт",
       "threeColumnView": "Приказ у 3 колоне",
       "threeColumnViewSub": "Замењује временску мрежу EPG траком канала у 3 колоне и распоредом. Независно од подешавања Распоред EPG приказа.",
-      "categorySidebarAutohide": "Automatski sakrij bočnu traku kategorija",
-      "categorySidebarAutohideSub": "Drži bočnu traku kategorija skrivenom i izvuci je preko vodiča kada miš pomerite na levu ivicu. Zatvara se nakon izbora kategorije ili pomeranja miša.",
-      "programFontSize": "Veličina fonta programa",
-      "programNameExample": "Primer naziva programa"
+      "categorySidebarAutohide": "Аутоматски сакриј бочну траку категорија",
+      "categorySidebarAutohideSub": "Држите бочну траку категорија скривеном и извуците је преко водича када миша померите на леву ивицу. Затвара се након избора категорије или померања миша.",
+      "programFontSize": "Величина фонта програма",
+      "programNameExample": "Пример назива програма"
     },
     "subtitles": {
       "tabs": {
@@ -2415,8 +2416,8 @@
         "enableHint": "Када је омогућено, мапирани тастери делују као тастери контролера. Тастери са стрелицама, Ентер и Есцапе су унапред везани за Д-Пад и А/Б. Немапирани тастери задржавају своје нормално понашање. Док куцате у оквиру за претрагу, слова и тастери за уређивање (Ентер, Бацкспаце) настављају да раде нормално, док Д-Пад и Есцапе и даље делују као тастери контролера тако да се можете померити. Кликните на дугме испод, а затим притисните тастер који желите да доделите.",
         "reset": "Ресетујте везе тастера",
         "pressKey": "Притисните тастер...",
-        "unmapped": "Унмаппед",
-        "unmap": "Унбинд"
+        "unmapped": "Немапирано",
+        "unmap": "Одвежи"
       },
       "remoteCustomizer": {
         "title": "Прилагођавање даљинског за телефон",

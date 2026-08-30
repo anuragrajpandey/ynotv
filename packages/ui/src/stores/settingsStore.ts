@@ -209,6 +209,9 @@ export interface SettingsState {
   // One-time flag: first boot after EPG lazy loading became the default forces
   // it ON once, then never overrides the user's choice again.
   epgLazyLoadingDefaultMigrated: boolean;
+  // One-time flag: first boot after "collapse source categories" became the
+  // default forces it ON once, then never overrides the user's choice again.
+  collapseSourceCategoriesOnStartupDefaultMigrated: boolean;
 
   // Category display
   categorySortOrder: 'default' | 'alphabetical';
@@ -928,6 +931,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   volumePercentDefaultMigrated: (cachedSettings?.volumePercentDefaultMigrated as boolean) ?? false,
   subAssOverrideDefaultMigrated: (cachedSettings?.subAssOverrideDefaultMigrated as boolean) ?? false,
   epgLazyLoadingDefaultMigrated: (cachedSettings?.epgLazyLoadingDefaultMigrated as boolean) ?? false,
+  collapseSourceCategoriesOnStartupDefaultMigrated: (cachedSettings?.collapseSourceCategoriesOnStartupDefaultMigrated as boolean) ?? false,
 
   // Category display
   categorySortOrder: 'default',
@@ -1746,7 +1750,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       dispatchAppEvent('ynotv:category-settings-changed', patch);
     }
   },
-  collapseSourceCategoriesOnStartup: false,
+  collapseSourceCategoriesOnStartup: true,
   setCollapseSourceCategoriesOnStartup: (enabled) => {
     set({ collapseSourceCategoriesOnStartup: enabled });
     persistSettings({ collapseSourceCategoriesOnStartup: enabled });

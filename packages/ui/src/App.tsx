@@ -75,6 +75,7 @@ import {
   useSetChannelSyncing,
   useSetVodSyncing,
   useSetSyncStatusMessage,
+  useSetSyncProgress,
   useSetChannelSortOrder,
   useSetChannelSortOrderMigrated,
   useChannelSortOrderMigrated,
@@ -108,6 +109,7 @@ import { currentMonitor, getCurrentWindow, LogicalSize } from '@tauri-apps/api/w
 import { addToRecentChannels } from './utils/recentChannels';
 import { WatchlistNotificationContainer } from './components/WatchlistNotification';
 import { ToastContainer } from './components/Toast';
+import { SyncStatusToast } from './components/SyncStatusToast';
 import { useToastStore } from './stores/toastStore';
 import { MultiviewLayout } from './components/MultiviewLayout/MultiviewLayout';
 import { LayoutPicker } from './components/LayoutPicker/LayoutPicker';
@@ -2594,6 +2596,7 @@ function useTmdbPresencePoster(
   const setChannelSyncing = useSetChannelSyncing();
   const setVodSyncing = useSetVodSyncing();
   const setSyncStatusMessage = useSetSyncStatusMessage();
+  const setSyncProgress = useSetSyncProgress();
   const setChannelSortOrder = useSetChannelSortOrder();
   const setChannelSortOrderMigrated = useSetChannelSortOrderMigrated();
   const channelSortOrderMigrated = useChannelSortOrderMigrated();
@@ -4806,6 +4809,7 @@ function useTmdbPresencePoster(
               const batchNum = Math.floor(i / CONCURRENCY) + 1;
               const totalBatches = Math.ceil(total / CONCURRENCY);
               setSyncStatusMessage(i18n.t('common:syncingBatchWithPrefix', { prefix: statusPrefix, batch: batchNum, total: totalBatches, names: batch.map((s: any) => s.name).join(', ') }));
+              setSyncProgress({ done: batchNum, total: totalBatches });
               await Promise.all(
                 batch.map(async (source: any, idx: number) => {
                   const prefix = `[${i + idx + 1}/${total}] ${source.name}`;
@@ -4846,6 +4850,7 @@ function useTmdbPresencePoster(
                 const batchNum = Math.floor(i / CONCURRENCY) + 1;
                 const totalBatches = Math.ceil(total / CONCURRENCY);
                 setSyncStatusMessage(i18n.t('common:syncingVodBatchWithPrefix', { prefix: statusPrefix, batch: batchNum, total: totalBatches, names: batch.map((s: any) => s.name).join(', ') }));
+                setSyncProgress({ done: batchNum, total: totalBatches });
                 await Promise.all(batch.map((source: any) => syncVodForSource(source)));
               }
               setSyncStatusMessage(null);
@@ -4864,6 +4869,7 @@ function useTmdbPresencePoster(
         isAutoSyncingRef.current = false;
         setChannelSyncing(false);
         setVodSyncing(false);
+        setSyncProgress(null);
       }
     };
 
@@ -4877,7 +4883,7 @@ function useTmdbPresencePoster(
 
     // Cleanup interval on unmount
     return () => clearInterval(intervalId);
-  }, [setChannelSortOrder, setChannelSyncing, setVodSyncing, setSyncStatusMessage]);
+  }, [setChannelSortOrder, setChannelSyncing, setVodSyncing, setSyncStatusMessage, setSyncProgress]);
 
   // ==========================================================================
   // Window Size Initialization
@@ -6677,6 +6683,9 @@ function useTmdbPresencePoster(
 
       {/* Sync Toast Notifications */}
       <ToastContainer />
+
+      {/* Active sync status toast (mirrors the hero screen sync indicator) */}
+      <SyncStatusToast />
 
       {/* Popout Player Control Bar */}
       {popoutIsOpen && (

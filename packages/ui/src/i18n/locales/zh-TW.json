@@ -375,7 +375,8 @@
     "resultsCount_few": "{{count}} 個結果",
     "resultsCount_many": "{{count}} 個結果",
     "resultsCount_two": "{{count}} 個結果",
-    "resultsCount_zero": "{{count}} 個結果"
+    "resultsCount_zero": "{{count}} 個結果",
+    "syncPerformanceNote": "同步期間，效能可能會變慢。"
   },
   "nav": {
     "epgButtons": {

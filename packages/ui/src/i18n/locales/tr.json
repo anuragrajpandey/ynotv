@@ -375,7 +375,8 @@
     "resultsCount_few": "{{count}} sonuç",
     "resultsCount_many": "{{count}} sonuç",
     "resultsCount_two": "{{count}} sonuç",
-    "resultsCount_zero": "{{count}} sonuç"
+    "resultsCount_zero": "{{count}} sonuç",
+    "syncPerformanceNote": "Senkronizasyon sırasında performans daha yavaş olabilir."
   },
   "nav": {
     "epgButtons": {
@@ -2412,7 +2413,7 @@
         "title": "Denetleyici Olarak Klavye",
         "description": "Klavye tuşlarını denetleyici düğmeleri gibi davranacak şekilde bağlayın; böylece bir HTPC kablosuz klavye/uzaktan kumanda, denetleyici kullanıcı arayüzünü (uzaysal gezinme, akorlar ve düğme eşlemeleri) çalıştırabilir.",
         "enableLabel": "Klavyeyi Denetleyici Olarak Etkinleştir",
-        "enableHint": "Etkinleştirildiğinde, eşlenen tuşlar denetleyici düğmeleri görevi görür. Ok tuşları, Enter ve Escape, D-Pad'e ve A/B'ye önceden bağlanmıştır. Eşlenmemiş anahtarlar normal davranışlarını korur. Bir arama kutusuna yazarken harfler ve düzenleme tuşları (Enter, Backspace) normal şekilde çalışmaya devam ederken, D-Pad ve Escape hâlâ kontrol düğmeleri gibi davranarak uzaklaşabilmenizi sağlar. Aşağıdaki tuşlardan birini tıklayın, ardından atamak istediğiniz tuşa basın.",
+        "enableHint": "Etkinleştirildiğinde, eşlenen tuşlar denetleyici düğmeleri görevi görür. Ok tuşları, Enter ve Escape, D-Pad'e ve A/B'ye önceden bağlanmıştır. Eşlenmemiş tuşlar normal davranışlarını korur. Bir arama kutusuna yazarken harfler ve düzenleme tuşları (Enter, Backspace) normal şekilde çalışmaya devam ederken, D-Pad ve Escape hâlâ kontrol düğmeleri gibi davranarak uzaklaşabilmenizi sağlar. Aşağıdaki tuşlardan birini tıklayın, ardından atamak istediğiniz tuşa basın.",
         "reset": "Tuş Bağlantılarını Sıfırla",
         "pressKey": "Bir tuşa basın...",
         "unmapped": "Eşlenmemiş",
