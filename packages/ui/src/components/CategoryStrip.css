@@ -1188,6 +1188,26 @@
   color: var(--text-primary, #fff);
 }
 
+/* ---------------------------------------------------------------------------
+   Sidebar row virtualization (CSS-only). With many sources expanded the sidebar
+   holds thousands of rows; the browser pays layout/paint for all of them on
+   every scroll/interaction. content-visibility: auto makes the browser skip
+   off-screen rows entirely (same trick already used for EPG program blocks).
+
+   Applied ONLY to ordinary (non-pinned) category rows. Source headers, folder
+   headers, and pinned categories rely on position: sticky (source/folder
+   headers are sticky when expanded; pinned rows stick via the sortable
+   wrapper) and content-visibility containment on sticky elements is risky in
+   Chromium, so those are excluded and sticky pins keep working exactly as
+   before. Non-pinned rows are the overwhelming majority, so the rendering win
+   is unchanged. Fixed row heights make the intrinsic-size hints exact. Pure
+   rendering hint — no visual change.
+   --------------------------------------------------------------------------- */
+.category-strip-scrollable .category-item.nested:not(.is-pinned) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 38px;
+}
+
 .category-folder-group.is-expanded .category-folder-header {
   position: var(--cat-folder-expanded-pos, static);
   top: var(--cat-folder-expanded-top, auto);
@@ -1251,6 +1271,76 @@
 .category-item.nested.folder-nested {
   /* Match the indent of regular nested categories instead of the extra folder indent */
   padding-left: var(--cat-item-nested-padding-left, 28px) !important;
+}
+
+/* Virtualized pinned overlay (Slice 3, flag-gated path only).
+   The container is height:0 + overflow:visible sticky so it sits on top of the
+   scrolled list without reserving any vertical space (no scrollbar jump). Rows
+   are absolutely positioned with cumulative tops (computed in TS) and get an
+   opaque, full-width background so scrolled content never shows through. */
+.virtualized-pins .virtualized-pin-row {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--cat-pin-stack-bg, rgba(18, 18, 23, 0.98));
+}
+
+.virtualized-pins .virtualized-pin-row > * {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.virtualized-pin-slot-spacer {
+  width: 100%;
+  display: block;
+  height: 0; /* height set inline to the pinned row height */
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+/* Virtualized pointer drag (Slice 4). The in-place node is dimmed while
+   dragging (DragOverlay carries the moving copy), and the drop indicator
+   mirrors the legacy .sortable-sidebar-item lines. */
+.virtual-sortable-row {
+  position: relative;
+  user-select: none;
+  height: 100%;
+}
+
+.virtual-sortable-row.drop-above::before,
+.virtual-sortable-row.drop-below::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--accent-primary, #00d4ff);
+  border-radius: 1px;
+  pointer-events: none;
+  box-shadow: 0 0 6px rgba(0, 212, 255, 0.6);
+  z-index: 100;
+}
+
+.virtual-sortable-row.drop-above::before {
+  top: -1px;
+}
+
+.virtual-sortable-row.drop-below::after {
+  bottom: -1px;
+}
+
+.virtual-drag-overlay {
+  width: var(--category-strip-width, 260px);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  background: var(--cat-item-pinned-bg, rgba(20, 20, 25, 0.98));
+  /* Presentation-only copy: the live row is still mounted (dimmed) in the list,
+     so the overlay must never receive clicks/context-menus. RenderRow carries
+     the row's own onClick/onContextMenu handlers; making the copy inert keeps a
+     short-drag release from selecting or opening the context menu via overlay. */
+  pointer-events: none;
 }
 
 

@@ -6,6 +6,12 @@ export interface VirtualListHandle {
   getVirtualItems: () => Array<{ index: number; start: number; size: number }>;
 }
 
+export interface VirtualListItemMeasurement {
+  index: number;
+  start: number;
+  size: number;
+}
+
 export interface VirtualListProps<T> {
   items: T[];
   scrollRef?: RefObject<HTMLElement | null>;
@@ -16,6 +22,8 @@ export interface VirtualListProps<T> {
   className?: string;
   style?: React.CSSProperties;
   onRangeChange?: (range: { startIndex: number; endIndex: number }) => void;
+  /** Live positions/sizes for mounted (including overscanned) rows. */
+  onVirtualItemsChange?: (items: VirtualListItemMeasurement[]) => void;
 }
 
 function VirtualListComponent<T>(
@@ -29,6 +37,7 @@ function VirtualListComponent<T>(
     className = '',
     style,
     onRangeChange,
+    onVirtualItemsChange,
   }: VirtualListProps<T>,
   ref: React.ForwardedRef<VirtualListHandle>
 ) {
@@ -73,6 +82,11 @@ function VirtualListComponent<T>(
       endIndex: last ? last.index : 0,
     });
   }, [virtualItems, onRangeChange]);
+
+  useEffect(() => {
+    if (!onVirtualItemsChange) return;
+    onVirtualItemsChange(virtualItems.map(({ index, start, size }) => ({ index, start, size })));
+  }, [virtualItems, onVirtualItemsChange]);
 
   if (items.length === 0) return null;
 

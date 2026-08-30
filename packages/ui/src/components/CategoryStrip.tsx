@@ -1,4 +1,4 @@
-import { Fragment, createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect, memo } from 'react';
+import { Fragment, Component, createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect, memo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { createPortal } from 'react-dom';
@@ -27,8 +27,9 @@ import { EpgEditorModal } from './EpgEditorModal';
 import { LogoEditorModal } from './LogoEditorModal';
 import { clearRecentChannels } from '../utils/recentChannels';
 import { useCategorySortOrder, useIncludeAllChannelsToPlaylist, useSidebarDragHotkey } from '../stores/uiStore';
-import { getCustomizedCategorySortOrders, setCategorySortCustomized } from '../utils/categorySortOverrides';
-import { comparePlaylistCategory, compareSidebarCategory, compareSidebarFolder } from '../utils/categorySortRules';
+import { setCategorySortCustomized } from '../utils/categorySortOverrides';
+import { buildSidebarRows, computeStickyOverlay, resolveOwnerDragState, ownerOfRow, type SidebarRow, type LinkRow, type FolderHeaderRow, type SpecialRow } from '../utils/sidebarRowModel';
+import { compareSidebarFolder } from '../utils/categorySortRules';
 import {
   DndContext,
   PointerSensor,
@@ -36,6 +37,7 @@ import {
   useSensor,
   useSensors,
   closestCenter,
+  DragOverlay,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -48,6 +50,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { VirtualList, type VirtualListHandle, type VirtualListItemMeasurement } from './common/VirtualList';
 import './CategoryStrip.css';
 
 function SortableSidebarItem({ id, children, disabled, className = '', stickyStyle, dropIndicator = null }: { id: string; children: React.ReactNode; disabled?: boolean; className?: string; stickyStyle?: React.CSSProperties; dropIndicator?: 'above' | 'below' | null }) {
@@ -140,6 +143,78 @@ function parseCategoryIds(raw: string | string[] | number[] | undefined): string
 }
 
 const CategoryStripVisibilityContext = createContext(true);
+
+// --- Virtualized-sidebar feature gate (ON by default) ----------------------
+// Opt-out: the virtualized renderer is the default; set
+// localStorage['ynotv.virtualized-sidebar'] to '0' (off switch) and reload to
+// force legacy. The fallback boundary below also persists '0' and reloads into
+// legacy automatically if the virtualized path ever crashes on a user's data.
+function useVirtualizedSidebar(): boolean {
+  // Opt-out default: enabled unless explicitly disabled with '0' (missing,
+  // malformed, or '1' all enable it). '0' is the off switch — set it manually
+  // to fall back, or rely on the fallback boundary which persists '0' and
+  // reloads into legacy if the virtualized path ever crashes on a user's data.
+  // Read once at mount; a re-toggle requires reload.
+  return useState(() => {
+    try {
+      return window.localStorage.getItem('ynotv.virtualized-sidebar') !== '0';
+    } catch {
+      return true;
+    }
+  })[0];
+}
+
+// Safety net for the flag-on path: if the virtualized renderer ever crashes on
+// a user's data (an unusual playlist/folder shape the mock can't cover), the
+// sidebar must not brick. On error we persist ynotv.virtualized-sidebar=0 and
+// reload once, so the legacy renderer boots cleanly — never a dead sidebar.
+class VirtualizedSidebarFallback extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  private reloaded = false;
+
+  static getDerivedStateFromError() {
+    try {
+      window.localStorage.setItem('ynotv.virtualized-sidebar', '0');
+    } catch {
+      /* ignore storage failures */
+    }
+    return { failed: true };
+  }
+
+  componentDidCatch(err: unknown) {
+    console.error('[virtualized-sidebar] crashed; falling back to legacy renderer', err);
+    if (!this.reloaded) {
+      this.reloaded = true;
+      setTimeout(() => window.location.reload(), 0);
+    }
+  }
+
+  render() {
+    if (this.state.failed) return null;
+    return this.props.children;
+  }
+}
+
+// Row height estimator drives the single scroll-container virtualizer. These
+// match the fixed CSS heights exactly and are unchanged by the compact media
+// query (which only tweaks padding/font): source/playlist header 40px, folder
+// header 34px, category/link row 38px. The empty-playlist hint is an unwrapped
+// div (~40px); TanStack re-measures every mounted row so the estimate is just a
+// scrollbar/offset seed, and the fixed 40/38/34 rows self-correct immediately.
+const rowHeightFor = (row: SidebarRow): number => {
+  if (row.type === 'source' || row.type === 'playlist') return 40;
+  if (row.type === 'folder') return 34;
+  if (row.type === 'special' && row.kind === 'empty') return 40;
+  return 38;
+};
+
+// Explicit pin-stack policy. Overlay pins currently start at the viewport top
+// because source headers are NOT sticky in the virtualized slice — there is no
+// header above a pin to reserve. If a later slice makes source headers sticky,
+// this base is where the stack should move beneath the header (e.g. 40px); only
+// then change this constant (and its comment) rather than relying on the
+// current absence of sticky headers.
+
 
 // Component that detects text overflow and only scrolls when necessary
 function ScrollingText({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -487,20 +562,17 @@ function SidebarFolderHeader({
 // scope is now received as a prop; the handler/drag props are useCallback-stable
 // in CategoryStrip so React.memo isn't defeated by newly-created closures.
 // ---------------------------------------------------------------------------
+// Stable fallback for owners without rows (RealSourceContent is only rendered
+// while its source is expanded, so this is purely a safety net).
+const EMPTY_ROWS: SidebarRow[] = [];
+
 interface RealSourceContentProps {
   sourceId: string;
   sourceName: string;
-  sourceCount: number;
+  /** This source's flattened row slice from buildSidebarRows (stable per-owner). */
+  rows: SidebarRow[];
   categories: CategoryWithCount[];
-  categorySortOrder: ReturnType<typeof useCategorySortOrder>;
-  categoryChannelCounts: Map<string, number>;
-  manualCategoryChannelCounts?: Map<string, number>;
-  categoryNamesMap: Map<string, string>;
   allPlaylistCategoryLinks: PlaylistCategoryLink[];
-  flatPlaylistIndividualCounts?: Map<string, number>;
-  perSourceFavoriteCounts?: Map<string, number>;
-  favoritesMode: string;
-  includeAllChannelsToPlaylist: boolean;
   selectedCategoryId: string | null;
   onSelectCategory: (categoryId: string | null) => void;
   pinnedCategories: string[];
@@ -525,17 +597,9 @@ const RealSourceContent = memo(function RealSourceContent(props: RealSourceConte
   const {
     sourceId,
     sourceName,
-    sourceCount,
+    rows,
     categories,
-    categorySortOrder,
-    categoryChannelCounts,
-    manualCategoryChannelCounts,
-    categoryNamesMap,
     allPlaylistCategoryLinks,
-    flatPlaylistIndividualCounts,
-    perSourceFavoriteCounts,
-    favoritesMode,
-    includeAllChannelsToPlaylist,
     selectedCategoryId,
     onSelectCategory,
     pinnedCategories,
@@ -571,85 +635,80 @@ const RealSourceContent = memo(function RealSourceContent(props: RealSourceConte
           customLink?: PlaylistCategoryLink;
         }
 
-        const list: UnifiedSidebarCat[] = [];
-
-        // Add native categories
-        for (const cat of categories) {
-          const manualCount = manualCategoryChannelCounts?.get(`${sourceId}:${cat.category_id}`) || 0;
-          list.push({
-            id: cat.category_id,
-            type: 'native',
-            name: cat.alias || cat.category_name,
-            count: cat.channelCount + manualCount,
-            displayOrder: cat.display_order ?? 0,
-            folderId: cat.folder_id || null,
-            nativeCat: cat
-          });
-        }
-
-        // Add custom links
+        // Build the ordered category/link list from the flattened row model.
+        // The model already applied sidebar ordering + folder partitioning, so
+        // the renderer only needs to resolve the row back to the full DB object
+        // (needed for dnd persistence) and render the same JSX as before.
         const customLinks = (allPlaylistCategoryLinks || [])
           .filter(l => l.playlist_id === sourceId);
-        for (const link of customLinks) {
-          const nativeCount = categoryChannelCounts.get(link.category_id) || 0;
-          const manualCount = manualCategoryChannelCounts?.get(`${sourceId}:link:${link.id}`) || 0;
-          list.push({
-            id: `link:${link.id}`,
-            type: 'link',
-            name: link.custom_name || (categoryNamesMap.get(link.category_id) || link.category_id),
-            count: nativeCount + manualCount,
-            displayOrder: link.display_order ?? 0,
-            folderId: link.folder_id || null,
-            customLink: link
-          });
+        const nativeById = new Map(categories.map(c => [c.category_id, c]));
+        const linkById = new Map(customLinks.map(l => [l.id, l]));
+
+        const list: UnifiedSidebarCat[] = [];
+        for (const row of rows) {
+          if (row.type === 'category') {
+            const cat = nativeById.get(row.categoryId);
+            if (!cat) continue;
+            list.push({
+              id: cat.category_id,
+              type: 'native',
+              name: row.name,
+              count: row.count,
+              displayOrder: cat.display_order ?? 0,
+              folderId: row.folderId,
+              nativeCat: cat
+            });
+          } else if (row.type === 'link') {
+            const link = linkById.get(row.linkId);
+            if (!link) continue;
+            list.push({
+              id: `link:${link.id}`,
+              type: 'link',
+              name: row.name,
+              count: row.count,
+              displayOrder: link.display_order ?? 0,
+              folderId: row.folderId,
+              customLink: link
+            });
+          }
         }
-
-        // Sort with the canonical sidebar rule (shared with the
-        // phone-remote companion so both orderings agree).
-        list.sort((a, b) =>
-          compareSidebarCategory(
-            { id: a.id, name: a.name, displayOrder: a.displayOrder },
-            { id: b.id, name: b.name, displayOrder: b.displayOrder },
-            {
-              categorySortOrder,
-              pinnedCategories: new Set(pinnedCategories),
-              customizedSourceIds: new Set(getCustomizedCategorySortOrders()),
-            },
-            sourceId
-          )
-        );
-
-        const individualCount = flatPlaylistIndividualCounts?.get(sourceId) || 0;
 
         return (
           <>
-            {includeAllChannelsToPlaylist && (
-              <button
-                key={`__allsrc_${sourceId}`}
-                className={`category-item nested ${selectedCategoryId === `__allsrc_${sourceId}` ? 'selected' : ''}`}
-                onClick={() => onSelectCategory(`__allsrc_${sourceId}`)}
-              >
-                <ScrollingText className="category-name">{t('allChannels')}</ScrollingText>
-                <span className="category-count">{sourceCount}</span>
-              </button>
-            )}
-            {(favoritesMode === 'perSource' || favoritesMode === 'both') && (perSourceFavoriteCounts?.get(sourceId) || 0) > 0 && (
-              <button
-                key={`__favsrc_${sourceId}`}
-                className={`category-item nested favorites-source-item ${selectedCategoryId === `__favsrc_${sourceId}` ? 'selected' : ''}`}
-                onClick={() => onSelectCategory(`__favsrc_${sourceId}`)}
-              >
-                <div className="nested-category-wrapper">
-                  <span className="category-icon favorites-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                    </svg>
-                  </span>
-                  <ScrollingText className="category-name">{t('favorites')}</ScrollingText>
-                </div>
-                <span className="category-count">{perSourceFavoriteCounts?.get(sourceId) ?? 0}</span>
-              </button>
-            )}
+            {rows.filter((r): r is SpecialRow => r.type === 'special' && r.kind !== 'individual').map((s) => {
+              if (s.kind === 'allChannels') {
+                return (
+                  <button
+                    key={s.key}
+                    className={`category-item nested ${selectedCategoryId === s.key ? 'selected' : ''}`}
+                    onClick={() => onSelectCategory(s.key)}
+                  >
+                    <ScrollingText className="category-name">{t('allChannels')}</ScrollingText>
+                    <span className="category-count">{s.count}</span>
+                  </button>
+                );
+              }
+              if (s.kind === 'favorites') {
+                return (
+                  <button
+                    key={s.key}
+                    className={`category-item nested favorites-source-item ${selectedCategoryId === s.key ? 'selected' : ''}`}
+                    onClick={() => onSelectCategory(s.key)}
+                  >
+                    <div className="nested-category-wrapper">
+                      <span className="category-icon favorites-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                      </span>
+                      <ScrollingText className="category-name">{t('favorites')}</ScrollingText>
+                    </div>
+                    <span className="category-count">{s.count}</span>
+                  </button>
+                );
+              }
+              return null;
+            })}
             {(() => {
               let pinStackTop = 40;
               // Only advance the pin stack for actually-pinned items so that
@@ -827,23 +886,628 @@ const RealSourceContent = memo(function RealSourceContent(props: RealSourceConte
               );
             })()}
 
-            {individualCount > 0 && (
+            {rows.filter((r): r is SpecialRow => r.type === 'special' && r.kind === 'individual').map((s) => (
               <button
+                key={s.key}
                 className={`category-item nested playlist-indiv-item ${
-                  selectedCategoryId === `__plindiv_${sourceId}` ? 'selected' : ''
+                  selectedCategoryId === s.key ? 'selected' : ''
                 }`}
-                onClick={() => onSelectCategory(`__plindiv_${sourceId}`)}
+                onClick={() => onSelectCategory(s.key)}
               >
                 <ScrollingText className="category-name">{t('individualChannels')}</ScrollingText>
-                <span className="category-count">{individualCount}</span>
+                <span className="category-count">{s.count}</span>
               </button>
-            )}
+            ))}
           </>
         );
       })()}
     </div>
   );
 });
+
+// ---------------------------------------------------------------------------
+// Slice 1-3 (flag-gated, OFF by default): flattened virtualized renderer.
+// Renders the SAME SidebarRow[] the shared model produces, through a single
+// TanStack virtualizer on the .category-strip-scrollable container, so only
+// visible rows are mounted regardless of how many sources/categories are
+// expanded.
+//   * Dragging is intentionally disabled; pointer drag via DragOverlay +
+//     auto-scroll lands in a later slice.
+//   * Pinned rows keep their natural slot (a same-height spacer once their row
+//     is "stuck") and their single live copy renders in a sticky top overlay
+//     that stacks with cumulative tops. Overlay pins start at top: 0 on purpose:
+//     source headers are not sticky in virtual mode, so there is no header to
+//     reserve above them until a future slice adds sticky headers.
+//   * The playlist/group wrappers (.category-folder-group /
+//     .category-folder-content) and dnd sortable wrappers are intentionally
+//     flattened away by virtualization; grouping backgrounds and drag return
+//     with the pointer-drag slice. This is a documented parity gap, not a bug.
+// Each row reproduces the existing JSX/classes/handlers as closely as the flat
+// model allows; anything we can't faithfully virtualize should fail the golden
+// parity tests or a visual pass, never silently.
+// ---------------------------------------------------------------------------
+interface VirtualizedSidebarContentProps {
+  rows: SidebarRow[];
+  /** Search-filtered source groups (raw CategoryWithCount objects for drag persistence). */
+  groupedCategories: SourceWithCategories[];
+  sources: Record<string, string>;
+  customPlaylists: CustomPlaylist[] | null | undefined;
+  allPlaylistCategoryLinks: PlaylistCategoryLink[] | null;
+  allCategoryFolders: CategoryFolder[] | null;
+  selectedCategoryId: string | null;
+  visible: boolean;
+  onSelectCategory: (id: string | null) => void;
+  toggleSource: (id: string) => void;
+  togglePlaylist: (id: string) => void;
+  toggleFolder: (id: string) => void;
+  onCategoryContextMenu: (e: React.MouseEvent, categoryId: string, categoryName: string, sourceId: string, sourceName: string) => void;
+  onFolderContextMenu: (menu: { x: number; y: number; folderId: string; folderName: string; sourceId: string; sourceName: string } | null) => void;
+  onPlaylistContextMenu: (e: React.MouseEvent, playlistId: string, playlistName: string) => void;
+  onSourceContextMenu: (e: React.MouseEvent, sourceId: string, sourceName: string) => void;
+  setEditingPlaylist: (playlist: { id: string; name: string } | null) => void;
+  scrollRef: React.RefObject<HTMLElement | null>;
+  // dnd-kit wiring (Slice 4, pointer-only, hotkey-gated like the legacy path).
+  isDragActive: boolean;
+  activeDragId: string | null;
+  overDragId: string | null;
+  onDragStart: (event: DragStartEvent) => void;
+  onDragOver: (event: DragOverEvent) => void;
+  onDragCancel: () => void;
+  onCategoryDragEnd: (sourceId: string, currentList: { id: string | number; type: 'native' | 'link'; nativeCat?: any; customLink?: any }[], event: DragEndEvent) => Promise<void>;
+}
+
+// Per-row dnd-kit wrapper for the virtualized list (Slice 4). Uses the row's
+// globally-unique flat key as the sortable id. With DragOverlay the moving copy
+// is rendered outside the list, so the in-place node is only dimmed while
+// dragging (no transform — the virtualizer owns absolute positioning).
+function VirtualSortableRow({
+  rowKey,
+  dragActive,
+  activeDragId,
+  overDragId,
+  sortableIds,
+  ownerId,
+  activeOwnerId,
+  children,
+}: {
+  rowKey: string;
+  dragActive: boolean;
+  activeDragId: string | null;
+  overDragId: string | null;
+  sortableIds: string[];
+  ownerId: string;
+  activeOwnerId: string | null;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, attributes, listeners, isDragging } = useSortable({
+    id: rowKey,
+    disabled: !dragActive,
+  });
+  const activeIdx = activeDragId ? sortableIds.indexOf(activeDragId) : -1;
+  const overIdx = overDragId ? sortableIds.indexOf(overDragId) : -1;
+  // Only advertise a drop when the over-target belongs to the SAME owner as the
+  // dragged row; cross-owner drags are a no-op in persistence and must not show
+  // an insertion line (audit: cross-owner indicators advertised a fake drop).
+  const dropIndicator =
+    overDragId === rowKey && activeDragId !== rowKey && activeOwnerId === ownerId
+      ? activeIdx < overIdx ? 'below' : 'above'
+      : null;
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={`virtual-sortable-row${dropIndicator ? ` drop-${dropIndicator}` : ''}`}
+      style={{ opacity: isDragging ? 0.35 : 1, touchAction: 'none', height: '100%' }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          e.currentTarget.querySelector<HTMLButtonElement>('button')?.click();
+        }
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function VirtualizedSidebarContent({
+  rows,
+  groupedCategories,
+  sources,
+  customPlaylists,
+  allPlaylistCategoryLinks,
+  allCategoryFolders,
+  selectedCategoryId,
+  visible,
+  onSelectCategory,
+  toggleSource,
+  togglePlaylist,
+  toggleFolder,
+  onCategoryContextMenu,
+  onFolderContextMenu,
+  onPlaylistContextMenu,
+  onSourceContextMenu,
+  setEditingPlaylist,
+  scrollRef,
+  isDragActive,
+  activeDragId,
+  overDragId,
+  onDragStart,
+  onDragOver,
+  onDragCancel,
+  onCategoryDragEnd,
+}: VirtualizedSidebarContentProps) {
+  const { t } = useTranslation('live');
+
+  // Pointer-only (no KeyboardSensor per product decision). Small distance
+  // activation so plain clicks still select; the hotkey gate (isDragActive)
+  // matches the legacy sidebar's hold-to-drag UX.
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const playlistById = useMemo(() => {
+    const m = new Map<string, CustomPlaylist>();
+    for (const p of customPlaylists ?? []) m.set(p.playlist_id, p);
+    return m;
+  }, [customPlaylists]);
+  const linkById = useMemo(() => {
+    const m = new Map<number, PlaylistCategoryLink>();
+    for (const l of allPlaylistCategoryLinks ?? []) {
+      if (l.id !== undefined) m.set(l.id, l);
+    }
+    return m;
+  }, [allPlaylistCategoryLinks]);
+  const nativeById = useMemo(() => {
+    const m = new Map<string, CategoryWithCount>();
+    for (const g of groupedCategories) {
+      for (const c of g.categories) m.set(c.category_id, c);
+    }
+    return m;
+  }, [groupedCategories]);
+  const folderById = useMemo(() => {
+    const m = new Map<string, CategoryFolder>();
+    for (const f of allCategoryFolders ?? []) m.set(f.folder_id, f);
+    return m;
+  }, [allCategoryFolders]);
+
+  // A link/folder owner is a "real" source when it has a `sources` entry;
+  // otherwise it's a custom playlist. Used to reproduce the per-branch indent:
+  // playlist link folder-children get an extra 32px inline indent, real-source
+  // folder children use the default .folder-nested indent only.
+  const ownerName = (ownerId: string): string =>
+    sources[ownerId] || playlistById.get(ownerId)?.name || ownerId;
+
+  // Map the selectedCategoryId back to a flattened row index so the virtualizer
+  // can scroll to it. Mirrors the legacy DOM-scan (.category-item.selected):
+  // native categories select by raw category_id, links by `__plcat_<id>`, and
+  // special rows (allChannels/favorites/individual) select by their row key.
+  // The row may be absent when its source/playlist is collapsed or filtered out.
+  const matchesSelected = (row: SidebarRow, sel: string): boolean => {
+    if (row.key === sel) return true;
+    if (row.type === 'category' && row.categoryId === sel) return true;
+    if (row.type === 'link') return `__plcat_${row.linkId}` === sel;
+    return false;
+  };
+
+  const vlistRef = useRef<VirtualListHandle>(null);
+  const pendingScrollRef = useRef<boolean>(false);
+  const prevSelectedRef = useRef(selectedCategoryId);
+  // Scroll the selected row into view on open / selection change, retrying until
+  // rows arrive (mirrors CategoryStrip's pendingScrollRef semantics).
+  useLayoutEffect(() => {
+    if (!visible) {
+      pendingScrollRef.current = true;
+      prevSelectedRef.current = selectedCategoryId;
+      return;
+    }
+    const changed = prevSelectedRef.current !== selectedCategoryId;
+    prevSelectedRef.current = selectedCategoryId;
+    if (!selectedCategoryId) {
+      pendingScrollRef.current = false;
+      return;
+    }
+    if (!changed && !pendingScrollRef.current) return;
+    const idx = rows.findIndex((r) => matchesSelected(r, selectedCategoryId));
+    if (idx === -1) {
+      pendingScrollRef.current = true;
+      return;
+    }
+    pendingScrollRef.current = false;
+    vlistRef.current?.scrollToIndex({ index: idx, align: 'auto', behavior: 'auto' });
+  }, [visible, selectedCategoryId, rows]);
+
+  const renderRow = (row: SidebarRow) => {
+    switch (row.type) {
+      case 'source':
+        return (
+          <button
+            key={row.key}
+            className="category-source-header"
+            onClick={() => toggleSource(row.sourceId)}
+            onContextMenu={(e) => onSourceContextMenu(e, row.sourceId, row.name)}
+          >
+            <div className="source-header-left">
+              <ChevronIcon expanded={row.expanded} />
+              <div className="source-name-container">
+                <ScrollingText className="source-name">{row.name}</ScrollingText>
+              </div>
+            </div>
+            <span className="source-count">{row.count}</span>
+          </button>
+        );
+
+      case 'playlist':
+        return (
+          <button
+            key={row.key}
+            className="category-source-header playlist-source-header"
+            onClick={() => togglePlaylist(row.playlistId)}
+            onContextMenu={(e) => onPlaylistContextMenu(e, row.playlistId, row.name)}
+          >
+            <div className="source-header-left">
+              <ChevronIcon expanded={row.expanded} />
+              <div className="source-name-container">
+                <ScrollingText className="source-name">{row.name}</ScrollingText>
+              </div>
+            </div>
+            <span className="source-count">{row.count}</span>
+          </button>
+        );
+
+      case 'folder': {
+        const folder = folderById.get(row.folderId);
+        if (!folder) return null;
+        return (
+          <SidebarFolderHeader
+            key={row.key}
+            folder={folder}
+            isFolderExpanded={row.expanded}
+            folderCount={row.count}
+            isPinned={row.pinned}
+            onToggle={() => toggleFolder(row.folderId)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onFolderContextMenu({
+                x: e.clientX,
+                y: e.clientY,
+                folderId: row.folderId,
+                folderName: row.name,
+                sourceId: row.ownerId,
+                sourceName: ownerName(row.ownerId),
+              });
+            }}
+            data-folder-id={row.folderId}
+          />
+        );
+      }
+
+      case 'category':
+        return (
+          <button
+            key={row.key}
+            className={`category-item nested ${row.folderChild ? 'folder-nested' : ''} ${selectedCategoryId === row.categoryId ? 'selected' : ''} ${row.pinned ? 'is-pinned' : ''}`}
+            onClick={() => onSelectCategory(row.categoryId)}
+            onContextMenu={(e) => onCategoryContextMenu(e, row.categoryId, row.name, row.sourceId, ownerName(row.sourceId))}
+          >
+            <div className="nested-category-wrapper">
+              {row.pinned && (
+                <span className="category-pin-icon">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ transform: 'rotate(45deg)' }}>
+                    <path d="M16 12V4H17V2H7V4H8V12L6 14V16H11.2V22H12.8V16H18V14L16 12Z" />
+                  </svg>
+                </span>
+              )}
+              <ScrollingText className="category-name">{row.name}</ScrollingText>
+            </div>
+            <span className="category-count">{row.count}</span>
+          </button>
+        );
+
+      case 'link': {
+        const link = linkById.get(row.linkId);
+        if (!link) return null;
+        const isRealOwner = row.playlistId in sources;
+        const innerStyle: React.CSSProperties | undefined =
+          row.folderChild && !isRealOwner ? { paddingLeft: '32px' } : undefined;
+        return (
+          <PlaylistCategoryLinkItem
+            key={row.key}
+            link={link}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={onSelectCategory}
+            displayName={row.name}
+            channelCount={row.count}
+            isPinned={row.pinned}
+            onContextMenu={(e) => onCategoryContextMenu(e, `link:${link.id}`, row.name, row.playlistId, ownerName(row.playlistId))}
+            style={innerStyle}
+          />
+        );
+      }
+
+      case 'special': {
+        if (row.kind === 'empty') {
+          const pl = playlistById.get(row.ownerId);
+          return (
+            <div key={row.key} className="playlist-empty-hint">
+              <span>{t('emptyPlaylist')}</span>
+              <button
+                className="playlist-edit-link"
+                onClick={() => setEditingPlaylist({ id: row.ownerId, name: pl?.name || '' })}
+              >
+                Edit Playlist
+              </button>
+            </div>
+          );
+        }
+        if (row.kind === 'allChannels') {
+          return (
+            <button
+              key={row.key}
+              className={`category-item nested ${selectedCategoryId === row.key ? 'selected' : ''}`}
+              onClick={() => onSelectCategory(row.key)}
+            >
+              <ScrollingText className="category-name">{t('allChannels')}</ScrollingText>
+              <span className="category-count">{row.count}</span>
+            </button>
+          );
+        }
+        if (row.kind === 'favorites') {
+          return (
+            <button
+              key={row.key}
+              className={`category-item nested favorites-source-item ${selectedCategoryId === row.key ? 'selected' : ''}`}
+              onClick={() => onSelectCategory(row.key)}
+            >
+              <div className="nested-category-wrapper">
+                <span className="category-icon favorites-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                </span>
+                <ScrollingText className="category-name">{t('favorites')}</ScrollingText>
+              </div>
+              <span className="category-count">{row.count}</span>
+            </button>
+          );
+        }
+        // individual
+        return (
+          <button
+            key={row.key}
+            className={`category-item nested playlist-indiv-item ${selectedCategoryId === row.key ? 'selected' : ''}`}
+            onClick={() => onSelectCategory(row.key)}
+          >
+            <ScrollingText className="category-name">{t('individualChannels')}</ScrollingText>
+            <span className="category-count">{row.count}</span>
+          </button>
+        );
+      }
+
+      default:
+        return null;
+    }
+  };
+
+  const heightOf = rowHeightFor;
+  const rowHeight = (index: number) => heightOf(rows[index]);
+
+  // Slice-3 pinned overlay: track scroll so we know which pinned rows are
+  // currently "stuck" (fully scrolled above the top of the viewport). Pinned rows
+  // stay in their natural virtualized slots (reserving height and keeping the
+  // scroll-to-selected index valid); the overlay shows a sticky copy of only the
+  // stuck subset, whose slot rows the virtualizer has already unmounted — so each
+  // pin always has exactly one live copy and scroll-to-selected never fights it.
+  const [scrollTop, setScrollTop] = useState(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => {
+      setScrollTop(el.scrollTop);
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', update);
+    };
+  }, [scrollRef]);
+
+  // The virtualizer re-measures the real DOM row heights (which can vary with
+  // theme, font metrics, and wrapping). Keep those measurements for sticky
+  // boundaries: using only the 40/38/34 estimates caused a source to hand off
+  // early whenever its measured content was taller than the estimates.
+  const [rowMeasurements, setRowMeasurements] = useState<Map<string, { start: number; size: number }>>(() => new Map());
+  const handleVirtualItemsChange = useCallback((items: VirtualListItemMeasurement[]) => {
+    setRowMeasurements((previous) => {
+      let changed = previous.size !== items.length;
+      const next = new Map<string, { start: number; size: number }>();
+      for (const item of items) {
+        const row = rows[item.index];
+        if (!row) continue;
+        const measurement = { start: item.start, size: item.size };
+        next.set(row.key, measurement);
+        const prior = previous.get(row.key);
+        if (!prior || Math.abs(prior.start - measurement.start) > 0.5 || Math.abs(prior.size - measurement.size) > 0.5) {
+          changed = true;
+        }
+      }
+      return changed ? next : previous;
+    });
+  }, [rows]);
+
+  // Sticky overlay rows: the active source/playlist header at top: 0 plus any
+  // pinned rows scrolled past within that section, stacked below it. Each stuck
+  // key has exactly one live copy (the overlay); its natural slot becomes a
+  // same-height spacer so scroll height/position stay reserved.
+  const stuck = useMemo(
+    () => computeStickyOverlay(rows, heightOf, scrollTop, rowMeasurements),
+    [rows, heightOf, scrollTop, rowMeasurements]
+  );
+  const stuckKeys = useMemo(() => new Set(stuck.map((s) => s.row.key)), [stuck]);
+
+  // Slot renderer: pinned rows that are currently "stuck" render a same-height
+  // spacer in their natural slot (so scroll position/height stay reserved) while
+  // their single live copy lives in the overlay. This avoids the overscan
+  // duplicate-mount the audit flagged — each stuck key has exactly one content
+  // node (the overlay), and the slot is empty.
+  const renderSlotItem = (row: SidebarRow) => {
+    if (stuckKeys.has(row.key)) {
+      // Same-height spacer keeps the slot's scroll position/to-be-measured height
+      // exact: explicit width/display/boxSizing/margin so no inherited row CSS can
+      // shift VirtualList's measureElement and invalidate pin thresholds.
+      return (
+        <div
+          key={row.key}
+          className="virtualized-pin-slot-spacer"
+          style={{ height: `${heightOf(row)}px`, width: '100%', display: 'block', boxSizing: 'border-box', margin: 0, padding: 0 }}
+        />
+      );
+    }
+    if (row.type === 'category' || row.type === 'link') {
+      return (
+        <VirtualSortableRow
+          rowKey={row.key}
+          dragActive={isDragActive}
+          activeDragId={activeDragId}
+          overDragId={overDragId}
+          sortableIds={sortableIds}
+          ownerId={ownerOf(row)}
+          activeOwnerId={activeOwnerId}
+        >
+          {renderRow(row)}
+        </VirtualSortableRow>
+      );
+    }
+    return renderRow(row);
+  };
+
+  // Sortable ids are the rows' globally-unique flat keys (categories + links
+  // only). One shared SortableContext across owners: cross-owner drags resolve
+  // to a no-op in the persistence handler, while within-owner drags reorder
+  // exactly like the legacy per-source lists.
+  const sortableIds = useMemo(
+    () => rows.filter((r) => r.type === 'category' || r.type === 'link').map((r) => r.key),
+    [rows]
+  );
+  const activeRow = activeDragId ? rows.find((r) => r.key === activeDragId) : undefined;
+  const ownerOf = ownerOfRow;
+  const activeOwnerId = activeRow && (activeRow.type === 'category' || activeRow.type === 'link')
+    ? ownerOf(activeRow)
+    : null;
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      onDragCancel();
+      return;
+    }
+    const activeRow_ = rows.find((r) => r.key === active.id);
+    const overRow_ = rows.find((r) => r.key === over.id);
+    const draggable = (r?: SidebarRow) => !!r && (r.type === 'category' || r.type === 'link');
+    if (!draggable(activeRow_) || !draggable(overRow_)) {
+      onDragCancel();
+      return;
+    }
+    const ownerId = ownerOf(activeRow_);
+    // Cross-owner drops are a deterministic no-op: the indicator already hides
+    // them (same-owner gating in VirtualSortableRow), and rejecting here before
+    // persistence makes the no-op behavior explicit rather than relying on the
+    // handler's findIndex returning -1 for a foreign id.
+    if (ownerOf(overRow_) !== ownerId) {
+      onDragCancel();
+      return;
+    }
+    // Translate the dnd row keys to persistence ids (raw category_id / link:<id>)
+    // so the shared legacy handler sees the id shape it conventionally expects;
+    // the owner list uses the same ids, keeping active/over lookups consistent.
+    const { items, persistenceIdByKey } = resolveOwnerDragState(rows, ownerId, nativeById, linkById);
+    const translateId = (id: string | number) => persistenceIdByKey.get(String(id)) ?? id;
+    onCategoryDragEnd(ownerId, items, {
+      ...event,
+      active: { ...active, id: translateId(active.id) },
+      over: { ...over, id: translateId(over.id) },
+    });
+  };
+
+  // Overlay: stacked with cumulative tops matching the legacy takePinTop stack
+  // (each row advances the stack by its own height), absolutely positioned so
+  // concurrent stuck pins sit below rather than overlap. height:0 + overflow:
+  // visible keeps the container out of flow so the scrollHeight never changes.
+  // Overlay: the sticky stack (active header + stuck pins) rendered as a
+  // top:0 sticky, height:0 container so it's out of flow (scrollHeight never
+  // changes) but sticks to the viewport. Tops are the cumulative offsets from
+  // computeStickyOverlay. Exactly one live copy per key — the slot rows for
+  // stuck rows are spacers (see renderSlotItem), so no double-mount.
+  const positionedStuck = stuck;
+
+  return (
+    <>
+      <DndContext
+        sensors={dndSensors}
+        collisionDetection={closestCenter}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragCancel={onDragCancel}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+          {positionedStuck.length > 0 && (
+            <div className="virtualized-pins" style={{ position: 'sticky', top: 0, height: 0, overflow: 'visible', zIndex: 120, pointerEvents: 'auto' }}>
+              {positionedStuck.map(({ row, top, zIndex }) => (
+                <div
+                  key={row.key}
+                  className="virtualized-pin-row"
+                  style={{ position: 'absolute', left: 0, right: 0, top: `${top}px`, zIndex }}
+                >
+                  {row.type === 'category' || row.type === 'link' ? (
+                    // Stuck pins are draggable from the overlay: the slot is a
+                    // spacer (no sortable node) while stuck, so this is the row's
+                    // only registration — never a duplicate. Must live INSIDE the
+                    // SortableContext so useSortable registers the draggable and
+                    // attaches listeners (outside it, useSortable self-disables).
+                    <VirtualSortableRow
+                      rowKey={row.key}
+                      dragActive={isDragActive}
+                      activeDragId={activeDragId}
+                      overDragId={overDragId}
+                      sortableIds={sortableIds}
+                      ownerId={ownerOf(row)}
+                      activeOwnerId={activeOwnerId}
+                    >
+                      {renderRow(row)}
+                    </VirtualSortableRow>
+                  ) : (
+                    // Folders are intentionally non-draggable in the overlay:
+                    // they were never dnd items in the legacy sidebar either
+                    // (handleCategoryDragEnd only handles native/link rows), so
+                    // this is parity — the pinned folder stays visible/sticky
+                    // but has no drag listener, matching its legacy affordance.
+                    renderRow(row)
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <VirtualList
+            ref={vlistRef}
+            items={rows}
+            scrollRef={scrollRef}
+            estimateItemHeight={rowHeight}
+            overscan={8}
+            getKey={(row) => row.key}
+            renderItem={renderSlotItem}
+            onVirtualItemsChange={handleVirtualItemsChange}
+            className="virtualized-sidebar"
+          />
+        </SortableContext>
+        <DragOverlay dropAnimation={null}>
+          {activeRow ? <div className="virtual-drag-overlay">{renderRow(activeRow)}</div> : null}
+        </DragOverlay>
+      </DndContext>
+    </>
+  );
+}
 
 // memoized: the sidebar holds the full category tree for every *expanded* source
 // (each row is a dnd-kit sortable item), which is thousands of DOM nodes for large
@@ -853,6 +1517,7 @@ const RealSourceContent = memo(function RealSourceContent(props: RealSourceConte
 // callbacks matter), so memo skips those re-renders entirely.
 export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, onSelectCategory, visible, onEditSource, onClose, onShow, isLiveTV }: CategoryStripProps) {
   const { t } = useTranslation('live');
+  const virtualizedSidebar = useVirtualizedSidebar();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const prevVisibleRef = useRef(visible);
   const prevSelectedCatRef = useRef(selectedCategoryId);
@@ -1630,6 +2295,48 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
     return list;
   }, [filteredGroupedCategories, sources, customPlaylists, allPlaylistCategoryLinks, flatPlaylistIndividualCounts, totalPlaylistIndividualCounts, sidebarSourcesOrder, categoryChannelCounts, manualCategoryChannelCounts]);
 
+  // Single source of truth for sidebar CONTENT: one flattened row list that
+  // mirrors the renderer exactly (verified by golden tests in
+  // sidebarRowModel.test.ts). Grouped per-owner so each RealSourceContent /
+  // playlist block receives a stable slice that only changes when ITS rows do.
+  const sidebarRows = useMemo(() => buildSidebarRows({
+    groupedCategories: filteredGroupedCategories,
+    customPlaylists,
+    allPlaylistCategoryLinks,
+    allCategoryFolders,
+    categoryNamesMap,
+    totalPlaylistIndividualCounts,
+    flatPlaylistIndividualCounts,
+    manualCategoryChannelCounts,
+    sources,
+    sidebarSourcesOrder,
+    expandedSources,
+    expandedPlaylists,
+    expandedFolders,
+    pinnedCategories,
+    pinnedFolders,
+    categorySortOrder,
+    favoritesMode,
+    perSourceFavoriteCounts,
+    includeAllChannelsToPlaylist,
+    searchQuery,
+  }), [filteredGroupedCategories, customPlaylists, allPlaylistCategoryLinks, allCategoryFolders, categoryNamesMap, totalPlaylistIndividualCounts, flatPlaylistIndividualCounts, manualCategoryChannelCounts, sources, sidebarSourcesOrder, expandedSources, expandedPlaylists, expandedFolders, pinnedCategories, pinnedFolders, categorySortOrder, favoritesMode, perSourceFavoriteCounts, includeAllChannelsToPlaylist, searchQuery]);
+
+  const rowsByOwner = useMemo(() => {
+    const byOwner = new Map<string, SidebarRow[]>();
+    for (const row of sidebarRows) {
+      const owner = row.type === 'source' ? row.sourceId
+        : row.type === 'playlist' ? row.playlistId
+        : row.type === 'category' ? row.sourceId
+        : row.type === 'link' ? row.playlistId
+        : row.ownerId; // folder | special
+      const list = byOwner.get(owner);
+      if (list) list.push(row);
+      else byOwner.set(owner, [row]);
+    }
+    return byOwner;
+  }, [sidebarRows]);
+
   const sidebarDragHotkey = useSidebarDragHotkey();
   const [isDragKeyPressed, setIsDragKeyPressed] = useState(false);
 
@@ -1719,7 +2426,7 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
     }
   };
 
-  const handleCategoryDragEnd = useCallback(async (sourceId: string, currentList: { id: string; type: 'native' | 'link'; nativeCat?: any; customLink?: any }[], event: DragEndEvent) => {
+  const handleCategoryDragEnd = useCallback(async (sourceId: string, currentList: { id: string | number; type: 'native' | 'link'; nativeCat?: any; customLink?: any }[], event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDragId(null);
     setOverDragId(null);
@@ -1734,7 +2441,7 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
       const nativeUpdates: { categoryId: string; displayOrder: number; folderId?: string | null }[] = [];
       const linkItems: PlaylistCategoryLink[] = [];
 
-      reordered.forEach((catItem: { id: string; type: 'native' | 'link'; nativeCat?: any; customLink?: any }, idx: number) => {
+      reordered.forEach((catItem: { id: string | number; type: 'native' | 'link'; nativeCat?: any; customLink?: any }, idx: number) => {
         if (catItem.type === 'native' && catItem.nativeCat) {
           nativeUpdates.push({
             categoryId: catItem.nativeCat.category_id,
@@ -2092,6 +2799,37 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
       </div>
 
       <div className="category-strip-scrollable" ref={scrollContainerRef}>
+        {virtualizedSidebar ? (
+          <VirtualizedSidebarFallback>
+          <VirtualizedSidebarContent
+            rows={sidebarRows}
+            groupedCategories={filteredGroupedCategories}
+            sources={sources}
+            customPlaylists={customPlaylists}
+            allPlaylistCategoryLinks={allPlaylistCategoryLinks || []}
+            allCategoryFolders={allCategoryFolders || []}
+            selectedCategoryId={selectedCategoryId}
+            visible={visible}
+            onSelectCategory={onSelectCategory}
+            toggleSource={toggleSource}
+            togglePlaylist={handleTogglePlaylist}
+            toggleFolder={toggleFolder}
+            onCategoryContextMenu={handleCategoryContextMenu}
+            onFolderContextMenu={setFolderContextMenu}
+            onPlaylistContextMenu={handlePlaylistContextMenu}
+            onSourceContextMenu={handleSourceContextMenu}
+            setEditingPlaylist={setEditingPlaylist}
+            scrollRef={scrollContainerRef}
+            isDragActive={isDragActive}
+            activeDragId={activeDragId}
+            overDragId={overDragId}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragCancel={handleDragCancel}
+            onCategoryDragEnd={handleCategoryDragEnd}
+            />
+          </VirtualizedSidebarFallback>
+        ) : (
         <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragCancel={handleDragCancel} onDragEnd={handleSourceDragEnd}>
           <SortableContext items={combinedSources.map(s => s.id)} strategy={verticalListSortingStrategy}>
             {combinedSources.map((item, index) => {
@@ -2129,17 +2867,9 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
                   <RealSourceContent
                     sourceId={group.sourceId}
                     sourceName={sources[group.sourceId] || 'Source'}
-                    sourceCount={item.count}
+                    rows={rowsByOwner.get(group.sourceId) || EMPTY_ROWS}
                     categories={group.categories}
-                    categorySortOrder={categorySortOrder}
-                    categoryChannelCounts={categoryChannelCounts}
-                    manualCategoryChannelCounts={manualCategoryChannelCounts}
-                    categoryNamesMap={categoryNamesMap}
                     allPlaylistCategoryLinks={allPlaylistCategoryLinks || []}
-                    flatPlaylistIndividualCounts={flatPlaylistIndividualCounts}
-                    perSourceFavoriteCounts={perSourceFavoriteCounts}
-                    favoritesMode={favoritesMode}
-                    includeAllChannelsToPlaylist={includeAllChannelsToPlaylist}
                     selectedCategoryId={selectedCategoryId}
                     onSelectCategory={onSelectCategory}
                     pinnedCategories={pinnedCategories}
@@ -2165,26 +2895,18 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
           } else if (item.type === 'playlist' && item.playlistGroup) {
             const playlist = item.playlistGroup;
             const isExpanded = !!expandedPlaylists[playlist.playlist_id];
-            const getLinkName = (link: PlaylistCategoryLink) => {
-              return link.custom_name || (categoryNamesMap.get(link.category_id) || link.category_id);
-            };
 
-            const playlistLinks = (allPlaylistCategoryLinks || [])
-              .filter(l => l.playlist_id === playlist.playlist_id);
-
-            playlistLinks.sort((a, b) =>
-              comparePlaylistCategory(
-                { id: String(a.id), name: getLinkName(a), displayOrder: a.display_order },
-                { id: String(b.id), name: getLinkName(b), displayOrder: b.display_order },
-                {
-                  categorySortOrder,
-                  customizedSourceIds: new Set(getCustomizedCategorySortOrders()),
-                },
-                playlist.playlist_id
-              )
-            );
-
-            const individualCount = flatPlaylistIndividualCounts?.get(playlist.playlist_id) || 0;
+            // Content rows come from the flattened model (single source of
+            // truth for ordering/partitioning — golden-tested for parity).
+            const plRows = rowsByOwner.get(playlist.playlist_id) || EMPTY_ROWS;
+            const plLinkRows = plRows.filter((r): r is LinkRow => r.type === 'link');
+            const plFolderRows = plRows.filter((r): r is FolderHeaderRow => r.type === 'folder');
+            const plLinkById = new Map((allPlaylistCategoryLinks || []).map(l => [l.id, l]));
+            const plFolderById = new Map((allCategoryFolders || []).map(f => [f.folder_id, f]));
+            const plCatList = plLinkRows.map(r => {
+              const link = plLinkById.get(r.linkId);
+              return link ? { id: `link:${link.id}`, type: 'link' as const, customLink: link } : null;
+            }).filter((c): c is { id: string; type: 'link'; customLink: PlaylistCategoryLink } => c !== null);
 
             return (
               <div 
@@ -2210,31 +2932,25 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
 
                   {isExpanded && (
                     <div className="category-source-content">
-                      {includeAllChannelsToPlaylist && (
+                      {plRows.filter((r): r is SpecialRow => r.type === 'special' && r.kind === 'allChannels').map((s) => (
                         <button
-                          key={`__allsrc_pl_${playlist.playlist_id}`}
-                          className={`category-item nested ${selectedCategoryId === `__allsrc_pl_${playlist.playlist_id}` ? 'selected' : ''}`}
-                          onClick={() => onSelectCategory(`__allsrc_pl_${playlist.playlist_id}`)}
+                          key={s.key}
+                          className={`category-item nested ${selectedCategoryId === s.key ? 'selected' : ''}`}
+                          onClick={() => onSelectCategory(s.key)}
                         >
                           <ScrollingText className="category-name">{t('allChannels')}</ScrollingText>
-                          <span className="category-count">{item.count}</span>
+                          <span className="category-count">{s.count}</span>
                         </button>
-                      )}
+                      ))}
                       {(() => {
-                        const sourceFolders = (allCategoryFolders || [])
-                          .filter(f => f.playlist_id === playlist.playlist_id)
-                          .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
-                        const folderMap = new Map<string, PlaylistCategoryLink[]>();
-                        const rootLinks: PlaylistCategoryLink[] = [];
-
-                        for (const link of playlistLinks) {
-                          if (link.folder_id && sourceFolders.some((f: CategoryFolder) => f.folder_id === link.folder_id)) {
-                            if (!folderMap.has(link.folder_id)) {
-                              folderMap.set(link.folder_id, []);
-                            }
-                            folderMap.get(link.folder_id)!.push(link);
+                        const folderMap = new Map<string, LinkRow[]>();
+                        const rootLinks: LinkRow[] = [];
+                        for (const r of plLinkRows) {
+                          if (r.folderChild && r.folderId && plFolderById.has(r.folderId)) {
+                            if (!folderMap.has(r.folderId)) folderMap.set(r.folderId, []);
+                            folderMap.get(r.folderId)!.push(r);
                           } else {
-                            rootLinks.push(link);
+                            rootLinks.push(r);
                           }
                         }
 
@@ -2244,12 +2960,12 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
                           if (isActuallyPinned) pinStackTop += step;
                           return `${top}px`;
                         };
-                        const renderLink = (link: PlaylistCategoryLink, isFolderChild: boolean) => {
-                          const nativeCount = categoryChannelCounts.get(link.category_id) || 0;
-                          const manualCount = manualCategoryChannelCounts?.get(`${playlist.playlist_id}:link:${link.id}`) || 0;
-                          const count = nativeCount + manualCount;
-                          const name = link.custom_name || (categoryNamesMap.get(link.category_id) || link.category_id);
-                          const isPinned = pinnedCategories.includes(`${playlist.playlist_id}:link:${link.id}`);
+                        const renderLink = (row: LinkRow, isFolderChild: boolean) => {
+                          const link = plLinkById.get(row.linkId);
+                          if (!link) return null;
+                          const count = row.count;
+                          const name = row.name;
+                          const isPinned = row.pinned;
                           const activeIdx = activeDragId ? plCatList.findIndex(c => c.id === activeDragId) : -1;
                           const overIdx = overDragId ? plCatList.findIndex(c => c.id === overDragId) : -1;
                           const dropIndicator = overDragId === `link:${link.id}` && activeDragId !== overDragId
@@ -2278,17 +2994,6 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
                           );
                         };
 
-                        const isFolderPinned = (fId: string) => pinnedFolders.includes(`${playlist.playlist_id}:${fId}`);
-
-                        const sortedSourceFolders = [...sourceFolders].sort((a, b) =>
-                          compareSidebarFolder(
-                            a,
-                            b,
-                            { pinnedFolders: new Set(pinnedFolders) },
-                            playlist.playlist_id
-                          )
-                        );
-
                         const folderContext = (folder: CategoryFolder) => ({
                           onContextMenu: (e: React.MouseEvent) => {
                             e.preventDefault();
@@ -2304,20 +3009,16 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
                           },
                         });
 
-                        const plCatList = playlistLinks.map(l => ({ id: `link:${l.id}`, type: 'link' as const, customLink: l }));
-
                         return (
                           <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragCancel={handleDragCancel} onDragEnd={(e) => handleCategoryDragEnd(playlist.playlist_id, plCatList, e)}>
                             <SortableContext items={plCatList.map(c => c.id)} strategy={verticalListSortingStrategy}>
-                              {sortedSourceFolders.map((folder: CategoryFolder) => {
-                                const fLinks = folderMap.get(folder.folder_id) || [];
-                                const isFolderExpanded = !!expandedFolders[folder.folder_id] || searchQuery.trim().length > 0;
-                                const totalCount = fLinks.reduce((sum, link) => {
-                                  const nativeCount = categoryChannelCounts.get(link.category_id) || 0;
-                                  const manualCount = manualCategoryChannelCounts?.get(`${playlist.playlist_id}:link:${link.id}`) || 0;
-                                  return sum + nativeCount + manualCount;
-                                }, 0);
-                                const isPinnedFolder = isFolderPinned(folder.folder_id);
+                              {plFolderRows.map((frow) => {
+                                const folder = plFolderById.get(frow.folderId);
+                                if (!folder) return null;
+                                const fLinks = folderMap.get(frow.folderId) || [];
+                                const isFolderExpanded = frow.expanded;
+                                const totalCount = frow.count;
+                                const isPinnedFolder = frow.pinned;
                                 const folderHeaderTop = isPinnedFolder
                                   ? takePinTop(40, 34, true)
                                   : (isFolderExpanded ? takePinTop(40, 34, false) : undefined);
@@ -2347,7 +3048,7 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
                                   return (
                                     <Fragment key={folder.folder_id}>
                                       {header}
-                                      {isFolderExpanded && fLinks.map(link => renderLink(link, true))}
+                                      {isFolderExpanded && fLinks.map(r => renderLink(r, true))}
                                     </Fragment>
                                   );
                                 }
@@ -2357,31 +3058,32 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
                                     {header}
                                     {isFolderExpanded && (
                                       <div className="category-folder-content">
-                                        {fLinks.map(link => renderLink(link, true))}
+                                        {fLinks.map(r => renderLink(r, true))}
                                       </div>
                                     )}
                                   </div>
                                 );
                               })}
-                              {rootLinks.map(link => renderLink(link, false))}
+                              {rootLinks.map(r => renderLink(r, false))}
                             </SortableContext>
                           </DndContext>
                         );
                       })()}
 
-                      {individualCount > 0 && (
+                      {plRows.filter((r): r is SpecialRow => r.type === 'special' && r.kind === 'individual').map((s) => (
                         <button
+                          key={s.key}
                           className={`category-item nested playlist-indiv-item ${
-                            selectedCategoryId === `__plindiv_${playlist.playlist_id}` ? 'selected' : ''
+                            selectedCategoryId === s.key ? 'selected' : ''
                           }`}
-                          onClick={() => onSelectCategory(`__plindiv_${playlist.playlist_id}`)}
+                          onClick={() => onSelectCategory(s.key)}
                         >
                           <ScrollingText className="category-name">{t('individualChannels')}</ScrollingText>
-                          <span className="category-count">{individualCount}</span>
+                          <span className="category-count">{s.count}</span>
                         </button>
-                      )}
+                      ))}
 
-                      {playlistLinks.length === 0 && individualCount === 0 && (
+                      {plRows.some(r => r.type === 'special' && r.kind === 'empty') && (
                         <div className="playlist-empty-hint">
                           <span>{t('emptyPlaylist')}</span>
                           <button 
@@ -2401,8 +3103,18 @@ export const CategoryStrip = memo(function CategoryStrip({ selectedCategoryId, o
         })}
       </SortableContext>
     </DndContext>
+        )}
 
-        {filteredGroupedCategories.length === 0 && (!customPlaylists || customPlaylists.length === 0) && (
+        {(virtualizedSidebar
+          // Virtual mode: key the global empty hint off the UNFILTERED library so
+          // it never shows when a no-match search (sources configured, rows
+          // filtered out) or a collapsed-but-present source empties the flattened
+          // list — the message means "no sources/playlists configured", not "no
+          // rows in the current view".
+          ? (groupedCategories.length === 0 && (!customPlaylists || customPlaylists.length === 0))
+          // Legacy: unchanged.
+          : (filteredGroupedCategories.length === 0 && (!customPlaylists || customPlaylists.length === 0))
+        ) && (
           <div className="category-empty">
             <p>{t('noCategoriesYet')}</p>
             <p className="hint">{t('addSourceSettings')}</p>
