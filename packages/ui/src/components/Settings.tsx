@@ -1813,7 +1813,7 @@ export function Settings({
 
   const handleTimeshiftChange = async (enabled: boolean, cacheBytes: number, bufferOffset?: number) => {
     setTimeshiftEnabled(enabled);
-    useSettingsStore.getState().setTimeshiftCacheBytes(cacheBytes);
+    setTimeshiftCacheBytes(cacheBytes);
     if (bufferOffset !== undefined) {
       setLiveBufferOffset(bufferOffset);
     }

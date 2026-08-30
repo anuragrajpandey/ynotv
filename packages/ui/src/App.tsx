@@ -2149,6 +2149,45 @@ function useTmdbPresencePoster(
   const channelChangeFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transparentGuideFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [guideTransparent, setGuideTransparent] = useState(false);
+  // Stable CategoryStrip callbacks so the memoized CategoryStrip doesn't re-render
+  // on every channel-highlight change while the user navigates the channel list.
+  // Without this, App's re-render (setCurrentChannel) reconciles the sidebar's full
+  // expanded-source tree (thousands of dnd-kit sortable rows for large sources)
+  // on each navigation step, which is the cause of the scroll jank with big sources.
+  const handleCategorySelect = useCallback(
+    (catId: string | null) => {
+      if (isSearchMode) {
+        setSearchQuery('');
+      }
+      if (catId !== '__watchlist__') {
+        setIsWatchlistMode(false);
+      }
+      handleSelectCategory(catId);
+    },
+    [isSearchMode, setSearchQuery, setIsWatchlistMode, handleSelectCategory]
+  );
+  const handleCategoryEditSource = useCallback((sourceId: string) => {
+    setSettingsTab('sources');
+    setEditSourceId(sourceId);
+    setShowSettingsPopup(true);
+    setCategoriesOpen(false);
+  }, [setSettingsTab, setEditSourceId, setShowSettingsPopup, setCategoriesOpen]);
+  const handleCategoryClose = useCallback(() => {
+    setCategoriesOpen(false);
+    if (guideTransparent) {
+      setCategoriesHiddenTransparent(true);
+    } else {
+      setCategoriesHidden(true);
+    }
+  }, [setCategoriesOpen, guideTransparent, setCategoriesHiddenTransparent, setCategoriesHidden]);
+  const handleCategoryShow = useCallback(() => {
+    setCategoriesOpen(true);
+    if (guideTransparent) {
+      setCategoriesHiddenTransparent(false);
+    } else {
+      setCategoriesHidden(false);
+    }
+  }, [setCategoriesOpen, guideTransparent, setCategoriesHiddenTransparent, setCategoriesHidden]);
   const [isTransparentGuideZapActive, setIsTransparentGuideZapActive] = useState(false);
   const [liveTvDesign, setLiveTvDesign] = useState<'v1' | 'v2' | 'v3'>('v3');
   // Design version comes from the settings store (hydration latches the
@@ -6201,38 +6240,11 @@ function useTmdbPresencePoster(
       {/* Category Strip */}
       <CategoryStrip
         selectedCategoryId={categoryId}
-        onSelectCategory={(catId) => {
-          if (isSearchMode) {
-            setSearchQuery('');
-          }
-          if (catId !== '__watchlist__') {
-            setIsWatchlistMode(false);
-          }
-          handleSelectCategory(catId);
-        }}
+        onSelectCategory={handleCategorySelect}
         visible={categoriesOpen && activeView === 'guide'}
-        onEditSource={(sourceId) => {
-          setSettingsTab('sources');
-          setEditSourceId(sourceId);
-          setShowSettingsPopup(true);
-          setCategoriesOpen(false);
-        }}
-        onClose={() => {
-          setCategoriesOpen(false);
-          if (guideTransparent) {
-            setCategoriesHiddenTransparent(true);
-          } else {
-            setCategoriesHidden(true);
-          }
-        }}
-        onShow={() => {
-          setCategoriesOpen(true);
-          if (guideTransparent) {
-            setCategoriesHiddenTransparent(false);
-          } else {
-            setCategoriesHidden(false);
-          }
-        }}
+        onEditSource={handleCategoryEditSource}
+        onClose={handleCategoryClose}
+        onShow={handleCategoryShow}
         isLiveTV={activeView === 'guide'}
       />
 
