@@ -5,6 +5,9 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
 #[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
 mod pip_aspect_lock {
     use std::sync::Mutex;
     use windows::Win32::{
@@ -979,10 +982,10 @@ pub fn find_ytdl_path() -> Option<String> {
     // 2. Fall back to system PATH
     #[cfg(target_os = "windows")]
     {
-        let output = std::process::Command::new("where")
-            .arg("yt-dlp")
-            .output()
-            .ok()?;
+        let mut cmd = std::process::Command::new("where");
+        cmd.arg("yt-dlp");
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        let output = cmd.output().ok()?;
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout)
                 .lines()
@@ -994,10 +997,10 @@ pub fn find_ytdl_path() -> Option<String> {
             }
         }
         // Fallback to youtube-dl
-        let output = std::process::Command::new("where")
-            .arg("youtube-dl")
-            .output()
-            .ok()?;
+        let mut cmd = std::process::Command::new("where");
+        cmd.arg("youtube-dl");
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        let output = cmd.output().ok()?;
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout)
                 .lines()
@@ -1067,11 +1070,11 @@ pub struct YtdlpUpdateResult {
 
 /// Run `<yt-dlp> --version` and return the trimmed version string.
 async fn ytdlp_version(path: &str) -> Option<String> {
-    let output = tokio::process::Command::new(path)
-        .arg("--version")
-        .output()
-        .await
-        .ok()?;
+    let mut cmd = tokio::process::Command::new(path);
+    cmd.arg("--version");
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    let output = cmd.output().await.ok()?;
     if !output.status.success() {
         return None;
     }
