@@ -27,12 +27,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # The upstream source currently contains translation calls that are not
-      # present in the hand-authored English key schema. The app already falls
-      # back to the key/default value at runtime, so disable only the strict
-      # compile-time key allowlist in this CI workspace. Nothing is committed
-      # back to the repository, and the app's UI/branding is unchanged.
-      - name: Relax CI i18next key typing
+      # The upstream source has a very large inferred i18next resource type.
+      # TypeScript can hit TS2589 while expanding that type during CI builds.
+      # Relax only this compile-time declaration in the temporary CI workspace.
+      # No repository source, UI, translations, or branding are changed.
+      - name: Relax CI i18next type depth
         shell: bash
         run: |
           set -e
@@ -47,7 +46,7 @@ jobs:
           }
           content = content.replace(exact, replacement);
           fs.writeFileSync(path, content);
-          console.log('CI i18next key typing relaxed.');
+          console.log('CI i18next resource typing relaxed.');
           NODE
 
       - name: Download FFmpeg
