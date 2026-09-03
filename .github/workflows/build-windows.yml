@@ -27,12 +27,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # The current fork contains UI code that uses react-virtuoso while the
-      # workspace manifest/lockfile does not include it. Add it only to the
-      # ephemeral CI workspace. The repository itself is not modified.
-      # Also skip the repository's strict TypeScript build gate for packaging:
-      # Vite performs the actual production transpile/bundle, while the current
-      # fork has non-runtime type mismatches caused by the upstream sync.
+      # CI-only preparation. The synced upstream UI currently contains
+      # TypeScript/i18next type mismatches and imports react-virtuoso without
+      # declaring it in the workspace manifest. These changes exist only in
+      # the ephemeral Actions runner and do not modify the repository.
       - name: Prepare UI build for CI packaging
         shell: bash
         run: |
@@ -184,28 +182,41 @@ jobs:
           echo "OK: libmpv-2.dll"
           echo "OK: mpv.lib"
 
-      - name: Disable updater artifacts for unsigned CI build
+      # Tauri is invoked from packages/app, so keep the temporary override
+      # config there and reference it relative to that working directory.
+      # This disables only updater artifacts for this unsigned CI package.
+      - name: Create unsigned CI Tauri config
         shell: bash
         run: |
           set -e
           node <<'NODE'
           const fs = require('fs');
-          const path = 'packages/app/src-tauri/tauri.ci.conf.json';
+          const path = 'packages/app/tauri.ci.conf.json';
           fs.writeFileSync(path, JSON.stringify({
             bundle: { createUpdaterArtifacts: false }
           }, null, 2) + '\n');
           console.log(`Created ${path}`);
           NODE
-          cat packages/app/src-tauri/tauri.ci.conf.json
+          cat packages/app/tauri.ci.conf.json
 
       - name: Build Windows app
-        run: pnpm tauri build --config packages/app/src-tauri/tauri.ci.conf.json
+        run: pnpm tauri build --config tauri.ci.conf.json
+
+      - name: Verify Windows installers
+        shell: bash
+        run: |
+          set -e
+          BUNDLE_DIR="packages/app/src-tauri/target/release/bundle"
+          echo "Generated bundles:"
+          find "$BUNDLE_DIR" -maxdepth 3 -type f \( -iname "*.exe" -o -iname "*.msi" \) -print
+          test -n "$(find "$BUNDLE_DIR" -type f -iname "*.exe" -print -quit)"
+          test -n "$(find "$BUNDLE_DIR" -type f -iname "*.msi" -print -quit)"
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: Windows-App
           path: |
-            **/target/release/bundle/**/*.exe
-            **/target/release/bundle/**/*.msi
+            packages/app/src-tauri/target/release/bundle/**/*.exe
+            packages/app/src-tauri/target/release/bundle/**/*.msi
           if-no-files-found: error
