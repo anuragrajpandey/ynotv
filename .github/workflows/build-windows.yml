@@ -184,8 +184,22 @@ jobs:
           echo "OK: libmpv-2.dll"
           echo "OK: mpv.lib"
 
+      - name: Disable updater artifacts for unsigned CI build
+        shell: bash
+        run: |
+          set -e
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'packages/app/src-tauri/tauri.ci.conf.json';
+          fs.writeFileSync(path, JSON.stringify({
+            bundle: { createUpdaterArtifacts: false }
+          }, null, 2) + '\n');
+          console.log(`Created ${path}`);
+          NODE
+          cat packages/app/src-tauri/tauri.ci.conf.json
+
       - name: Build Windows app
-        run: pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+        run: pnpm tauri build --config packages/app/src-tauri/tauri.ci.conf.json
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
