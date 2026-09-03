@@ -27,6 +27,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      # The upstream VOD pagination code references these keys, but the
+      # English resource currently does not define them. Add them only in the
+      # CI workspace so the repository's branding/assets remain untouched.
+      - name: Fix missing VOD pagination translations
+        shell: bash
+        run: |
+          set -e
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'packages/ui/src/i18n/locales/en.json';
+          const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+
+          data.vod ??= {};
+          data.vod.loadingPage ??= 'Loading page {{current}}...';
+          data.vod.loadingPageOf ??= 'Loading page {{current}} of {{total}}...';
+
+          fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+          console.log('VOD pagination translation keys verified.');
+          NODE
+
       - name: Download FFmpeg
         shell: bash
         run: |
