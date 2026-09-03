@@ -15,6 +15,7 @@ export function Logo({ className, width, height }: LogoProps) {
       height={height}
       alt="EliteStocks TV"
       draggable={false}
+      style={{ objectFit: 'contain' }}
     />
   );
 }
