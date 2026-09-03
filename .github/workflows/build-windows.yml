@@ -97,6 +97,22 @@ jobs:
           cp "$MPV_EXE" "$TAURI_BIN_DIR/mpv-x86_64-pc-windows-msvc.exe"
           find "$TEMP_DIR/mpv-extract" -type f -iname "*.dll" -exec cp {} "$TAURI_BIN_DIR/" \;
 
+      - name: Download libmpv runtime and import library
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-Location "packages/app/src-tauri"
+          & powershell -ExecutionPolicy Bypass -File .\setup-libmpv.ps1
+          if (-not (Test-Path .\libmpv\libmpv-2.dll)) {
+            throw "libmpv-2.dll was not created."
+          }
+          $mpvLib = Get-ChildItem .\libmpv -Filter mpv.lib -Recurse | Select-Object -First 1
+          if (-not $mpvLib) {
+            throw "mpv.lib was not created."
+          }
+          Write-Host "OK: libmpv-2.dll"
+          Write-Host "OK: $($mpvLib.FullName)"
+
       - name: Download Vulkan runtime
         shell: bash
         run: |
@@ -158,6 +174,15 @@ jobs:
             fi
             echo "OK: $FILE"
           done
+
+      - name: Verify libmpv files
+        shell: bash
+        run: |
+          set -e
+          test -f "packages/app/src-tauri/libmpv/libmpv-2.dll"
+          test -f "packages/app/src-tauri/libmpv/mpv.lib"
+          echo "OK: libmpv-2.dll"
+          echo "OK: mpv.lib"
 
       - name: Build Windows app
         run: pnpm tauri build
