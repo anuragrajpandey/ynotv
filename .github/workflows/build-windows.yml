@@ -1,0 +1,146 @@
+name: Build Windows App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.1.0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Download FFmpeg
+        shell: bash
+        run: |
+          set -e
+          cd packages/app
+          node scripts/download-ffmpeg.js
+          cd ../..
+          echo "FFmpeg files:"
+          ls -lh packages/app/src-tauri/bin/
+
+      - name: Download MPV
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+
+          TAURI_BIN_DIR="packages/app/src-tauri/bin"
+          mkdir -p "$TAURI_BIN_DIR"
+
+          echo "Finding latest MPV Windows x64 build..."
+          MPV_URL=$(gh api repos/shinchiro/mpv-winbuild-cmake/releases/latest \
+            --jq '.assets[] | select(.name | test("^mpv-x86_64-[0-9]")) | .browser_download_url' \
+            | head -n 1)
+
+          if [ -z "$MPV_URL" ]; then
+            echo "ERROR: Could not find MPV x86_64 download."
+            exit 1
+          fi
+
+          TEMP_DIR=$(mktemp -d)
+          curl -L --fail -o "$TEMP_DIR/mpv.7z" "$MPV_URL"
+          7z x "$TEMP_DIR/mpv.7z" -o"$TEMP_DIR/mpv-extract" -y
+
+          MPV_EXE=$(find "$TEMP_DIR/mpv-extract" -type f -iname "mpv.exe" | head -n 1)
+          if [ -z "$MPV_EXE" ]; then
+            echo "ERROR: mpv.exe was not found."
+            find "$TEMP_DIR/mpv-extract" -type f
+            exit 1
+          fi
+
+          cp "$MPV_EXE" "$TAURI_BIN_DIR/mpv-x86_64-pc-windows-msvc.exe"
+          find "$TEMP_DIR/mpv-extract" -type f -iname "*.dll" -exec cp {} "$TAURI_BIN_DIR/" \;
+
+      - name: Download Vulkan runtime
+        shell: bash
+        run: |
+          set -e
+
+          TAURI_BIN_DIR="packages/app/src-tauri/bin"
+          TEMP_DIR=$(mktemp -d)
+          mkdir -p "$TAURI_BIN_DIR"
+
+          curl -L --fail \
+            -o "$TEMP_DIR/vulkan-runtime.zip" \
+            "https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-runtime-components.zip"
+
+          7z x "$TEMP_DIR/vulkan-runtime.zip" -o"$TEMP_DIR/vulkan-extract" -y
+
+          VULKAN_DLL=$(find "$TEMP_DIR/vulkan-extract" -type f -iname "vulkan-1.dll" | head -n 1)
+          if [ -z "$VULKAN_DLL" ]; then
+            echo "ERROR: vulkan-1.dll was not found."
+            find "$TEMP_DIR/vulkan-extract" -type f
+            exit 1
+          fi
+
+          cp "$VULKAN_DLL" "$TAURI_BIN_DIR/vulkan-1.dll"
+
+          VULKAN_LICENSE=$(find "$TEMP_DIR/vulkan-extract" -type f \( -iname "VulkanRT-License.txt" -o -iname "*license*.txt" \) | head -n 1)
+          if [ -n "$VULKAN_LICENSE" ]; then
+            cp "$VULKAN_LICENSE" "$TAURI_BIN_DIR/VulkanRT-License.txt"
+          else
+            echo "Vulkan Runtime License" > "$TAURI_BIN_DIR/VulkanRT-License.txt"
+          fi
+
+      - name: Download yt-dlp
+        shell: bash
+        run: |
+          set -e
+          TAURI_BIN_DIR="packages/app/src-tauri/bin"
+          mkdir -p "$TAURI_BIN_DIR"
+          curl -L --fail \
+            -o "$TAURI_BIN_DIR/yt-dlp-x86_64-pc-windows-msvc.exe" \
+            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+
+      - name: Verify Tauri binaries
+        shell: bash
+        run: |
+          set -e
+          TAURI_BIN_DIR="packages/app/src-tauri/bin"
+          REQUIRED_FILES=(
+            "mpv-x86_64-pc-windows-msvc.exe"
+            "ffmpeg-x86_64-pc-windows-msvc.exe"
+            "yt-dlp-x86_64-pc-windows-msvc.exe"
+            "vulkan-1.dll"
+            "VulkanRT-License.txt"
+          )
+
+          for FILE in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$TAURI_BIN_DIR/$FILE" ]; then
+              echo "ERROR: Missing $FILE"
+              exit 1
+            fi
+            echo "OK: $FILE"
+          done
+
+      - name: Build Windows app
+        run: pnpm tauri build
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-App
+          path: |
+            **/target/release/bundle/**/*.exe
+            **/target/release/bundle/**/*.msi
+          if-no-files-found: error
