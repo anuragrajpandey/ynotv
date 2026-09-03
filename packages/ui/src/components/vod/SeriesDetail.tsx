@@ -150,6 +150,7 @@ export function SeriesDetail({ series: seriesProp, onClose, onPlayEpisode, apiKe
   // Downloads Path & Base Series Path
   const downloadsPath = useSettingsStore((s) => s.downloadsPath);
   const separateDownloadFolders = useSettingsStore((s) => s.separateDownloadFolders);
+  const blurUnwatchedEpisodes = useSettingsStore((s) => s.blurUnwatchedEpisodes);
 
   const resolvedBaseSeriesPath = useMemo(() => {
     if (!downloadsPath) return '';
@@ -401,7 +402,9 @@ export function SeriesDetail({ series: seriesProp, onClose, onPlayEpisode, apiKe
       // Get current progress for this episode
       const progress = episodeProgress.get(episode.id);
       console.log('[SeriesDetail] Episode progress lookup:', episode.id, progress);
-      const resumePosition = progress && progress.progressSeconds > 10 ? progress.progressSeconds : 0;
+      const isCompleted = progress?.completed || 
+        (progress && progress.totalDuration > 0 && (progress.progressSeconds / progress.totalDuration) >= 0.95);
+      const resumePosition = !isCompleted && progress && progress.progressSeconds > 10 ? progress.progressSeconds : 0;
       console.log('[SeriesDetail] Resume position:', resumePosition);
 
       // Record series watch for Recently Watched with episode info
@@ -834,6 +837,7 @@ export function SeriesDetail({ series: seriesProp, onClose, onPlayEpisode, apiKe
                   const progress = episodeProgress.get(episode.id);
                   const hasProgress = progress && progress.progressPercent > 0 && !progress.completed;
                   const isCompleted = progress?.completed || false;
+                  const isBlurred = blurUnwatchedEpisodes && !isCompleted;
                   const extra = episodeExtras.get(`${episode.season_num}_${episode.episode_num}`);
 
                   return (
@@ -845,7 +849,12 @@ export function SeriesDetail({ series: seriesProp, onClose, onPlayEpisode, apiKe
                       {/* Episode Image */}
                       <div className="series-detail__episode-image">
                         {extra?.image ? (
-                          <img src={extra.image} alt={episode.title || i18n.t('vod:episodeNum', { num: episode.episode_num })} loading="lazy" />
+                          <img
+                            src={extra.image}
+                            alt={episode.title || i18n.t('vod:episodeNum', { num: episode.episode_num })}
+                            loading="lazy"
+                            className={isBlurred ? 'series-detail__episode-image--blurred' : ''}
+                          />
                         ) : (
                           <div className="series-detail__episode-image-placeholder">
                             <span>E{episode.episode_num}</span>

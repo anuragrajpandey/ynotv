@@ -218,8 +218,16 @@ export function EpgEditorModal({ channel: initialChannel, sourceId, sourceName, 
 
   const epgLogoDisplay = useSettingsStore((s) => s.epgLogoDisplay);
   const sourceLogoDisplayOverrides = useSettingsStore((s) => s.sourceLogoDisplayOverrides);
+  const sourceLogoBackgroundOverrides = useSettingsStore((s) => s.sourceLogoBackgroundOverrides);
+  const logoDefaultBackground = useSettingsStore((s) => s.logoDefaultBackground);
   const sourceDisplayOverride = channel?.source_id ? sourceLogoDisplayOverrides?.[channel.source_id] : undefined;
   const logoShape = (sourceDisplayOverride || epgLogoDisplay) as 'square' | 'rectangle';
+  // What 'Default' resolves to for THIS channel: the source-level override
+  // (may force 'auto' = luminance detection) beats the global default.
+  const resolvedDefaultBg: 'auto' | 'light' | 'dark' =
+    channel?.source_id
+      ? (sourceLogoBackgroundOverrides[channel.source_id] ?? logoDefaultBackground)
+      : logoDefaultBackground;
 
 
   // ── Channel tab state ──
@@ -403,9 +411,14 @@ export function EpgEditorModal({ channel: initialChannel, sourceId, sourceName, 
     db.channels.where('source_id').equals(resolvedSourceId).toArray().then(async chans => {
       const sorted = chans.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       setSourceChannels(sorted);
-      // Load overridden stream ids for dot indicators
-      const overrides = await db.epgChannelOverrides.toArray();
-      const ids = new Set(overrides.map(o => o.stream_id));
+      // Load overridden stream ids for dot indicators — source-scoped indexed join
+      // instead of pulling the entire overrides table into memory.
+      const dbInstance = await (db as any).dbPromise;
+      const overrideRows = await dbInstance.select(
+        `SELECT o.stream_id FROM epg_channel_overrides o JOIN channels c ON c.stream_id = o.stream_id WHERE c.source_id = $1`,
+        [resolvedSourceId]
+      ) as { stream_id: string }[];
+      const ids = new Set(overrideRows.map(r => r.stream_id));
       setOverriddenIds(ids);
       setSourceLoading(false);
     });
@@ -834,6 +847,7 @@ export function EpgEditorModal({ channel: initialChannel, sourceId, sourceName, 
                       src={logoUrl || undefined}
                       name={channel?.name || ''}
                       background={logoBackground}
+                      defaultBackground={channel?.source_id ? sourceLogoBackgroundOverrides[channel.source_id] : undefined}
                       padding={logoPadding}
                       shape={logoShape}
                       lazy={false}
@@ -849,9 +863,10 @@ export function EpgEditorModal({ channel: initialChannel, sourceId, sourceName, 
                     type="button"
                     className={`segmented-btn ${logoBackground === 'auto' ? 'active' : ''}`}
                     onClick={() => setLogoBackground('auto')}
-                    title={t('autoBgTitle')}
+                    title={t('defaultBgTitle')}
                   >
-                    ✨ {t('autoBg')}
+                    ✨ {t('defaultBg')}
+                    {resolvedDefaultBg !== 'auto' ? ` (${t(resolvedDefaultBg === 'light' ? 'lightBg' : 'darkBg')})` : ''}
                   </button>
                   <button
                     type="button"

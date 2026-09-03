@@ -13,17 +13,14 @@ export function useLazyStremioTrailer(
 ): StremioTrailerResult {
   const [trailerUrl, setTrailerUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const lastMetaIdRef = useRef<string | null>(null);
   const fetchingRef = useRef(false);
-  const metaId = meta?.id ?? null;
-
-  if (metaId !== lastMetaIdRef.current) {
-    lastMetaIdRef.current = metaId;
-    setTrailerUrl(null);
-  }
 
   useEffect(() => {
-    if (!meta || !accessToken) return;
+    setTrailerUrl(null);
+    if (!meta || !accessToken) {
+      setLoading(false);
+      return;
+    }
     if (fetchingRef.current) return;
 
     let cancelled = false;

@@ -11,6 +11,7 @@ import {
     useSetChannelSortOrder,
     useSetCategorySortOrder,
     useSetSyncStatusMessage,
+    useSetSyncProgress,
 } from '../stores/uiStore';
 
 interface AutoSyncSettings {
@@ -57,6 +58,7 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
     const setChannelSortOrder = useSetChannelSortOrder();
     const setCategorySortOrder = useSetCategorySortOrder();
     const setSyncStatusMessage = useSetSyncStatusMessage();
+    const setSyncProgress = useSetSyncProgress();
 
     // Refs to track state across renders and intervals
     const isSyncingRef = useRef(false);
@@ -66,6 +68,7 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
         setChannelSyncing,
         setVodSyncing,
         setSyncStatusMessage,
+        setSyncProgress,
     });
 
     // Keep refs updated with latest setters
@@ -74,8 +77,9 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
             setChannelSyncing,
             setVodSyncing,
             setSyncStatusMessage,
+            setSyncProgress,
         };
-    }, [setChannelSyncing, setVodSyncing, setSyncStatusMessage]);
+    }, [setChannelSyncing, setVodSyncing, setSyncStatusMessage, setSyncProgress]);
 
     // Keep category sort order setter in a separate ref since it's used in startup
     const categorySortRef = useRef(setCategorySortOrder);
@@ -148,6 +152,7 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
                             const batchNum = Math.floor(i / CONCURRENCY) + 1;
                             const totalBatches = Math.ceil(total / CONCURRENCY);
                             settersRef.current.setSyncStatusMessage(i18n.t('common:autoSyncingBatch', { batch: batchNum, total: totalBatches, names: batch.map((s: any) => s.name).join(', ') }));
+                            settersRef.current.setSyncProgress({ done: batchNum, total: totalBatches });
                             await Promise.all(
                                 batch.map(async (source: any, idx: number) => {
                                     const prefix = `[${i + idx + 1}/${total}] ${source.name}`;
@@ -161,6 +166,7 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
                             );
                         }
                         settersRef.current.setSyncStatusMessage(null);
+                        settersRef.current.setSyncProgress(null);
                     }
                 }
 
@@ -182,9 +188,11 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
                                 const batchNum = Math.floor(i / CONCURRENCY) + 1;
                                 const totalBatches = Math.ceil(total / CONCURRENCY);
                                 settersRef.current.setSyncStatusMessage(i18n.t('common:autoSyncingVodBatch', { batch: batchNum, total: totalBatches, names: batch.map((s: any) => s.name).join(', ') }));
+                                settersRef.current.setSyncProgress({ done: batchNum, total: totalBatches });
                                 await Promise.all(batch.map((source: any) => syncVodForSource(source)));
                             }
                             settersRef.current.setSyncStatusMessage(null);
+                        settersRef.current.setSyncProgress(null);
                         }
                     }
                 }
@@ -209,6 +217,7 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
                 } finally {
                 setSyncingState(false);
                 settersRef.current.setVodSyncing(false);
+                settersRef.current.setSyncProgress(null);
             }
         };
 
@@ -292,6 +301,7 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
                             const batchNum = Math.floor(i / CONCURRENCY) + 1;
                             const totalBatches = Math.ceil(total / CONCURRENCY);
                             settersRef.current.setSyncStatusMessage(i18n.t('common:syncingBatch', { batch: batchNum, total: totalBatches, names: batch.map((s: any) => s.name).join(', ') }));
+                            settersRef.current.setSyncProgress({ done: batchNum, total: totalBatches });
                             await Promise.all(
                                 batch.map(async (source: any, idx: number) => {
                                     const prefix = `[${i + idx + 1}/${total}] ${source.name}`;
@@ -305,6 +315,7 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
                             );
                         }
                         settersRef.current.setSyncStatusMessage(null);
+                        settersRef.current.setSyncProgress(null);
                     }
                 }
 
@@ -324,9 +335,11 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
                                 const batchNum = Math.floor(i / CONCURRENCY) + 1;
                                 const totalBatches = Math.ceil(total / CONCURRENCY);
                                 settersRef.current.setSyncStatusMessage(i18n.t('common:syncingVodBatch', { batch: batchNum, total: totalBatches, names: batch.map((s: any) => s.name).join(', ') }));
+                                settersRef.current.setSyncProgress({ done: batchNum, total: totalBatches });
                                 await Promise.all(batch.map((source: any) => syncVodForSource(source)));
                             }
                             settersRef.current.setSyncStatusMessage(null);
+                        settersRef.current.setSyncProgress(null);
                         }
                     }
                 }
@@ -356,6 +369,7 @@ export function useAutoSync(callbacks: AutoSyncSettings = {}) {
             } finally {
                 setSyncingState(false);
                 settersRef.current.setVodSyncing(false);
+                settersRef.current.setSyncProgress(null);
             }
         };
 

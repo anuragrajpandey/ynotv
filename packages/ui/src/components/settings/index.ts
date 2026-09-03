@@ -4,3 +4,4 @@ export { DataRefreshTab } from './DataRefreshTab';
 export { MoviesTab } from './MoviesTab';
 export { SeriesTab } from './SeriesTab';
 export { PosterDbTab } from './PosterDbTab';
+export { ControllersTab } from './ControllersTab';

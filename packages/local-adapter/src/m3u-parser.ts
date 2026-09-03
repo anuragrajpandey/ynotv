@@ -124,6 +124,74 @@ interface ExtInfMetadata {
   catchupSource?: string;
 }
 
+interface HeaderCatchupDefaults {
+  catchupType?: string;
+  catchupDays?: number;
+  catchupSource?: string;
+  tvArchive: boolean;
+}
+
+/**
+ * Extract attribute value supporting double quotes, single quotes, and unquoted values
+ */
+function extractAttribute(text: string, keys: string[]): string {
+  for (const key of keys) {
+    // 1. Double quoted: key="value"
+    const doubleMatch = text.match(new RegExp(`${key}\\s*=\\s*"([^"]*)"`, 'i'));
+    if (doubleMatch && doubleMatch[1] !== undefined) return doubleMatch[1].trim();
+
+    // 2. Single quoted: key='value'
+    const singleMatch = text.match(new RegExp(`${key}\\s*=\\s*'([^']*)'`, 'i'));
+    if (singleMatch && singleMatch[1] !== undefined) return singleMatch[1].trim();
+
+    // 3. Unquoted: key=value (terminated by space, comma, or end of string)
+    const unquotedMatch = text.match(new RegExp(`${key}\\s*=\\s*([^\\s,"]+)`, 'i'));
+    if (unquotedMatch && unquotedMatch[1] !== undefined) return unquotedMatch[1].trim();
+  }
+  return '';
+}
+
+/**
+ * Extract playlist-wide default catchup settings from #EXTM3U header line
+ */
+function extractHeaderCatchup(line: string): HeaderCatchupDefaults {
+  const defaults: HeaderCatchupDefaults = {
+    tvArchive: false,
+  };
+
+  const catchupType = extractAttribute(line, ['catchup', 'catchup-type', 'catchup-mode']);
+  if (catchupType) {
+    defaults.tvArchive = true;
+    defaults.catchupType = catchupType;
+  }
+
+  const catchupDaysStr = extractAttribute(line, ['catchup-days', 'catchup-days-max', 'catchup-range']);
+  if (catchupDaysStr) {
+    const days = parseInt(catchupDaysStr, 10);
+    if (!isNaN(days) && days > 0) {
+      defaults.tvArchive = true;
+      defaults.catchupDays = days;
+    }
+  }
+
+  const catchupSource = extractAttribute(line, ['catchup-source', 'catchup-url']);
+  if (catchupSource) {
+    defaults.tvArchive = true;
+    defaults.catchupSource = catchupSource;
+  }
+
+  const timeshiftStr = extractAttribute(line, ['timeshift', 'tvg-shift']);
+  if (timeshiftStr && !defaults.tvArchive) {
+    const shift = parseInt(timeshiftStr, 10);
+    if (!isNaN(shift) && shift > 0) {
+      defaults.tvArchive = true;
+      defaults.catchupType = 'shift';
+    }
+  }
+
+  return defaults;
+}
+
 /**
  * Parse an M3U playlist content
  */
@@ -133,6 +201,7 @@ export function parseM3U(content: string, sourceId: string): M3UParseResult {
   const categoriesMap = new Map<string, Category>();
 
   let epgUrl: string | null = null;
+  let headerCatchup: HeaderCatchupDefaults = { tvArchive: false };
   let currentMetadata: ExtInfMetadata | null = null;
   let channelCounter = 0;
 
@@ -145,15 +214,16 @@ export function parseM3U(content: string, sourceId: string): M3UParseResult {
     // Skip empty lines
     if (!line) continue;
 
-    // Parse header for EPG URL
+    // Parse header for EPG URL and global catchup defaults
     if (line.startsWith('#EXTM3U')) {
       epgUrl = extractEpgUrl(line);
+      headerCatchup = extractHeaderCatchup(line);
       continue;
     }
 
     // Parse EXTINF line
     if (line.startsWith('#EXTINF:')) {
-      currentMetadata = parseExtInf(line);
+      currentMetadata = parseExtInf(line, headerCatchup);
       continue;
     }
 
@@ -225,16 +295,10 @@ export function parseM3U(content: string, sourceId: string): M3UParseResult {
  * Extract EPG URL from #EXTM3U header
  */
 function extractEpgUrl(line: string): string | null {
-  // Try url-tvg="..."
-  const urlTvgMatch = line.match(/url-tvg="([^"]+)"/i);
-  if (urlTvgMatch) {
-    return urlTvgMatch[1];
-  }
-
-  // Try x-tvg-url="..."
-  const xTvgUrlMatch = line.match(/x-tvg-url="([^"]+)"/i);
-  if (xTvgUrlMatch) {
-    return xTvgUrlMatch[1];
+  // Try url-tvg="..." or single quote / unquoted
+  const urlTvg = extractAttribute(line, ['url-tvg', 'x-tvg-url']);
+  if (urlTvg) {
+    return urlTvg;
   }
 
   return null;
@@ -246,7 +310,7 @@ function extractEpgUrl(line: string): string | null {
  * Format: #EXTINF:duration key="value" key="value"...,Display Name
  * Example: #EXTINF:-1 tvg-id="cnn" tvg-logo="http://..." group-title="News",CNN HD
  */
-function parseExtInf(line: string): ExtInfMetadata {
+function parseExtInf(line: string, headerDefaults?: HeaderCatchupDefaults): ExtInfMetadata {
   const metadata: ExtInfMetadata = {
     duration: -1,
     tvgId: '',
@@ -255,7 +319,10 @@ function parseExtInf(line: string): ExtInfMetadata {
     tvgChno: null,
     groupTitle: '',
     displayName: '',
-    tvArchive: false,
+    tvArchive: headerDefaults?.tvArchive || false,
+    catchupType: headerDefaults?.catchupType,
+    catchupDays: headerDefaults?.catchupDays,
+    catchupSource: headerDefaults?.catchupSource,
   };
 
   // Remove #EXTINF: prefix
@@ -277,55 +344,64 @@ function parseExtInf(line: string): ExtInfMetadata {
   }
 
   // Extract tvg-id
-  const tvgIdMatch = attrPart.match(/tvg-id="([^"]*)"/i);
-  if (tvgIdMatch) {
-    metadata.tvgId = tvgIdMatch[1].trim();
+  const tvgId = extractAttribute(attrPart, ['tvg-id']);
+  if (tvgId) {
+    metadata.tvgId = tvgId;
   }
 
   // Extract tvg-name
-  const tvgNameMatch = attrPart.match(/tvg-name="([^"]*)"/i);
-  if (tvgNameMatch) {
-    metadata.tvgName = tvgNameMatch[1];
+  const tvgName = extractAttribute(attrPart, ['tvg-name']);
+  if (tvgName) {
+    metadata.tvgName = tvgName;
   }
 
   // Extract tvg-logo
-  const tvgLogoMatch = attrPart.match(/tvg-logo="([^"]*)"/i);
-  if (tvgLogoMatch) {
-    metadata.tvgLogo = tvgLogoMatch[1];
+  const tvgLogo = extractAttribute(attrPart, ['tvg-logo', 'tvg-icon', 'logo']);
+  if (tvgLogo) {
+    metadata.tvgLogo = tvgLogo;
   }
 
   // Extract group-title
-  const groupTitleMatch = attrPart.match(/group-title="([^"]*)"/i);
-  if (groupTitleMatch) {
-    metadata.groupTitle = groupTitleMatch[1];
+  const groupTitle = extractAttribute(attrPart, ['group-title', 'group']);
+  if (groupTitle) {
+    metadata.groupTitle = groupTitle;
   }
 
-  // Extract catchup tags
-  const catchupMatch = attrPart.match(/catchup="([^"]*)"/i);
-  if (catchupMatch && catchupMatch[1].length > 0) {
+  // Extract catchup tags (override header defaults if present)
+  const catchupType = extractAttribute(attrPart, ['catchup', 'catchup-type', 'catchup-mode']);
+  if (catchupType) {
     metadata.tvArchive = true;
-    metadata.catchupType = catchupMatch[1];
+    metadata.catchupType = catchupType;
   }
 
-  const catchupDaysMatch = attrPart.match(/catchup-days="([^"]*)"/i);
-  if (catchupDaysMatch) {
-    const days = parseInt(catchupDaysMatch[1], 10);
+  const catchupDaysStr = extractAttribute(attrPart, ['catchup-days', 'catchup-days-max', 'catchup-range']);
+  if (catchupDaysStr) {
+    const days = parseInt(catchupDaysStr, 10);
     if (!isNaN(days) && days > 0) {
       metadata.tvArchive = true;
       metadata.catchupDays = days;
     }
   }
 
-  const catchupSourceMatch = attrPart.match(/catchup-source="([^"]*)"/i);
-  if (catchupSourceMatch && catchupSourceMatch[1].length > 0) {
+  const catchupSource = extractAttribute(attrPart, ['catchup-source', 'catchup-url']);
+  if (catchupSource) {
     metadata.tvArchive = true;
-    metadata.catchupSource = catchupSourceMatch[1];
+    metadata.catchupSource = catchupSource;
+  }
+
+  const timeshiftStr = extractAttribute(attrPart, ['timeshift', 'tvg-shift']);
+  if (timeshiftStr && !metadata.tvArchive) {
+    const shift = parseInt(timeshiftStr, 10);
+    if (!isNaN(shift) && shift > 0) {
+      metadata.tvArchive = true;
+      if (!metadata.catchupType) metadata.catchupType = 'shift';
+    }
   }
 
   // Extract tvg-chno (channel number for ordering)
-  const tvgChnoMatch = attrPart.match(/tvg-chno="([^"]*)"/i);
-  if (tvgChnoMatch) {
-    const num = parseInt(tvgChnoMatch[1], 10);
+  const tvgChnoStr = extractAttribute(attrPart, ['tvg-chno', 'tvg-ch', 'channel-id']);
+  if (tvgChnoStr) {
+    const num = parseInt(tvgChnoStr, 10);
     if (!isNaN(num)) {
       metadata.tvgChno = num;
     }

@@ -1,0 +1,61 @@
+/* ── Canvas (In-Process libmpv) Multiview Cell ──────────────────────────── */
+
+.canvas-cell-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+}
+
+/* The in-DOM <canvas> element fills the cell preserving aspect ratio */
+.canvas-cell-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Transparent interaction overlay covers the full video area */
+.canvas-cell-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    cursor: pointer;
+    background: transparent !important;
+}
+
+/* When no active content: show dark placeholder bg */
+.canvas-cell-overlay.multiview-cell-empty {
+    background: rgba(0, 0, 0, 0.75) !important;
+    cursor: default;
+}
+
+
+
+/* Badge: show on hover of the overlay */
+.canvas-cell-overlay.multiview-cell-active:hover .multiview-cell-badge {
+    opacity: 1;
+}
+
+/* Canvas / libmpv engine badge pill */
+.canvas-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: linear-gradient(135deg, #0284c7, #0ea5e9);
+    color: #fff;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    vertical-align: middle;
+}

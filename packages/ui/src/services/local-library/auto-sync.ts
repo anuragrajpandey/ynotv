@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { LocalEntry, ScannedFile } from './types';
+import type { LibraryFolder, LocalEntry, ScannedFile } from './types';
 import {
   readScannedFolders,
   readLocalLibrary,
@@ -9,7 +9,7 @@ import {
   ensureLocalLibraryLoaded,
   parseFilename,
 } from './local-library';
-import { buildTmdbEntry } from './scan';
+import { buildTmdbEntryForFolder } from './scan';
 
 const LAST_SYNC_KEY = 'ynotv.local.last_sync_time';
 const SYNC_THROTTLE_MS = 3 * 60 * 1000; // 3 minutes throttle between automatic background scans
@@ -42,35 +42,42 @@ export async function syncLocalFolders(
     const currentLibrary = readLocalLibrary();
     const existingPathMap = new Map(currentLibrary.map((e) => [e.path.toLowerCase(), e]));
 
-    const allScannedFiles: ScannedFile[] = [];
+    // Track which scan root each file came from so series folders can derive
+    // the series title from the folder path (one cached TMDB lookup per series).
+    const allScanned: Array<{ file: ScannedFile; folder: LibraryFolder }> = [];
     const successfullyScannedFolders = new Set<string>();
 
     for (const folder of folders) {
       try {
-        const files = await invoke<ScannedFile[]>('scan_local_folder', { folder });
+        const files = await invoke<ScannedFile[]>('scan_local_folder', { folder: folder.path });
         if (Array.isArray(files)) {
-          allScannedFiles.push(...files);
-          successfullyScannedFolders.add(folder.replace(/\\/g, '/').toLowerCase());
+          for (const file of files) allScanned.push({ file, folder });
+          successfullyScannedFolders.add(folder.path.replace(/\\/g, '/').toLowerCase());
         }
       } catch (err) {
-        console.warn(`[AutoSync] Could not scan folder ${folder}:`, err);
+        console.warn(`[AutoSync] Could not scan folder ${folder.path}:`, err);
       }
     }
 
     const scannedPathSet = new Set(
-      allScannedFiles.map((f) => f.path.replace(/\\/g, '/').toLowerCase()),
+      allScanned.map(({ file }) => file.path.replace(/\\/g, '/').toLowerCase()),
     );
 
     // 1. Identify newly added files
-    const newFiles = allScannedFiles.filter(
-      (f) => !existingPathMap.has(f.path.toLowerCase()),
+    const newFiles = allScanned.filter(
+      ({ file }) => !existingPathMap.has(file.path.toLowerCase()),
     );
 
     const addedEntries: LocalEntry[] = [];
-    for (const file of newFiles) {
+    for (const { file, folder } of newFiles) {
       const info = parseFilename(file.filename);
       try {
-        const entry = await buildTmdbEntry(file, info, tmdbToken ?? null);
+        const entry = await buildTmdbEntryForFolder(
+          file,
+          folder.type,
+          folder.path,
+          tmdbToken ?? null,
+        );
         addedEntries.push(entry);
       } catch {
         addedEntries.push({
@@ -106,7 +113,8 @@ export async function syncLocalFolders(
     }
 
     if (removedIds.length > 0) {
-      removeLocalEntries(removedIds);
+      // noUndo: background auto-cleanup of deleted files isn't a user action.
+      removeLocalEntries(removedIds, { noUndo: true });
     }
 
     return { added: addedEntries.length, removed: removedIds.length };

@@ -12,6 +12,7 @@ export type SettingsTabId =
   | 'proxy'
   | 'debug'
   | 'shortcuts'
+  | 'controllers'
   | 'export-import'
   | 'ui'
   | 'optimization'
@@ -53,6 +54,7 @@ const SETTINGS_TABS: SettingsTab[] = [
   { id: 'proxy', label: 'Proxy' },
   { id: 'debug', label: 'Debug' },
   { id: 'shortcuts', label: 'Shortcuts' },
+  { id: 'controllers', label: 'Controllers & Remote' },
   { id: 'export-import', label: 'Export / Import' },
   { id: 'about', label: 'About' },
 ];
@@ -80,6 +82,7 @@ export const SETTINGS_TAB_LABEL_KEYS = {
   proxy: 'tabs.proxy',
   debug: 'tabs.debug',
   shortcuts: 'tabs.shortcuts',
+  controllers: 'tabs.controllers',
   'export-import': 'tabs.export-import',
   about: 'tabs.about',
 } as const satisfies Record<SettingsTabId, `tabs.${SettingsTabId}`>;
@@ -103,6 +106,7 @@ export function SettingsSidebar({
           <button
             key={tab.id}
             className={`settings-nav-item ${activeTab === tab.id ? 'active' : ''}`}
+            data-key={tab.id}
             onClick={() => onTabChange(tab.id)}
           >
             {tab.icon && <span className="icon">{tab.icon}</span>}

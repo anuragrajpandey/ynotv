@@ -11,6 +11,7 @@ import { CatchupTab } from './CatchupTab';
 import { VodTab } from './VodTab';
 import { useToastStore } from '../../stores/toastStore';
 import { useSportsSettingsStore } from '../../stores/sportsSettingsStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 export type PlaybackSubTabId = 'mpv' | 'reconnect' | 'cast' | 'popout' | 'skipintro' | 'catchup' | 'vod';
 
@@ -66,7 +67,41 @@ interface PlaybackTabProps {
   onVodAutoPlayNextEpisodeChange: (enabled: boolean) => void;
   vodShowSourceBadge: boolean;
   onVodShowSourceBadgeChange: (enabled: boolean) => void;
+  blurUnwatchedEpisodes: boolean;
+  onBlurUnwatchedEpisodesChange: (enabled: boolean) => void;
+  useScrollwheelSeek: boolean;
+  onUseScrollwheelSeekChange: (enabled: boolean) => void;
+  useScrollwheelSeekInvert: boolean;
+  onUseScrollwheelSeekInvertChange: (enabled: boolean) => void;
 }
+
+// MPV picture quality profiles (Settings -> Playback -> MPV). These mirror the
+// profiles injected by the Rust param builder (get_mpv_params_from_store);
+// 'balanced' applies no extra options (MPV defaults).
+const MPV_QUALITY_PARAMS: Record<'performance' | 'quality', string> = {
+  performance: [
+    'scale=bilinear',
+    'cscale=bilinear',
+    'dscale=bilinear',
+    'dither=no',
+    'deband=no',
+    'vd-lavc-fast=yes',
+    'interpolation=no',
+    'hdr-compute-peak=no',
+  ].join('\n'),
+  quality: [
+    // mpv's own gpu-hq baseline, plus stronger debanding and per-frame HDR peak.
+    'profile=gpu-hq',
+    'deband-iterations=2',
+    'hdr-compute-peak=yes',
+  ].join('\n'),
+};
+
+const MPV_QUALITY_OPTIONS: { value: 'performance' | 'balanced' | 'quality'; labelKey: string; descKey: string }[] = [
+  { value: 'performance', labelKey: 'mpvQualityPerformance', descKey: 'mpvQualityPerformanceDesc' },
+  { value: 'balanced', labelKey: 'mpvQualityBalanced', descKey: 'mpvQualityBalancedDesc' },
+  { value: 'quality', labelKey: 'mpvQualityQuality', descKey: 'mpvQualityQualityDesc' },
+];
 
 const DEFAULT_MPV_PARAMS = `--hwdec=auto
 --vo=gpu
@@ -127,6 +162,12 @@ export function PlaybackTab({
   onVodAutoPlayNextEpisodeChange,
   vodShowSourceBadge,
   onVodShowSourceBadgeChange,
+  blurUnwatchedEpisodes,
+  onBlurUnwatchedEpisodesChange,
+  useScrollwheelSeek,
+  onUseScrollwheelSeekChange,
+  useScrollwheelSeekInvert,
+  onUseScrollwheelSeekInvertChange,
 }: PlaybackTabProps) {
   useTranslation();
   const [activeSubTab, setActiveSubTab] = useState<PlaybackSubTabId>('mpv');
@@ -141,8 +182,38 @@ export function PlaybackTab({
   const [hasChanges, setHasChanges] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
   const [showRestartModal, setShowRestartModal] = useState(false);
+  const [showEngineRestartModal, setShowEngineRestartModal] = useState(false);
 
   const isHwdecOverridden = /--?hwdec[=\s]/i.test(localParams);
+  const isTonemapOverridden = /--?tone-mapping[=\s]/i.test(localParams);
+
+  const {
+    playerEngine,
+    setPlayerEngine,
+    hdrTonemapToSdr,
+    setHdrTonemapToSdr,
+    showHdrQuickToggle,
+    setShowHdrQuickToggle,
+    mpvQuality,
+    setMpvQuality,
+  } = useSettingsStore();
+
+  const [showQualityParams, setShowQualityParams] = useState<'performance' | 'quality' | null>(null);
+
+  const handleEngineChange = async (newEngine: 'libmpv' | 'sidecar') => {
+    if (newEngine === playerEngine) return;
+    await setPlayerEngine(newEngine);
+    setShowEngineRestartModal(true);
+  };
+
+  const handleEngineRestartNow = async () => {
+    setShowEngineRestartModal(false);
+    try {
+      await relaunch();
+    } catch (e) {
+      console.error('[PlaybackTab] Failed to relaunch:', e);
+    }
+  };
 
   // Local state for retry settings (committed on blur / enter)
   const [localWatchdog, setLocalWatchdog] = useState(String(streamWatchdogSeconds));
@@ -299,6 +370,54 @@ export function PlaybackTab({
       <div className="settings-tab-content">
         {activeSubTab === 'mpv' && (
           <div className="settings-section">
+              {/* Player Engine Selection (Dual Engine) */}
+              <div style={{ marginBottom: '1.25rem', background: 'var(--card-bg, var(--surface-color))', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--border-color, var(--surface-border))' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{i18n.t('settings:playback.engineLabel', 'Playback Engine')}</span>
+                  <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', background: 'rgba(0, 212, 255, 0.15)', color: 'var(--accent-color, #00d4ff)', border: '1px solid rgba(0, 212, 255, 0.3)', fontWeight: 500 }}>
+                    {playerEngine === 'libmpv' ? 'Embedded libmpv' : 'Standalone Sidecar (Default)'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="playerEngine"
+                      value="sidecar"
+                      checked={playerEngine === 'sidecar'}
+                      onChange={() => handleEngineChange('sidecar')}
+                      style={{ marginTop: '3px' }}
+                    />
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                        {i18n.t('settings:playback.engineSidecar', 'Standalone Sidecar (mpv.exe - Default)')}
+                      </span>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.35' }}>
+                        {i18n.t('settings:playback.engineSidecarDesc', 'Runs MPV as an isolated external process communicating over IPC named pipes (Default).')}
+                      </p>
+                    </div>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="playerEngine"
+                      value="libmpv"
+                      checked={playerEngine === 'libmpv'}
+                      onChange={() => handleEngineChange('libmpv')}
+                      style={{ marginTop: '3px' }}
+                    />
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                        {i18n.t('settings:playback.engineLibmpv', 'Embedded libmpv')}
+                      </span>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.35' }}>
+                        {i18n.t('settings:playback.engineLibmpvDesc', 'In-process native playback engine with instant startup, smooth seeking, Direct3D 11 / OpenGL rendering.')}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               <div style={{ marginBottom: '1.25rem', background: 'var(--card-bg, var(--surface-color))', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--border-color, var(--surface-border))', opacity: isHwdecOverridden ? 0.75 : 1 }}>
                 <label className="genre-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: isHwdecOverridden ? 'not-allowed' : 'pointer' }}>
                   <input
@@ -322,6 +441,103 @@ export function PlaybackTab({
                     : <>{i18n.t('settings:playback.hwdecHintPrefix')} <code style={{ color: 'var(--accent-color, #00d4ff)' }}>--hwdec=auto</code> {i18n.t('settings:playback.hwdecHintMid')} <code style={{ color: 'var(--accent-color, #00d4ff)' }}>--vo=gpu</code> {i18n.t('settings:playback.hwdecHintSuffix')}</>}
                 </p>
               </div>
+              
+              {/* HDR-to-SDR Tonemapping Section */}
+              <div style={{ marginBottom: '1.25rem', background: 'var(--card-bg, var(--surface-color))', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--border-color, var(--surface-border))', opacity: isTonemapOverridden ? 0.75 : 1 }}>
+                <label className="genre-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: isTonemapOverridden ? 'not-allowed' : 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={hdrTonemapToSdr}
+                    disabled={isTonemapOverridden}
+                    onChange={(e) => {
+                      const newVal = e.target.checked;
+                      setHdrTonemapToSdr(newVal);
+                      (window as any).Bridge?.applyHdrSettings?.(newVal);
+                    }}
+                  />
+                  <span style={{ fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {i18n.t('settings:playback.hdrTonemapLabel', 'HDR-to-SDR Tonemapping')}
+                    {isTonemapOverridden && (
+                      <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', background: 'rgba(255, 193, 7, 0.15)', color: '#ffc107', border: '1px solid rgba(255, 193, 7, 0.3)', fontWeight: 500 }}>
+                        {i18n.t('settings:playback.hwdecManaged')}
+                      </span>
+                    )}
+                  </span>
+                </label>
+                <p style={{ marginTop: '0.4rem', marginLeft: '26px', opacity: 0.8, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4', margin: '6px 0 0 26px' }}>
+                  {i18n.t('settings:playback.hdrTonemapHint', 'Maps HDR video sources (HDR10, HLG, Dolby Vision) to SDR for accurate colors and contrast on standard displays. Recommended if HDR content looks washed-out or grey. May add a short delay to stream startup while HDR brightness is analyzed.')}
+                </p>
+
+                {/* Sub-option: Show HDR quick toggle in player controls */}
+                <div style={{ marginTop: '12px', marginLeft: '26px', paddingTop: '10px', borderTop: '1px solid var(--border-color, rgba(255,255,255,0.08))' }}>
+                  <label className="genre-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={showHdrQuickToggle}
+                      onChange={(e) => setShowHdrQuickToggle(e.target.checked)}
+                    />
+                    <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                      {i18n.t('settings:playback.showHdrQuickToggleLabel', 'Show HDR Quick Toggle in Player Bar')}
+                    </span>
+                  </label>
+                  <p style={{ opacity: 0.75, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.3', margin: '4px 0 0 26px' }}>
+                    {i18n.t('settings:playback.showHdrQuickToggleHint', 'Displays an [HDR] button on the player control bar to toggle HDR tonemapping on the fly during playback. Can be used even when HDR-to-SDR Tonemapping above is disabled.')}
+                  </p>
+                </div>
+              </div>
+
+            {/* Picture Quality Profiles (MPV) */}
+            <div style={{ marginBottom: '1.25rem', background: 'var(--card-bg, var(--surface-color))', padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--border-color, var(--surface-border))' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '4px' }}>
+                {i18n.t('settings:playback.mpvQualityLabel', 'Picture Quality Profiles')}
+              </div>
+              <p style={{ margin: '0 0 10px 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                {i18n.t('settings:playback.mpvQualityHint', 'Video scaling and processing profile applied to MPV on the next stream start. Balanced uses MPV\'s standard defaults.')}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {MPV_QUALITY_OPTIONS.map((opt) => {
+                  const val = opt.value;
+                  const showable = val !== 'balanced';
+                  return (
+                    <div key={val} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="mpvQuality"
+                          value={val}
+                          checked={mpvQuality === val}
+                          onChange={() => { void setMpvQuality(val); }}
+                          style={{ marginTop: '3px' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>                            {i18n.t(`settings:playback.${opt.labelKey}`, { defaultValue: opt.labelKey })}
+                        </span>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.35' }}>
+                          {i18n.t(`settings:playback.${opt.descKey}`, { defaultValue: opt.descKey })}
+                          </p>
+                        </div>
+                      </label>
+                      {showable && (
+                        <div style={{ marginLeft: '26px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowQualityParams(showQualityParams === val ? null : val)}
+                            style={{ background: 'none', border: 'none', padding: '2px 0', color: 'var(--accent-color, #00d4ff)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit' }}
+                          >
+                            {showQualityParams === val
+                              ? i18n.t('settings:playback.mpvQualityHideParams', 'Hide parameters')
+                              : i18n.t('settings:playback.mpvQualityShowParams', 'Show parameters')}
+                          </button>
+                          {showQualityParams === val && (
+                            <pre style={{ margin: '4px 0 0 0', padding: '8px 10px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-color, rgba(255,255,255,0.08))', fontSize: '0.78rem', lineHeight: '1.5', overflowX: 'auto', color: 'var(--text-secondary)' }}>{MPV_QUALITY_PARAMS[val]}</pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             <div className="playback-section" style={{ marginTop: 0 }}>
               <div className="playback-label">
@@ -358,35 +574,7 @@ export function PlaybackTab({
                 </button>
               </div>
 
-              <div className="playback-help">
-                <h4>{i18n.t('settings:playback.commonParams')}</h4>
-                <div className="help-grid">
-                  <div className="help-item">
-                    <code>--hwdec=auto</code>
-                    <span>{i18n.t('settings:playback.helpHwdec')}</span>
-                  </div>
-                  <div className="help-item">
-                    <code>--cache=yes</code>
-                    <span>{i18n.t('settings:playback.helpCache')}</span>
-                  </div>
-                  <div className="help-item">
-                    <code>--network-timeout=10</code>
-                    <span>{i18n.t('settings:playback.helpTimeout')}</span>
-                  </div>
-                  <div className="help-item">
-                    <code>--video-sync=display-resample</code>
-                    <span>{i18n.t('settings:playback.helpVsync')}</span>
-                  </div>
-                  <div className="help-item">
-                    <code>--demuxer-max-bytes=50MiB</code>
-                    <span>{i18n.t('settings:playback.helpDemuxer')}</span>
-                  </div>
-                  <div className="help-item">
-                    <code>--stream-lavf-o=reconnect=1</code>
-                    <span>{i18n.t('settings:playback.helpReconnect')}</span>
-                  </div>
-                </div>
-              </div>
+
 
 
 
@@ -662,6 +850,12 @@ export function PlaybackTab({
             onVodAutoPlayNextEpisodeChange={onVodAutoPlayNextEpisodeChange}
             vodShowSourceBadge={vodShowSourceBadge}
             onVodShowSourceBadgeChange={onVodShowSourceBadgeChange}
+            blurUnwatchedEpisodes={blurUnwatchedEpisodes}
+            onBlurUnwatchedEpisodesChange={onBlurUnwatchedEpisodesChange}
+            useScrollwheelSeek={useScrollwheelSeek}
+            onUseScrollwheelSeekChange={onUseScrollwheelSeekChange}
+            useScrollwheelSeekInvert={useScrollwheelSeekInvert}
+            onUseScrollwheelSeekInvertChange={onUseScrollwheelSeekInvertChange}
           />
         )}
       </div>
@@ -684,6 +878,34 @@ export function PlaybackTab({
               </button>
               <button className="modal-btn modal-btn-primary" onClick={confirmSaveWithRestart}>
                 {i18n.t('settings:playback.restartNow')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEngineRestartModal && (
+        <div className="modal-overlay" onClick={() => setShowEngineRestartModal(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">{i18n.t('settings:playback.restartRequired', 'Restart Required')}</h3>
+            </div>
+            <div className="modal-body">
+              <p className="modal-message">
+                {i18n.t(
+                  'settings:playback.engineRestartMessage',
+                  'Changing the playback engine requires an application restart to take effect.'
+                )}
+                <br /><br />
+                {i18n.t('settings:playback.restartQuestion', 'Would you like to restart the application now?')}
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn modal-btn-secondary" onClick={() => setShowEngineRestartModal(false)}>
+                {i18n.t('common:later', 'Later')}
+              </button>
+              <button className="modal-btn modal-btn-primary" onClick={handleEngineRestartNow}>
+                {i18n.t('settings:playback.restartNow', 'Restart Now')}
               </button>
             </div>
           </div>

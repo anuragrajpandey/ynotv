@@ -45,16 +45,11 @@ export function useLazyVodTrailer(
     ? (isSeries ? (item as StoredSeries).series_id : (item as StoredMovie).stream_id)
     : null;
 
-  if (itemId !== lastItemIdRef.current) {
-    lastItemIdRef.current = itemId;
+  useEffect(() => {
     setSourceTrailerUrl(null);
     setTmdbTrailerUrl(null);
-  }
 
-  useEffect(() => {
     if (!item) {
-      setSourceTrailerUrl(null);
-      setTmdbTrailerUrl(null);
       setLoading(false);
       return;
     }

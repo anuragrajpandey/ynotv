@@ -15,7 +15,9 @@ import { Bridge } from '../services/tauri-bridge';
 import { normalizeBoolean } from './db-helpers';
 import type { FavoriteItem } from '../stores/vodFavoritesStore';
 import type { Playlist } from '../stores/vodPlaylistStore';
+import { useVodPlaylistStore } from '../stores/vodPlaylistStore';
 import type { PlaylistItemProgressSnapshot } from '../stores/vodPlaylistProgressStore';
+import { resolvePlaylistItem, applyPlaylistResolutions } from './playlistPlayback';
 import { useStremioWatchStore, stremioWatchKvReady } from '../stores/stremioWatchStore';
 import { useStremioLibraryStore, stremioLibraryKvReady } from '../stores/stremioLibraryStore';
 import { writeAppKv } from '../services/appKv';
@@ -27,7 +29,7 @@ import {
     removeLocalEntries,
     saveScannedFolders
 } from '../services/local-library/local-library';
-import type { LocalEntry } from '../services/local-library/types';
+import type { LibraryFolder, LocalEntry } from '../services/local-library/types';
 
 export interface ExportData {
     version: number;
@@ -193,8 +195,8 @@ export interface ExportData {
     stremioWatchHistory?: any;
     /** Stremio library (was not exported before; added alongside the SQLite migration). */
     stremioLibrary?: any;
-    /** Local VOD library: scanned entries + configured folders. */
-    localLibrary?: { entries: LocalEntry[]; folders: string[] };
+    /** Local VOD library: scanned entries + configured folders (typed). */
+    localLibrary?: { entries: LocalEntry[]; folders: LibraryFolder[] | string[] };
     // v6 additions (Playlist Editor data)
     customPlaylists?: CustomPlaylist[];
     playlistCategoryLinks?: PlaylistCategoryLink[];
@@ -226,6 +228,21 @@ const EXPORT_VERSION = 11;
 async function buildExportData(): Promise<ExportData> {
     try {
         if (!window.storage) throw new Error(i18n.t('common:storageApiUnavailable'));
+
+        // 0. Refresh playlist items against live data BEFORE reading the
+        // persisted snapshot, so the export carries current titles/posters/
+        // stream URLs (and prunes items whose source/file is permanently gone).
+        try {
+            const playlistItems = useVodPlaylistStore
+                .getState()
+                .playlists.flatMap((p) => p.items);
+            if (playlistItems.length > 0) {
+                const resolved = await Promise.all(playlistItems.map((i) => resolvePlaylistItem(i)));
+                applyPlaylistResolutions(resolved);
+            }
+        } catch (e) {
+            console.warn('[Export] Failed to refresh playlist items:', e);
+        }
 
         // 1. Get Sources and Settings
         const sourcesResult = await window.storage.getSources();
@@ -763,9 +780,16 @@ export async function importAllData(): Promise<{ success: boolean; error?: strin
             try {
                 const { entries = [], folders = [] } = data.localLibrary;
                 await ensureLocalLibraryLoaded();
-                removeLocalEntries(readLocalLibrary().map((e) => e.id));
+                // noUndo: a whole-library import replace isn't a reversible single step.
+                removeLocalEntries(readLocalLibrary().map((e) => e.id), { noUndo: true });
                 addLocalEntries(entries);
-                saveScannedFolders(folders);
+                // Backups made before folders were typed store a plain string[];
+                // those become 'mixed' folders so their scan behaviour is unchanged.
+                saveScannedFolders(
+                    folders.map((f) =>
+                        typeof f === 'string' ? { path: f, type: 'mixed' as const } : f,
+                    ),
+                );
             } catch (e) {
                 console.warn('[Import] Failed to restore local library:', e);
             }

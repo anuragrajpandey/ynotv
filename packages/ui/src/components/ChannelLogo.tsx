@@ -13,6 +13,12 @@ interface ChannelLogoProps {
   lazy?: boolean;
   /** Manual tile background override from the EPG editor. 'auto' (or undefined) uses luminance detection. */
   background?: 'auto' | 'light' | 'dark';
+  /**
+   * Per-channel default background (e.g. from a per-source override). Beats
+   * the global default setting; 'auto' forces luminance detection even when
+   * the global default is Light/Dark. A per-logo `background` prop always wins.
+   */
+  defaultBackground?: 'auto' | 'light' | 'dark';
   /** Manual logo padding override. 'default' (or undefined) uses normal tile padding, 'none' removes padding. */
   padding?: 'default' | 'none';
   /** Display shape override: 'square' or 'rectangle' */
@@ -38,17 +44,28 @@ export const ChannelLogo = memo(function ChannelLogo({
   placeholderClass = 'logo-placeholder',
   lazy = true,
   background = 'auto',
+  defaultBackground,
   padding = 'default',
   shape,
 }: ChannelLogoProps) {
   const logoCacheEnabled = useSettingsStore((s) => s.logoCacheEnabled);
   const logoLightBackgroundDetection = useSettingsStore((s) => s.logoLightBackgroundDetection) ?? true;
   const logoSmartTrim = useSettingsStore((s) => s.logoSmartTrim) ?? false;
+  const logoDefaultBackground = useSettingsStore((s) => s.logoDefaultBackground) ?? 'auto';
+  // Per-logo background override (prop, set in the EPG editor) wins; then a
+  // per-channel default (per-source override); then the global default setting.
+  // 'auto' at any level falls back to luminance detection.
+  const effectiveBackground: 'auto' | 'light' | 'dark' =
+    background === 'light' || background === 'dark'
+      ? background
+      : defaultBackground !== undefined
+        ? defaultBackground
+        : logoDefaultBackground;
   // Seed the light tile from cache synchronously so already-classified logos
   // render correctly on first paint instead of flashing dark then flipping
   // light as the async luminance analysis resolves.
   const [autoLight, setAutoLight] = useState<boolean>(() =>
-    background === 'auto' && logoLightBackgroundDetection && src
+    effectiveBackground === 'auto' && logoLightBackgroundDetection && src
       ? getCachedLogoVerdict(src) === 'dark'
       : false
   );
@@ -65,7 +82,7 @@ export const ChannelLogo = memo(function ChannelLogo({
 
   // Reset state and resolve cached logo URL whenever the logo URL or setting changes
   useEffect(() => {
-    setAutoLight(background === 'auto' && logoLightBackgroundDetection && src ? (getCachedLogoVerdict(src) === 'dark') : false);
+    setAutoLight(effectiveBackground === 'auto' && logoLightBackgroundDetection && src ? (getCachedLogoVerdict(src) === 'dark') : false);
     setFailed(false);
     // Seed synchronously from cache so already-corrected logos don't flash
     // untrimmed before the async analysis resolves.
@@ -86,7 +103,27 @@ export const ChannelLogo = memo(function ChannelLogo({
     return () => {
       isMounted = false;
     };
-  }, [src, logoCacheEnabled, logoSmartTrim, background, logoLightBackgroundDetection]);
+  }, [src, logoCacheEnabled, logoSmartTrim, background, defaultBackground, logoLightBackgroundDetection, logoDefaultBackground]);
+
+  // When the user resets the logo luminance verdict cache (settings → logos),
+  // re-seed from the now-empty cache and re-classify the current logo so the
+  // fix is visible immediately without a reload.
+  useEffect(() => {
+    const handleVerdictReset = () => {
+      if (effectiveBackground !== 'auto' || !logoLightBackgroundDetection || !src) return;
+      setAutoLight(getCachedLogoVerdict(src) === 'dark');
+      const img = imgRef.current;
+      if (img) {
+        classifyLogo(src, img)
+          .then((verdict) => {
+            if (verdict === 'dark') setAutoLight(true);
+          })
+          .catch(() => {});
+      }
+    };
+    window.addEventListener('ynotv:logo-verdict-cache-reset', handleVerdictReset);
+    return () => window.removeEventListener('ynotv:logo-verdict-cache-reset', handleVerdictReset);
+  }, [src, background, defaultBackground, logoLightBackgroundDetection, logoDefaultBackground]);
 
   // Resolve the content box and bump a load tick so trim is recomputed from the
   // loaded image. The tick matters because the cached box is a stable object
@@ -104,7 +141,7 @@ export const ChannelLogo = memo(function ChannelLogo({
   const handleLoad = useCallback(() => {
     if (!src || !effectiveSrc) return;
     const img = imgRef.current;
-    if (background === 'auto' && logoLightBackgroundDetection && img) {
+    if (effectiveBackground === 'auto' && logoLightBackgroundDetection && img) {
       classifyLogo(src, img)
         .then((verdict) => {
           if (verdict === 'dark') setAutoLight(true);
@@ -112,7 +149,7 @@ export const ChannelLogo = memo(function ChannelLogo({
         .catch(() => {});
     }
     if (img) analyzeAndReapply(img, src);
-  }, [src, effectiveSrc, background, logoLightBackgroundDetection, analyzeAndReapply]);
+  }, [src, effectiveSrc, background, defaultBackground, logoLightBackgroundDetection, logoDefaultBackground, analyzeAndReapply]);
 
   useEffect(() => {
     if (!logoSmartTrim || contentBox !== null || failed) return;
@@ -187,7 +224,7 @@ export const ChannelLogo = memo(function ChannelLogo({
     return () => ro.disconnect();
   }, [logoSmartTrim, effectiveSrc, contentBox, loadedTick, applyTrim]);
 
-  const needsLight = background === 'light' ? true : background === 'dark' ? false : (logoLightBackgroundDetection ? autoLight : false);
+  const needsLight = effectiveBackground === 'light' ? true : effectiveBackground === 'dark' ? false : (logoLightBackgroundDetection ? autoLight : false);
 
   const smartTrimActive = logoSmartTrim && trimVars !== null;
 

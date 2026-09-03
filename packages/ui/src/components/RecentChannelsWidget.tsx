@@ -47,7 +47,7 @@ interface RecentChannelsWidgetProps {
   showControls: boolean;
   activeView: string;
   onChannelClick: (channel: StoredChannel) => void;
-  limit: 5 | 10;
+  limit?: number;
   isVod: boolean;
   onMoveLeft?: () => void;
   onMoveRight?: () => void;
@@ -57,7 +57,7 @@ export function RecentChannelsWidget({
   showControls,
   activeView,
   onChannelClick,
-  limit,
+  limit = 10,
   isVod,
   onMoveLeft,
   onMoveRight,

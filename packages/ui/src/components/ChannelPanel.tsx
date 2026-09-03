@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useSourceVersion } from '../contexts/SourceVersionContext';
-import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
-import { useChannels, useCategories, useAllPrograms, useProgramsInRange, parseCategoryIds } from '../hooks/useChannels';
+import { VirtualList, type VirtualListHandle } from './common/VirtualList';
+import { useChannels, useCategories, useAllPrograms, useProgramsInRange, useChannelCount, parseCategoryIds } from '../hooks/useChannels';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useLiveQuery } from '../hooks/useSqliteLiveQuery';
 import { useTimeGrid } from '../hooks/useTimeGrid';
 import { useVirtuosoListHeight } from '../hooks/useVirtuosoListHeight';
 import { useActiveRecordings } from '../hooks/useActiveRecordings';
 import { ChannelRow } from './ChannelRow';
+import { ProgramContextMenu } from './ProgramContextMenu';
 import { SearchResultRow } from './SearchResultRow';
 import { WatchlistRow } from './WatchlistRow';
 import { ChannelManager } from './settings/ChannelManager';
@@ -17,7 +18,7 @@ import { CustomGroupManager } from './CustomGroupManager';
 import { FailoverGroupListModal } from './FailoverGroupListModal';
 import { PlaylistListModal } from './PlaylistListModal';
 
-import { useChannelSortOrder, useEpgView, useEpgVisibleHours, useEpgClockFormat, useEpgShowDate, useUIStore } from '../stores/uiStore';
+import { useChannelSortOrder, useEpgView, useEpgVisibleHours, useEpgClockFormat, useEpgShowDate, useUIStore, useEpgThreeColumn } from '../stores/uiStore';
 import { NowPlayingBar } from './NowPlayingBar';
 import { AudioVisualizer, type VisualizerMode } from './AudioVisualizer';
 import { FailoverChannelOverlay } from './FailoverChannelOverlay';
@@ -40,6 +41,14 @@ function formatSeekTime(seconds: number): string {
 
 const ALPHABET_LETTERS = ['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
+const RESOLUTION_FILTER_OPTIONS: QualityFilter[] = ['all', '4k', 'fhd', 'hd', 'sd'];
+const RESOLUTION_FILTER_LABELS: Record<Exclude<QualityFilter, 'all'>, string> = {
+  '4k': '4K',
+  'fhd': 'FHD',
+  'hd': 'HD',
+  'sd': 'SD',
+};
+
 function getChannelFirstLetter(name: string): string {
   if (!name) return '#';
   const normalized = name.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -56,11 +65,12 @@ import { FailoverOverlay } from './FailoverOverlay';
 import { ChannelLoadingOverlay } from './ChannelLoadingOverlay';
 import type { FailoverState } from '../hooks/usePlayback';
 import { Bridge, type AspectRatioMode, getAspectRatioLabel } from '../services/tauri-bridge';
+import { getChannelMetadataBySource, qualityLabelMatchesFilter, type QualityFilter } from '../services/video-metadata';
 import { MetadataBadge } from './MetadataBadge';
 import { EpgShiftModal } from './EpgShiftModal';
 import { dbEvents } from '../db/sqlite-adapter';
 import { primaryRect } from '../hooks/useMultiview';
-import type { LayoutMode, ViewerSlot } from '../hooks/useMultiview';
+import type { LayoutMode, ViewerSlot, MultiviewEngineMode } from '../hooks/useMultiview';
 import './ChannelPanel.css';
 
 
@@ -86,11 +96,15 @@ interface ChannelRowData {
   onPlayInPopout?: (channel: StoredChannel) => void;
   onPlayInExternal?: (channel: StoredChannel) => void;
   currentChannel?: StoredChannel | null;
+  highlightChannel?: StoredChannel | null;
   showPlaylistName: boolean;
   sourceNames: Map<string, string>;
   epgMetadataBadgeResolution: boolean;
   epgMetadataBadgeFps: boolean;
   epgMetadataBadgeSound: boolean;
+  epgMetadataBadgeBitrate: boolean;
+  epgMetadataBadgeAudioBitrate: boolean;
+  threeColumn: boolean;
 }
 
 const ChannelRowVirtuoso = memo(function ChannelRowVirtuoso({
@@ -102,7 +116,7 @@ const ChannelRowVirtuoso = memo(function ChannelRowVirtuoso({
   channel: StoredChannel;
   data: ChannelRowData;
 }) {
-  const isCurrentlyPlaying = data.currentChannel?.stream_id === channel.stream_id;
+  const isCurrentlyPlaying = (data.highlightChannel ?? data.currentChannel)?.stream_id === channel.stream_id;
   const handlePlay = useCallback(() => {
     data.handleChannelClick(channel);
   }, [channel, data.handleChannelClick]);
@@ -132,6 +146,9 @@ const ChannelRowVirtuoso = memo(function ChannelRowVirtuoso({
       epgMetadataBadgeResolution={data.epgMetadataBadgeResolution}
       epgMetadataBadgeFps={data.epgMetadataBadgeFps}
       epgMetadataBadgeSound={data.epgMetadataBadgeSound}
+      epgMetadataBadgeBitrate={data.epgMetadataBadgeBitrate}
+      epgMetadataBadgeAudioBitrate={data.epgMetadataBadgeAudioBitrate}
+      altView={data.threeColumn}
     />
   );
 }, (prevProps, nextProps) => {
@@ -162,6 +179,7 @@ const ChannelRowVirtuoso = memo(function ChannelRowVirtuoso({
          prevProps.channel.source_id === nextProps.channel.source_id &&
          prevData.channelSortOrder === nextData.channelSortOrder &&
          prevData.currentChannel?.stream_id === nextData.currentChannel?.stream_id &&
+         prevData.highlightChannel?.stream_id === nextData.highlightChannel?.stream_id &&
          prevData.windowStart.getTime() === nextData.windowStart.getTime() &&
          prevData.windowEnd.getTime() === nextData.windowEnd.getTime() &&
          prevData.pixelsPerHour === nextData.pixelsPerHour &&
@@ -172,6 +190,8 @@ const ChannelRowVirtuoso = memo(function ChannelRowVirtuoso({
          prevData.epgMetadataBadgeResolution === nextData.epgMetadataBadgeResolution &&
          prevData.epgMetadataBadgeFps === nextData.epgMetadataBadgeFps &&
          prevData.epgMetadataBadgeSound === nextData.epgMetadataBadgeSound &&
+         prevData.epgMetadataBadgeBitrate === nextData.epgMetadataBadgeBitrate &&
+         prevData.epgMetadataBadgeAudioBitrate === nextData.epgMetadataBadgeAudioBitrate &&
          !recordingsChanged &&
          !programsChanged;
 });
@@ -191,6 +211,7 @@ interface SearchProgramRowData {
   onPlayInExternal?: (channel: StoredChannel) => void;
   includeSourceInSearch?: boolean;
   currentChannel?: StoredChannel | null;
+  highlightChannel?: StoredChannel | null;
 }
 
 // Memoized Virtuoso row for Live Now / Upcoming EPG search tabs
@@ -223,7 +244,7 @@ const SearchResultRowVirtuoso = memo(function SearchResultRowVirtuoso({
       onPlayInPopout={data.onPlayInPopout}
       onPlayInExternal={data.onPlayInExternal}
       includeSourceInSearch={data.includeSourceInSearch}
-      currentChannel={data.currentChannel}
+      currentChannel={data.highlightChannel ?? data.currentChannel}
     />
   );
 }, (prevProps, nextProps) => {
@@ -253,9 +274,21 @@ const SearchResultRowVirtuoso = memo(function SearchResultRowVirtuoso({
          prevData.currentLayout === nextData.currentLayout &&
          prevData.includeSourceInSearch === nextData.includeSourceInSearch &&
          prevData.currentChannel?.stream_id === nextData.currentChannel?.stream_id &&
+         prevData.highlightChannel?.stream_id === nextData.highlightChannel?.stream_id &&
          prevProgs === nextProgs &&
          !recordingsChanged;
 });
+
+// Overscan passed to the guide's VirtualList. The auto-scroll follow logic
+// subtracts this from the reported rendered range so the "keep 2 channels
+// above/below" padding math uses the VISIBLE bounds instead of the
+// overscan-inflated ones (otherwise the list only scrolls after the channel
+// has already left the viewport).
+const CHANNEL_LIST_OVERS = 5;
+// Above this many total channels, the "All Channels" view stops materializing
+// the full list (multi-second transfer + parse for big libraries) and shows a
+// notice instead. Categories/search remain the paths for huge libraries.
+const ALL_CHANNELS_SOFT_CAP = 10000;
 
 interface ChannelPanelProps {
   categoryId: string | null;
@@ -275,7 +308,7 @@ interface ChannelPanelProps {
   onWatchlistRefresh?: () => void;
   // Multiview props
   currentLayout?: string;
-  multiviewEngineMode?: 'mpv' | 'hls';
+  multiviewEngineMode?: MultiviewEngineMode;
   onSendToSlot?: (slotId: 2 | 3 | 4, channelName: string, channelUrl: string, sourceName?: string | null) => void;
   multiviewSlots?: ViewerSlot[];
   onSwapWithMain?: (slotId: 2 | 3 | 4) => void;
@@ -289,8 +322,14 @@ interface ChannelPanelProps {
   epgMetadataBadgeResolution?: boolean;
   epgMetadataBadgeFps?: boolean;
   epgMetadataBadgeSound?: boolean;
+  epgMetadataBadgeBitrate?: boolean;
+  epgMetadataBadgeAudioBitrate?: boolean;
   // Current playing channel for syncing preview
   currentChannel?: StoredChannel | null;
+  // Channel the guide grid should highlight/scroll to (the keep-view anchor
+  // when failover redirects tuning to a group primary; falls back to
+  // currentChannel when unset or identical).
+  highlightChannel?: StoredChannel | null;
   onTogglePlay?: () => void;
   isPlaying?: boolean;
   onChannelUp?: () => void;
@@ -377,7 +416,7 @@ export function ChannelPanel({
   watchlistItems,
   onWatchlistRefresh,
   currentLayout,
-  multiviewEngineMode = 'mpv',
+  multiviewEngineMode = 'hls',
   onSendToSlot,
   multiviewSlots = [],
   onSwapWithMain,
@@ -389,7 +428,10 @@ export function ChannelPanel({
   epgMetadataBadgeResolution = true,
   epgMetadataBadgeFps = true,
   epgMetadataBadgeSound = true,
+  epgMetadataBadgeBitrate = false,
+  epgMetadataBadgeAudioBitrate = false,
   currentChannel,
+  highlightChannel,
   onTogglePlay,
   isPlaying,
   onChannelUp,
@@ -440,12 +482,22 @@ export function ChannelPanel({
 }: ChannelPanelProps) {
   const { t } = useTranslation();
   const epgView = useEpgView();
+  const epgThreeColumn = useEpgThreeColumn();
+  // The preview pane is sized by *height* (dragged via the bottom-center
+  // vertical resizer) in both the alternate layout and the 3-column view;
+  // only the traditional side-by-side layout drags its width/flex. Using
+  // `epgView === 'alternate'` alone here made 3-column mode (which keeps
+  // epgView 'traditional') drag an invisible flex value, so the height
+  // always snapped back to the default on release.
+  const isAltPreviewLayout = epgThreeColumn || epgView === 'alternate';
   const epgVisibleHours = useEpgVisibleHours();
   const epgClockFormat = useEpgClockFormat();
   const epgShowDate = useEpgShowDate();
   const epgLazyLoadingEnabled = useSettingsStore((s) => s.epgLazyLoadingEnabled);
   const layoutSettingsLoaded = useSettingsStore((s) => s.layoutSettingsLoaded);
   const showFailoverLiveTvWidget = useSettingsStore((s) => s.showFailoverLiveTvWidget);
+  const audioMaxVolume = useSettingsStore((s) => s.subtitleSettings?.audioMaxVolume || 100);
+  const transparentGuideHideHeader = useSettingsStore((s) => s.transparentGuideHideHeader);
 
   useEffect(() => {
     if (error) console.log('[ChannelPanel] Received error prop:', error);
@@ -453,9 +505,16 @@ export function ChannelPanel({
 
   const channelSortOrder = useChannelSortOrder();
   const epgHiddenButtons = useUIStore((s) => s.epgHiddenButtons);
-  // Optimization: Skip loading the main channel grid when in Search or Watchlist mode, or when the panel is hidden
+  const epgResolutionFilterEnabled = useSettingsStore((s) => s.epgResolutionFilterEnabled);
+  // Soft-cap the "All Channels" view: beyond this many channels the full list
+  // is unusable (a multi-second block to transfer + parse every channel), so we
+  // skip materializing it and show a notice pointing at categories/search
+  // instead. Only applies to the true All-Channels view (categoryId === null).
+  const totalChannelCount = useChannelCount();
+  const allChannelsCapped = !categoryId && totalChannelCount > ALL_CHANNELS_SOFT_CAP;
+  // Optimization: Skip loading the main channel grid when in Search or Watchlist mode, when the panel is hidden
   // This prevents loading 40k+ channels in the background which causes UI lag
-  const shouldSkipGrid = !visible || isSearchMode || isWatchlistMode;
+  const shouldSkipGrid = !visible || isSearchMode || isWatchlistMode || allChannelsCapped;
   const channels = useChannels(categoryId, channelSortOrder, { skip: shouldSkipGrid });
 
   // Channel Search Filter
@@ -466,14 +525,54 @@ export function ChannelPanel({
     setChannelSearchQuery('');
   }, [categoryId]);
 
+  // Resolution filter (Settings -> LiveTV -> Resolution filter)
+  const [resolutionFilter, setResolutionFilter] = useState<QualityFilter>('all');
+  const [showResolutionMenu, setShowResolutionMenu] = useState(false);
+  const [resolutionMetaMap, setResolutionMetaMap] = useState<Map<string, string> | null>(null);
+
+  // Reset the active filter whenever the setting is turned off
+  useEffect(() => {
+    if (!epgResolutionFilterEnabled) setResolutionFilter('all');
+  }, [epgResolutionFilterEnabled]);
+
+  // Load quality labels for the current category's sources when a filter is active.
+  // Uses the indexed source_id lookup so one query covers the whole category.
+  const resolutionSourceIds = useMemo(
+    () => Array.from(new Set(channels.map((ch) => ch.source_id))),
+    [channels]
+  );
+  useEffect(() => {
+    if (resolutionFilter === 'all') {
+      setResolutionMetaMap(null);
+      return;
+    }
+    let cancelled = false;
+    getChannelMetadataBySource(resolutionSourceIds).then((map) => {
+      if (cancelled) return;
+      const labels = new Map<string, string>();
+      for (const [streamId, meta] of map) labels.set(streamId, meta.quality_label);
+      setResolutionMetaMap(labels);
+    });
+    return () => { cancelled = true; };
+  }, [resolutionFilter, resolutionSourceIds]);
+
   const filteredChannels = useMemo(() => {
-    if (!channelSearchQuery.trim()) return channels;
-    return channels.filter((ch) =>
-      matchesSearch(ch.name, channelSearchQuery) ||
-      (ch.alias && matchesSearch(ch.alias, channelSearchQuery)) ||
-      (ch.channel_num != null && matchesSearch(String(ch.channel_num), channelSearchQuery))
-    );
-  }, [channels, channelSearchQuery]);
+    let result = channels;
+    if (channelSearchQuery.trim()) {
+      result = result.filter((ch) =>
+        matchesSearch(ch.name, channelSearchQuery) ||
+        (ch.alias && matchesSearch(ch.alias, channelSearchQuery)) ||
+        (ch.channel_num != null && matchesSearch(String(ch.channel_num), channelSearchQuery))
+      );
+    }
+    if (resolutionFilter !== 'all' && resolutionMetaMap) {
+      result = result.filter((ch) => {
+        const label = resolutionMetaMap.get(ch.stream_id);
+        return !!label && qualityLabelMatchesFilter(label, resolutionFilter);
+      });
+    }
+    return result;
+  }, [channels, channelSearchQuery, resolutionFilter, resolutionMetaMap]);
 
   // Alphabet A-Z Quick Jumper (for Alphabetical Sort Order)
   const [showAlphabetMenu, setShowAlphabetMenu] = useState(false);
@@ -1502,19 +1601,22 @@ export function ChannelPanel({
     };
   }, [channels, visible, visibleIndices, categoryId, shouldFetchShortEpgForVisibleRange]);
 
-  // Sync selectedChannel with currentChannel when it changes externally
-  // (watchlist notification, autoswitch, calendar, multiview swap)
-  // Also re-sync when becoming visible to ensure preview matches current channel
+  // Sync selectedChannel with the view channel when it changes externally
+  // (watchlist notification, autoswitch, calendar, multiview swap). The view
+  // channel is the keep-view anchor when failover redirects tuning to a group
+  // primary, so the preview info bar (name/logo/program) matches the highlighted
+  // grid row even though the primary is the stream playing.
   useEffect(() => {
-    if (currentChannel?.stream_id) {
+    const syncChannel = highlightChannel ?? currentChannel;
+    if (syncChannel?.stream_id) {
       setSelectedChannel((prev) => {
-        if (prev?.stream_id !== currentChannel.stream_id) {
-          return currentChannel;
+        if (prev?.stream_id !== syncChannel.stream_id) {
+          return syncChannel;
         }
         return prev;
       });
     }
-  }, [currentChannel, visible]);
+  }, [highlightChannel?.stream_id, currentChannel, visible]);
 
   // Track if we have a channel to show
   const hasSelectedChannel = selectedChannel !== null;
@@ -1657,7 +1759,7 @@ export function ChannelPanel({
     const startY = e.clientY;
     
     let startPct = previewWidthPct;
-    if (previewPaneRef.current && epgView === 'traditional') {
+    if (previewPaneRef.current && epgView === 'traditional' && !epgThreeColumn) {
       const match = previewPaneRef.current.style.flex.match(/0 0 ([\d.]+)%/);
       if (match && match[1]) {
         startPct = parseFloat(match[1]);
@@ -1665,7 +1767,7 @@ export function ChannelPanel({
     }
 
     let startHeightPx = previewHeightPx;
-    if (previewPaneRef.current && epgView === 'alternate') {
+    if (previewPaneRef.current && isAltPreviewLayout) {
       const heightStr = previewPaneRef.current.style.height;
       if (heightStr && heightStr.endsWith('px')) {
          startHeightPx = parseInt(heightStr);
@@ -1680,7 +1782,7 @@ export function ChannelPanel({
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isResizingRef.current || !previewPaneRef.current) return;
       
-      if (epgView === 'alternate') {
+      if (isAltPreviewLayout) {
         const dy = moveEvent.clientY - startY;
         let newHeightPx = startHeightPx + dy;
         // Clamp height
@@ -1715,7 +1817,7 @@ export function ChannelPanel({
       document.removeEventListener('mouseup', handleMouseUp);
       
       if (previewPaneRef.current) {
-        if (epgView === 'alternate') {
+        if (isAltPreviewLayout) {
           const heightStr = previewPaneRef.current.style.height;
           if (heightStr && heightStr.endsWith('px')) {
             const finalHeight = parseInt(heightStr);
@@ -1735,12 +1837,12 @@ export function ChannelPanel({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [previewWidthPct, previewHeightPx, epgView]);
+  }, [previewWidthPct, previewHeightPx, epgView, epgThreeColumn, isAltPreviewLayout]);
 
   const handleResizeContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (epgView === 'alternate') {
+    if (isAltPreviewLayout) {
       setPreviewHeightPx(360);
       localStorage.setItem('guidePreviewHeight', '360');
       if (previewPaneRef.current) {
@@ -1756,7 +1858,7 @@ export function ChannelPanel({
         }
       }
     }
-  }, [epgView]);
+  }, [epgView, epgThreeColumn, isAltPreviewLayout]);
 
   // ── Drag-to-resize for EPG channel column ─────────────────────────────────
   const isResizingChannelCol = useRef(false);
@@ -1973,6 +2075,184 @@ export function ChannelPanel({
     return Math.min(100, Math.max(0, ((now - start) / total) * 100));
   }, [selectedProgram, currentTime, isCatchup, catchupInfo, selectedChannel, position, duration]);
 
+  // "Catch-up Programs" toggle for the 3-column schedule list — catchup
+  // channels can look further back than the default 1-hour window.
+  const [altScheduleShowOlder, setAltScheduleShowOlder] = useState(false);
+  // Full catch-up history for the selected channel, fetched on demand while
+  // the toggle is active so the schedule shows ALL past programs instead of
+  // only the ones inside the loaded EPG window.
+  const [altScheduleHistory, setAltScheduleHistory] = useState<StoredProgram[] | null>(null);
+  // How many past programs to load for a channel's full catch-up history and
+  // how many total rows the schedule can render. The list is virtualized, so
+  // hundreds/thousands of rows only mount a visible window and stay smooth.
+  const CATCHUP_HISTORY_LIMIT = 1000;
+  const ALT_SCHEDULE_MAX_ROWS = 1000;
+
+  useEffect(() => {
+    if (!altScheduleShowOlder || !selectedChannel) {
+      setAltScheduleHistory(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const dbInstance = await (db as any).dbPromise;
+        const rows = await dbInstance.select(
+          `SELECT * FROM programs_effective
+           WHERE stream_id = ?
+             AND end <= ?
+           ORDER BY start DESC
+           LIMIT ${CATCHUP_HISTORY_LIMIT}`,
+          [selectedChannel.stream_id, currentTime.toISOString()]
+        ) as StoredProgram[];
+        if (cancelled) return;
+        setAltScheduleHistory(rows.map((p) => ({
+          ...p,
+          description: decompressEpgDescription(p.description) ?? p.description,
+        })));
+      } catch (err) {
+        console.error('[ChannelPanel] Failed to load catch-up history:', err);
+        if (!cancelled) setAltScheduleHistory([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [altScheduleShowOlder, selectedChannel?.stream_id, currentTime]);
+
+  // Short date label for schedule rows so catch-up entries spanning multiple
+  // days are easy to identify.
+  const formatScheduleDate = useCallback((date: Date) => {
+    const d = new Date(date);
+    const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diffDays = Math.round((startOfDay(currentTime) - startOfDay(d)) / 86400000);
+    if (diffDays === 0) return i18n.t('common:today', { defaultValue: 'Today' });
+    if (diffDays === 1) return i18n.t('common:yesterday', { defaultValue: 'Yesterday' });
+    return formatDate(d, { month: 'short', day: 'numeric' });
+  }, [currentTime]);
+
+  // Alternate view: the schedule for the selected channel (current + upcoming
+  // programs within the EPG window), used by the 3-column info pane.
+  const altSchedulePrograms = useMemo(() => {
+    if (!selectedChannel) return [];
+    const channelPrograms = programs.get(selectedChannel.stream_id) || [];
+    const now = currentTime.getTime();
+    const toEntry = (p: StoredProgram) => ({
+      program: p,
+      startMs: p.start instanceof Date ? p.start.getTime() : new Date(p.start).getTime(),
+      endMs: p.end instanceof Date ? p.end.getTime() : new Date(p.end).getTime(),
+    });
+    const entries = channelPrograms
+      .map(toEntry)
+      .filter((x) => Number.isFinite(x.startMs) && Number.isFinite(x.endMs));
+
+    let past: ReturnType<typeof toEntry>[];
+    if (altScheduleShowOlder && altScheduleHistory) {
+      // Catch-up mode: ALL past programs from the DB, not just the loaded window.
+      past = altScheduleHistory
+        .map(toEntry)
+        .filter((x) => Number.isFinite(x.startMs) && Number.isFinite(x.endMs));
+    } else {
+      // Default: just the last hour of finished programs, so the list keeps
+      // "what just aired" context without pushing the current show down.
+      const LOOKBACK_MS = 60 * 60 * 1000;
+      past = entries.filter((x) => x.endMs <= now && x.endMs > now - LOOKBACK_MS);
+    }
+
+    // Anchor the schedule on the currently airing program: the running show is
+    // always the first row (current → upcoming chronologically → past, most
+    // recent first), so the list starts at the live program instead of at
+    // whatever program happened to end within the lookback hour.
+    const current = entries.find((x) => x.startMs <= now && x.endMs > now) ?? null;
+    const upcoming = entries.filter((x) => x.startMs > now);
+    return [
+      ...(current ? [current] : []),
+      ...upcoming.sort((a, b) => a.startMs - b.startMs),
+      ...past.sort((a, b) => b.startMs - a.startMs),
+    ].slice(0, ALT_SCHEDULE_MAX_ROWS);
+  }, [selectedChannel, programs, currentTime, altScheduleShowOlder, altScheduleHistory]);
+
+  type AltScheduleRowEntry = {
+    program: StoredProgram;
+    startMs: number;
+    endMs: number;
+    isCurrent: boolean;
+    isPast: boolean;
+    clickable: boolean;
+  };
+  type AltScheduleDisplayItem =
+    | { kind: 'header'; dateLabel: string; key: string }
+    | { kind: 'row'; row: AltScheduleRowEntry; key: string };
+
+  // Flattened display list for the virtualized schedule: a per-day date
+  // header before each group of programs (Today / Yesterday / short date),
+  // followed by the program rows for that day.
+  const altScheduleDisplay = useMemo<AltScheduleDisplayItem[]>(() => {
+    const items: AltScheduleDisplayItem[] = [];
+    let lastDayKey: string | null = null;
+    const now = currentTime.getTime();
+    const catchupAvailable = Boolean(selectedChannel?.tv_archive) || selectedChannel?.tv_archive === 1;
+    for (const entry of altSchedulePrograms) {
+      const d = new Date(entry.startMs);
+      const dayKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime().toString();
+      if (dayKey !== lastDayKey) {
+        items.push({ kind: 'header', dateLabel: formatScheduleDate(d), key: `day-${dayKey}` });
+        lastDayKey = dayKey;
+      }
+      const isCurrent = now >= entry.startMs && now < entry.endMs;
+      const isPast = entry.endMs <= now;
+      const clickable = (isPast || isCurrent) && catchupAvailable && !!onPlayCatchup;
+      items.push({
+        kind: 'row',
+        row: { program: entry.program, startMs: entry.startMs, endMs: entry.endMs, isCurrent, isPast, clickable },
+        key: `prog-${entry.program.id}`,
+      });
+    }
+    return items;
+  }, [altSchedulePrograms, currentTime, selectedChannel, onPlayCatchup, formatScheduleDate]);
+
+  // Right-click context menu (same ProgramContextMenu as the timeline grid)
+  // for the 3-column schedule rows.
+  const [scheduleContextMenu, setScheduleContextMenu] = useState<{ program: StoredProgram; x: number; y: number } | null>(null);
+  const handleScheduleContextMenu = useCallback((e: React.MouseEvent, program: StoredProgram) => {
+    e.preventDefault();
+    setScheduleContextMenu({ program, x: e.clientX, y: e.clientY });
+  }, []);
+
+  // Scroll container for the 3-column schedule list (virtualized) and the
+  // VirtualList handle used to keep the current program in view.
+  const altScheduleRef = useRef<HTMLDivElement>(null);
+  const altScheduleListRef = useRef<VirtualListHandle>(null);
+
+  // Auto-scroll the 3-column schedule so the current (running) program stays
+  // visible when the selected channel changes or catch-up history loads in.
+  // Deliberately NOT keyed on altScheduleDisplay: that memo rebuilds every 60s
+  // (currentTime tick), so depending on it yanked the list back to the current
+  // program every minute and made it impossible to scroll away. A ref keeps the
+  // latest display available to the retry loop (programs load async) without
+  // re-triggering the effect on time-driven rebuilds.
+  const altScheduleDisplayRef = useRef(altScheduleDisplay);
+  altScheduleDisplayRef.current = altScheduleDisplay;
+  useEffect(() => {
+    if (!selectedChannel) return;
+    let cancelled = false;
+    let retries = 20;
+    const tryScroll = () => {
+      if (cancelled) return;
+      const now = Date.now();
+      const idx = altScheduleDisplayRef.current.findIndex(
+        (it) => it.kind === 'row' && now >= it.row.startMs && now < it.row.endMs
+      );
+      if (idx >= 0) {
+        // The current program is the anchor row (index 0), so align it to the
+        // top of the list — the running show should be the first thing visible.
+        altScheduleListRef.current?.scrollToIndex({ index: idx, align: 'start' });
+        return;
+      }
+      if (retries-- > 0) setTimeout(tryScroll, 150);
+    };
+    tryScroll();
+    return () => { cancelled = true; };
+  }, [selectedChannel?.stream_id, altScheduleShowOlder, altScheduleHistory]);
+
   // Ref for the video preview container (now points to video sub-container)
   const previewRef = useRef<HTMLDivElement>(null);
   // Ref for the outer preview pane (used for mini bar layout)
@@ -1980,15 +2260,63 @@ export function ChannelPanel({
   // Track last channel ID to maintain resize when channel data is loading
   const lastChannelIdRef = useRef<string | null>(null);
 
-  // Virtuoso scrolling refs
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  // VirtualList scrolling refs
+  const virtuosoRef = useRef<VirtualListHandle>(null);
   const visibleRangeRef = useRef({ startIndex: 0, endIndex: 0 });
   const blockAutoScrollRef = useRef(false);
   // Track last channel click for double-click detection to close LiveTV
   const lastChannelClickRef = useRef<{ streamId: string; timestamp: number } | null>(null);
   const DOUBLE_CLICK_MS = 500;
 
-  // Handle auto-scrolling to keep the selected channel near the middle/visible
+  // The channel list is virtualized. Remote navigation requests a data index
+  // when its next row is outside the current DOM window; Virtuoso is the only
+  // reliable owner of that scroll position.
+  useEffect(() => {
+    const handleSpatialIndexRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ surface?: string; index?: number }>).detail;
+      if (detail?.surface !== 'channel-list' || !Number.isInteger(detail.index) || detail.index! < 0) return;
+      blockAutoScrollRef.current = true;
+      virtuosoRef.current?.scrollToIndex({ index: detail.index!, align: 'center', behavior: 'auto' });
+    };
+
+    window.addEventListener('ynotv:spatial-scroll-to-index', handleSpatialIndexRequest);
+    return () => window.removeEventListener('ynotv:spatial-scroll-to-index', handleSpatialIndexRequest);
+  }, []);
+
+  // Controller buttons can be mapped to "EPG < 1 hour"/"EPG > 1 hour". Those fire
+  // a ynotv:gamepad-epg-shift event; apply the delta to the current offset here,
+  // clamped to the same [-12, 12] bounds the EpgShiftModal enforces. No-op outside
+  // the guide (this component isn't mounted elsewhere).
+  useEffect(() => {
+    const handleEpgShift = (event: Event) => {
+      const delta = (event as CustomEvent<{ delta?: number }>).detail?.delta;
+      if (!delta) return;
+      const next = Math.max(-12, Math.min(12, currentEpgOffset + delta));
+      if (next !== currentEpgOffset) {
+        // Keep the local offset in sync so the toolbar label and repeated
+        // presses reflect the shift (handleEpgShiftChange only persists it).
+        setCurrentEpgOffset(next);
+        handleEpgShiftChange(next);
+      }
+    };
+    window.addEventListener('ynotv:gamepad-epg-shift', handleEpgShift);
+    return () => window.removeEventListener('ynotv:gamepad-epg-shift', handleEpgShift);
+  }, [currentEpgOffset, handleEpgShiftChange]);
+
+  // When the view layout changes (time-grid ↔ 3-column), the VirtualList
+  // remounts (different key) and starts at scroll 0 while visibleRangeRef still
+  // holds the previous view's rendered window. Reset the range (and drop any
+  // stale spatial-scroll suppression) so the follow effect below re-centers the
+  // selected channel in the freshly mounted list instead of trusting the old
+  // window.
+  useEffect(() => {
+    visibleRangeRef.current = { startIndex: 0, endIndex: 0 };
+    blockAutoScrollRef.current = false;
+  }, [epgThreeColumn]);
+
+  // Handle auto-scrolling to keep the selected channel near the middle/visible.
+  // The highlight channel (keep-view anchor) takes priority so the row the user
+  // picked stays in view even when failover plays the group primary instead.
   useEffect(() => {
     if (!visible) return;
     if (!selectedChannel || !filteredChannels.length || !virtuosoRef.current) return;
@@ -1999,7 +2327,8 @@ export function ChannelPanel({
       return;
     }
 
-    const index = filteredChannels.findIndex((c) => c.stream_id === selectedChannel.stream_id);
+    const scrollChannel = highlightChannel ?? selectedChannel;
+    const index = filteredChannels.findIndex((c) => c.stream_id === scrollChannel.stream_id);
     if (index === -1) return;
 
     const { startIndex, endIndex } = visibleRangeRef.current;
@@ -2010,22 +2339,42 @@ export function ChannelPanel({
       return;
     }
 
+    // The reported range includes the virtualizer's overscan rows (rendered
+    // but not visible). Shrink to the actual visible bounds so the follow
+    // scroll starts as the channel approaches the edge — keeping at least
+    // PADDING channels above/below — instead of waiting until the channel
+    // has already scrolled out of view.
+    //
+    // The overscan must always be subtracted/added: it is present on both
+    // sides of the rendered range regardless of whether that range touches the
+    // list's first/last row (a boundary only truncates it, never removes it).
+    // Guarding the subtraction on `endIndex < len-1` meant that once overscan
+    // reached the final row, `visibleEnd` was overestimated by the full
+    // overscan, so no scroll fired until the selection had fallen most of the
+    // way into the invisible overscan region and only 'caught up' at the very
+    // last (or first) row.
+    const visibleStart = Math.min(
+      filteredChannels.length - 1,
+      startIndex + CHANNEL_LIST_OVERS
+    );
+    const visibleEnd = Math.max(0, endIndex - CHANNEL_LIST_OVERS);
+
     const PADDING = 2; // Keep at least 2 items below/above
 
-    if (index >= endIndex - PADDING) {
+    if (index >= visibleEnd - PADDING) {
       virtuosoRef.current.scrollToIndex({
         index: Math.min(filteredChannels.length - 1, index + PADDING),
         align: 'end',
         behavior: 'smooth',
       });
-    } else if (index <= startIndex + PADDING) {
+    } else if (index <= visibleStart + PADDING) {
       virtuosoRef.current.scrollToIndex({
         index: Math.max(0, index - PADDING),
         align: 'start',
         behavior: 'smooth',
       });
     }
-  }, [selectedChannel?.stream_id, filteredChannels.length, isSearchMode, isWatchlistMode, visible]);
+  }, [selectedChannel?.stream_id, highlightChannel?.stream_id, filteredChannels.length, isSearchMode, isWatchlistMode, visible, epgThreeColumn]);
 
   // Update last channel ID when selected channel changes
   useEffect(() => {
@@ -2049,13 +2398,9 @@ export function ChannelPanel({
     let forceNextUpdate = false;
     let isDragging = false;
     let dragSettleTimer: ReturnType<typeof setTimeout> | null = null;
-    const lastSecondaryGeometries = new Map<2 | 3 | 4, string>();
 
     const updateVideoPosition = () => {
-      // Use last known channel ID if current selection is null but we have one cached
-      const effectiveChannelId = selectedChannel?.stream_id || lastChannelIdRef.current || currentChannel?.stream_id;
-
-      if (!previewRef.current || !effectiveChannelId) {
+      if (!previewRef.current) {
         if (onPreviewVideoRectChange) {
           onPreviewVideoRectChange(null);
         }
@@ -2074,10 +2419,6 @@ export function ChannelPanel({
 
       // Safety check for zero dimensions — can happen transiently during React layout
       // transitions (e.g. switching multiview grid layouts) before the browser has painted.
-      // The effect returns early at the top when !visible, so reaching here means the panel
-      // is open. Skip this frame silently; the animation loop retries every rAF until paint
-      // settles and correct dimensions are available. Do NOT null the rect here — that would
-      // trigger App.tsx to reset video-zoom to 0, breaking the preview.
       if (rect.width === 0 || rect.height === 0) {
         return;
       }
@@ -2108,62 +2449,6 @@ export function ChannelPanel({
         lastMainGeometry = nextMainGeometry;
         invoke('mpv_set_geometry', { x: sx, y: sy, width: sw, height: sh }).catch(() => {});
       }
-
-      // Reposition secondary MPV slots inside EPG preview container cells (only if engineMode is 'mpv')
-      if (multiviewEngineMode === 'mpv') {
-        const isEpgModalOpen = showEpgShiftModal || showFailoverGroupModal || showPlaylistListModal || !!managingCustomGroup || !!managingCategory || managingFavorites;
-        const shouldHideSecondaries = isEpgModalOpen || showSettingsPopup;
-
-        const secondaryIds: (2 | 3 | 4)[] = [2, 3, 4];
-        secondaryIds.forEach((slotId) => {
-          const slot = multiviewSlots.find((s) => s.id === slotId);
-          const active = slot?.active ?? false;
-
-          // If a slot is not active, or if we want to hide them (because a modal/settings is open):
-          if (!active || shouldHideSecondaries) {
-            const hiddenGeometry = '-10000:-10000:1:1';
-            if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
-              lastSecondaryGeometries.set(slotId, hiddenGeometry);
-              invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
-            }
-            return;
-          }
-
-          // Otherwise, find the placeholder container inside EPG
-          const id = `epg-slot-container-${slotId}`;
-          const el = document.getElementById(id);
-          if (!el) {
-            const hiddenGeometry = '-10000:-10000:1:1';
-            if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
-              lastSecondaryGeometries.set(slotId, hiddenGeometry);
-              invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
-            }
-            return;
-          }
-
-          const cellRect = el.getBoundingClientRect();
-          if (cellRect.width === 0 || cellRect.height === 0) {
-            const hiddenGeometry = '-10000:-10000:1:1';
-            if (force || lastSecondaryGeometries.get(slotId) !== hiddenGeometry) {
-              lastSecondaryGeometries.set(slotId, hiddenGeometry);
-              invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
-            }
-            return;
-          }
-
-          const d = window.devicePixelRatio || 1;
-          const sx = Math.round(cellRect.left * d);
-          const sy = Math.round(cellRect.top * d);
-          const sw = Math.round(cellRect.width * d);
-          const sh = Math.round(cellRect.height * d);
-          const nextSlotGeometry = `${sx}:${sy}:${sw}:${sh}`;
-
-          if (force || lastSecondaryGeometries.get(slotId) !== nextSlotGeometry) {
-            lastSecondaryGeometries.set(slotId, nextSlotGeometry);
-            invoke('multiview_reposition_slot', { slotId, x: sx, y: sy, width: sw, height: sh }).catch(() => {});
-          }
-        });
-      }
     };
 
     const scheduleVideoPositionUpdate = () => {
@@ -2180,6 +2465,17 @@ export function ChannelPanel({
 
     if (previewRef.current) {
       observer.observe(previewRef.current);
+      // The native video window is repositioned whenever the preview's SIZE
+      // changes (the RO on the video above fires). But in 3-column/alternate
+      // view the preview keeps a fixed 16:9 size and only MOVES when the
+      // channel strip is resized (it stays centered in the right column), so
+      // the video's RO never fires and the native window falls out of sync
+      // with the CSS overlay. Also watch the column container, which resizes
+      // during strip drags, so position-only shifts realign the video too.
+      const colContainer = previewRef.current.parentElement?.parentElement;
+      if (colContainer && colContainer !== previewRef.current) {
+        observer.observe(colContainer);
+      }
       updateVideoPosition();
     }
 
@@ -2191,6 +2487,12 @@ export function ChannelPanel({
 
     // Listen for window move events to keep the MPV window aligned during dragging
     let unlistenMove: (() => void) | null = null;
+    // On Windows, mpv's embedded window follows the parent via a
+    // WM_WINDOWPOSCHANGED hook and re-fits itself to the FULL parent on
+    // activation (clicking another program, then clicking back). That leaves
+    // the video full-screen with the CSS preview showing only a cutout. Re-
+    // assert the preview rect whenever the window regains focus.
+    let unlistenFocus: (() => void) | null = null;
     let disposed = false;
 
     import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
@@ -2213,16 +2515,52 @@ export function ChannelPanel({
         if (disposed) unlisten();
         else unlistenMove = unlisten;
       }).catch(() => {});
+
+      appWindow.onFocusChanged(({ payload: focused }) => {
+        if (!focused) return;
+        forceNextUpdate = true;
+        lastMainGeometry = ''; // reset cache so the geometry call is never skipped
+        scheduleVideoPositionUpdate();
+        // Safety pass: outlast any async mpv re-fit that lands after the JS
+        // focus event. Idempotent, so the extra call is harmless.
+        setTimeout(() => {
+          if (disposed) return;
+          forceNextUpdate = true;
+          lastMainGeometry = '';
+          scheduleVideoPositionUpdate();
+        }, 150);
+      }).then((unlisten) => {
+        if (disposed) unlisten();
+        else unlistenFocus = unlisten;
+      }).catch(() => {});
     }).catch(() => {});
 
-    // Animation loop for CSS transitions (sidebar/category strip opening/closing)
+    // Settle loop for CSS transitions (sidebar/category strip opening/closing).
+    // Runs on rAF while the preview geometry is still changing (plus a short
+    // stable grace window), then stops — replaces the old perpetual 100ms
+    // interval that fired mpv_set_geometry ~10x/sec while the Guide sat open.
+    // The ResizeObserver above covers element size changes; this loop catches
+    // position-only shifts (translateX slides) for the duration of the move.
     let animationFrameId: number;
+    let stableFrames = 0;
+    let lastLoopGeometry = '';
     const startTime = performance.now();
-    const DURATION = 500; // ms - covers CSS transition time
+    const MAX_LOOP_DURATION = 2000; // watchdog: never run longer than any CSS transition
+    const MAX_STABLE_FRAMES = 3; // frames with no geometry change => settled, stop
 
     const animate = () => {
+      forceNextUpdate = true;
       updateVideoPosition();
-      if (performance.now() - startTime < DURATION) {
+      const rect = previewRef.current?.getBoundingClientRect();
+      const geom = rect
+        ? `${rect.left}:${rect.top}:${rect.width}:${rect.height}`
+        : '';
+      stableFrames = geom === lastLoopGeometry ? stableFrames + 1 : 0;
+      lastLoopGeometry = geom;
+      if (
+        performance.now() - startTime < MAX_LOOP_DURATION &&
+        stableFrames < MAX_STABLE_FRAMES
+      ) {
         animationFrameId = requestAnimationFrame(animate);
       }
     };
@@ -2234,22 +2572,10 @@ export function ChannelPanel({
       observer.disconnect();
       window.removeEventListener('resize', handleWindowResize);
       if (unlistenMove) unlistenMove();
+      if (unlistenFocus) unlistenFocus();
       if (dragSettleTimer !== null) clearTimeout(dragSettleTimer);
       if (rafId !== null) cancelAnimationFrame(rafId);
       cancelAnimationFrame(animationFrameId);
-      // NOTE: Do NOT call onPreviewVideoRectChange(null) here.
-      // This cleanup runs on every dependency change (e.g. currentLayout/showMultiviewGrid),
-      // not just when the panel closes. Nulling the rect here triggers App.tsx to reset
-      // video-zoom to 0, which races against the new effect's updateVideoPosition call
-      // and leaves the MPV fullscreen instead of scaled into the preview cell.
-      // The null is sent by the dedicated visibility-change effect below instead.
-
-      if (multiviewEngineMode === 'mpv') {
-        const secondaryIds: (2 | 3 | 4)[] = [2, 3, 4];
-        secondaryIds.forEach((slotId) => {
-          invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
-        });
-      }
     };
     // Re-run when layout changes (sidebar/category visibility) or when visibility/selection changes
     // Include selectedChannelId to trigger resize when returning to view with a selection
@@ -2312,16 +2638,22 @@ export function ChannelPanel({
     onPlayInPopout,
     onPlayInExternal,
     currentChannel,
+    highlightChannel,
     showPlaylistName: includeSourceInSearch ?? false,
     sourceNames,
     epgMetadataBadgeResolution,
     epgMetadataBadgeFps,
     epgMetadataBadgeSound,
+    epgMetadataBadgeBitrate,
+    epgMetadataBadgeAudioBitrate,
+    // Search results always render the traditional timeline cells, even when
+    // the 3-column strip view is active.
+    threeColumn: false,
   }), [
     channelSortOrder, searchChannelPrograms, windowStart, windowEnd, pixelsPerHour, visibleHours,
     handleSearchChannelClick, onPlayCatchup, refreshSearchResults, categoryId, activeRecordings,
-    currentLayout, onSendToSlot, onPlayInPopout, onPlayInExternal, currentChannel,
-    includeSourceInSearch, sourceNames, epgMetadataBadgeResolution, epgMetadataBadgeFps, epgMetadataBadgeSound,
+    currentLayout, onSendToSlot, onPlayInPopout, onPlayInExternal, currentChannel, highlightChannel,
+    includeSourceInSearch, sourceNames, epgMetadataBadgeResolution, epgMetadataBadgeFps, epgMetadataBadgeSound, epgMetadataBadgeBitrate, epgMetadataBadgeAudioBitrate,
   ]);
 
   const searchProgramRowContext = useMemo<SearchProgramRowData>(() => ({
@@ -2344,6 +2676,169 @@ export function ChannelPanel({
     includeSourceInSearch, currentChannel,
   ]);
 
+  // The guide's management buttons (Manage Channels, Refresh Source, EPG
+  // shift, Playlist editor, Failover group, Probe) plus the EPG sync status.
+  // Rendered in the header for the time-grid views and in the right schedule
+  // pane's toolbar (.guide-alt-toolbar) below the preview for the 3-column
+  // view, which keeps the strip header minimal.
+  // The embedded/popout/external mode toggle. Rendered in the strip header
+  // for the timeline views, and moved into the 3-column toolbar (left of the
+  // close button) so the strip header stays minimal.
+  const renderPopoutToggle = () => (
+    <button
+      className={`guide-epg-shift-btn guide-alt-popout ${popoutMode !== 'off' ? 'active' : ''}`}
+      onClick={onTogglePopoutMode}
+      title={
+        popoutMode === 'off'
+          ? i18n.t('player:embeddedModeHint')
+          : popoutMode === 'popout'
+            ? i18n.t('player:popoutModeHint')
+            : i18n.t('player:externalModeHint')
+      }
+      style={{ color: popoutMode === 'off' ? undefined : 'var(--accent)' }}
+    >
+      {popoutMode === 'external' ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+        </svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      )}
+      <span className="btn-label">
+        {popoutMode === 'off' ? i18n.t('player:embedded') : popoutMode === 'popout' ? i18n.t('player:popout') : i18n.t('player:external')}
+      </span>
+    </button>
+  );
+
+  const renderGuideManageButtons = () => {
+    if (!canManageChannels) return null;
+    return (
+      <>
+                    {!epgHiddenButtons.includes('manage-channels') && (
+                      <button
+                        className="guide-manage-channels-btn"
+                        onClick={isCustomGroup ? () => setManagingCustomGroup({ id: categoryId!, name: customGroupName }) : handleManageChannels}
+                        title={isCustomGroup ? t('manageCustomGroup') : t('manageChannels')}
+                      >
+                        {isCustomGroup ? (
+                          <>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                            </svg>
+                            <span className="btn-label">{t('manageCustomGroup')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                              <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
+                              <polyline points="17 2 12 7 7 2" />
+                            </svg>
+                            <span className="btn-label">{t('manageChannels')}</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {!isCustomGroup && (
+                      <>
+                        {!isCustomCategory && !sourceId?.startsWith('playlist:') && !epgHiddenButtons.includes('refresh-source') && (
+                          <button
+                            className="guide-refresh-source-btn"
+                            onClick={handleRefreshSource}
+                            disabled={syncingSourceId === sourceId}
+                            title={t('refreshSource')}
+                          >
+                            {syncingSourceId === sourceId ? (
+                              <>
+                                <span className="sync-spinner">⟳</span>
+                                <span className="btn-label">{syncStatusMsg || t('refreshing')}</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                                  <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                                </svg>
+                                <span className="btn-label">{t('refreshSource')}</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {!sourceId?.startsWith('playlist:') && !epgHiddenButtons.includes('epg-shift') && (
+                          <button
+                            className="guide-epg-shift-btn"
+                            onClick={() => setShowEpgShiftModal(true)}
+                            title={t('epgShift')}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                              <circle cx="12" cy="12" r="10"/>
+                              <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <span className="btn-label">{currentEpgOffset === 0 ? t('epgShift') : t('shiftHours', { hours: `${currentEpgOffset > 0 ? '+' : ''}${currentEpgOffset}` })}</span>
+                          </button>
+                        )}
+                        {!epgHiddenButtons.includes('playlist-editor') && (
+                          <button
+                            className="guide-epg-shift-btn"
+                            onClick={() => setShowPlaylistListModal(true)}
+                            title={t('playlistEditor')}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                              <line x1="8" y1="6" x2="21" y2="6"></line>
+                              <line x1="8" y1="12" x2="21" y2="12"></line>
+                              <line x1="8" y1="18" x2="21" y2="18"></line>
+                              <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                              <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                              <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                            </svg>
+                            <span className="btn-label">{t('playlistEditor')}</span>
+                          </button>
+                        )}
+                        {!epgHiddenButtons.includes('failover-group') && (
+                          <button
+                            className="guide-epg-shift-btn"
+                            onClick={() => setShowFailoverGroupModal(true)}
+                            title={t('failoverGroup')}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                              <path d="M2 17l10 5 10-5"/>
+                              <path d="M2 12l10 5 10-5"/>
+                            </svg>
+                            <span className="btn-label">{t('failoverGroup')}</span>
+                          </button>
+                        )}
+                        {!epgHiddenButtons.includes('channel-probe') && (
+                          <button
+                            className="guide-epg-shift-btn"
+                            onClick={() => {
+                              if (typeof (window as any).openChannelProbe === 'function') {
+                                (window as any).openChannelProbe(sourceId, categoryId);
+                              }
+                            }}
+                            title={i18n.t('probe:guideButtonTitle')}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                              <circle cx="12" cy="12" r="2" />
+                              <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14" />
+                            </svg>
+                            <span className="btn-label">{i18n.t('probe:guideButtonLabel')}</span>
+                          </button>
+                        )}
+                        {epgSyncStatus && epgSyncStatus.total > 0 && (
+                          <span className="guide-epg-sync-status">
+                            <span className="sync-spinner">⟳</span>
+                            <span>{t('epgCompleted', { completed: epgSyncStatus.completed, total: epgSyncStatus.total })}</span>
+                          </span>
+                        )}
+                      </>
+                    )}
+      </>
+    );
+  };
+
   const renderPreviewPane = () => (
     <div
       className="guide-preview-pane"
@@ -2351,8 +2846,8 @@ export function ChannelPanel({
       style={
         showMultiviewGrid
           ? { width: '100%', height: '100%', flex: 'none', borderRight: 'none' }
-          : epgView === 'alternate'
-          ? { height: `${previewHeightPx}px` }
+          : epgThreeColumn || epgView === 'alternate'
+          ? { height: `${previewHeightPx}px`, width: 'auto', aspectRatio: '16 / 9', maxWidth: '100%', flex: 'none' }
           : { flex: `0 0 ${previewWidthPct}%` }
       }
       onMouseMove={handlePreviewMouseMove}
@@ -2366,7 +2861,7 @@ export function ChannelPanel({
       {/* Resizer Handle */}
       {!showMultiviewGrid && (
         <div 
-          className={`guide-preview-resizer ${epgView === 'alternate' ? 'vertical' : 'horizontal'}`} 
+          className={`guide-preview-resizer ${isAltPreviewLayout ? 'vertical' : 'horizontal'}`}
           onMouseDown={handleResizeMouseDown}
           onContextMenu={handleResizeContextMenu}
           title={t('dragResizePreview')}
@@ -2545,7 +3040,7 @@ export function ChannelPanel({
                 <input
                   type="range"
                   min="0"
-                  max="100"
+                  max={audioMaxVolume}
                   value={previewMuted ? 0 : previewVolume}
                   onChange={handlePreviewVolumeChange}
                   onDoubleClick={(e) => e.stopPropagation()}
@@ -2620,18 +3115,184 @@ export function ChannelPanel({
     </div>
   );
 
+  // The 3-column right pane: toolbar + live header + schedule list. Shared by
+  // the plain 3-column view and the multiview-in-3-column layout (where the
+  // video grid renders above this pane).
+  const renderAltRightPane = () => (
+    <div className="guide-alt-right-pane">
+      {/* 3-column toolbar below the preview: the management
+          buttons (when available) plus the close button at the
+          end, which moved out of the strip header. */}
+      <div className="guide-alt-toolbar">
+        {renderGuideManageButtons()}
+        {/* Catchup: expand the schedule history beyond the default lookback
+            for channels with tv_archive (moved into the toolbar row). */}
+        {selectedChannel && (Boolean(selectedChannel.tv_archive) || selectedChannel.tv_archive === 1) && (
+          <button
+            className={`guide-alt-schedule-toggle ${altScheduleShowOlder ? 'active' : ''}`}
+            onClick={() => setAltScheduleShowOlder((v) => !v)}
+            title={i18n.t('live:catchupPrograms', { defaultValue: 'Catch-up Programs' })}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="9" />
+              <polyline points="12 7 12 12 15 14" />
+              <path d="M3.5 12a8.5 8.5 0 1 0 8.5-8.5" />
+            </svg>
+            <span className="btn-label">
+              {i18n.t('live:catchupPrograms', { defaultValue: 'Catch-up Programs' })}
+            </span>
+          </button>
+        )}
+        {/* Embedded/popout/external mode + close, grouped at the right edge of
+            the toolbar so they stay together even when the row wraps. */}
+        <div className="guide-alt-toolbar-right">
+          {onTogglePopoutMode && renderPopoutToggle()}
+          <button
+            className="guide-epg-shift-btn guide-alt-close"
+            onClick={onClose}
+            title={t('close')}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+            <span className="btn-label">{t('close')}</span>
+          </button>
+        </div>
+      </div>
+      {selectedChannel ? (
+        <>
+          {/* 3-column live info header */}
+          <div className="guide-alt-live-header">
+            <span className="guide-alt-live-badge">● {i18n.t('common:live', { defaultValue: 'LIVE' })}</span>
+            <span className="guide-alt-live-channel" title={selectedChannel.name}>
+              {selectedChannel.name}
+            </span>
+            <span className="guide-alt-live-program" title={selectedProgram?.title}>
+              {selectedProgram?.title || i18n.t('common:noProgramInfo', { defaultValue: 'No Program Information' })}
+            </span>
+            <span className="guide-alt-live-times">
+              {selectedProgram ? `${formatEpgTime(new Date(selectedProgram.start))} - ${formatEpgTime(new Date(selectedProgram.end))}` : ''}
+            </span>
+            {selectedProgram?.description && (
+              <span className="guide-alt-live-desc" title={selectedProgram.description}>
+                {selectedProgram.description}
+              </span>
+            )}
+            {selectedProgram && (
+              <div className="guide-alt-live-progress">
+                <div className="guide-alt-live-progress-fill" style={{ width: `${progressPercent}%` }} />
+              </div>
+            )}
+          </div>
+          {/* 3-column schedule list (current + upcoming), virtualized so
+              Catch-up Programs mode with hundreds of history rows stays
+              smooth. Per-day date headers group the rows. */}
+          <div ref={altScheduleRef} className="guide-alt-schedule">
+            <VirtualList
+              ref={altScheduleListRef}
+              items={altScheduleDisplay}
+              scrollRef={altScheduleRef}
+              estimateItemHeight={(index) => {
+                const item = altScheduleDisplay[index];
+                return item?.kind === 'header' ? 30 : item?.row.program.description ? 78 : 52;
+              }}
+              overscan={6}
+              getKey={(item) => item.key}
+              renderItem={(item) => {
+                if (item.kind === 'header') {
+                  return <div className="guide-alt-schedule-day">{item.dateLabel}</div>;
+                }
+                const { program, startMs, endMs, isCurrent, clickable } = item.row;
+                return (
+                  <button
+                    className={`guide-alt-schedule-row ${isCurrent ? 'running' : ''} ${clickable ? 'clickable' : ''}`}
+                    onClick={() => {
+                      if (!clickable) return;
+                      const durationMins = Math.max(1, Math.round((endMs - startMs) / 60000));
+                      const rawStartMs = program.raw_start ? new Date(program.raw_start).getTime() : startMs;
+                      onPlayCatchup!(selectedChannel, program.title, rawStartMs, durationMins, program.description);
+                    }}
+                    onContextMenu={(e) => handleScheduleContextMenu(e, program)}
+                  >
+                    <div className="guide-alt-schedule-meta">
+                      <span className="guide-alt-schedule-time">
+                        {formatEpgTime(new Date(startMs))} - {formatEpgTime(new Date(endMs))}
+                      </span>
+                    </div>
+                    <span className="guide-alt-schedule-title" title={program.title}>
+                      {program.title}
+                      {isCurrent && <span className="guide-alt-schedule-running">{i18n.t('common:running', { defaultValue: 'Running' })}</span>}
+                    </span>
+                    {program.description && (
+                      <span className="guide-alt-schedule-desc">{program.description}</span>
+                    )}
+                  </button>
+                );
+              }}
+            />
+            {altScheduleDisplay.length === 0 && (
+              <div className="guide-alt-schedule-empty">
+                {i18n.t('common:noProgramInfo', { defaultValue: 'No Program Information' })}
+              </div>
+            )}
+          </div>
+          {/* Right-click context menu (same ProgramContextMenu as the timeline grid) */}
+          {scheduleContextMenu && selectedChannel && (
+            <ProgramContextMenu
+              program={scheduleContextMenu.program}
+              sourceId={selectedChannel.source_id}
+              channelId={selectedChannel.stream_id}
+              channelName={selectedChannel.name}
+              position={{ x: scheduleContextMenu.x, y: scheduleContextMenu.y }}
+              onClose={() => setScheduleContextMenu(null)}
+              isCatchupAvailable={Boolean(selectedChannel.tv_archive) || selectedChannel.tv_archive === 1}
+            />
+          )}
+        </>
+      ) : (
+        <div className="guide-alt-empty">
+          <div className="guide-program-title">{t('selectAChannel')}</div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div
       ref={gridContainerRef}
-      className={`guide-panel ${visible ? 'visible' : 'hidden'} ${categoryStripOpen ? 'with-categories' : ''} ${guideTransparent ? 'guide-transparent-mode' : ''}`}
+      className={`guide-panel ${visible ? 'visible' : 'hidden'} ${categoryStripOpen ? 'with-categories' : ''} ${guideTransparent ? 'guide-transparent-mode' : ''} ${epgThreeColumn ? 'alt-view-active' : ''}`}
     >
       {/* Top Section: Preview & Info — hidden in transparent guide mode */}
       {!guideTransparent && (
       <div 
-        className={`guide-top-section ${epgView === 'alternate' ? 'alternate-view' : ''} ${showMultiviewGrid ? 'multiview-grid-active' : ''}`}
+        className={`guide-top-section ${epgThreeColumn || epgView === 'alternate' ? 'alternate-view' : ''} ${showMultiviewGrid && !epgThreeColumn ? 'multiview-grid-active' : ''}`}
         style={epgView !== 'alternate' && !showMultiviewGrid ? { '--preview-width': `${previewWidthPct}%` } as React.CSSProperties : undefined}
       >
-        {showMultiviewGrid ? (
+        {(showMultiviewGrid || showMultiviewSplit) && epgThreeColumn ? (
+          <>
+            {/* Multiview in the 3-column view: the video grid renders above
+                the schedule pane (renderAltRightPane), which stays visible. */}
+            <div className={`guide-multiview-3col ${showMultiviewGrid ? 'four-up' : 'two-up'}`}>
+              {/* Cell 1: Main MPV player */}
+              <div id="epg-slot-container-1" className="guide-preview-grid-cell">
+                {renderPreviewPane()}
+              </div>
+              {/* Cell 2: Viewer 2 */}
+              <div id="epg-slot-container-2" className="guide-preview-grid-cell" />
+              {showMultiviewGrid && (
+                <>
+                  {/* Cell 3: Viewer 3 */}
+                  <div id="epg-slot-container-3" className="guide-preview-grid-cell" />
+                  {/* Cell 4: Viewer 4 */}
+                  <div id="epg-slot-container-4" className="guide-preview-grid-cell" />
+                </>
+              )}
+            </div>
+            <div className="guide-info-pane alt-mode">
+              {renderAltRightPane()}
+            </div>
+          </>
+        ) : showMultiviewGrid ? (
           <div className="guide-preview-line-1x4">
             {/* Cell 1: Main MPV player */}
             <div id="epg-slot-container-1" className="guide-preview-grid-cell">
@@ -2647,9 +3308,11 @@ export function ChannelPanel({
         ) : (
           <>
             {renderPreviewPane()}
-            {epgView !== 'alternate' && (
-              <div className={`guide-info-pane ${showMultiviewSplit ? 'multiview-split-active' : ''}`}>
-                {showMultiviewSplit ? (
+            {(epgThreeColumn || epgView !== 'alternate') && (
+              <div className={`guide-info-pane ${showMultiviewSplit ? 'multiview-split-active' : ''} ${epgThreeColumn ? 'alt-mode' : ''}`}>
+                {epgThreeColumn ? (
+                  renderAltRightPane()
+                ) : showMultiviewSplit ? (
                   <div id="epg-slot-container-2" className="guide-preview-split-cell" />
                 ) : selectedChannel ? (
                   <>
@@ -2680,6 +3343,8 @@ export function ChannelPanel({
                             showResolution={epgMetadataBadgeResolution}
                             showFps={epgMetadataBadgeFps}
                             showSound={epgMetadataBadgeSound}
+                            showBitrate={epgMetadataBadgeBitrate}
+                            showAudioBitrate={epgMetadataBadgeAudioBitrate}
                           />
                         </div>
                         {showFailoverLiveTvWidget !== false && (
@@ -2710,6 +3375,23 @@ export function ChannelPanel({
 
       {/* Bottom Section: EPG Grid */}
       <div className="guide-grid-section">
+        {/* 3-column transparent overlay close — the header ✕ (restored for
+            transparent 3-column) lives in the header row, which the
+            transparent-guide-hide-header setting removes; the time-bar close
+            lives in the time header, which alt-view hides. Without this the
+            overlay could only be closed via the shortcut key. */}
+        {guideTransparent && epgThreeColumn && transparentGuideHideHeader && (
+          <button
+            className="guide-transparent-close-btn guide-alt-float-close"
+            onClick={onClose}
+            title={t('closeTransparentGuide')}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        )}
         {/* Transparent Guide Resizer Handle */}
         {guideTransparent && (
           <div
@@ -2860,131 +3542,54 @@ export function ChannelPanel({
                     <span className="btn-label">{t('showSource')}</span>
                   </button>
                 )}
-                {canManageChannels && (
-                  <>
-                    {!epgHiddenButtons.includes('manage-channels') && (
-                      <button
-                        className="guide-manage-channels-btn"
-                        onClick={isCustomGroup ? () => setManagingCustomGroup({ id: categoryId!, name: customGroupName }) : handleManageChannels}
-                        title={isCustomGroup ? t('manageCustomGroup') : t('manageChannels')}
-                      >
-                        {isCustomGroup ? (
-                          <>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                            </svg>
-                            <span className="btn-label">{t('manageCustomGroup')}</span>
-                          </>
-                        ) : (
-                          <>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                              <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
-                              <polyline points="17 2 12 7 7 2" />
-                            </svg>
-                            <span className="btn-label">{t('manageChannels')}</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-                    {!isCustomGroup && (
-                      <>
-                        {!isCustomCategory && !sourceId?.startsWith('playlist:') && !epgHiddenButtons.includes('refresh-source') && (
-                          <button
-                            className="guide-refresh-source-btn"
-                            onClick={handleRefreshSource}
-                            disabled={syncingSourceId === sourceId}
-                            title={t('refreshSource')}
-                          >
-                            {syncingSourceId === sourceId ? (
-                              <>
-                                <span className="sync-spinner">⟳</span>
-                                <span className="btn-label">{syncStatusMsg || t('refreshing')}</span>
-                              </>
-                            ) : (
-                              <>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-                                  <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                                </svg>
-                                <span className="btn-label">{t('refreshSource')}</span>
-                              </>
-                            )}
-                          </button>
-                        )}
-                        {!sourceId?.startsWith('playlist:') && !epgHiddenButtons.includes('epg-shift') && (
-                          <button
-                            className="guide-epg-shift-btn"
-                            onClick={() => setShowEpgShiftModal(true)}
-                            title={t('epgShift')}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-                              <circle cx="12" cy="12" r="10"/>
-                              <polyline points="12 6 12 12 16 14"/>
-                            </svg>
-                            <span className="btn-label">{currentEpgOffset === 0 ? t('epgShift') : t('shiftHours', { hours: `${currentEpgOffset > 0 ? '+' : ''}${currentEpgOffset}` })}</span>
-                          </button>
-                        )}
-                        {!epgHiddenButtons.includes('playlist-editor') && (
-                          <button
-                            className="guide-epg-shift-btn"
-                            onClick={() => setShowPlaylistListModal(true)}
-                            title={t('playlistEditor')}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-                              <line x1="8" y1="6" x2="21" y2="6"></line>
-                              <line x1="8" y1="12" x2="21" y2="12"></line>
-                              <line x1="8" y1="18" x2="21" y2="18"></line>
-                              <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                              <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                              <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                            </svg>
-                            <span className="btn-label">{t('playlistEditor')}</span>
-                          </button>
-                        )}
-                        {!epgHiddenButtons.includes('failover-group') && (
-                          <button
-                            className="guide-epg-shift-btn"
-                            onClick={() => setShowFailoverGroupModal(true)}
-                            title={t('failoverGroup')}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-                              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                              <path d="M2 17l10 5 10-5"/>
-                              <path d="M2 12l10 5 10-5"/>
-                            </svg>
-                            <span className="btn-label">{t('failoverGroup')}</span>
-                          </button>
-                        )}
-                        {!epgHiddenButtons.includes('channel-probe') && (
-                          <button
-                            className="guide-epg-shift-btn"
-                            onClick={() => {
-                              if (typeof (window as any).openChannelProbe === 'function') {
-                                (window as any).openChannelProbe(sourceId, categoryId);
-                              }
-                            }}
-                            title={i18n.t('probe:guideButtonTitle')}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-                              <circle cx="12" cy="12" r="2" />
-                              <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14" />
-                            </svg>
-                            <span className="btn-label">{i18n.t('probe:guideButtonLabel')}</span>
-                          </button>
-                        )}
-                        {epgSyncStatus && epgSyncStatus.total > 0 && (
-                          <span className="guide-epg-sync-status">
-                            <span className="sync-spinner">⟳</span>
-                            <span>{t('epgCompleted', { completed: epgSyncStatus.completed, total: epgSyncStatus.total })}</span>
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
+                {!epgThreeColumn && renderGuideManageButtons()}
               </>
             )}
           </div>
           <div className="guide-header-right">
+            {/* Resolution Filter Menu (Settings -> LiveTV -> Resolution filter) */}
+            {epgResolutionFilterEnabled && !isSearchMode && !isWatchlistMode && (
+              <div
+                className="epg-resolution-dropdown-container"
+                onMouseEnter={() => setShowResolutionMenu(true)}
+                onMouseLeave={() => setShowResolutionMenu(false)}
+              >
+                <button
+                  className={`guide-nav-btn ${showResolutionMenu || resolutionFilter !== 'all' ? 'active' : ''}`}
+                  onClick={() => setShowResolutionMenu((prev) => !prev)}
+                  title={t('resolutionFilter')}
+                  style={{
+                    padding: '0 8px',
+                    width: 'auto',
+                    marginRight: '8px',
+                  }}
+                >
+                  {resolutionFilter === 'all' ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+                    </svg>
+                  ) : (
+                    <span className="epg-resolution-label">{RESOLUTION_FILTER_LABELS[resolutionFilter]}</span>
+                  )}
+                </button>
+                {showResolutionMenu && (
+                  <div className="epg-resolution-menu">
+                    {RESOLUTION_FILTER_OPTIONS.map((opt) => (
+                      <button
+                        key={opt}
+                        className={`epg-resolution-item ${resolutionFilter === opt ? 'active' : ''}`}
+                        onClick={() => {
+                          setResolutionFilter(opt);
+                          setShowResolutionMenu(false);
+                        }}
+                      >
+                        {opt === 'all' ? t('all') : RESOLUTION_FILTER_LABELS[opt]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {/* A-Z Alphabet Jumper Menu (shown only when channelSortOrder === 'alphabetical') */}
             {channelSortOrder === 'alphabetical' && !isSearchMode && !isWatchlistMode && !epgHiddenButtons.includes('alphabet-jumper') && (
               <div
@@ -3029,8 +3634,9 @@ export function ChannelPanel({
                 )}
               </div>
             )}
-            {/* Popout/External mode toggle: cycles off → popout → external */}
-            {onTogglePopoutMode && (
+            {/* Popout/External mode toggle: cycles off → popout → external. In
+                3-column view this moves into the right-pane toolbar. */}
+            {!epgThreeColumn && onTogglePopoutMode && (
               <button
                 className={`guide-nav-btn ${popoutMode !== 'off' ? 'active' : ''}`}
                 onClick={onTogglePopoutMode}
@@ -3079,13 +3685,47 @@ export function ChannelPanel({
           </div>
         </div>
 
+        {/* Channel search — in 3-column view the time header (which hosts the
+            search on the timeline views) is hidden, so render it here above the
+            channel list. */}
+        {epgThreeColumn && !isSearchMode && !isWatchlistMode && !allChannelsCapped && !epgHiddenButtons.includes('channel-search') && (
+          <div className="guide-alt-channel-search">
+            <div className={`channel-search-input-wrapper ${channelSearchFocused ? 'focused' : ''}`}>
+              <svg className="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                type="text"
+                className="channel-search-input"
+                placeholder={t('searchChannelsPlaceholder')}
+                value={channelSearchQuery}
+                onChange={(e) => setChannelSearchQuery(e.target.value)}
+                onFocus={() => setChannelSearchFocused(true)}
+                onBlur={() => setChannelSearchFocused(false)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setChannelSearchQuery('');
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+              />
+              {channelSearchQuery && (
+                <button className="search-clear-btn" onClick={() => setChannelSearchQuery('')} title={t('clearSearch')}>
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Time Scale - hidden in watchlist mode; in search mode only shown when the
             Channels tab is active and channel matches are present (EPG program
             results have no timeline) */}
         {!isWatchlistMode && (!isSearchMode || (effectiveSearchTab === 'channels' && searchScope !== 'epg' && searchChannels && searchChannels.length > 0)) && (
           <div className="guide-time-header">
             <div className="guide-time-header-spacer" style={{ width: 'var(--epg-channel-column-width, 264px)' }}>
-              {!isSearchMode && !epgHiddenButtons.includes('channel-search') && (
+              {!isSearchMode && !allChannelsCapped && !epgHiddenButtons.includes('channel-search') && (
                 <div className="channel-search-container">
                   <div className={`channel-search-input-wrapper ${channelSearchFocused ? 'focused' : ''}`}>
                     <svg className="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -3256,28 +3896,21 @@ export function ChannelPanel({
                 searchChannels && searchChannels.length > 0 ? (
                   <div className="search-section search-channels-section">
                     <div className="search-channels-timeline">
-                      <Virtuoso
-                        key="search-channels"
-                        data={searchChannels}
-                        className="search-virtuoso"
-                        scrollerRef={handleSearchScrollerRef}
-                        itemContent={(index, channel, context) => (
-                          <ChannelRowVirtuoso
-                            index={index}
-                            channel={channel}
-                            data={context}
-                          />
-                        )}
-                        context={searchChannelRowContext}
-                        components={{
-                          EmptyPlaceholder: () => (
-                            <div className="guide-empty">
-                              <h3>{t('noResultsFound')}</h3>
-                              <p>{t('tryDifferentTerm')}</p>
-                            </div>
-                          ),
-                        }}
-                      />
+                      <div ref={handleSearchScrollerRef} className="search-virtuoso overflow-y-auto max-h-full">
+                        <VirtualList
+                          key="search-channels"
+                          items={searchChannels}
+                          estimateItemHeight={52}
+                          renderItem={(channel, index) => (
+                            <ChannelRowVirtuoso
+                              index={index}
+                              channel={channel}
+                              data={searchChannelRowContext}
+                            />
+                          )}
+                          overscan={4}
+                        />
+                      </div>
                       {/* Current time indicator - spans the channel rows only */}
                       {currentTimeIndicatorPosition !== null && (
                         <div
@@ -3302,20 +3935,21 @@ export function ChannelPanel({
               {effectiveSearchTab === 'live' && searchScope !== 'channels' && (
                 liveChannels.length > 0 ? (
                   <div className="search-section search-programs-section">
-                    <Virtuoso
-                      key="search-live"
-                      data={liveChannels}
-                      className="search-virtuoso"
-                      scrollerRef={handleSearchScrollerRef}
-                      itemContent={(index, entry, context) => (
-                        <SearchResultRowVirtuoso
-                          index={index}
-                          entry={entry}
-                          data={context}
-                        />
-                      )}
-                      context={searchProgramRowContext}
-                    />
+                    <div ref={handleSearchScrollerRef} className="search-virtuoso overflow-y-auto max-h-full">
+                      <VirtualList
+                        key="search-live"
+                        items={liveChannels}
+                        estimateItemHeight={80}
+                        renderItem={(entry, index) => (
+                          <SearchResultRowVirtuoso
+                            index={index}
+                            entry={entry}
+                            data={searchProgramRowContext}
+                          />
+                        )}
+                        overscan={4}
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="guide-empty">
@@ -3329,20 +3963,21 @@ export function ChannelPanel({
               {effectiveSearchTab === 'upcoming' && searchScope !== 'channels' && (
                 upcomingChannels.length > 0 ? (
                   <div className="search-section search-programs-section">
-                    <Virtuoso
-                      key="search-upcoming"
-                      data={upcomingChannels}
-                      className="search-virtuoso"
-                      scrollerRef={handleSearchScrollerRef}
-                      itemContent={(index, entry, context) => (
-                        <SearchResultRowVirtuoso
-                          index={index}
-                          entry={entry}
-                          data={context}
-                        />
-                      )}
-                      context={searchProgramRowContext}
-                    />
+                    <div ref={handleSearchScrollerRef} className="search-virtuoso overflow-y-auto max-h-full">
+                      <VirtualList
+                        key="search-upcoming"
+                        items={upcomingChannels}
+                        estimateItemHeight={80}
+                        renderItem={(entry, index) => (
+                          <SearchResultRowVirtuoso
+                            index={index}
+                            entry={entry}
+                            data={searchProgramRowContext}
+                          />
+                        )}
+                        overscan={4}
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="guide-empty">
@@ -3354,59 +3989,75 @@ export function ChannelPanel({
             </div>
           ) : (
             /* Normal EPG Grid View */
-            <Virtuoso
-              key={`channel-list-${categoryId ?? 'all'}-${favoritesVersion}-${channelSearchQuery}`}
-              ref={virtuosoRef}
-              data={filteredChannels}
-              className="guide-channels"
-              scrollerRef={handleGuideScrollerRef}
-              rangeChanged={(range) => {
-                visibleRangeRef.current = range;
-                if (!shouldTrackVisibleRange) return;
-                setVisibleIndices((prev) =>
-                  prev.startIndex === range.startIndex && prev.endIndex === range.endIndex
-                    ? prev
-                    : range
-                );
-              }}
-              itemContent={(index, channel, context) => (
-                <ChannelRowVirtuoso
-                  index={index}
-                  channel={channel}
-                  data={context}
-                />
-              )}
-              context={{
-                channelSortOrder,
-                programs,
-                windowStart,
-                windowEnd,
-                pixelsPerHour,
-                visibleHours,
-                handleChannelClick,
-                onPlayCatchup,
-                handleFavoriteToggle,
-                categoryId,
-                activeRecordings,
-                currentLayout,
-                onSendToSlot,
-                onPlayInPopout,
-                onPlayInExternal,
-                currentChannel,
-                showPlaylistName: categoryId === '__recent__' ? showRecentPlaylistName : categoryId === '__favorites__' ? showFavPlaylistName : isCustomCategory ? showCustomPlaylistName : false,
-                sourceNames,
-                epgMetadataBadgeResolution,
-                epgMetadataBadgeFps,
-                epgMetadataBadgeSound,
-              }}
-              components={{
-                EmptyPlaceholder: () => (
-                  <div className="guide-empty">
+            filteredChannels.length === 0 ? (
+              <div ref={handleGuideScrollerRef} className="guide-channels overflow-y-auto flex-1 min-h-0">
+                <div className="guide-empty">
+                  {allChannelsCapped ? (
+                    <>
+                      <h3>{t('allChannelsTooMany')}</h3>
+                      <p>{t('allChannelsTooManyHint')}</p>
+                    </>
+                  ) : (
                     <h3>{channelSearchQuery ? t('noChannelsFound') : t('noChannels')}</h3>
-                  </div>
-                ),
-              }}
-            />
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div
+                ref={handleGuideScrollerRef}
+                className="guide-channels overflow-y-auto flex-1 min-h-0"
+              >
+                <VirtualList
+                  key={`channel-list-${categoryId ?? 'all'}-${favoritesVersion}-${channelSearchQuery}-${epgThreeColumn ? '3col' : 'grid'}`}
+                  ref={virtuosoRef}
+                  items={filteredChannels}
+                  estimateItemHeight={52}
+                  overscan={CHANNEL_LIST_OVERS}
+                  onRangeChange={(range) => {
+                    visibleRangeRef.current = range;
+                    if (!shouldTrackVisibleRange) return;
+                    setVisibleIndices((prev) =>
+                      prev.startIndex === range.startIndex && prev.endIndex === range.endIndex
+                        ? prev
+                        : range
+                    );
+                  }}
+                  renderItem={(channel, index) => (
+                    <ChannelRowVirtuoso
+                      index={index}
+                      channel={channel}
+                      data={{
+                        channelSortOrder,
+                        programs,
+                        windowStart,
+                        windowEnd,
+                        pixelsPerHour,
+                        visibleHours,
+                        handleChannelClick,
+                        onPlayCatchup,
+                        handleFavoriteToggle,
+                        categoryId,
+                        activeRecordings,
+                        currentLayout,
+                        onSendToSlot,
+                        onPlayInPopout,
+                        onPlayInExternal,
+                        currentChannel,
+                        highlightChannel,
+                        showPlaylistName: categoryId === '__recent__' ? showRecentPlaylistName : categoryId === '__favorites__' ? showFavPlaylistName : isCustomCategory ? showCustomPlaylistName : false,
+                        sourceNames,
+                        epgMetadataBadgeResolution,
+                        epgMetadataBadgeFps,
+                        epgMetadataBadgeSound,
+                        epgMetadataBadgeBitrate,
+                        epgMetadataBadgeAudioBitrate,
+                        threeColumn: epgThreeColumn,
+                      }}
+                    />
+                  )}
+                />
+              </div>
+            )
           )}
           {/* Current time indicator - spans through all channel rows, but stops
               at the last rendered row instead of the bottom of the panel */}

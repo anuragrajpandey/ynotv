@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { db, type StoredChannel, type StoredCategory } from '../db';
+import { db, type StoredChannel, type StoredCategory, type FailoverGroupMember, type TeamChannelLink } from '../db';
 import {
   startChannelProbe,
   probeSingleStream,
@@ -14,7 +14,10 @@ import {
   type FfmpegStatus,
 } from '../services/stream-probe';
 import { resolvePlayUrl } from '../services/stream-resolver';
+import { reorderFailoverGroupChannels } from '../services/failover-groups';
+import { useTeamChannelLinksStore } from '../stores/teamChannelLinksStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useSportsSettingsStore, ALL_LEAGUES } from '../stores/sportsSettingsStore';
 import type { Source } from '@ynotv/core';
 import { useTranslation } from 'react-i18next';
 import './ChannelProbeModal.css';
@@ -29,8 +32,8 @@ export interface ChannelProbeModalProps {
 }
 
 type TabFilter = 'all' | 'alive' | 'dead' | 'geoblocked' | 'drm' | '4k' | '1080p' | '720p' | 'sd';
-type ScopeFilter = 'enabled' | 'missing-badges' | 'dead-only' | 'all-including-dead';
-type SortColumn = 'status' | 'name' | 'quality' | 'fps' | 'video_codec' | 'audio_channels' | 'latency_ms';
+type ScopeFilter = 'enabled' | 'missing-badges' | 'dead-only' | 'all-including-dead' | 'failover' | 'sports-linked';
+type SortColumn = 'status' | 'name' | 'quality' | 'fps' | 'video_codec' | 'audio_channels' | 'video_bitrate' | 'audio_bitrate' | 'latency_ms';
 type SortDirection = 'asc' | 'desc';
 
 function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
@@ -71,6 +74,27 @@ export function ChannelProbeModal({
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('enabled');
+  // Membership-based scopes define the channel set directly from failover-group
+  // / sports-team-link tables, so the source & category filters don't apply.
+  const isMembershipMode = scopeFilter === 'failover' || scopeFilter === 'sports-linked';
+
+  // Failover sub-filter (only applies to the 'failover' scope): 'all' probes
+  // every failover member, 'missing-badges' narrows to members that have no
+  // channelMetadata row (i.e. no quality badges yet).
+  const [failoverScope, setFailoverScope] = useState<'all' | 'missing-badges'>('all');
+
+  // Sports league sub-filter (only applies to the 'sports-linked' scope):
+  // 'all' probes every league with linked channels, a league id narrows to it.
+  const [sportsLeagueId, setSportsLeagueId] = useState<string>('all');
+  const [sportsLeagueOptions, setSportsLeagueOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const sportsEnabledLeagues = useSportsSettingsStore((s) => s.enabledLeagues);
+  const sportsSettingsLoaded = useSportsSettingsStore((s) => s.loaded);
+  const loadSportsSettings = useSportsSettingsStore((s) => s.loadSettings);
+  useEffect(() => {
+    if (!sportsSettingsLoaded) {
+      loadSportsSettings().catch((e) => console.error('[ChannelProbeModal] Failed to load sports settings:', e));
+    }
+  }, [sportsSettingsLoaded, loadSportsSettings]);
 
   // Popover state
   const [isSourcePopoverOpen, setIsSourcePopoverOpen] = useState<boolean>(false);
@@ -83,7 +107,15 @@ export function ChannelProbeModal({
   const [timeoutSecs, setTimeoutSecs] = useState<number>(8);
   const [maxRetries, setMaxRetries] = useState<number>(3);
   const [autoSaveBadges, setAutoSaveBadges] = useState<boolean>(true);
+  const [measureBitrate, setMeasureBitrate] = useState<boolean>(() =>
+    localStorage.getItem('ynotv:probeMeasureBitrate') === 'true'
+  );
   const [ffmpegStatus, setFfmpegStatus] = useState<FfmpegStatus | null>(null);
+
+  // Persist the "Measure Bitrate" toggle so it survives relaunches
+  useEffect(() => {
+    localStorage.setItem('ynotv:probeMeasureBitrate', String(measureBitrate));
+  }, [measureBitrate]);
 
   // Scan state
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -111,6 +143,22 @@ export function ChannelProbeModal({
     onConfirm?: () => void | Promise<void>;
     onMiddle?: () => void | Promise<void>;
     danger?: boolean;
+    /** Optional preview of the resulting channel order, rendered inside the dialog. */
+    preview?: SortPreviewGroup[];
+  }
+
+  /** One channel row in the sort preview: new position order, best first. */
+  interface SortPreviewChannel {
+    stream_id: string;
+    name: string;
+    quality: string;
+  }
+
+  /** One group (failover group or team) in the sort preview. */
+  interface SortPreviewGroup {
+    key: string; // group_id (failover) or `${league_id}\u0000${team_id}` (sports)
+    label: string; // display name
+    channels: SortPreviewChannel[];
   }
   const [dialog, setDialog] = useState<ProbeDialogState | null>(null);
 
@@ -182,7 +230,7 @@ export function ChannelProbeModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    if (initialChannels && initialChannels.length > 0) {
+    if (initialChannels && initialChannels.length > 0 && scopeFilter !== 'failover' && scopeFilter !== 'sports-linked') {
       let filteredInitial = initialChannels;
       if (scopeFilter === 'enabled' || scopeFilter === 'missing-badges') {
         filteredInitial = filteredInitial.filter((c) => c.enabled !== false && (c.enabled as any) !== 0);
@@ -196,39 +244,91 @@ export function ChannelProbeModal({
     let isMounted = true;
 
     async function loadChannels() {
-      let query = db.channels.toCollection();
+      let chList: StoredChannel[];
+      let memberIds: string[] = [];
 
-      if (selectedSourceIds.length === 1) {
-        query = db.channels.where('source_id').equals(selectedSourceIds[0]);
-      } else if (selectedSourceIds.length > 1) {
-        query = db.channels.where('source_id').anyOf(selectedSourceIds);
+      // Membership-based scopes (failover groups / sports team links) define the
+      // channel set directly, ignoring source & category filters — the user wants
+      // exactly the members probed, not a slice of the playlist.
+      if (scopeFilter === 'failover' || scopeFilter === 'sports-linked') {
+        if (scopeFilter === 'sports-linked') {
+          const allLinks = await db.teamChannelLinks.toArray();
+          // League sub-filter options: every league with linked channels that the
+          // user has enabled in Sports settings (fallback: all linked leagues).
+          const enabledSet = new Set(sportsEnabledLeagues);
+          const linkedLeagueIds = [...new Set(allLinks.map((l) => l.league_id))];
+          const options = linkedLeagueIds
+            .filter((id) => sportsEnabledLeagues.length === 0 || enabledSet.has(id))
+            .map((id) => ({
+              id,
+              name: ALL_LEAGUES.find((l) => l.id === id)?.name ?? id,
+            }));
+          setSportsLeagueOptions(options);
+          // If the currently selected league is no longer in the options (e.g. it
+          // was disabled in Sports settings), fall back to 'all'.
+          if (sportsLeagueId !== 'all' && !options.some((o) => o.id === sportsLeagueId)) {
+            setSportsLeagueId('all');
+          }
+          const scopedLinks =
+            sportsLeagueId === 'all'
+              ? allLinks
+              : allLinks.filter((l) => l.league_id === sportsLeagueId);
+          memberIds = scopedLinks.map((l) => l.stream_id);
+        } else {
+          let members = await db.failoverGroupMembers.toArray();
+          if (failoverScope === 'missing-badges') {
+            // Same badge check as the regular 'missing-badges' scope: a channel
+            // is missing badges when it has no channelMetadata row.
+            const metadataItems = await db.channelMetadata.toArray();
+            const existingIds = new Set(metadataItems.map((m) => m.stream_id));
+            members = members.filter((m) => !existingIds.has(m.stream_id));
+          }
+          memberIds = members.map((m) => m.stream_id);
+        }
+        chList =
+          memberIds.length > 0
+            ? await db.channels.where('stream_id').anyOf(memberIds).toArray()
+            : [];
+        // Match how these channel lists display elsewhere: only enabled sources
+        if (sources.length > 0) {
+          const enabledSourceIds = new Set(sources.map((s) => s.id));
+          chList = chList.filter((c) => enabledSourceIds.has(c.source_id));
+        }
+      } else {
+        let query = db.channels.toCollection();
+
+        if (selectedSourceIds.length === 1) {
+          query = db.channels.where('source_id').equals(selectedSourceIds[0]);
+        } else if (selectedSourceIds.length > 1) {
+          query = db.channels.where('source_id').anyOf(selectedSourceIds);
+        }
+
+        chList = await query.toArray();
+
+        // If viewing all sources, only include channels from enabled sources
+        if (selectedSourceIds.length === 0 && sources.length > 0) {
+          const enabledSourceIds = new Set(sources.map((s) => s.id));
+          chList = chList.filter((c) => enabledSourceIds.has(c.source_id));
+        }
+
+        if (selectedCategoryIds.length > 0) {
+          const catSet = new Set(selectedCategoryIds);
+          chList = chList.filter((c) => c.category_ids && c.category_ids.some((id) => catSet.has(id)));
+        }
+
+        // Filter by Scope
+        if (scopeFilter === 'enabled') {
+          chList = chList.filter((c) => c.enabled !== false && (c.enabled as any) !== 0);
+        } else if (scopeFilter === 'dead-only') {
+          chList = chList.filter((c) => c.enabled === false || (c.enabled as any) === 0);
+        } else if (scopeFilter === 'missing-badges') {
+          chList = chList.filter((c) => c.enabled !== false && (c.enabled as any) !== 0);
+          const metadataItems = await db.channelMetadata.toArray();
+          const existingIds = new Set(metadataItems.map((m) => m.stream_id));
+          chList = chList.filter((c) => !existingIds.has(c.stream_id));
+        }
+        // 'all-including-dead' includes both enabled and disabled channels
       }
-
-      let chList = await query.toArray();
-
-      // If viewing all sources, only include channels from enabled sources
-      if (selectedSourceIds.length === 0 && sources.length > 0) {
-        const enabledSourceIds = new Set(sources.map((s) => s.id));
-        chList = chList.filter((c) => enabledSourceIds.has(c.source_id));
-      }
-
-      if (selectedCategoryIds.length > 0) {
-        const catSet = new Set(selectedCategoryIds);
-        chList = chList.filter((c) => c.category_ids && c.category_ids.some((id) => catSet.has(id)));
-      }
-
-      // Filter by Scope
-      if (scopeFilter === 'enabled') {
-        chList = chList.filter((c) => c.enabled !== false && (c.enabled as any) !== 0);
-      } else if (scopeFilter === 'dead-only') {
-        chList = chList.filter((c) => c.enabled === false || (c.enabled as any) === 0);
-      } else if (scopeFilter === 'missing-badges') {
-        chList = chList.filter((c) => c.enabled !== false && (c.enabled as any) !== 0);
-        const metadataItems = await db.channelMetadata.toArray();
-        const existingIds = new Set(metadataItems.map((m) => m.stream_id));
-        chList = chList.filter((c) => !existingIds.has(c.stream_id));
-      }
-      // 'all-including-dead' includes both enabled and disabled channels
 
       if (isMounted) {
         setChannels(chList);
@@ -240,7 +340,7 @@ export function ChannelProbeModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, selectedSourceIds, selectedCategoryIds, scopeFilter, initialChannels, sources]);
+  }, [isOpen, selectedSourceIds, selectedCategoryIds, scopeFilter, failoverScope, sportsLeagueId, sportsEnabledLeagues, initialChannels, sources]);
 
   // Compute live health score
   const healthMetrics = useMemo(() => {
@@ -324,6 +424,7 @@ export function ChannelProbeModal({
           concurrency,
           timeout_secs: timeoutSecs,
           max_retries: maxRetries,
+          measure_bitrate: measureBitrate,
           auto_save_badges: autoSaveBadges,
         },
         {
@@ -361,7 +462,7 @@ export function ChannelProbeModal({
       console.error('[ChannelProbeModal] Failed to launch probe:', err);
       setIsScanning(false);
     }
-  }, [channels, isScanning, sources, concurrency, timeoutSecs, maxRetries, autoSaveBadges]);
+  }, [channels, isScanning, sources, concurrency, timeoutSecs, maxRetries, autoSaveBadges, measureBitrate]);
 
   // Re-run probe on only dead/failing streams from the current scan
   const handleRerunDeadStreams = useCallback(async () => {
@@ -439,6 +540,7 @@ export function ChannelProbeModal({
           concurrency,
           timeout_secs: timeoutSecs,
           max_retries: maxRetries,
+          measure_bitrate: measureBitrate,
           auto_save_badges: autoSaveBadges,
         },
         {
@@ -476,7 +578,7 @@ export function ChannelProbeModal({
       console.error('[ChannelProbeModal] Failed to launch dead rerun:', err);
       setIsScanning(false);
     }
-  }, [results, channels, isScanning, sources, concurrency, timeoutSecs, maxRetries, autoSaveBadges]);
+  }, [results, channels, isScanning, sources, concurrency, timeoutSecs, maxRetries, autoSaveBadges, measureBitrate]);
 
   // Pause / Resume / Stop
   const handleTogglePause = useCallback(async () => {
@@ -558,7 +660,7 @@ export function ChannelProbeModal({
           }
         }
 
-        const probed = await probeSingleStream(streamUrl, userAgent, timeoutSecs);
+        const probed = await probeSingleStream(streamUrl, userAgent, timeoutSecs, measureBitrate);
         const updated: ProbeChannelResult = {
           ...result,
           ...probed,
@@ -581,7 +683,7 @@ export function ChannelProbeModal({
         setReprobingStreamId(null);
       }
     },
-    [sources, timeoutSecs, autoSaveBadges]
+    [sources, timeoutSecs, autoSaveBadges, measureBitrate]
   );
 
 
@@ -652,6 +754,196 @@ export function ChannelProbeModal({
     });
   }, [results, t]);
 
+  // Sort failover-group members / sports team links by probed quality so the
+  // best channel (highest resolution by default, or highest bitrate) becomes
+  // primary. The mode is user-selectable and persists across relaunches.
+  const [sortMode, setSortMode] = useState<'resolution' | 'bitrate'>(() => {
+    try {
+      return localStorage.getItem('ynotv:probeSortMode') === 'bitrate' ? 'bitrate' : 'resolution';
+    } catch {
+      return 'resolution';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('ynotv:probeSortMode', sortMode);
+    } catch {
+      /* ignore */
+    }
+  }, [sortMode]);
+
+  const [sortingGroups, setSortingGroups] = useState<boolean>(false);
+  const [sortDone, setSortDone] = useState<boolean>(false);
+
+  // Build the read-only sort plan: for each group, the new channel order
+  // (best first) plus display info for the preview. Does NOT write anything.
+  const buildSortPlan = useCallback(async (): Promise<SortPreviewGroup[]> => {
+    const metaItems = await db.channelMetadata.toArray();
+    const resOf = new Map<string, number>();
+    const bitrateOf = new Map<string, number>();
+    const qualityOf = new Map<string, string>();
+    for (const m of metaItems) {
+      resOf.set(m.stream_id, (m.resolution_width || 0) * (m.resolution_height || 0));
+      bitrateOf.set(m.stream_id, m.video_bitrate_kbps ?? m.bitrate_kbps ?? 0);
+      const q: string[] = [];
+      if (m.resolution_width && m.resolution_height) {
+        q.push(`${m.resolution_width}\u00d7${m.resolution_height}`);
+      }
+      if (m.fps) q.push(`${m.fps} fps`);
+      if (m.audio_channels) q.push(m.audio_channels);
+      const bitrate = m.video_bitrate_kbps ?? m.bitrate_kbps;
+      if (bitrate) q.push(`${(bitrate / 1000).toFixed(bitrate >= 10000 ? 0 : 1)} Mbps`);
+      qualityOf.set(m.stream_id, q.join(' \u00b7 '));
+    }
+    // Compare two stream ids; higher quality first, with the other metric
+    // breaking ties. In bitrate mode, channels without bitrate data sink
+    // below any channel that has it, then fall back to resolution.
+    const cmp = (a: string, b: string): number => {
+      const ra = resOf.get(a) ?? 0;
+      const rb = resOf.get(b) ?? 0;
+      const ba = bitrateOf.get(a) ?? 0;
+      const bb = bitrateOf.get(b) ?? 0;
+      if (sortMode === 'bitrate') {
+        if (bb !== ba) return bb - ba;
+        return rb - ra;
+      }
+      if (rb !== ra) return rb - ra;
+      return bb - ba;
+    };
+
+    const groups: SortPreviewGroup[] = [];
+    const channelNames = new Map<string, string>();
+    const resolveName = async (streamId: string): Promise<string> => {
+      if (!channelNames.has(streamId)) {
+        const ch = await db.channels.where('stream_id').equals(streamId).first();
+        channelNames.set(streamId, ch?.name ?? streamId);
+      }
+      return channelNames.get(streamId) ?? streamId;
+    };
+
+    if (scopeFilter === 'failover') {
+      const members = await db.failoverGroupMembers.toArray();
+      const byGroup = new Map<string, FailoverGroupMember[]>();
+      for (const m of members) {
+        const arr = byGroup.get(m.group_id) || [];
+        arr.push(m);
+        byGroup.set(m.group_id, arr);
+      }
+      for (const [groupId, groupMembers] of byGroup) {
+        const ordered = [...groupMembers]
+          .sort((a, b) => cmp(a.stream_id, b.stream_id))
+          .map((m) => m.stream_id);
+        const channels: SortPreviewChannel[] = [];
+        for (const sid of ordered) {
+          channels.push({
+            stream_id: sid,
+            name: await resolveName(sid),
+            quality: qualityOf.get(sid) ?? '',
+          });
+        }
+        groups.push({ key: groupId, label: groupId, channels });
+      }
+    } else if (scopeFilter === 'sports-linked') {
+      const allLinks = await db.teamChannelLinks.toArray();
+      const links =
+        sportsLeagueId === 'all'
+          ? allLinks
+          : allLinks.filter((l) => l.league_id === sportsLeagueId);
+      const byTeam = new Map<string, TeamChannelLink[]>();
+      for (const l of links) {
+        const key = `${l.league_id}\u0000${l.team_id}`;
+        const arr = byTeam.get(key) || [];
+        arr.push(l);
+        byTeam.set(key, arr);
+      }
+      for (const [key, teamLinks] of byTeam) {
+        const [leagueId, teamId] = key.split('\u0000');
+        const ordered = [...teamLinks]
+          .sort((a, b) => cmp(a.stream_id, b.stream_id))
+          .map((l) => l.stream_id);
+        const channels: SortPreviewChannel[] = [];
+        for (const sid of ordered) {
+          channels.push({
+            stream_id: sid,
+            name: (await resolveName(sid)) || sid,
+            quality: qualityOf.get(sid) ?? '',
+          });
+        }
+        groups.push({ key, label: `${leagueId} \u00b7 ${teamId}`, channels });
+      }
+    }
+    return groups;
+  }, [scopeFilter, sortMode, sportsLeagueId]);
+
+  // Apply a previously built plan: rewrites priorities in the DB.
+  const applySortPlan = useCallback(
+    async (groups: SortPreviewGroup[]): Promise<void> => {
+      if (scopeFilter === 'failover') {
+        for (const group of groups) {
+          await reorderFailoverGroupChannels(
+            group.key,
+            group.channels.map((c) => c.stream_id)
+          );
+        }
+      } else if (scopeFilter === 'sports-linked') {
+        for (const group of groups) {
+          const [leagueId, teamId] = group.key.split('\u0000');
+          await useTeamChannelLinksStore
+            .getState()
+            .reorderTeamLinks(leagueId, teamId, group.channels.map((c) => c.stream_id));
+        }
+      }
+    },
+    [scopeFilter]
+  );
+
+  // Build the plan, then confirm with a live preview before rewriting priorities.
+  const handleSortGroupsByQuality = useCallback(async () => {
+    if (sortingGroups) return;
+    setSortingGroups(true);
+    setSortDone(false);
+    try {
+      const plan = await buildSortPlan();
+      setDialog({
+        type: 'confirm',
+        title: t('confirmSortTitle'),
+        message: t('confirmSortMsg', {
+          mode: sortMode === 'bitrate' ? t('sortByBitrate') : t('sortByResolution'),
+        }),
+        confirmText: t('sortConfirmBtn'),
+        cancelText: t('cancel'),
+        danger: true,
+        preview: plan,
+        onConfirm: async () => {
+          setDialog(null);
+          try {
+            await applySortPlan(plan);
+            setSortDone(true);
+            window.setTimeout(() => setSortDone(false), 3000);
+          } catch (e) {
+            console.error('[ChannelProbeModal] Failed to sort groups by quality:', e);
+            setDialog({
+              type: 'warning',
+              title: t('sortFailed'),
+              message: t('sortFailedMsg'),
+              confirmText: t('ok'),
+            });
+          }
+        },
+      });
+    } catch (e) {
+      console.error('[ChannelProbeModal] Failed to build sort plan:', e);
+      setDialog({
+        type: 'warning',
+        title: t('sortFailed'),
+        message: t('sortFailedMsg'),
+        confirmText: t('ok'),
+      });
+    } finally {
+      setSortingGroups(false);
+    }
+  }, [buildSortPlan, applySortPlan, sortingGroups, sortMode, t]);
+
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
 
   // Export report with native Tauri dialog support and browser download fallback
@@ -679,14 +971,32 @@ export function ChannelProbeModal({
           if (res?.canceled) return;
         }
       } else if (format === 'csv') {
-        const headers = ['Name', 'Status', 'Resolution', 'FPS', 'Video Codec', 'Audio Layout', 'Latency (ms)', 'Error', 'URL'];
+        const headers = [
+          'Name',
+          'Status',
+          'Resolution',
+          'FPS',
+          'Video Codec',
+          'Video Bitrate (kbps)',
+          'Audio Codec',
+          'Audio Layout',
+          'Audio Bitrate (kbps)',
+          'Total Bitrate (kbps)',
+          'Latency (ms)',
+          'Error',
+          'URL'
+        ];
         const rows = results.map((r) => [
           `"${(r.name || '').replace(/"/g, '""')}"`,
           r.status,
           r.quality_label || r.resolution || '',
           r.fps || '',
           r.video_codec || '',
+          r.video_bitrate_kbps ?? '',
+          r.audio_codec || '',
           r.audio_channels || '',
+          r.audio_bitrate_kbps ?? '',
+          r.bitrate_kbps ?? ((r.video_bitrate_kbps || 0) + (r.audio_bitrate_kbps || 0) || ''),
           r.latency_ms ?? '',
           `"${(r.error_reason || '').replace(/"/g, '""')}"`,
           `"${(r.url || '').replace(/"/g, '""')}"`,
@@ -882,7 +1192,10 @@ export function ChannelProbeModal({
         const matchCat = (r.category_name || '').toLowerCase().includes(q);
         const matchRes = (r.quality_label || r.resolution || '').toLowerCase().includes(q);
         const matchCodec = (r.video_codec || '').toLowerCase().includes(q);
-        if (!matchName && !matchCat && !matchRes && !matchCodec) return false;
+        const matchBitrate =
+          (r.video_bitrate_kbps ? String(Math.round(r.video_bitrate_kbps)) : '').includes(q) ||
+          (r.audio_bitrate_kbps ? String(Math.round(r.audio_bitrate_kbps)) : '').includes(q);
+        if (!matchName && !matchCat && !matchRes && !matchCodec && !matchBitrate) return false;
       }
 
       return true;
@@ -945,6 +1258,14 @@ export function ChannelProbeModal({
         case 'audio_channels':
           valA = (a.audio_channels || '').toLowerCase();
           valB = (b.audio_channels || '').toLowerCase();
+          break;
+        case 'video_bitrate':
+          valA = a.video_bitrate_kbps ?? -1;
+          valB = b.video_bitrate_kbps ?? -1;
+          break;
+        case 'audio_bitrate':
+          valA = a.audio_bitrate_kbps ?? -1;
+          valB = b.audio_bitrate_kbps ?? -1;
           break;
         case 'latency_ms':
           valA = a.latency_ms ?? 999999;
@@ -1015,7 +1336,7 @@ export function ChannelProbeModal({
               <button
                 type="button"
                 className="cpm-multi-select-btn"
-                disabled={isScanning}
+                disabled={isScanning || isMembershipMode}
                 onClick={() => {
                   setIsSourcePopoverOpen((prev) => !prev);
                   setIsCategoryPopoverOpen(false);
@@ -1110,7 +1431,7 @@ export function ChannelProbeModal({
               <button
                 type="button"
                 className="cpm-multi-select-btn"
-                disabled={isScanning}
+                disabled={isScanning || isMembershipMode}
                 onClick={() => {
                   setIsCategoryPopoverOpen((prev) => !prev);
                   setIsSourcePopoverOpen(false);
@@ -1209,14 +1530,57 @@ export function ChannelProbeModal({
                 className="cpm-select"
                 value={scopeFilter}
                 disabled={isScanning}
-                onChange={(e) => setScopeFilter(e.target.value as ScopeFilter)}
+                onChange={(e) => {
+                  setScopeFilter(e.target.value as ScopeFilter);
+                  // Membership modes ignore source/category — close any open pickers
+                  setIsSourcePopoverOpen(false);
+                  setIsCategoryPopoverOpen(false);
+                }}
               >
                 <option value="enabled">{t('scopeEnabled')}</option>
                 <option value="missing-badges">{t('scopeMissingBadges')}</option>
                 <option value="dead-only">{t('scopeDeadOnly')}</option>
                 <option value="all-including-dead">{t('scopeAll')}</option>
+                <option value="failover">{t('scopeFailover')}</option>
+                <option value="sports-linked">{t('scopeSportsLinked')}</option>
               </select>
             </div>
+
+            {/* Sports League sub-filter — only for the sports-linked scope */}
+            {scopeFilter === 'sports-linked' && (
+              <div className="cpm-select-group">
+                <label>{t('sportsLeagueFilter')}</label>
+                <select
+                  className="cpm-select"
+                  value={sportsLeagueId}
+                  disabled={isScanning}
+                  onChange={(e) => setSportsLeagueId(e.target.value)}
+                >
+                  <option value="all">{t('allLeagues')}</option>
+                  {sportsLeagueOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Failover sub-filter — only for the failover scope */}
+            {scopeFilter === 'failover' && (
+              <div className="cpm-select-group">
+                <label>{t('failoverScopeFilter')}</label>
+                <select
+                  className="cpm-select"
+                  value={failoverScope}
+                  disabled={isScanning}
+                  onChange={(e) => setFailoverScope(e.target.value as 'all' | 'missing-badges')}
+                >
+                  <option value="all">{t('failoverAll')}</option>
+                  <option value="missing-badges">{t('failoverMissingBadges')}</option>
+                </select>
+              </div>
+            )}
 
             {/* Actions button group */}
             <div className="cpm-actions-group">
@@ -1287,6 +1651,16 @@ export function ChannelProbeModal({
                   onChange={(e) => setAutoSaveBadges(e.target.checked)}
                 />
                 {t('autoSaveBadges')}
+              </label>
+
+              <label className="cpm-option-item" title={t('measureBitrateTitle')}>
+                <input
+                  type="checkbox"
+                  checked={measureBitrate}
+                  disabled={!ffmpegStatus?.available}
+                  onChange={(e) => setMeasureBitrate(e.target.checked)}
+                />
+                {t('measureBitrate')}
               </label>
 
               <div
@@ -1553,6 +1927,18 @@ export function ChannelProbeModal({
                         <SortIcon active={sortColumn === 'audio_channels'} direction={sortDirection} />
                       </div>
                     </th>
+                    <th className="cpm-th-sortable" onClick={() => handleSort('video_bitrate')} style={{ width: '80px' }}>
+                      <div className="cpm-th-content">
+                        <span>{t('colVideoBitrate')}</span>
+                        <SortIcon active={sortColumn === 'video_bitrate'} direction={sortDirection} />
+                      </div>
+                    </th>
+                    <th className="cpm-th-sortable" onClick={() => handleSort('audio_bitrate')} style={{ width: '80px' }}>
+                      <div className="cpm-th-content">
+                        <span>{t('colAudioBitrate')}</span>
+                        <SortIcon active={sortColumn === 'audio_bitrate'} direction={sortDirection} />
+                      </div>
+                    </th>
                     <th className="cpm-th-sortable" onClick={() => handleSort('latency_ms')} style={{ width: '85px' }}>
                       <div className="cpm-th-content">
                         <span>{t('colLatency')}</span>
@@ -1616,8 +2002,26 @@ export function ChannelProbeModal({
                           )}
                         </td>
                         <td>
-                          {res.audio_channels ? (
-                            <span>{res.audio_channels}</span>
+                          {res.audio_codec || res.audio_channels ? (
+                            <span>
+                              {res.audio_codec ? res.audio_codec : ''}
+                              {res.audio_codec && res.audio_channels ? ' · ' : ''}
+                              {res.audio_channels ? res.audio_channels : ''}
+                            </span>
+                          ) : (
+                            <span className="cpm-badge-muted">-</span>
+                          )}
+                        </td>
+                        <td>
+                          {res.video_bitrate_kbps ? (
+                            <span>{t('kbpsValue', { count: Math.round(res.video_bitrate_kbps) })}</span>
+                          ) : (
+                            <span className="cpm-badge-muted">-</span>
+                          )}
+                        </td>
+                        <td>
+                          {res.audio_bitrate_kbps ? (
+                            <span>{t('kbpsValue', { count: Math.round(res.audio_bitrate_kbps) })}</span>
                           ) : (
                             <span className="cpm-badge-muted">-</span>
                           )}
@@ -1724,6 +2128,37 @@ export function ChannelProbeModal({
                   <button className="cpm-btn cpm-btn-secondary" onClick={handleDisableDeadChannels}>
                     {t('disableDead', { count: deadCount })}
                   </button>
+                )}
+                {(scopeFilter === 'failover' || scopeFilter === 'sports-linked') && (
+                  <>
+                    <div className="cpm-sort-mode" role="group" aria-label={t('sortModeLabel')}>
+                      <button
+                        className={`cpm-sort-mode-btn ${sortMode === 'resolution' ? 'active' : ''}`}
+                        onClick={() => setSortMode('resolution')}
+                        title={t('sortModeResolutionHint')}
+                      >
+                        {t('sortByResolution')}
+                      </button>
+                      <button
+                        className={`cpm-sort-mode-btn ${sortMode === 'bitrate' ? 'active' : ''}`}
+                        onClick={() => setSortMode('bitrate')}
+                        title={t('sortModeBitrateHint')}
+                      >
+                        {t('sortByBitrate')}
+                      </button>
+                    </div>
+                    <button
+                      className="cpm-btn cpm-btn-secondary"
+                      onClick={handleSortGroupsByQuality}
+                      disabled={sortingGroups}
+                    >
+                      {sortDone
+                        ? t('sortedByQuality')
+                        : scopeFilter === 'failover'
+                        ? t('sortFailoverGroups')
+                        : t('sortTeamChannels')}
+                    </button>
+                  </>
                 )}
                 <button className="cpm-btn cpm-btn-secondary" onClick={() => setShowExportModal(true)}>
                   {t('exportReport')}
@@ -1864,6 +2299,32 @@ export function ChannelProbeModal({
                 <h3 className="cpm-dialog-title">{dialog.title}</h3>
               </div>
               <p className="cpm-dialog-message">{dialog.message}</p>
+              {dialog.preview && dialog.preview.length > 0 && (
+                <div className="cpm-dialog-preview">
+                  <div className="cpm-dialog-preview-title">{t('sortPreviewTitle')}</div>
+                  <div className="cpm-dialog-preview-scroll">
+                    {dialog.preview.map((group) => (
+                      <div className="cpm-dialog-preview-group" key={group.key}>
+                        <div className="cpm-dialog-preview-group-name">{group.label}</div>
+                        <ol className="cpm-dialog-preview-list">
+                          {group.channels.map((ch, i) => (
+                            <li
+                              key={ch.stream_id}
+                              className={`cpm-dialog-preview-item ${i === 0 ? 'cpm-dialog-preview-item-primary' : ''}`}
+                            >
+                              <span className="cpm-dialog-preview-rank">{i + 1}</span>
+                              <span className="cpm-dialog-preview-name" title={ch.name}>
+                                {ch.name}
+                              </span>
+                              <span className="cpm-dialog-preview-quality">{ch.quality}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="cpm-dialog-actions">
                 {dialog.cancelText && (
                   <button

@@ -47,6 +47,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { MetadataBadge } from '../MetadataBadge';
 import './TeamChannelSettings.css';
 
 function parseCategoryIds(raw: string | string[] | number[] | undefined): string[] {
@@ -318,6 +319,7 @@ function ChannelPickerDialog({
                       </span>
                       <span className="tcs-picker-linked-name">{l.channel_name}</span>
                       {sourceName && <span className="tcs-source-badge">{sourceName}</span>}
+                      <MetadataBadge streamId={l.stream_id} variant="detailed" location="sports" />
                     </div>
 
                     <div className="tcs-picker-linked-item-actions">
@@ -430,6 +432,7 @@ function ChannelPickerDialog({
                               {t('confidenceMatch', { percent: matchPercent })}
                             </span>
                           </div>
+                          <MetadataBadge streamId={ch.stream_id} variant="detailed" location="sports" />
                           <div className="tcs-channel-result-meta">
                             {sourceName && <span className="tcs-source-badge">{sourceName}</span>}
                             {categoryName && <span className="tcs-category-badge">{categoryName}</span>}
@@ -501,6 +504,7 @@ function ChannelPickerDialog({
                           <div className="tcs-channel-result-name-row">
                             <span className="tcs-channel-result-name">{ch.alias || ch.name}</span>
                           </div>
+                          <MetadataBadge streamId={ch.stream_id} variant="detailed" location="sports" />
                           <div className="tcs-channel-result-meta">
                             {sourceName && <span className="tcs-source-badge">{sourceName}</span>}
                             {categoryName && <span className="tcs-category-badge">{categoryName}</span>}
@@ -611,6 +615,7 @@ function SortableTeamChannelRow({
           {link.channel_name}
         </span>
         {sourceName && <span className="tcs-source-badge">{sourceName}</span>}
+        <MetadataBadge streamId={link.stream_id} variant="detailed" location="sports" />
       </div>
 
       <div className="tcs-team-channel-row-actions">

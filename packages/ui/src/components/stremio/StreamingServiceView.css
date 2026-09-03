@@ -8,8 +8,9 @@
   scrollbar-color: var(--surface-hover, rgba(255, 255, 255, 0.15)) transparent;
 }
 
-.stremio-service-view::-webkit-scrollbar {
-  width: 6px;
+.stremio-service-view::-webkit-scrollbar,
+.stremio-service-view *::-webkit-scrollbar {
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .stremio-service-view::-webkit-scrollbar-track {
@@ -86,20 +87,15 @@
   margin: 0;
 }
 
-/* Category Pills */
+/* Category Pills — wrap onto additional lines instead of scrolling off-screen */
 .stremio-service-categories {
   position: relative;
   z-index: 1;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  overflow-x: auto;
   padding-bottom: 8px;
   margin-bottom: 24px;
-  scrollbar-width: none;
-}
-
-.stremio-service-categories::-webkit-scrollbar {
-  display: none;
 }
 
 .stremio-service-category-pill {

@@ -8,6 +8,8 @@
  */
 
 import { TMDB, type Video, type Recommendation, type TvRecommendation } from 'tmdb-ts';
+import { Api } from 'tmdb-ts/dist/api';
+import { useSettingsStore } from '../stores/settingsStore';
 
 // TMDB image base URLs
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
@@ -45,6 +47,31 @@ export function getTmdbImageUrl(
 let tmdbInstance: TMDB | null = null;
 let currentAccessToken: string | null = null;
 
+// The tmdb-ts client exposes `language` per call, but threading it through
+// every endpoint call site (movies/tv/search/trending/discover/credits/…,
+// plus all the lazy hooks that use them) is error-prone. Instead, patch the
+// request layer once: every request that doesn't already specify a language
+// gets the user's configured metadata language appended. Read live from the
+// settings store, so changing the language needs no client rebuild and takes
+// effect on the next request.
+let languagePatched = false;
+function ensureLanguagePatch() {
+  if (languagePatched) return;
+  languagePatched = true;
+  // The tmdb-ts methods are generic (<T>); the patch goes through `any` so the
+  // assignment isn't checked, and callers still get their typed return values
+  // because the original get's generic is invoked per call.
+  const apiProto = Api.prototype as any;
+  const originalGet = apiProto.get;
+  apiProto.get = function (this: Api, path: string, options?: Record<string, unknown>) {
+    const language = useSettingsStore.getState().tmdbLanguage || 'en-US';
+    const opts = { ...(options || {}) };
+    // Explicit per-call languages win over the global preference.
+    if (!opts.language) opts.language = language;
+    return originalGet.call(this, path, opts);
+  };
+}
+
 /**
  * Initialize or get TMDB client
  */
@@ -53,6 +80,7 @@ export function getTmdb(accessToken: string): TMDB {
     tmdbInstance = new TMDB(accessToken);
     currentAccessToken = accessToken;
   }
+  ensureLanguagePatch();
   return tmdbInstance;
 }
 

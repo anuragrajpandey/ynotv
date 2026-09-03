@@ -4,6 +4,7 @@ import { useVodPlaylistStore, type PlaylistItem } from '../../stores/vodPlaylist
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { useModal } from '../Modal';
+import { getTmdbImageUrl, TMDB_BACKDROP_SIZES } from '../../services/tmdb';
 import './AddToPlaylistModal.css';
 
 export interface AddToPlaylistModalProps {
@@ -132,7 +133,9 @@ export function AddToPlaylistModal({
       mediaId: movie.stream_id,
       title: movie.title || movie.name,
       poster: posterUrl || movie.stream_icon,
-      backdropUrl: movie.backdrop_path || movie.stream_icon,
+      backdropUrl: movie.backdrop_path
+        ? (getTmdbImageUrl(movie.backdrop_path, TMDB_BACKDROP_SIZES.large) || movie.stream_icon)
+        : (movie.stream_icon || undefined),
       directUrl: movie.direct_url,
       sourceId: movie.source_id,
       sourceName: sourceName || undefined,
@@ -190,7 +193,9 @@ export function AddToPlaylistModal({
         episodeTitle: ep.title || `Episode ${ep.episode_num}`,
         title: `${series.title || series.name} - S${ep.season_num}E${ep.episode_num}${ep.title ? `: ${ep.title}` : ''}`,
         poster: posterUrl || series.cover,
-        backdropUrl: series.backdrop_path || series.cover,
+        backdropUrl: series.backdrop_path
+          ? (getTmdbImageUrl(series.backdrop_path, TMDB_BACKDROP_SIZES.large) || series.cover)
+          : (series.cover || undefined),
         directUrl: ep.direct_url,
         sourceId: series.source_id,
         sourceName: sourceName,

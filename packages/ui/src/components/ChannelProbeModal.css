@@ -34,7 +34,7 @@
   border-radius: 16px;
   color: var(--text-primary, #f1f5f9);
   width: 100%;
-  max-width: 1040px;
+  max-width: 1280px;
   height: 90vh;
   max-height: 840px;
   display: flex;
@@ -785,7 +785,7 @@
 .cpm-table-scroll {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 .cpm-table {
@@ -1027,6 +1027,41 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Sort-mode segmented control (Resolution / Bitrate) */
+.cpm-sort-mode {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 7px;
+  padding: 2px;
+}
+
+.cpm-sort-mode-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.cpm-sort-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.cpm-sort-mode-btn.active {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
 }
 
 /* In-Modal Confirmation / Info Dialog */
@@ -1055,6 +1090,8 @@
   padding: 24px;
   max-width: 440px;
   width: 100%;
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
   animation: cpmSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
@@ -1109,6 +1146,106 @@
   font-size: 0.86rem;
   line-height: 1.45;
   color: var(--text-secondary, #94a3b8);
+}
+
+.cpm-dialog-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.cpm-dialog-preview-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.cpm-dialog-preview-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(45vh, 320px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+  overscroll-behavior: contain;
+}
+
+.cpm-dialog-preview-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cpm-dialog-preview-group-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cpm-dialog-preview-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cpm-dialog-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text-primary, #fff);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cpm-dialog-preview-item-primary {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.cpm-dialog-preview-rank {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.cpm-dialog-preview-item-primary .cpm-dialog-preview-rank {
+  background: #38bdf8;
+  color: #0b1220;
+}
+
+.cpm-dialog-preview-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cpm-dialog-preview-quality {
+  flex-shrink: 0;
+  font-size: 0.74rem;
+  color: var(--text-secondary, #94a3b8);
+  white-space: nowrap;
 }
 
 .cpm-dialog-actions {

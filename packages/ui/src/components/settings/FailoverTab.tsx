@@ -14,6 +14,7 @@ import { db } from '../../db';
 import type { FailoverGroup } from '../../db';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
+import { useSettingsStore } from '../../stores/settingsStore';
 import './FailoverTab.css';
 
 interface GroupWithMembers extends FailoverGroup {
@@ -129,6 +130,10 @@ export function FailoverTab() {
   const [creating, setCreating] = useState(false);
   const [showAutoCluster, setShowAutoCluster] = useState(false);
   const [displaySource, setDisplaySource] = useState(false);
+  const failoverAlwaysPlayPrimary = useSettingsStore((s) => s.failoverAlwaysPlayPrimary);
+  const setFailoverAlwaysPlayPrimary = useSettingsStore((s) => s.setFailoverAlwaysPlayPrimary);
+  const failoverKeepView = useSettingsStore((s) => s.failoverKeepView);
+  const setFailoverKeepView = useSettingsStore((s) => s.setFailoverKeepView);
   const [sourceNameMap, setSourceNameMap] = useState<Map<string, string>>(new Map());
   const [categoryNameMap, setCategoryNameMap] = useState<Map<string, string>>(new Map());
 
@@ -306,14 +311,40 @@ export function FailoverTab() {
             </>
           )}
         </div>
-        <label className="failover-display-source-label" title={i18n.t('settings:failover.displaySourceHint')}>
-          <input
-            type="checkbox"
-            checked={displaySource}
-            onChange={e => setDisplaySource(e.target.checked)}
-          />
-          {i18n.t('settings:failover.displaySource')}
-        </label>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <label
+            className="failover-display-source-label"
+            title={i18n.t('settings:failover.alwaysPlayPrimaryTooltip', { defaultValue: 'When tuning any channel that belongs to a failover group, automatically start with the primary stream first unless selected directly from the failover widget or switched during failover.' })}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
+          >
+            <input
+              type="checkbox"
+              checked={failoverAlwaysPlayPrimary}
+              onChange={e => setFailoverAlwaysPlayPrimary(e.target.checked)}
+            />
+            {i18n.t('settings:failover.alwaysPlayPrimary', { defaultValue: 'Always Play Primary' })}
+          </label>
+          <label
+            className="failover-display-source-label"
+            title={i18n.t('settings:failover.keepViewTooltip', { defaultValue: 'When tuning a channel that belongs to a failover group, play the primary stream but keep the guide/category on the channel you picked, so channel up/down keeps navigating the category you were browsing.' })}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}
+          >
+            <input
+              type="checkbox"
+              checked={failoverKeepView}
+              onChange={e => setFailoverKeepView(e.target.checked)}
+            />
+            {i18n.t('settings:failover.keepView', { defaultValue: 'Keep View on Selected Channel' })}
+          </label>
+          <label className="failover-display-source-label" title={i18n.t('settings:failover.displaySourceHint')} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={displaySource}
+              onChange={e => setDisplaySource(e.target.checked)}
+            />
+            {i18n.t('settings:failover.displaySource')}
+          </label>
+        </div>
       </div>
 
       {/* Create new group */}

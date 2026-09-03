@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
@@ -26,13 +26,41 @@ interface CacheTabProps {
 export function CacheTab({ timeshiftEnabled, timeshiftCacheBytes, liveBufferOffset = 0, onTimeshiftChange }: CacheTabProps) {
   useTranslation();
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
+  const [customMegabytes, setCustomMegabytes] = useState(() => String(Math.round(timeshiftCacheBytes / 1_048_576)));
+  const [customError, setCustomError] = useState<string | null>(null);
+  const [isCustomMode, setIsCustomMode] = useState(() => !CACHE_PRESETS.some((p) => p.bytes === timeshiftCacheBytes));
+
+  useEffect(() => {
+    setCustomMegabytes(String(Math.round(timeshiftCacheBytes / 1_048_576)));
+    if (!CACHE_PRESETS.some((p) => p.bytes === timeshiftCacheBytes)) {
+      setIsCustomMode(true);
+    }
+  }, [timeshiftCacheBytes]);
 
   const handleTimeshiftToggle = (enabled: boolean) => {
     onTimeshiftChange(enabled, timeshiftCacheBytes, liveBufferOffset);
   };
 
   const handlePreset = (bytes: number) => {
+    setIsCustomMode(false);
+    setCustomMegabytes(String(Math.round(bytes / 1_048_576)));
+    setCustomError(null);
     onTimeshiftChange(timeshiftEnabled, bytes, liveBufferOffset);
+  };
+
+  const handleSelectCustom = () => {
+    setIsCustomMode(true);
+    setCustomError(null);
+  };
+
+  const handleApplyCustom = () => {
+    const megabytes = Number(customMegabytes);
+    if (!Number.isInteger(megabytes) || megabytes < 16 || megabytes > 16_384) {
+      setCustomError(i18n.t('settings:cache.customSizeError'));
+      return;
+    }
+    setCustomError(null);
+    onTimeshiftChange(timeshiftEnabled, megabytes * 1_048_576, liveBufferOffset);
   };
 
   const handleBufferOffsetChange = (offset: number) => {
@@ -82,13 +110,79 @@ export function CacheTab({ timeshiftEnabled, timeshiftCacheBytes, liveBufferOffs
                 {CACHE_PRESETS.map((preset) => (
                   <button
                     key={preset.bytes}
-                    className={`timeshift-preset-btn ${timeshiftCacheBytes === preset.bytes ? 'active' : ''}`}
+                    className={`timeshift-preset-btn ${!isCustomMode && timeshiftCacheBytes === preset.bytes ? 'active' : ''}`}
                     onClick={() => handlePreset(preset.bytes)}
                   >
                     {preset.label}
                   </button>
                 ))}
+                <button
+                  className={`timeshift-preset-btn ${isCustomMode ? 'active' : ''}`}
+                  onClick={handleSelectCustom}
+                >
+                  {i18n.t('settings:cache.custom')}
+                </button>
               </div>
+
+              {isCustomMode && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '12px 14px',
+                  background: 'var(--surface-color, rgba(255, 255, 255, 0.03))',
+                  border: '1px solid var(--surface-border, rgba(255, 255, 255, 0.08))',
+                  borderRadius: '6px'
+                }}>
+                  <div className="timeshift-presets-label" style={{ marginBottom: '6px' }}>
+                    {i18n.t('settings:cache.customSize')}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="number"
+                      min="16"
+                      max="16384"
+                      step="1"
+                      value={customMegabytes}
+                      onChange={(e) => {
+                        setCustomMegabytes(e.target.value);
+                        setCustomError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleApplyCustom();
+                        }
+                      }}
+                      style={{
+                        width: '120px',
+                        padding: '6px 10px',
+                        background: 'var(--surface-color, rgba(255, 255, 255, 0.05))',
+                        border: '1px solid var(--surface-border, rgba(255, 255, 255, 0.12))',
+                        borderRadius: '4px',
+                        color: 'var(--text-primary, white)',
+                        fontSize: '0.875rem',
+                      }}
+                    />
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary, rgba(255, 255, 255, 0.6))' }}>MB</span>
+                    <button
+                      type="button"
+                      className="sync-btn"
+                      onClick={handleApplyCustom}
+                      style={{
+                        padding: '6px 14px',
+                        fontSize: '0.8125rem',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {i18n.t('settings:cache.apply')}
+                    </button>
+                  </div>
+                  {customError && (
+                    <span style={{ display: 'block', color: 'var(--color-error, #ff5555)', fontSize: '0.8rem', marginTop: '6px' }}>
+                      {customError}
+                    </span>
+                  )}
+                </div>
+              )}
 
               <table className="timeshift-estimate-table">
                 <thead>

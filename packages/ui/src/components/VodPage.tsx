@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import i18n from '../i18n';
 import { isMouseBackButtonActive } from '../constants/shortcuts';
 import { useSettingsStore } from '../stores/settingsStore';
-import { Virtuoso } from 'react-virtuoso';
 import { HeroSection } from './vod/HeroSection';
 import { HorizontalCarousel } from './vod/HorizontalCarousel';
 import { VerticalSidebar } from './vod/VerticalSidebar';
@@ -12,7 +11,13 @@ import { FavoritesView } from './vod/FavoritesView';
 import { PlaylistsView } from './vod/PlaylistsView';
 import { useActivePlaylistStore } from '../stores/activePlaylistStore';
 import type { PlaylistItem, Playlist } from '../stores/vodPlaylistStore';
-import { isPlaylistItemHidden, playlistItemToVodInfo, recordPlaylistItemWatch } from '../utils/playlistPlayback';
+import {
+  isPlaylistItemHidden,
+  playlistItemToVodInfo,
+  recordPlaylistItemWatch,
+  resolvePlaylistItem,
+  applyPlaylistResolutions,
+} from '../utils/playlistPlayback';
 import { MovieDetail } from './vod/MovieDetail';
 import { SeriesDetail } from './vod/SeriesDetail';
 import { SourceContextMenu } from './SourceContextMenu';
@@ -35,6 +40,7 @@ import {
   useCinemetaHero,
 } from '../hooks/useCinemetaCatalogs';
 import { useTmdbApiKey } from '../hooks/useTmdbLists';
+import { getTmdbImageUrl, TMDB_BACKDROP_SIZES } from '../services/tmdb';
 import {
   useMoviesCategory,
   useSetMoviesCategory,
@@ -56,7 +62,25 @@ import { removeFromRecentlyWatched, recordVodWatch, recordEpisodeWatch, getEpiso
 import { type MediaItem, type VodType, type VodPlayInfo } from '../types/media';
 import { type VodPlayerMode } from './vod/SplitPlayButton';
 import { LocalTab } from './local/LocalTab';
-import { readLocalLibrary, groupLocal, localEntryToStoredEpisode } from '../services/local-library/local-library';
+import { LocalDetail } from './local/LocalDetail';
+import { IdentifyModal } from './local/IdentifyModal';
+import { AddToPlaylistModal } from './vod/AddToPlaylistModal';
+import {
+  readLocalLibrary,
+  groupLocal,
+  useLocalLibrary,
+  localEntryToVodPlayInfo,
+  localEntryToStoredEpisode,
+  localEntryToStoredMovie,
+  localGroupToStoredSeries,
+  ensureLocalLibraryLoaded,
+  removeLocalEntries,
+  updateLocalEntries,
+  extractEpisodeNumber,
+  parseFilename,
+} from '../services/local-library/local-library';
+import type { LocalGroup, LocalEntry } from '../services/local-library/types';
+import { clearTmdbMatchCache, invalidateTmdbIdMatchCache, invalidateTmdbMatchCache } from '../services/local-library/scan';
 import './VodPage.css';
 
 // Carousel row type for virtualization (all data pre-fetched)
@@ -87,28 +111,7 @@ interface HomeVirtuosoContext {
   onSelectVodPlayerMode?: (mode: VodPlayerMode) => void;
 }
 
-// Header component for Virtuoso (defined outside render to prevent remounting)
-const HomeHeader: React.ComponentType<{ context?: HomeVirtuosoContext }> = ({ context }) => {
-  if (!context) return null;
-  const { featuredItems, type, onHeroPlay, onItemClick, tmdbApiKey, heroLoading, vodPlayerMode, onSelectVodPlayerMode } = context;
-  
-  if (featuredItems.length === 0 && !heroLoading) return null;
-  
-  return (
-    <HeroSection
-      items={featuredItems}
-      type={type}
-      onPlay={onHeroPlay}
-      onMoreInfo={onItemClick}
-      loading={heroLoading}
-      vodPlayerMode={vodPlayerMode}
-      onSelectVodPlayerMode={onSelectVodPlayerMode}
-    />
-  );
-};
-
-// Item renderer for Virtuoso (defined outside render)
-// All data is pre-fetched, so this just renders the carousel
+// Item renderer for carousels
 const CarouselRowContent = (
   _index: number,
   row: CarouselRow,
@@ -149,11 +152,6 @@ const CarouselRowContent = (
   );
 };
 
-// Stable components object for Virtuoso
-const homeVirtuosoComponents = {
-  Header: HomeHeader,
-};
-
 interface VodPageProps {
   type: VodType;
   onPlay?: (info: VodPlayInfo, targetMode?: VodPlayerMode) => void;
@@ -164,6 +162,26 @@ interface VodPageProps {
 
 export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlayerMode }: VodPageProps) {
   const shortcuts = useSettingsStore((s) => s.shortcuts);
+
+  // Sidebar collapsed/expanded state — persisted per type (Movies vs Series)
+  // so the collapse survives leaving the page
+  const [sidebarVisible, setSidebarVisible] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(`ynotv:vodSidebarVisible:${type}`);
+      return stored === null ? true : stored === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  // Persist the sidebar state on change
+  useEffect(() => {
+    try {
+      localStorage.setItem(`ynotv:vodSidebarVisible:${type}`, String(sidebarVisible));
+    } catch {
+      // ignore storage errors (private mode, quota, etc.)
+    }
+  }, [type, sidebarVisible]);
 
   // Context Menu & Management State (local, not persisted)
   const [contextMenu, setContextMenu] = useState<{ sourceId: string; sourceName: string; x: number; y: number } | null>(null);
@@ -244,24 +262,33 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
   const { series: recentlyWatchedSeriesData, loading: recentlyWatchedSeriesLoading } = useRecentlyWatchedSeries(20);
   
   // Extract items from RecentlyWatchedItem wrappers
-  const recentlyWatchedItems = type === 'movie' 
-    ? recentlyWatchedMoviesData.map(m => m.item)
-    : recentlyWatchedSeriesData.map(s => s.item);
+  const recentlyWatchedItems = useMemo(
+    () => (type === 'movie' 
+      ? recentlyWatchedMoviesData.map(m => m.item)
+      : recentlyWatchedSeriesData.map(s => s.item)),
+    [type, recentlyWatchedMoviesData, recentlyWatchedSeriesData]
+  );
   const recentlyWatchedLoading = type === 'movie' ? recentlyWatchedMoviesLoading : recentlyWatchedSeriesLoading;
   
   // Create progress map for Recently Watched items
-  const recentlyWatchedProgressMap = type === 'movie'
-    ? new Map(recentlyWatchedMoviesData.map(m => [m.item.stream_id, m.progress_percent]))
-    : new Map(recentlyWatchedSeriesData.map(s => [s.item.series_id, s.progress_percent]));
+  const recentlyWatchedProgressMap = useMemo(
+    () => (type === 'movie'
+      ? new Map(recentlyWatchedMoviesData.map(m => [m.item.stream_id, m.progress_percent]))
+      : new Map(recentlyWatchedSeriesData.map(s => [s.item.series_id, s.progress_percent]))),
+    [type, recentlyWatchedMoviesData, recentlyWatchedSeriesData]
+  );
 
   // Create episode data map for Recently Watched series
-  const recentlyWatchedEpisodeData = type === 'series'
-    ? new Map(recentlyWatchedSeriesData.map(s => [s.item.series_id, { 
-        seasonNum: s.season_num, 
-        episodeNum: s.episode_num, 
-        episodeTitle: s.episode_title 
-      }]))
-    : undefined;
+  const recentlyWatchedEpisodeData = useMemo(
+    () => (type === 'series'
+      ? new Map(recentlyWatchedSeriesData.map(s => [s.item.series_id, { 
+          seasonNum: s.season_num, 
+          episodeNum: s.episode_num, 
+          episodeTitle: s.episode_title 
+        }]))
+      : undefined),
+    [type, recentlyWatchedSeriesData]
+  );
 
   // Favorites - from Zustand persist store
   const enabledSourceIds = useEnabledSources();
@@ -271,6 +298,79 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
     [allFavorites, type]
   );
 
+
+  // Local library entries and groups
+  const localEntries = useLocalLibrary();
+  const localGroups = useMemo(() => groupLocal(localEntries), [localEntries]);
+
+  const [identifyTarget, setIdentifyTarget] = useState<LocalEntry[] | null>(null);
+  const [addToPlaylistTarget, setAddToPlaylistTarget] = useState<
+    | { kind: 'movie'; entry: LocalEntry }
+    | { kind: 'show'; key: string; head: LocalEntry; episodes: LocalEntry[] }
+    | null
+  >(null);
+
+  const selectedLocalGroup = useMemo<LocalGroup | null>(() => {
+    if (!selectedItem) return null;
+    const isLocal =
+      selectedItem.source_id === 'local' ||
+      ('series_id' in selectedItem && typeof selectedItem.series_id === 'string' && selectedItem.series_id.startsWith('local_')) ||
+      ('stream_id' in selectedItem && typeof selectedItem.stream_id === 'string' && selectedItem.stream_id.startsWith('local_'));
+    if (!isLocal) return null;
+
+    if ('stream_id' in selectedItem) {
+      const movie = selectedItem as StoredMovie;
+      const rawId = movie.stream_id.startsWith('local_') ? movie.stream_id.slice(6) : movie.stream_id;
+      return (
+        localGroups.find(
+          (g) =>
+            g.kind === 'movie' &&
+            (g.entry.id === rawId ||
+              g.entry.id === movie.stream_id ||
+              (movie.direct_url && g.entry.path.toLowerCase() === movie.direct_url.toLowerCase()))
+        ) || null
+      );
+    } else {
+      const series = selectedItem as StoredSeries;
+      const rawKey = series.series_id.startsWith('local_') ? series.series_id.slice(6) : series.series_id;
+      return (
+        localGroups.find(
+          (g) =>
+            g.kind === 'show' &&
+            (g.key === rawKey ||
+              'local_' + g.key === series.series_id ||
+              (series.direct_url && g.head.path.toLowerCase() === series.direct_url.toLowerCase()) ||
+              g.episodes.some((ep) => ep.id === rawKey || 'local_' + ep.id === series.series_id))
+        ) || null
+      );
+    }
+  }, [selectedItem, localGroups]);
+
+  const addToPlaylistModalProps = useMemo(() => {
+    if (!addToPlaylistTarget) return null;
+    if (addToPlaylistTarget.kind === 'movie') {
+      const movie = localEntryToStoredMovie(addToPlaylistTarget.entry);
+      return {
+        movie,
+        series: null as StoredSeries | null,
+        seasons: {} as Record<number, StoredEpisode[]>,
+        posterUrl: movie.stream_icon || null,
+      };
+    }
+    const { key, head, episodes } = addToPlaylistTarget;
+    const series = localGroupToStoredSeries({ key, head, episodes });
+    const seasons: Record<number, StoredEpisode[]> = {};
+    for (const ep of episodes) {
+      const s = ep.season ?? 1;
+      (seasons[s] ??= []).push(localEntryToStoredEpisode(ep, series.series_id, head.title));
+    }
+    return {
+      movie: null as StoredMovie | null,
+      series,
+      seasons,
+      posterUrl: series.cover || null,
+    };
+  }, [addToPlaylistTarget]);
 
   const [favoriteItems, setFavoriteItems] = useState<(StoredMovie | StoredSeries)[]>([]);
   const [favoritesLoading, setFavoritesLoading] = useState(false);
@@ -286,6 +386,9 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
     const loadItems = async () => {
       setFavoritesLoading(true);
       try {
+        // Local library entries live in their own table (not vodMovies/
+        // vodSeries), so load them before diffing favorites.
+        await ensureLocalLibraryLoaded();
         const dbInstance = await (db as any).dbPromise;
         const ids = favoritesList.map(f => f.id);
         const placeholders = ids.map(() => '?').join(',');
@@ -295,26 +398,41 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
             `SELECT * FROM vodMovies WHERE stream_id IN (${placeholders})`,
             ids
           );
+          // Local library movies are keyed by `local_<path>`; favorites whose
+          // ids match are loaded from the local library (never source-filtered).
+          const localMovies: StoredMovie[] = readLocalLibrary()
+            .filter(
+              (e) => e.type === 'movie' && favoritesList.some((f) => f.id === `local_${e.id}`)
+            )
+            .map((e) => localEntryToStoredMovie(e));
           if (!cancelled) {
             const filteredItems = enabledSourceIds
               ? items.filter(item => enabledSourceIds.has(item.source_id))
               : items;
+            const merged = [...filteredItems, ...localMovies];
             const orderMap = new Map(ids.map((id, i) => [id, i]));
-            filteredItems.sort((a, b) => (orderMap.get(a.stream_id) ?? 0) - (orderMap.get(b.stream_id) ?? 0));
-            setFavoriteItems(filteredItems);
+            merged.sort((a, b) => (orderMap.get(a.stream_id) ?? Infinity) - (orderMap.get(b.stream_id) ?? Infinity));
+            setFavoriteItems(merged);
           }
         } else {
           const items: StoredSeries[] = await dbInstance.select(
             `SELECT * FROM vodSeries WHERE series_id IN (${placeholders})`,
             ids
           );
+          const localSeries: StoredSeries[] = [];
+          for (const g of groupLocal(readLocalLibrary())) {
+            if (g.kind === 'show' && favoritesList.some((f) => f.id === `local_${g.key}`)) {
+              localSeries.push(localGroupToStoredSeries(g));
+            }
+          }
           if (!cancelled) {
             const filteredItems = enabledSourceIds
               ? items.filter(item => enabledSourceIds.has(item.source_id))
               : items;
+            const merged = [...filteredItems, ...localSeries];
             const orderMap = new Map(ids.map((id, i) => [id, i]));
-            filteredItems.sort((a, b) => (orderMap.get(a.series_id) ?? 0) - (orderMap.get(b.series_id) ?? 0));
-            setFavoriteItems(filteredItems);
+            merged.sort((a, b) => (orderMap.get(a.series_id) ?? Infinity) - (orderMap.get(b.series_id) ?? Infinity));
+            setFavoriteItems(merged);
           }
         }
       } catch (error) {
@@ -332,12 +450,23 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
   // VOD categories
   const { categories } = useVodCategories(type);
 
-  const handlePlayPlaylistItem = useCallback((item: PlaylistItem, playlist: Playlist, isShuffle?: boolean) => {
+  const handlePlayPlaylistItem = useCallback(async (item: PlaylistItem, playlist: Playlist, isShuffle?: boolean) => {
+    // Resolve every item against the CURRENT source rows before queuing, so a
+    // re-sync or credential change (new stream URLs) or a metadata edit is
+    // picked up at play time instead of playing a stale snapshot. Item ids are
+    // preserved, so queue positions and progress tracking are unchanged.
+    const resolved = await Promise.all(playlist.items.map((i) => resolvePlaylistItem(i)));
+    // Persist the fresh metadata back into the store (and prune permanently-
+    // gone items), so exports/imports carry up-to-date data.
+    applyPlaylistResolutions(resolved);
+    const resolvedById = new Map(resolved.map((i) => [i.id, i]));
+    const resolvedItem = resolvedById.get(item.id) ?? item;
+
     // Skip items whose source was removed/disabled so the queue never tries to
     // play an unavailable stream. Keeps the played item's own queue position.
     const queueItems = enabledSourceIds
-      ? playlist.items.filter((i) => !isPlaylistItemHidden(i, enabledSourceIds))
-      : playlist.items;
+      ? resolved.filter((i) => !isPlaylistItemHidden(i, enabledSourceIds))
+      : resolved;
     useActivePlaylistStore.getState().startPlayback(
       playlist.id,
       playlist.name,
@@ -348,9 +477,9 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
 
     // Record the watch (Recent rail + episode progress) like normal VOD
     // playback does, so playlist plays show up and resume properly.
-    void recordPlaylistItemWatch(item);
-    onPlay?.(playlistItemToVodInfo(item), vodPlayerMode);
-  }, [onPlay, vodPlayerMode]);
+    void recordPlaylistItemWatch(resolvedItem);
+    onPlay?.(playlistItemToVodInfo(resolvedItem), vodPlayerMode);
+  }, [onPlay, vodPlayerMode, enabledSourceIds]);
 
   // Get selected category name for VodBrowse
   const selectedCategory = categories.find(c => c.category_id === selectedCategoryId);
@@ -610,6 +739,10 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
         type: 'movie',
         source_id: movie.source_id,
         mediaId: movie.stream_id,
+        // Mirror MovieDetail: absolute backdrop URL (or provider poster).
+        backdropUrl: movie.backdrop_path
+          ? (getTmdbImageUrl(movie.backdrop_path, TMDB_BACKDROP_SIZES.large) || movie.stream_icon || undefined)
+          : (movie.stream_icon || undefined),
         tmdbId: movie.tmdb_id,
         imdbId: movie.imdb_id,
       }, targetMode);
@@ -624,12 +757,18 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
           const groups = groupLocal(localEntries);
           const targetKey = series.series_id.replace(/^local_/, '').toLowerCase();
           const matchingGroup = groups.find(
-            (g) => g.kind === 'show' && g.key.toLowerCase() === targetKey
+            (g) => g.kind === 'show' && (
+              g.key.toLowerCase() === targetKey ||
+              g.key.toLowerCase().replace(/[^a-z0-9]+/g, '_') === targetKey.replace(/[^a-z0-9]+/g, '_')
+            )
           );
           if (matchingGroup && matchingGroup.kind === 'show') {
-            episodes = matchingGroup.episodes.map((ep) =>
-              localEntryToStoredEpisode(ep, series.series_id, matchingGroup.head.title)
-            );
+            episodes = matchingGroup.episodes
+              .slice()
+              .sort((a, b) => (a.season ?? 1) - (b.season ?? 1) || (a.episode ?? 1) - (b.episode ?? 1))
+              .map((ep) =>
+                localEntryToStoredEpisode(ep, series.series_id, matchingGroup.head.title)
+              );
           }
         } else {
           episodes = await dbInstance.select(
@@ -644,8 +783,8 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
         }
 
         const epHistory: EpisodeWatchHistory[] = await dbInstance.select(
-          'SELECT * FROM episode_history WHERE series_id = ?',
-          [series.series_id]
+          'SELECT * FROM episode_history WHERE LOWER(series_id) = LOWER(?) OR LOWER(series_id) = LOWER(?)',
+          [series.series_id, `local_${series.series_id.replace(/^local_/, '').replace(/[^a-z0-9]+/g, '_')}`]
         );
         const epHistMap = new Map(epHistory.map(eh => [eh.episode_id, eh]));
 
@@ -672,7 +811,8 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
         }
 
         const progress = epHistMap.get(targetEp.id);
-        const resumePosition = progress && (progress.progress_seconds ?? 0) > 10 ? (progress.progress_seconds ?? 0) : 0;
+        const isCompleted = progress ? (progress.completed === 1 || ((progress.total_duration ?? 0) > 0 && (progress.progress_seconds ?? 0) / (progress.total_duration ?? 1) >= 0.95)) : false;
+        const resumePosition = !isCompleted && progress && (progress.progress_seconds ?? 0) > 10 ? (progress.progress_seconds ?? 0) : 0;
         const epDuration = targetEp.duration || (targetEp.info?.duration ? Number(targetEp.info.duration) : 0) || 0;
 
         void recordVodWatch(
@@ -711,7 +851,12 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
           episodeNum: targetEp.episode_num,
           episodeId: targetEp.id,
           posterUrl: series.cover || (series as any).stream_icon || (series as any).poster || undefined,
-          backdropUrl: series.backdrop_path || undefined,
+          // backdrop_path is often a relative TMDB path (e.g. /abc123.jpg) or
+          // a provider-relative path — wrap it so the image URL is absolute;
+          // fall back to the cover like SeriesDetail does.
+          backdropUrl: series.backdrop_path
+            ? (getTmdbImageUrl(series.backdrop_path, TMDB_BACKDROP_SIZES.large) || series.cover || undefined)
+            : (series.cover || undefined),
           tmdbId: series.tmdb_id,
           imdbId: series.imdb_id,
         }, targetMode);
@@ -834,11 +979,16 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
   const typeLabel = type === 'movie' ? i18n.t('vod:movies') : i18n.t('vod:series');
   const browseType = type === 'movie' ? 'movies' : 'series';
 
+  const sidebarCategories = useMemo(
+    () => categories.map(c => ({ id: c.category_id, name: c.name, source_id: c.source_id })),
+    [categories]
+  );
+
   return (
     <div className="vod-page">
       {/* Sidebar: Categories + Search + Back */}
       <VerticalSidebar
-        categories={categories.map(c => ({ id: c.category_id, name: c.name, source_id: c.source_id }))}
+        categories={sidebarCategories}
         selectedId={selectedCategoryId}
         onSelect={handleCategorySelect}
         type={type}
@@ -861,6 +1011,9 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
         onContextMenu={(e, sourceId, sourceName) => {
           setContextMenu({ sourceId, sourceName, x: e.clientX, y: e.clientY });
         }}
+        visible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        onShow={() => setSidebarVisible(true)}
       />
 
       {/* Main content */}
@@ -921,21 +1074,119 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
             onItemClick={handleItemClick}
           />
         ) : (
-          // Home view: Hero + virtualized carousels
-          <Virtuoso
-            className="vod-page__home"
-            data={carouselRows}
-            context={homeVirtuosoContext}
-            overscan={200}
-            computeItemKey={(_, row) => row.key}
-            components={homeVirtuosoComponents}
-            itemContent={CarouselRowContent}
-          />
+          // Home view: Hero + carousels
+          <div className="vod-page__home">
+            {featuredItems.length > 0 && (
+              <HeroSection
+                items={featuredItems}
+                type={type}
+                onPlay={handleHeroPlay}
+                onMoreInfo={handleItemClick}
+                loading={heroLoading}
+                vodPlayerMode={vodPlayerMode}
+                onSelectVodPlayerMode={onSelectVodPlayerMode}
+              />
+            )}
+            <div className="vod-page__carousels pb-8">
+              {carouselRows.map((row, index) => (
+                <div key={row.key} className="vod-page__carousel-slot">
+                  {CarouselRowContent(index, row, homeVirtuosoContext)}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </main>
 
-      {/* Detail modal */}
-      {selectedItem && type === 'movie' && (
+      {/* Local Detail View for Local Movies & Series */}
+      {selectedLocalGroup && (
+        <LocalDetail
+          group={selectedLocalGroup}
+          onClose={handleCloseDetail}
+          onPlay={(entry, seriesGroup) => {
+            const info = localEntryToVodPlayInfo(entry, seriesGroup);
+            handlePlay(info, vodPlayerMode);
+          }}
+          onFixMatch={(target) => setIdentifyTarget(target)}
+          onRefreshMetadata={(entries) => {
+            if (entries.length === 0) return;
+            for (const e of entries) {
+              if (e.tmdbId) {
+                invalidateTmdbIdMatchCache(e.tmdbId, e.type);
+              }
+              const parsed = parseFilename(e.filename);
+              invalidateTmdbMatchCache(parsed.title, parsed.year, parsed.type);
+            }
+          }}
+          onRemove={(ids) => {
+            removeLocalEntries(ids);
+            handleCloseDetail();
+          }}
+          onAddToPlaylist={(group) => {
+            if (group.kind === 'movie') {
+              setAddToPlaylistTarget({ kind: 'movie', entry: group.entry });
+            } else {
+              setAddToPlaylistTarget({ kind: 'show', key: group.key, head: group.head, episodes: group.episodes });
+            }
+          }}
+        />
+      )}
+
+      {/* Identify / Match Fix Modal */}
+      {identifyTarget && (
+        <IdentifyModal
+          target={identifyTarget}
+          onClose={() => setIdentifyTarget(null)}
+          onResolved={(ids, resolution) => {
+            clearTmdbMatchCache();
+            updateLocalEntries(ids, (entry) => {
+              const epInfo = extractEpisodeNumber(entry.filename);
+              const epNum = entry.episode ?? epInfo?.episode ?? null;
+              const seasonNum = entry.season ?? epInfo?.season ?? 1;
+
+              return {
+                tmdbId: resolution.tmdbId,
+                imdbId: resolution.imdbId,
+                poster: resolution.poster,
+                backdrop: resolution.backdrop,
+                title: resolution.title,
+                year: resolution.year,
+                type: resolution.type,
+                overview: resolution.overview ?? null,
+                rating: resolution.rating ?? null,
+                runtime: resolution.runtime ?? null,
+                season: resolution.type === 'show' ? seasonNum : null,
+                episode: resolution.type === 'show' ? epNum : null,
+                needsReview: false,
+                reviewSkipped: false,
+                metadataLocked: true,
+              };
+            });
+            setIdentifyTarget(null);
+          }}
+          onSkip={() => setIdentifyTarget(null)}
+          onRemove={(ids) => {
+            removeLocalEntries(ids);
+            setIdentifyTarget(null);
+            handleCloseDetail();
+          }}
+        />
+      )}
+
+      {/* Add To Playlist Modal */}
+      {addToPlaylistModalProps && (
+        <AddToPlaylistModal
+          isOpen={true}
+          onClose={() => setAddToPlaylistTarget(null)}
+          movie={addToPlaylistModalProps.movie}
+          series={addToPlaylistModalProps.series}
+          seasons={addToPlaylistModalProps.seasons}
+          posterUrl={addToPlaylistModalProps.posterUrl}
+        />
+      )}
+
+      {/* Detail modal (non-local) */}
+      {!selectedLocalGroup && selectedItem && type === 'movie' && (
         <MovieDetail
           movie={selectedItem as StoredMovie}
           onClose={handleCloseDetail}
@@ -969,7 +1220,7 @@ export function VodPage({ type, onPlay, onClose, vodPlayerMode, onSelectVodPlaye
           onCastClick={(personId) => setActivePersonId(personId)}
         />
       )}
-      {selectedItem && type === 'series' && (
+      {!selectedLocalGroup && selectedItem && type === 'series' && (
         <SeriesDetail
           series={selectedItem as StoredSeries}
           onClose={handleCloseDetail}

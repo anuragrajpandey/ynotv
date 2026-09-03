@@ -195,3 +195,85 @@ describe('DEFAULT_SORT_DIRECTION', () => {
     }
   });
 });
+
+describe('useSkipIntro - resolveIntroDbParams', () => {
+  it('resolves IMDb ID and episode from local file with mediaId/seriesId pattern', async () => {
+    const { resolveIntroDbParams } = await import('../../../hooks/useSkipIntro');
+    const vodInfo = {
+      url: 'C:\\Media\\Shows\\Example Show\\Example.Show.S01E01.1080p.mkv',
+      title: 'Example Show',
+      type: 'series' as const,
+      source_id: 'local',
+      mediaId: 'local_tt1234567_ep_local-ep1',
+      seriesId: 'local_tt1234567',
+      episodeId: 'local-ep1',
+      seasonNum: 1,
+      episodeNum: 1,
+    };
+
+    const params = await resolveIntroDbParams(vodInfo);
+    expect(params.imdbId).toBe('tt1234567');
+    expect(params.season).toBe(1);
+    expect(params.episode).toBe(1);
+  });
+
+  it('resolves directly from vodInfo.imdbId', async () => {
+    const { resolveIntroDbParams } = await import('../../../hooks/useSkipIntro');
+    const vodInfo = {
+      url: 'http://example.com/stream.mkv',
+      title: 'Example Series',
+      type: 'series' as const,
+      source_id: 'vod',
+      imdbId: 'tt0903747',
+      seasonNum: 2,
+      episodeNum: 3,
+    };
+
+    const params = await resolveIntroDbParams(vodInfo);
+    expect(params.imdbId).toBe('tt0903747');
+    expect(params.season).toBe(2);
+    expect(params.episode).toBe(3);
+  });
+
+  it('parses season and episode from filename when seasonNum/episodeNum are missing', async () => {
+    const { resolveIntroDbParams } = await import('../../../hooks/useSkipIntro');
+    const vodInfo = {
+      url: 'C:\\Media\\Shows\\Sample Show\\Sample.Show.S02E05.1080p.mkv',
+      title: 'Sample Show',
+      type: 'series' as const,
+      source_id: 'local',
+      mediaId: 'local_tt7654321_ep_sample123',
+      seriesId: 'local_tt7654321',
+    };
+
+    const params = await resolveIntroDbParams(vodInfo);
+    expect(params.imdbId).toBe('tt7654321');
+    expect(params.season).toBe(2);
+    expect(params.episode).toBe(5);
+  });
+
+  it('resolves from Stremio episode metadata ref', async () => {
+    const { resolveIntroDbParams } = await import('../../../hooks/useSkipIntro');
+    const vodInfo = {
+      url: 'http://stremio/stream',
+      title: 'Mock Series',
+      type: 'series' as const,
+      source_id: 'stremio',
+    };
+
+    const stremioRef = {
+      current: {
+        metaId: 'tt4574334',
+        name: 'Chapter One',
+        videoId: 'tt4574334:1:1',
+        season: 1,
+        episode: 1,
+      },
+    };
+
+    const params = await resolveIntroDbParams(vodInfo, stremioRef);
+    expect(params.imdbId).toBe('tt4574334');
+    expect(params.season).toBe(1);
+    expect(params.episode).toBe(1);
+  });
+});

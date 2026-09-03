@@ -1,0 +1,343 @@
+/* ── SHARED MULTIVIEW CELL STYLES ────────────────────────────────────────
+ * Extracted from the deleted MultiviewCell.css (legacy HWND sidecar cells).
+ * These rules are shared by the HLS <video> cell, the Canvas (libmpv SW)
+ * cell, and the primary player controls bar rendered by MultiviewLayout.
+ *
+ * IMPORTANT: this file must be imported BEFORE each consumer's own stylesheet
+ * (HlsMultiviewCell.css / CanvasMultiviewCell.css / MultiviewLayout.css) so the
+ * per-engine overrides win any same-specificity property conflicts.
+ */
+
+.multiview-cell-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.multiview-cell {
+    flex: 1;
+    position: relative;
+    background: transparent;
+    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Only show background when cell is empty (no video) */
+.multiview-cell-empty {
+    background: #0a0a0a;
+}
+
+.multiview-cell-active:hover {
+    outline: 2px solid rgba(0, 212, 255, 0.4);
+    outline-offset: -2px;
+}
+
+/* Overlays */
+.multiview-cell-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 11px;
+    pointer-events: none;
+}
+
+.multiview-cell-slot-icon {
+    color: rgba(255, 255, 255, 0.15);
+    margin-bottom: 2px;
+}
+
+.multiview-cell-slot-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.18);
+}
+
+.multiview-cell-hint {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.12);
+}
+
+/* Channel name badge */
+.multiview-cell-badge {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 4px 8px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+}
+
+.multiview-cell:hover .multiview-cell-badge {
+    opacity: 1;
+}
+
+.multiview-cell-name {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.multiview-cell-swap-hint {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.35);
+    flex-shrink: 0;
+}
+
+/* ── Clean Borderless Multiview Control Bar Overlay ── */
+.multiview-cell-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.45) 60%, rgba(0, 0, 0, 0) 100%) !important;
+    border: none !important;
+    border-radius: 0 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+    padding: 12px 14px 10px 14px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+/* Hover reveal on cell container */
+.multiview-cell-container:hover .multiview-cell-controls,
+.canvas-cell-container:hover .multiview-cell-controls,
+.hls-cell-container:hover .multiview-cell-controls,
+.multiview-cell-controls:hover {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.multiview-cell-controls-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.multiview-cell-controls-slot {
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    flex-shrink: 0;
+    letter-spacing: 0.5px;
+}
+
+.multiview-cell-controls-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+}
+
+.multiview-cell-controls-buttons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.multiview-cell-controls-volume {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+
+.multiview-cell-volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 0;
+    opacity: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    transition: width 0.2s ease, opacity 0.2s ease;
+}
+
+.multiview-cell-controls-volume:hover .multiview-cell-volume-slider,
+.multiview-cell-volume-slider:active {
+    width: 60px;
+    opacity: 1;
+}
+
+.multiview-cell-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ffffff;
+    cursor: pointer;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Clean Borderless Buttons (pure SVGs, no border/bg) */
+.multiview-cell-controls-btn {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: rgba(255, 255, 255, 0.85);
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color 0.15s ease, transform 0.15s ease;
+    outline: none;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    border-radius: 4px;
+}
+
+.multiview-cell-controls-btn svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+    flex-shrink: 0;
+}
+
+.multiview-cell-controls-btn:hover {
+    color: #ffffff;
+    background: transparent !important;
+    border: none !important;
+    transform: scale(1.15);
+}
+
+.multiview-cell-controls-btn.danger:hover {
+    color: #ff5252;
+}
+
+/* Aspect Ratio Dropdown Menu */
+.multiview-cell-aspect-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.multiview-cell-aspect-menu {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    background: rgba(16, 16, 20, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 90px;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+.multiview-cell-aspect-item {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    text-align: left;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.multiview-cell-aspect-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+
+.multiview-cell-aspect-item.active {
+    background: rgba(0, 212, 255, 0.18);
+    color: #00d4ff;
+    font-weight: 600;
+}
+
+/* Cell right-click context menu */
+.cell-context-menu {
+    background: rgba(16, 16, 20, 0.97);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 4px;
+    min-width: 160px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+}
+
+.cell-context-header {
+    padding: 6px 10px 4px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.cell-context-item {
+    display: block;
+    width: 100%;
+    padding: 7px 10px;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    text-align: left;
+    font-size: 13px;
+}
+
+.cell-context-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.cell-context-danger {
+    color: rgba(255, 90, 90, 0.9);
+}
+
+.cell-context-danger:hover {
+    background: rgba(255, 50, 50, 0.15) !important;
+}

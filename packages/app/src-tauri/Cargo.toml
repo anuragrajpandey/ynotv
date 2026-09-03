@@ -1,6 +1,6 @@
 [package]
 name = "ynotv"
-version = "2.4.0"
+version = "2.5.2"
 description = "A Tauri App"
 authors = ["tbeezy"]
 edition = "2021"
@@ -63,7 +63,7 @@ bytes = "1"
 flate2 = "1.0"
 
 # HTTP client for TMDB caching and EPG streaming
-reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "gzip", "brotli", "deflate", "socks"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "gzip", "brotli", "deflate", "socks", "http2"], default-features = false }
 base64 = "0.22"
 log = "0.4.29"
 keyring = "3"
@@ -79,6 +79,53 @@ url = "2"
 
 # FFT dependency for per-process audio visualizer
 rustfft = "6.2"
+
+# MPV bindings
+libmpv2 = "4"
+libmpv2-sys = "4"
+libc = "0.2"
+
+# Gamepad & Controller support
+# gilrs must use the XInput backend, NOT the default WGI (Windows.Gaming.Input)
+# backend: WGI silently finds zero controllers in unpackaged Win32 apps (it
+# needs a package identity), which left the native listener with nothing to
+# emit while the browser Gamepad API (which has its own XInput stack) kept
+# working only while the window was focused. XInput sees the standard pads
+# (real Xbox controllers, and DualSense pads emulated as Xbox 360).
+gilrs = { version = "0.10", default-features = false, features = ["xinput"] }
+
+# DirectInput/HID gamepads (raw DualSense / DualShock over Bluetooth or USB)
+# are invisible to XInput, and Chromium's Gamepad API won't deliver their
+# input while the window is unfocused — so read them directly via HID.
+# default-features = false avoids the libusb feature (needs pkg-config); the
+# platform HID backend (Win32 HID API here) is always compiled in.
+hidapi = { version = "2", default-features = false }
+
+# Embedded Web & Remote WebSocket server
+axum = { version = "0.7", features = ["ws"] }
+
+# Random pairing token for the Phone Remote
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = [
+  "NSGeometry",
+  "NSThread",
+  "NSValue",
+  "NSDictionary",
+  "NSString",
+] }
+objc2-app-kit = { version = "0.3", features = [
+  "NSWindow",
+  "NSView",
+  "NSOpenGL",
+  "NSOpenGLView",
+  "NSResponder",
+] }
+objc2-web-kit = { version = "0.3", features = ["WKWebView"] }
+core-foundation = "0.10"
+core-video = "0.4"
 
 # Win32 APIs for MPV HWND resizing and WASAPI loopback audio capture (Windows only)
 [target.'cfg(target_os = "windows")'.dependencies]

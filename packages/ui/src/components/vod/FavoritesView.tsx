@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef, forwardRef, useState } from 'react';
-import { VirtuosoGrid, VirtuosoGridHandle } from 'react-virtuoso';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { VirtualGrid, type VirtualGridHandle } from '../common/VirtualGrid';
 import { MediaCard } from './MediaCard';
 import type { StoredMovie, StoredSeries } from '../../db';
 import { useVodFavoritesStore } from '../../stores/vodFavoritesStore';
@@ -18,16 +18,6 @@ import './VodBrowse.css';
 // Sort options available in the Favorites view (in dropdown order)
 const FAVORITES_SORT_KEYS: VodSortKey[] = ['default', 'name', 'year', 'rating', 'lastWatched'];
 
-const GridScroller = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  (props, ref) => (
-    <div
-      ref={ref}
-      {...props}
-      style={{ ...props.style, overflowY: 'scroll' }}
-    />
-  )
-);
-
 export interface FavoritesViewProps {
   type: 'movie' | 'series';
   items: (StoredMovie | StoredSeries)[];
@@ -42,7 +32,8 @@ export function FavoritesView({
   onItemClick,
 }: FavoritesViewProps) {
   useTranslation();
-  const virtuosoRef = useRef<VirtuosoGridHandle>(null);
+  const virtualGridRef = useRef<VirtualGridHandle>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const removeFavorite = useVodFavoritesStore((s) => s.removeFavorite);
   const favorites = useVodFavoritesStore((s) => s.favorites);
   const sourceNameMap = useSourceNameMap();
@@ -68,9 +59,9 @@ export function FavoritesView({
 
   const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('vodFavoritesSortDir');
-      if (saved === 'asc' || saved === 'desc') {
-        return saved;
+      const savedDir = localStorage.getItem('vodFavoritesSortDir');
+      if (savedDir === 'asc' || savedDir === 'desc') {
+        return savedDir;
       }
     }
     return DEFAULT_SORT_DIRECTION.default;
@@ -141,8 +132,7 @@ export function FavoritesView({
     removeFavorite(id, type);
   }, [type, removeFavorite]);
 
-  const itemContent = useCallback((index: number) => {
-    const item = sortedItems[index];
+  const ItemContent = useCallback((index: number, item: StoredMovie | StoredSeries) => {
     if (!item) return null;
 
     const sourceName = (showSourceBadge && sourceNameMap)
@@ -153,13 +143,14 @@ export function FavoritesView({
       <MediaCard
         item={item}
         type={type}
+        index={index}
         onClick={onItemClick}
         isFavorited={true}
         onToggleFavorite={handleRemove}
         sourceName={sourceName}
       />
     );
-  }, [sortedItems, type, onItemClick, handleRemove, showSourceBadge, sourceNameMap]);
+  }, [type, onItemClick, handleRemove, showSourceBadge, sourceNameMap]);
 
   if (loading) {
     return (
@@ -244,18 +235,19 @@ export function FavoritesView({
         </div>
       </div>
 
-      <VirtuosoGrid
-        ref={virtuosoRef}
-        className="vod-browse__grid"
-        data={sortedItems}
-        totalCount={sortedItems.length}
-        itemContent={itemContent}
-        components={{
-          Scroller: GridScroller,
-        }}
-        listClassName="vod-browse__grid-list"
-        itemClassName="vod-browse__grid-item"
-      />
+      <div ref={scrollRef} className="vod-browse__grid-scroll flex-1 min-h-0 overflow-y-auto">
+        <VirtualGrid
+          ref={virtualGridRef}
+          items={sortedItems}
+          scrollRef={scrollRef}
+          minColumnWidth={164}
+          gapX={8}
+          gapY={12}
+          estimateRowHeight={276}
+          renderItem={(item, index) => ItemContent(index, item)}
+          overscan={4}
+        />
+      </div>
     </div>
   );
 }

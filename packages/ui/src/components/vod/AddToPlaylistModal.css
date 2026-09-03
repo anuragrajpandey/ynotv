@@ -304,7 +304,7 @@
 .add-to-playlist-modal__body::-webkit-scrollbar,
 .add-to-playlist-list::-webkit-scrollbar,
 .add-to-playlist-episodes-list::-webkit-scrollbar {
-  width: 6px;
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .add-to-playlist-modal__body::-webkit-scrollbar-track,

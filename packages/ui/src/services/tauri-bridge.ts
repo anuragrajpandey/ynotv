@@ -42,6 +42,7 @@ let windowSyncListeners: { move?: UnlistenFn; resize?: UnlistenFn; focus?: Unlis
 let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let focusSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let fullscreenRestoreMaximized: boolean | null = null;
+let activeSubtitleTrackId: number | null = null;
 
 function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -61,6 +62,20 @@ export async function initAppCloseListener() {
         const appWindow = getCurrentWindow();
         appCloseListenerUnlisten = await appWindow.onCloseRequested(async (event) => {
             console.log('[Bridge] Close requested - calling save callbacks');
+            // Minimize-to-tray: when the Rust side decides to hide the window to
+            // the tray, the JS onCloseRequested wrapper would otherwise destroy()
+            // the window right after this callback (it only skips destroy when
+            // preventDefault() was called). Read the persisted setting so the
+            // window survives and playback/recordings keep running.
+            try {
+                const s = await getStore();
+                const settings = (await s.get('settings')) as Record<string, any> | null;
+                if (settings?.minimizeToTray === true) {
+                    event.preventDefault();
+                }
+            } catch (err) {
+                console.error('[Bridge] Failed to read minimizeToTray on close:', err);
+            }
             if (onAppCloseCallback) {
                 try {
                     await onAppCloseCallback();
@@ -264,6 +279,13 @@ function guessMimeType(url: string, fallbackUrl?: string): string {
     return 'application/x-mpegURL';
 }
 
+export function resolveSubAssOverride(override?: string): 'no' | 'scale' | 'force' | 'strip' {
+    if (override === 'no') return 'no';
+    if (override === 'scale') return 'scale';
+    if (override === 'force') return 'force';
+    return 'strip';
+}
+
 export const Bridge = {
     isTauri: true,
 
@@ -406,6 +428,7 @@ export const Bridge = {
             }
         }
         try {
+            activeSubtitleTrackId = null;
             await invoke('mpv_load', { url });
             return { success: true };
         } catch (e: any) {
@@ -447,6 +470,7 @@ export const Bridge = {
     },
 
     async stop() {
+        activeSubtitleTrackId = null;
         if (REDIRECT_CONTROLS_TO_CAST && isCasting) {
             try {
                 return await invoke('cast_pause');
@@ -573,6 +597,10 @@ export const Bridge = {
         return appWindow.isMaximized();
     },
 
+    getSubtitleTrackId(): number | null {
+        return activeSubtitleTrackId;
+    },
+
     async getTrackList(): Promise<any[]> {
         const result = await invoke('mpv_get_track_list');
         return result as any[] || [];
@@ -583,6 +611,7 @@ export const Bridge = {
     },
 
     async setSubtitleTrack(id: number) {
+        activeSubtitleTrackId = id;
         const res = await invoke('mpv_set_subtitle', { id });
         if (id > 0) {
             // Force rendering on. A user-supplied --sub-visibility=no in custom
@@ -591,13 +620,11 @@ export const Bridge = {
             try {
                 const ss = useSettingsStore.getState().subtitleSettings;
                 const size = ss?.defaultSize || 35;
-                const override = ss?.subAssOverride || 'yes';
-                const effectiveOverride = override === 'no' ? 'no' : (override === 'scale' ? 'scale' : 'strip');
-                const scale = Math.max(0.2, Math.min(3.0, size / 35));
+                const effectiveOverride = resolveSubAssOverride(ss?.subAssOverride);
+                const scale = effectiveOverride === 'scale' ? Math.max(0.2, Math.min(3.0, size / 35)) : 1.0;
                 await invoke('mpv_set_property', { name: 'sub-font-size', value: size }).catch(() => {});
                 await invoke('mpv_set_property', { name: 'sub-scale', value: scale }).catch(() => {});
                 await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
-                await invoke('mpv_set_property', { name: 'sub-use-media-style', value: override === 'no' }).catch(() => {});
                 await invoke('mpv_set_property', { name: 'sub-ass-scale-with-window', value: true }).catch(() => {});
                 if (ss?.subColor) {
                     await invoke('mpv_set_property', { name: 'sub-color', value: ss.subColor }).catch(() => {});
@@ -657,11 +684,12 @@ export const Bridge = {
     },
 
     async setSubtitleSize(size: number) {
-        const scale = Math.max(0.2, Math.min(3.0, size / 35));
+        const ss = useSettingsStore.getState().subtitleSettings;
+        const effectiveOverride = resolveSubAssOverride(ss?.subAssOverride);
+        const scale = effectiveOverride === 'scale' ? Math.max(0.2, Math.min(3.0, size / 35)) : 1.0;
         await invoke('mpv_set_property', { name: 'sub-font-size', value: size }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-scale', value: scale }).catch(() => {});
-        await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'strip' }).catch(() => {});
-        await invoke('mpv_set_property', { name: 'sub-use-media-style', value: false }).catch(() => {});
+        await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-ass-scale-with-window', value: true }).catch(() => {});
         return;
     },
@@ -671,15 +699,8 @@ export const Bridge = {
     },
 
     async setSubAssOverride(override: string) {
-        if (override === 'yes' || override === 'force' || override === 'strip') {
-            await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'strip' }).catch(() => {});
-            await invoke('mpv_set_property', { name: 'sub-use-media-style', value: false }).catch(() => {});
-        } else if (override === 'no') {
-            await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'no' }).catch(() => {});
-            await invoke('mpv_set_property', { name: 'sub-use-media-style', value: true }).catch(() => {});
-        } else {
-            await invoke('mpv_set_property', { name: 'sub-ass-override', value: override }).catch(() => {});
-        }
+        const effectiveOverride = resolveSubAssOverride(override);
+        await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
     },
 
     async setSubtitleColor(color: string) {
@@ -710,14 +731,127 @@ export const Bridge = {
     },
 
     async setSubtitlePos(pos: number) {
-        await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'strip' }).catch(() => {});
+        const ss = useSettingsStore.getState().subtitleSettings;
+        const effectiveOverride = resolveSubAssOverride(ss?.subAssOverride);
+        await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
         return invoke('mpv_set_property', { name: 'sub-pos', value: pos });
     },
 
     async setSubtitleAlign(align: string) {
         const alignX = align === 'left' ? 'left' : (align === 'right' ? 'right' : 'center');
-        await invoke('mpv_set_property', { name: 'sub-ass-override', value: 'strip' }).catch(() => {});
+        const ss = useSettingsStore.getState().subtitleSettings;
+        const effectiveOverride = resolveSubAssOverride(ss?.subAssOverride);
+        await invoke('mpv_set_property', { name: 'sub-ass-override', value: effectiveOverride }).catch(() => {});
         await invoke('mpv_set_property', { name: 'sub-align-x', value: alignX }).catch(() => {});
+    },
+
+    buildAudioFilterString(settings: { audioNormalize?: boolean; audioProfile?: string }): string {
+        const parts: string[] = [];
+        if (settings.audioNormalize) {
+            parts.push('dynaudnorm=f=500:g=31:p=0.9:m=4');
+        }
+        if (settings.audioProfile && settings.audioProfile !== 'off') {
+            switch (settings.audioProfile) {
+                case 'bass':
+                    parts.push('lavfi=[bass=g=7:f=110:w=0.6]');
+                    break;
+                case 'voice':
+                    parts.push('lavfi=[equalizer=f=300:t=q:w=1:g=-3,equalizer=f=2800:t=q:w=1:g=5]');
+                    break;
+                case 'bass-reduce':
+                    parts.push('lavfi=[bass=g=-8:f=110:w=0.6]');
+                    break;
+                case 'night':
+                    parts.push('lavfi=[acompressor=ratio=3:threshold=-20dB:attack=20:release=300:makeup=4dB]');
+                    break;
+            }
+        }
+        if (parts.length > 0) {
+            parts.push('lavfi=[alimiter=limit=0.97]');
+        }
+        return parts.join(',');
+    },
+
+    async applyAudioSettings(settings: {
+        audioNormalize?: boolean;
+        audioProfile?: string;
+        audioDownmixStereo?: boolean;
+        audioMaxVolume?: number;
+        audioDevice?: string;
+    }) {
+        try {
+            const af = this.buildAudioFilterString(settings);
+            await invoke('mpv_set_property', { name: 'af', value: af }).catch(() => {});
+        } catch (e) {
+            console.warn('[Bridge] Failed to apply audio filter graph:', e);
+        }
+
+        if (settings.audioDownmixStereo !== undefined) {
+            try {
+                await invoke('mpv_set_property', {
+                    name: 'audio-channels',
+                    value: settings.audioDownmixStereo ? 'stereo' : 'auto',
+                }).catch(() => {});
+            } catch (e) {
+                console.warn('[Bridge] Failed to apply downmix channels:', e);
+            }
+        }
+
+        if (settings.audioMaxVolume !== undefined) {
+            try {
+                await invoke('mpv_set_property', {
+                    name: 'volume-max',
+                    value: settings.audioMaxVolume,
+                }).catch(() => {});
+            } catch (e) {
+                console.warn('[Bridge] Failed to apply volume-max:', e);
+            }
+        }
+
+        if (settings.audioDevice !== undefined) {
+            try {
+                await invoke('mpv_set_property', {
+                    name: 'audio-device',
+                    value: settings.audioDevice,
+                }).catch(() => {});
+            } catch (e) {
+                console.warn('[Bridge] Failed to apply audio-device:', e);
+            }
+        }
+    },
+
+    async applyHdrSettings(on: boolean) {
+        const properties: Array<[string, any]> = on
+            ? [
+                ['tone-mapping', 'spline'],
+                ['gamut-mapping-mode', 'perceptual'],
+                ['hdr-compute-peak', 'yes'],
+                ['hdr-contrast-recovery', '0.30'],
+                ['hdr-peak-percentile', '99.995'],
+                ['dither-depth', 'auto'],
+                ['target-trc', 'bt.1886'],
+                ['target-prim', 'bt.709'],
+                ['target-colorspace-hint', 'yes'],
+            ]
+            : [
+                ['tone-mapping', 'auto'],
+                ['gamut-mapping-mode', 'auto'],
+                ['hdr-compute-peak', 'auto'],
+                ['hdr-contrast-recovery', '0'],
+                ['hdr-peak-percentile', '0'],
+                ['dither-depth', 'auto'],
+                ['target-trc', 'auto'],
+                ['target-prim', 'auto'],
+                ['target-colorspace-hint', 'yes'],
+            ];
+
+        for (const [name, value] of properties) {
+            try {
+                await invoke('mpv_set_property', { name, value });
+            } catch (e) {
+                console.warn(`[Bridge] Failed to set HDR property ${name}:`, e);
+            }
+        }
     },
 
     async setProperty(name: string, value: any) {
@@ -1167,6 +1301,9 @@ export async function initPolyfills() {
         setSubtitleBorderStyle: Bridge.setSubtitleBorderStyle,
         setSubtitlePos: Bridge.setSubtitlePos,
         setSubtitleAlign: Bridge.setSubtitleAlign,
+        buildAudioFilterString: Bridge.buildAudioFilterString.bind(Bridge),
+        applyAudioSettings: Bridge.applyAudioSettings.bind(Bridge),
+        applyHdrSettings: Bridge.applyHdrSettings.bind(Bridge),
         destroy: () => { },
         setProperty: Bridge.setProperty,
         setProperties: Bridge.setProperties,

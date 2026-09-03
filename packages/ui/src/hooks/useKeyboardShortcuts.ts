@@ -16,6 +16,7 @@ import type { StoredChannel } from '../db';
 import type { LayoutMode } from './useMultiview';
 import type { View } from './useNavigation';
 import { Bridge } from '../services/tauri-bridge';
+import { parseCategoryIds } from './useChannels';
 
 export interface UseKeyboardShortcutsOptions {
     // --- Current state values (accessed via latest ref pattern) ---
@@ -28,6 +29,8 @@ export interface UseKeyboardShortcutsOptions {
     position: number;
     currentChannels: StoredChannel[];
     currentChannel: StoredChannel | null;
+    categoryId?: string | null;
+    setCategoryId?: (id: string | null) => void;
     switchLayout: ((layout: LayoutMode) => void) | null;
     titleBarSearchRef: React.RefObject<HTMLInputElement | null>;
     handlePlayChannel: (channel: StoredChannel, autoSwitched?: boolean) => void;
@@ -161,7 +164,28 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions): void
                 e.preventDefault();
                 handleShowAudioModal();
             } else if (matches('toggleGuide', key, code)) {
-                setActiveView((v) => (v === 'guide' ? 'none' : 'guide'));
+                e.preventDefault();
+                setShowControls(true);
+                if (activeView === 'guide') {
+                    if (guideTransparent) {
+                        setGuideTransparent(false);
+                        setCategoriesOpen(!categoriesHidden);
+                    } else {
+                        // LiveTV is open, close it entirely
+                        setActiveView('none');
+                        setCategoriesOpen(false);
+                    }
+                } else {
+                    // Open LiveTV, respect user's category hidden preference
+                    setActiveView('guide');
+                    setCategoriesOpen(!categoriesHidden);
+                    if (!latestRefs.current.categoryId && currentChannel?.category_ids && latestRefs.current.setCategoryId) {
+                        const catIds = parseCategoryIds(currentChannel.category_ids);
+                        if (catIds.length > 0) {
+                            latestRefs.current.setCategoryId(catIds[0]);
+                        }
+                    }
+                }
             } else if (matches('toggleTransparentGuide', key, code)) {
                 e.preventDefault();
                 setShowControls(true);
@@ -178,7 +202,10 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions): void
                     setCategoriesOpen(!categoriesHiddenTransparent);
                 }
             } else if (matches('toggleCategories', key, code)) {
-                setCategoriesOpen((open) => !open);
+                e.preventDefault();
+                if (activeView === 'guide') {
+                    setCategoriesOpen((open) => !open);
+                }
             } else if (matches('toggleLiveTV', key, code)) {
                 e.preventDefault();
                 setShowControls(true);
@@ -195,6 +222,12 @@ export function useKeyboardShortcuts(options: UseKeyboardShortcutsOptions): void
                     // Open LiveTV, respect user's category hidden preference
                     setActiveView('guide');
                     setCategoriesOpen(!categoriesHidden);
+                    if (!latestRefs.current.categoryId && currentChannel?.category_ids && latestRefs.current.setCategoryId) {
+                        const catIds = parseCategoryIds(currentChannel.category_ids);
+                        if (catIds.length > 0) {
+                            latestRefs.current.setCategoryId(catIds[0]);
+                        }
+                    }
                 }
             } else if (matches('toggleSettings', key, code)) {
                 e.preventDefault();

@@ -5,6 +5,9 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
 #[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
 mod pip_aspect_lock {
     use std::sync::Mutex;
     use windows::Win32::{
@@ -239,23 +242,52 @@ mod resize_coalescing {
 use tauri::TitleBarStyle;
 
 // Platform-specific MPV modules
+mod mpv_core;
+#[cfg(target_os = "macos")]
+mod mpv_render_mac;
 #[cfg(target_os = "macos")]
 mod mpv_macos;
 #[cfg(target_os = "windows")]
 mod mpv_windows;
-#[cfg(target_os = "windows")]
-mod mpv_secondary;
+mod mpv_canvas;
 mod mpv_popout;
 mod audio_capture;
 
 // Re-export the MPV state and functions based on platform
+pub use mpv_core::MpvCoreState;
 #[cfg(target_os = "macos")]
 use mpv_macos::MpvState;
 #[cfg(target_os = "windows")]
 use mpv_windows::MpvState;
-#[cfg(target_os = "windows")]
-use mpv_secondary::SecondaryMpvState;
+use mpv_canvas::CanvasMultiviewState;
 use mpv_popout::PopoutMpvState;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerEngine {
+    LibMpv,
+    Sidecar,
+}
+
+pub(crate) async fn get_player_engine<R: Runtime>(app: &AppHandle<R>) -> PlayerEngine {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app;
+        PlayerEngine::LibMpv
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if let Some(val) = read_store_setting(app, "playerEngine") {
+            if let Some(s) = val.as_str() {
+                if s.eq_ignore_ascii_case("libmpv") {
+                    return PlayerEngine::LibMpv;
+                } else if s.eq_ignore_ascii_case("sidecar") {
+                    return PlayerEngine::Sidecar;
+                }
+            }
+        }
+        PlayerEngine::Sidecar
+    }
+}
 
 // DVR Module (Rust native implementation)
 mod dvr;
@@ -291,7 +323,19 @@ use cast::{
 
 mod discord_rp;
 mod local_lib;
+mod gamepad;
+mod raw_hid_gamepad;
+mod web_server;
 
+#[tauri::command]
+fn get_connected_gamepads() -> Vec<gamepad::GamepadInfo> {
+    gamepad::get_connected_gamepads()
+}
+
+#[tauri::command]
+fn gamepad_debug_enabled() -> bool {
+    gamepad::debug_enabled() || raw_hid_gamepad::debug_enabled()
+}
 
 // Bulk insert structures
 #[derive(Debug, Deserialize)]
@@ -464,7 +508,99 @@ async fn test_proxy_connection<R: Runtime>(app: AppHandle<R>) -> Result<String, 
 
 /// Get custom MPV parameters from settings store.
 /// Supports both nested `settings` object (frontend format) and root-level keys (legacy).
-async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
+/// Get custom MPV parameters from settings store.
+/// Supports both nested `settings` object (frontend format) and root-level keys (legacy).
+/// mpv picture-quality profile params, shared by the init-time injection and
+/// the per-stream apply on load (Settings -> Playback -> MPV -> Picture Quality
+/// Profiles). 'balanced' applies no extra options.
+fn mpv_quality_profile_args(quality: &str) -> &'static [&'static str] {
+    match quality {
+        "performance" => &[
+            "scale=bilinear",
+            "cscale=bilinear",
+            "dscale=bilinear",
+            "dither=no",
+            "deband=no",
+            "vd-lavc-fast=yes",
+            "interpolation=no",
+            "hdr-compute-peak=no",
+        ],
+        "quality" => &[
+            // mpv's own gpu-hq baseline, plus stronger debanding and per-frame
+            // HDR peak analysis.
+            "profile=gpu-hq",
+            "deband-iterations=2",
+            "hdr-compute-peak=yes",
+        ],
+        _ => &[],
+    }
+}
+
+/// Runtime-settable quality profile args for `mpv_load`. Unlike the init-time
+/// injection, `profile=gpu-hq` cannot be set as a property after init, so the
+/// quality profile is expanded here into its literal flags (mpv's gpu-hq
+/// defaults) plus the two extras.
+fn mpv_quality_profile_args_live(quality: &str) -> &'static [&'static str] {
+    match quality {
+        "performance" => mpv_quality_profile_args("performance"),
+        "quality" => &[
+            "scale=ewa_lanczossharp",
+            "cscale=ewa_lanczossharp",
+            "dscale=mitchell",
+            "correct-downscaling=yes",
+            "linear-downscaling=yes",
+            "sigmoid-upscaling=yes",
+            "deband=yes",
+            "dither-depth=auto",
+            "deband-iterations=2",
+            "hdr-compute-peak=yes",
+        ],
+        _ => &[],
+    }
+}
+
+/// Applies the selected Picture Quality profile's properties live on the
+/// active engine before a stream loads, so switching streams picks up setting
+/// changes without an app restart. Both engines support runtime
+/// `set_property` for every flag in the profiles (the `quality` profile is
+/// passed pre-expanded via `mpv_quality_profile_args_live`).
+async fn apply_quality_profile_on_load<R: Runtime>(app: &AppHandle<R>, engine: PlayerEngine) {
+    let quality = read_store_setting(app, "mpvQuality")
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| "balanced".to_string());
+    let args = mpv_quality_profile_args_live(&quality);
+    if args.is_empty() {
+        return;
+    }
+    log::info!(
+        "[MPV] Applying picture quality profile '{}' ({} propert(ies)) before load",
+        quality,
+        args.len()
+    );
+    for arg in args.iter().copied() {
+        let (key, value) = match arg.split_once('=') {
+            Some((k, v)) => (k, serde_json::json!(v)),
+            None => (arg, serde_json::json!(true)),
+        };
+        match engine {
+            PlayerEngine::LibMpv => {
+                let _ = mpv_core::set_property(app, key.to_string(), value).await;
+            }
+            PlayerEngine::Sidecar => {
+                #[cfg(target_os = "windows")]
+                {
+                    let _ = mpv_windows::set_property(app, key.to_string(), value).await;
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    let _ = (key, value);
+                }
+            }
+        }
+    }
+}
+
+pub(crate) async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
     use tauri_plugin_store::StoreExt;
 
     match app.store(".settings.dat") {
@@ -490,7 +626,19 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                 root_val
             };
 
-            // Load user-defined MPV params
+            // 0. Picture quality profile (Settings -> Playback -> MPV -> Picture
+            //    Quality Profiles). Injected FIRST so the user's explicit
+            //    mpvParams below can override these defaults.
+            let mpv_quality = get_value("mpvQuality")
+                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "balanced".to_string());
+            let profile_args = mpv_quality_profile_args(&mpv_quality);
+            for arg in profile_args {
+                debug!("[MPV] Quality profile '{}': injecting --{}", mpv_quality, arg);
+                args.push(format!("--{}", arg));
+            }
+
+            // 1. Load user-defined MPV params (Settings -> Playback -> MPV params)
             if let Some(params) = get_value("mpvParams") {
                 if let Some(params_str) = params.as_str() {
                     let custom_args: Vec<String> = params_str
@@ -509,12 +657,12 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                 debug!("[MPV] No mpvParams found in store");
             }
 
-            // Check hardware video acceleration toggle (default true)
-            let mpv_hwdec = get_value("mpvHwdecEnabled")
+            // 2. Check hardware video acceleration toggle (Settings -> Playback / Settings -> General)
+            let mpv_hwdec = get_value("hardwareAcceleration")
+                .or_else(|| get_value("mpvHwdecEnabled"))
                 .and_then(|v| v.as_bool())
                 .unwrap_or(true);
 
-            // Robust check if user explicitly supplied hwdec or vo in their custom parameters
             let has_hwdec = args.iter().any(|a| {
                 let clean = a.trim_start_matches('-');
                 clean == "hwdec" || clean.starts_with("hwdec=") || clean.starts_with("hwdec ")
@@ -533,8 +681,6 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                     debug!("[MPV] Auto-injecting --hwdec=no (disabled in Playback settings)");
                     args.insert(0, "--hwdec=no".to_string());
                 }
-            } else {
-                debug!("[MPV] User custom parameters contain explicit hwdec flag; skipping auto-injection");
             }
 
             if mpv_hwdec && !has_vo {
@@ -542,20 +688,203 @@ async fn get_mpv_params_from_store<R: Runtime>(app: &AppHandle<R>) -> Vec<String
                 args.insert(0, "--vo=gpu".to_string());
             }
 
-            // Inject timeshift back-buffer arg if enabled
+            // 3. Inject Cache settings (Settings -> Cache)
             let ts_enabled = get_value("timeshiftEnabled")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
 
-            debug!("[MPV] TimeShift enabled from store: {}", ts_enabled);
+            let has_cache = args.iter().any(|a| a.trim_start_matches('-').starts_with("cache"));
+            if !has_cache {
+                args.push("--cache=yes".to_string());
+            }
 
             if ts_enabled {
                 let cache_bytes = get_value("timeshiftCacheBytes")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(1_073_741_824); // default 1 GB
-                let flag = format!("--demuxer-max-back-bytes={}", cache_bytes);
-                debug!("[MPV] TimeShift enabled — injecting: {}", flag);
-                args.push(flag);
+                debug!("[MPV] TimeShift enabled — injecting demuxer cache bytes: {}", cache_bytes);
+                args.push(format!("--demuxer-max-back-bytes={}", cache_bytes));
+                args.push(format!("--demuxer-max-bytes={}", cache_bytes));
+                args.push("--demuxer-readahead-secs=20".to_string());
+            }
+
+            // 4. Inject Subtitles and Audio settings (Settings -> Subtitles and Audio)
+            if let Some(sub_settings) = get_value("subtitleSettings").and_then(|v| v.as_object().cloned()) {
+                // Preferred audio language
+                if let Some(alang) = sub_settings.get("defaultAudioLanguage").and_then(|v| v.as_str()) {
+                    if !alang.is_empty() && alang != "default" && alang != "auto" {
+                        debug!("[MPV] Preferred audio language configured: {}", alang);
+                        args.push(format!("--alang={}", alang));
+                    }
+                }
+
+                // Preferred subtitle language
+                if let Some(slang) = sub_settings.get("defaultLanguage").and_then(|v| v.as_str()) {
+                    if !slang.is_empty() && slang != "default" && slang != "auto" {
+                        debug!("[MPV] Preferred subtitle language configured: {}", slang);
+                        args.push(format!("--slang={}", slang));
+                    }
+                }
+
+                // Subtitle font size & scale
+                if let Some(size) = sub_settings.get("defaultSize").and_then(|v| v.as_u64()) {
+                    if size > 0 {
+                        debug!("[MPV] Subtitle font size configured: {}", size);
+                        args.push(format!("--sub-font-size={}", size));
+                        let ass_override = sub_settings.get("subAssOverride").and_then(|v| v.as_str()).unwrap_or("yes");
+                        let scale = if ass_override == "scale" {
+                            (size as f64 / 35.0).clamp(0.2, 3.0)
+                        } else {
+                            1.0
+                        };
+                        args.push(format!("--sub-scale={:.2}", scale));
+                    }
+                }
+
+                // Subtitle text color
+                if let Some(color) = sub_settings.get("subColor").and_then(|v| v.as_str()) {
+                    if !color.is_empty() {
+                        debug!("[MPV] Subtitle color configured: {}", color);
+                        args.push(format!("--sub-color={}", color));
+                    }
+                }
+
+                // Subtitle outline / border color
+                if let Some(border) = sub_settings.get("subOutlineColor").and_then(|v| v.as_str()) {
+                    if !border.is_empty() {
+                        debug!("[MPV] Subtitle border color configured: {}", border);
+                        args.push(format!("--sub-border-color={}", border));
+                    }
+                }
+
+                // Subtitle vertical position offset
+                if let Some(pos) = sub_settings.get("subVerticalOffset").and_then(|v| v.as_u64()) {
+                    if pos > 0 {
+                        debug!("[MPV] Subtitle pos configured: {}", pos);
+                        args.push(format!("--sub-pos={}", pos));
+                    }
+                }
+
+                // Subtitle ASS override
+                let ass_setting = sub_settings.get("subAssOverride").and_then(|v| v.as_str()).unwrap_or("yes");
+                let effective_ass = match ass_setting {
+                    "no" => "no",
+                    "scale" => "scale",
+                    "force" => "force",
+                    _ => "strip", // "yes" or default maps to "strip" so CC & ASS subtitles respect custom size/pos/colors immediately
+                };
+                debug!("[MPV] Subtitle ASS override configured: {}", effective_ass);
+                args.push(format!("--sub-ass-override={}", effective_ass));
+                if effective_ass != "no" {
+                    args.push("--sub-ass-scale-with-window=yes".to_string());
+                }
+                args.push("--sub-clear-on-seek=yes".to_string());
+
+                // Subtitle alignment
+                if let Some(align) = sub_settings.get("subAlign").and_then(|v| v.as_str()) {
+                    if !align.is_empty() {
+                        debug!("[MPV] Subtitle align configured: {}", align);
+                        args.push(format!("--sub-align-x={}", align));
+                        args.push(format!("--sub-justify={}", align));
+                    }
+                }
+
+                // Subtitle delay
+                if let Some(delay) = sub_settings.get("subDelay").and_then(|v| v.as_f64()) {
+                    if delay != 0.0 {
+                        debug!("[MPV] Subtitle delay configured: {}", delay);
+                        args.push(format!("--sub-delay={}", delay));
+                    }
+                }
+
+                // Subtitle background color & opacity
+                let bg_enabled = sub_settings.get("subBackgroundEnabled").and_then(|v| v.as_bool()).unwrap_or(false);
+                if bg_enabled {
+                    if let Some(bg_color) = sub_settings.get("subBackgroundColor").and_then(|v| v.as_str()) {
+                        let opacity = sub_settings.get("subBackgroundOpacity").and_then(|v| v.as_u64()).unwrap_or(80);
+                        let alpha_hex = format!("{:02X}", (opacity as f64 * 255.0 / 100.0).round() as u8);
+                        let clean_hex = bg_color.trim_start_matches('#');
+                        if clean_hex.len() == 6 {
+                            let full_color = format!("#{}{}", alpha_hex, clean_hex);
+                            debug!("[MPV] Subtitle background color configured: {}", full_color);
+                            args.push(format!("--sub-back-color={}", full_color));
+                        }
+                    }
+                }
+
+                // Downmix surround to stereo
+                if sub_settings.get("audioDownmixStereo").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    debug!("[MPV] Audio downmix stereo enabled — injecting: --audio-channels=stereo");
+                    args.push("--audio-channels=stereo".to_string());
+                }
+
+                // Max volume boost
+                let max_vol = sub_settings.get("audioMaxVolume").and_then(|v| v.as_u64()).unwrap_or(100);
+                if max_vol > 100 {
+                    debug!("[MPV] Custom volume-max configured: {}", max_vol);
+                    args.push(format!("--volume-max={}", max_vol));
+                }
+
+                // Custom audio device
+                if let Some(dev) = sub_settings.get("audioDevice").and_then(|v| v.as_str()) {
+                    if !dev.is_empty() && dev != "auto" {
+                        debug!("[MPV] Custom audio-device configured: {}", dev);
+                        args.push(format!("--audio-device={}", dev));
+                    }
+                }
+
+                // Audio filters (normalization & profiles)
+                let normalize = sub_settings.get("audioNormalize").and_then(|v| v.as_bool()).unwrap_or(false);
+                let profile = sub_settings.get("audioProfile").and_then(|v| v.as_str()).unwrap_or("off");
+
+                let mut af_parts: Vec<&str> = Vec::new();
+                if normalize {
+                    af_parts.push("dynaudnorm=f=500:g=31:p=0.9:m=4");
+                }
+                match profile {
+                    "bass" => af_parts.push("lavfi=[bass=g=7:f=110:w=0.6]"),
+                    "voice" => af_parts.push("lavfi=[equalizer=f=300:t=q:w=1:g=-3,equalizer=f=2800:t=q:w=1:g=5]"),
+                    "bass-reduce" => af_parts.push("lavfi=[bass=g=-8:f=110:w=0.6]"),
+                    "night" => af_parts.push("lavfi=[acompressor=ratio=3:threshold=-20dB:attack=20:release=300:makeup=4dB]"),
+                    _ => {}
+                }
+                if !af_parts.is_empty() {
+                    af_parts.push("lavfi=[alimiter=limit=0.97]");
+                    let af_flag = format!("--af={}", af_parts.join(","));
+                    debug!("[MPV] Audio filters configured — injecting: {}", af_flag);
+                    args.push(af_flag);
+                }
+            }
+
+            // 5. Inject HDR-to-SDR Tonemapping if enabled (default false)
+            let hdr_tonemap = get_value("hdrTonemapToSdr")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            let has_tonemap = args.iter().any(|a| {
+                let clean = a.trim_start_matches('-');
+                clean == "tone-mapping" || clean.starts_with("tone-mapping=") || clean.starts_with("tone-mapping ")
+            });
+
+            if hdr_tonemap && !has_tonemap {
+                debug!("[MPV] Auto-injecting HDR-to-SDR tonemapping arguments");
+                args.push("--tone-mapping=spline".to_string());
+                args.push("--gamut-mapping-mode=perceptual".to_string());
+                args.push("--hdr-compute-peak=yes".to_string());
+                args.push("--hdr-contrast-recovery=0.30".to_string());
+                args.push("--hdr-peak-percentile=99.995".to_string());
+                args.push("--dither-depth=auto".to_string());
+                args.push("--target-trc=bt.1886".to_string());
+                args.push("--target-prim=bt.709".to_string());
+                args.push("--target-colorspace-hint=yes".to_string());
+            }
+
+            // 6. Saved Volume restoration
+            if let Some(saved_vol) = get_value("savedVolume").and_then(|v| v.as_f64()) {
+                let has_vol = args.iter().any(|a| a.trim_start_matches('-').starts_with("volume="));
+                if !has_vol && saved_vol >= 0.0 && saved_vol <= 100.0 {
+                    args.push(format!("--volume={}", saved_vol as u32));
+                }
             }
 
             return args;
@@ -603,23 +932,20 @@ pub fn args_contains_ytdl_path(args: &[String]) -> bool {
     })
 }
 
-/// Detect bundled yt-dlp sidecar next to the current executable.
-/// Tauri places sidecars in the same directory as the app binary.
-fn find_bundled_ytdl() -> Option<String> {
-    let exe = std::env::current_exe().ok()?;
-    let dir = exe.parent()?;
-
-    // Platform-specific sidecar names (Tauri externalBin naming convention)
+/// Platform-specific bundled yt-dlp sidecar names (Tauri externalBin naming
+/// convention). The first entry is the canonical Tauri sidecar name; the
+/// second is the plain fallback name.
+fn bundled_ytdl_names() -> &'static [&'static str] {
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    let names = ["yt-dlp-x86_64-pc-windows-msvc.exe", "yt-dlp.exe"];
+    return &["yt-dlp-x86_64-pc-windows-msvc.exe", "yt-dlp.exe"];
     #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-    let names = ["yt-dlp-aarch64-pc-windows-msvc.exe", "yt-dlp.exe"];
+    return &["yt-dlp-aarch64-pc-windows-msvc.exe", "yt-dlp.exe"];
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    let names = ["yt-dlp-aarch64-apple-darwin", "yt-dlp"];
+    return &["yt-dlp-aarch64-apple-darwin", "yt-dlp"];
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    let names = ["yt-dlp-x86_64-apple-darwin", "yt-dlp"];
+    return &["yt-dlp-x86_64-apple-darwin", "yt-dlp"];
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    let names = ["yt-dlp-x86_64-unknown-linux-gnu", "yt-dlp"];
+    return &["yt-dlp-x86_64-unknown-linux-gnu", "yt-dlp"];
     #[cfg(not(any(
         all(target_os = "windows", target_arch = "x86_64"),
         all(target_os = "windows", target_arch = "aarch64"),
@@ -627,9 +953,15 @@ fn find_bundled_ytdl() -> Option<String> {
         all(target_os = "macos", target_arch = "x86_64"),
         all(target_os = "linux", target_arch = "x86_64")
     )))]
-    let names = ["yt-dlp"];
+    return &["yt-dlp"];
+}
 
-    for name in names {
+/// Detect bundled yt-dlp sidecar next to the current executable.
+/// Tauri places sidecars in the same directory as the app binary.
+fn find_bundled_ytdl() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    for name in bundled_ytdl_names() {
         let path = dir.join(name);
         if path.exists() {
             return Some(path.to_string_lossy().into_owned());
@@ -650,10 +982,10 @@ pub fn find_ytdl_path() -> Option<String> {
     // 2. Fall back to system PATH
     #[cfg(target_os = "windows")]
     {
-        let output = std::process::Command::new("where")
-            .arg("yt-dlp")
-            .output()
-            .ok()?;
+        let mut cmd = std::process::Command::new("where");
+        cmd.arg("yt-dlp");
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        let output = cmd.output().ok()?;
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout)
                 .lines()
@@ -665,10 +997,10 @@ pub fn find_ytdl_path() -> Option<String> {
             }
         }
         // Fallback to youtube-dl
-        let output = std::process::Command::new("where")
-            .arg("youtube-dl")
-            .output()
-            .ok()?;
+        let mut cmd = std::process::Command::new("where");
+        cmd.arg("youtube-dl");
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        let output = cmd.output().ok()?;
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout)
                 .lines()
@@ -715,6 +1047,196 @@ pub fn find_ytdl_path() -> Option<String> {
     None
 }
 
+// ── yt-dlp diagnostic & update (Settings → About) ──────────────────────────
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YtdlpInfo {
+    pub found: bool,
+    pub path: Option<String>,
+    pub version: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YtdlpUpdateResult {
+    /// "updated" | "upToDate" | "notFound" | "notSupported" | "error"
+    pub status: String,
+    pub path: Option<String>,
+    pub version: Option<String>,
+    pub latest_version: Option<String>,
+    pub message: Option<String>,
+}
+
+/// Run `<yt-dlp> --version` and return the trimmed version string.
+async fn ytdlp_version(path: &str) -> Option<String> {
+    let mut cmd = tokio::process::Command::new(path);
+    cmd.arg("--version");
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    let output = cmd.output().await.ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if version.is_empty() { None } else { Some(version) }
+}
+
+/// Best-effort lookup of the latest stable yt-dlp release tag (e.g. 2026.08.19).
+async fn fetch_latest_ytdlp_version() -> Option<String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest")
+        .header("User-Agent", "ynotv")
+        .send()
+        .await
+        .ok()?;
+    let json: serde_json::Value = resp.json().await.ok()?;
+    json.get("tag_name")
+        .and_then(|t| t.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Latest yt-dlp release binary URL, mirroring scripts/download-mpv-tauri.sh.
+fn ytdlp_download_url() -> Option<&'static str> {
+    #[cfg(target_os = "windows")]
+    return Some("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe");
+    #[cfg(target_os = "macos")]
+    return Some("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos");
+    #[cfg(target_os = "linux")]
+    return Some("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp");
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    None
+}
+
+/// Report which yt-dlp the app resolves and its version.
+#[tauri::command]
+async fn ytdlp_info() -> Result<YtdlpInfo, String> {
+    match find_ytdl_path() {
+        Some(path) => {
+            let version = ytdlp_version(&path).await;
+            Ok(YtdlpInfo { found: true, path: Some(path), version })
+        }
+        None => Ok(YtdlpInfo { found: false, path: None, version: None }),
+    }
+}
+
+/// Download the latest yt-dlp release over the bundled sidecar next to the app
+/// executable, verifying the new binary runs before swapping it in (so a bad
+/// download never replaces a working copy). In a dev checkout it also refreshes
+/// the src-tauri/bin source sidecar, so the next `tauri dev`/build doesn't
+/// resurrect the stale version.
+#[tauri::command]
+async fn update_ytdlp() -> Result<YtdlpUpdateResult, String> {
+    let url = match ytdlp_download_url() {
+        Some(u) => u,
+        None => {
+            return Ok(YtdlpUpdateResult {
+                status: "notSupported".into(),
+                path: None,
+                version: None,
+                latest_version: None,
+                message: None,
+            });
+        }
+    };
+
+    let exe = std::env::current_exe()
+        .map_err(|e| format!("Failed to locate app executable: {e}"))?;
+    let dir = exe
+        .parent()
+        .ok_or_else(|| "Failed to resolve app directory".to_string())?;
+
+    let names = bundled_ytdl_names();
+    let existing = names.iter().find(|n| dir.join(n).exists());
+    let dest_name = existing.unwrap_or(&names[0]);
+    let dest = dir.join(dest_name);
+    let dest_tmp = dir.join(format!("{}.tmp", dest_name));
+
+    // Best-effort latest tag; used only for the "up to date" shortcut.
+    let latest_version = fetch_latest_ytdlp_version().await;
+
+    let current_version = if dest.exists() {
+        ytdlp_version(&dest.to_string_lossy()).await
+    } else {
+        None
+    };
+
+    if let (Some(latest), Some(current)) = (&latest_version, &current_version) {
+        if latest.trim() == current.trim() {
+            return Ok(YtdlpUpdateResult {
+                status: "upToDate".into(),
+                path: Some(dest.to_string_lossy().into_owned()),
+                version: current_version,
+                latest_version,
+                message: None,
+            });
+        }
+    }
+
+    log::info!("[yt-dlp] Downloading latest release from {}", url);
+    let client = reqwest::Client::builder()
+        .user_agent("ynotv")
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download yt-dlp: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("Download failed with HTTP {}", resp.status()));
+    }
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read download: {e}"))?;
+    if bytes.is_empty() {
+        return Err("Downloaded file is empty".to_string());
+    }
+
+    // Write + verify the new binary before touching the live one.
+    tokio::fs::write(&dest_tmp, &bytes)
+        .await
+        .map_err(|e| format!("Failed to write update: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = tokio::fs::set_permissions(&dest_tmp, std::fs::Permissions::from_mode(0o755)).await;
+    }
+
+    let new_version = match ytdlp_version(&dest_tmp.to_string_lossy()).await {
+        Some(v) => v,
+        None => {
+            let _ = tokio::fs::remove_file(&dest_tmp).await;
+            return Err("Downloaded yt-dlp failed to run; keeping the current version".to_string());
+        }
+    };
+
+    if dest.exists() {
+        let _ = tokio::fs::remove_file(&dest).await;
+    }
+    tokio::fs::rename(&dest_tmp, &dest)
+        .await
+        .map_err(|e| format!("Failed to install yt-dlp: {e}"))?;
+
+    // Dev checkout: also refresh the src-tauri/bin source sidecar so a rebuild
+    // copies the updated binary instead of the stale one.
+    let source_bin = dir.join("../../bin").join(dest_name);
+    if source_bin.exists() {
+        let _ = tokio::fs::copy(&dest, &source_bin).await;
+    }
+
+    log::info!("[yt-dlp] Updated to {}", new_version);
+    Ok(YtdlpUpdateResult {
+        status: "updated".into(),
+        path: Some(dest.to_string_lossy().into_owned()),
+        version: Some(new_version),
+        latest_version,
+        message: None,
+    })
+}
+
 // ============================================================================
 // MPV Commands - Unified API
 // ============================================================================
@@ -750,26 +1272,52 @@ async fn init_mpv<R: Runtime>(app: AppHandle<R>, args: Vec<String>) -> Result<()
 
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::init_mpv_with_params(app, safe_custom_params).await
+        mpv_core::init_mpv_with_params(app, safe_custom_params).await
     }
     #[cfg(target_os = "windows")]
     {
-        let state = app.state::<MpvState>();
-        mpv_windows::init_mpv_with_params(app.clone(), state, safe_custom_params).await
+        let engine = get_player_engine(&app).await;
+        log::info!("[MPV] init_mpv engine selected: {:?}", engine);
+        if engine == PlayerEngine::LibMpv {
+            mpv_core::init_mpv_with_params(app, safe_custom_params).await
+        } else {
+            let state = app.state::<MpvState>();
+            mpv_windows::init_mpv_with_params(app.clone(), state, safe_custom_params).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::init_mpv_with_params(app, safe_custom_params).await
     }
 }
 
 #[tauri::command]
 async fn mpv_load<R: Runtime>(app: AppHandle<R>, url: String) -> Result<(), String> {
-    // Reset audio delay to 0.0 before loading the new file
-    let _ = mpv_set_property(app.clone(), "audio-delay".to_string(), serde_json::json!(0.0)).await;
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::load_file(&app, url).await
+        apply_quality_profile_on_load(&app, PlayerEngine::LibMpv).await;
+        let _ = mpv_core::set_property(&app, "audio-delay".to_string(), serde_json::json!(0.0)).await;
+        mpv_core::load_file(&app, url).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::load_file(&app, url).await
+        let engine = get_player_engine(&app).await;
+        log::info!("[MPV] mpv_load engine selected: {:?}, url: {}", engine, url);
+        if engine == PlayerEngine::LibMpv {
+            apply_quality_profile_on_load(&app, PlayerEngine::LibMpv).await;
+            let _ = mpv_core::set_property(&app, "audio-delay".to_string(), serde_json::json!(0.0)).await;
+            mpv_core::load_file(&app, url).await
+        } else {
+            apply_quality_profile_on_load(&app, PlayerEngine::Sidecar).await;
+            let _ = mpv_windows::set_property(&app, "audio-delay".to_string(), serde_json::json!(0.0)).await;
+            mpv_windows::load_file(&app, url).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        apply_quality_profile_on_load(&app, PlayerEngine::LibMpv).await;
+        let _ = mpv_set_property(app.clone(), "audio-delay".to_string(), serde_json::json!(0.0)).await;
+        mpv_core::load_file(&app, url).await
     }
 }
 
@@ -777,11 +1325,19 @@ async fn mpv_load<R: Runtime>(app: AppHandle<R>, url: String) -> Result<(), Stri
 async fn mpv_play<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::play(&app).await
+        mpv_core::play(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::play(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::play(&app).await
+        } else {
+            mpv_windows::play(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::play(&app).await
     }
 }
 
@@ -789,11 +1345,19 @@ async fn mpv_play<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_pause<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::pause(&app).await
+        mpv_core::pause(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::pause(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::pause(&app).await
+        } else {
+            mpv_windows::pause(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::pause(&app).await
     }
 }
 
@@ -801,11 +1365,19 @@ async fn mpv_pause<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_resume<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::play(&app).await
+        mpv_core::resume(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::resume(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::resume(&app).await
+        } else {
+            mpv_windows::resume(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::resume(&app).await
     }
 }
 
@@ -813,11 +1385,19 @@ async fn mpv_resume<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_stop<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::stop(&app).await
+        mpv_core::stop(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::stop(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::stop(&app).await
+        } else {
+            mpv_windows::stop(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::stop(&app).await
     }
 }
 
@@ -825,11 +1405,19 @@ async fn mpv_stop<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_set_volume<R: Runtime>(app: AppHandle<R>, volume: f64) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::set_volume(&app, volume).await
+        mpv_core::set_volume(&app, volume).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::set_volume(&app, volume).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_volume(&app, volume).await
+        } else {
+            mpv_windows::set_volume(&app, volume).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_volume(&app, volume).await
     }
 }
 
@@ -837,11 +1425,19 @@ async fn mpv_set_volume<R: Runtime>(app: AppHandle<R>, volume: f64) -> Result<()
 async fn mpv_seek<R: Runtime>(app: AppHandle<R>, seconds: f64) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::seek(&app, seconds).await
+        mpv_core::seek(&app, seconds).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::seek(&app, seconds).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::seek(&app, seconds).await
+        } else {
+            mpv_windows::seek(&app, seconds).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::seek(&app, seconds).await
     }
 }
 
@@ -849,11 +1445,19 @@ async fn mpv_seek<R: Runtime>(app: AppHandle<R>, seconds: f64) -> Result<(), Str
 async fn mpv_toggle_mute<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::toggle_mute(&app).await
+        mpv_core::toggle_mute(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::toggle_mute(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::toggle_mute(&app).await
+        } else {
+            mpv_windows::toggle_mute(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::toggle_mute(&app).await
     }
 }
 
@@ -861,11 +1465,19 @@ async fn mpv_toggle_mute<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_cycle_audio<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::cycle_audio(&app).await
+        mpv_core::cycle_audio(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::cycle_audio(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::cycle_audio(&app).await
+        } else {
+            mpv_windows::cycle_audio(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::cycle_audio(&app).await
     }
 }
 
@@ -873,11 +1485,19 @@ async fn mpv_cycle_audio<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_cycle_sub<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::cycle_sub(&app).await
+        mpv_core::cycle_sub(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::cycle_sub(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::cycle_sub(&app).await
+        } else {
+            mpv_windows::cycle_sub(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::cycle_sub(&app).await
     }
 }
 
@@ -885,11 +1505,19 @@ async fn mpv_cycle_sub<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
 async fn mpv_get_track_list<R: Runtime>(app: AppHandle<R>) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::get_track_list(&app).await
+        mpv_core::get_track_list(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::get_track_list(&app).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::get_track_list(&app).await
+        } else {
+            mpv_windows::get_track_list(&app).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::get_track_list(&app).await
     }
 }
 
@@ -897,11 +1525,19 @@ async fn mpv_get_track_list<R: Runtime>(app: AppHandle<R>) -> Result<serde_json:
 async fn mpv_set_audio<R: Runtime>(app: AppHandle<R>, id: i64) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::set_audio_track(&app, id).await
+        mpv_core::set_audio_track(&app, id).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::set_audio_track(&app, id).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_audio_track(&app, id).await
+        } else {
+            mpv_windows::set_audio_track(&app, id).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_audio_track(&app, id).await
     }
 }
 
@@ -909,11 +1545,19 @@ async fn mpv_set_audio<R: Runtime>(app: AppHandle<R>, id: i64) -> Result<(), Str
 async fn mpv_set_subtitle<R: Runtime>(app: AppHandle<R>, id: i64) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::set_subtitle_track(&app, id).await
+        mpv_core::set_subtitle_track(&app, id).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::set_subtitle_track(&app, id).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_subtitle_track(&app, id).await
+        } else {
+            mpv_windows::set_subtitle_track(&app, id).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_subtitle_track(&app, id).await
     }
 }
 
@@ -921,11 +1565,19 @@ async fn mpv_set_subtitle<R: Runtime>(app: AppHandle<R>, id: i64) -> Result<(), 
 async fn mpv_add_subtitle<R: Runtime>(app: AppHandle<R>, file_path: String, flag: Option<String>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::add_subtitle_file(&app, file_path, flag).await
+        mpv_core::add_subtitle_file(&app, file_path, flag).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::add_subtitle_file(&app, file_path, flag).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::add_subtitle_file(&app, file_path, flag).await
+        } else {
+            mpv_windows::add_subtitle_file(&app, file_path, flag).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::add_subtitle_file(&app, file_path, flag).await
     }
 }
 
@@ -933,11 +1585,19 @@ async fn mpv_add_subtitle<R: Runtime>(app: AppHandle<R>, file_path: String, flag
 async fn mpv_remove_subtitle<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::remove_subtitle_file(&app, file_path).await
+        mpv_core::remove_subtitle_file(&app, file_path).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::remove_subtitle_file(&app, file_path).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::remove_subtitle_file(&app, file_path).await
+        } else {
+            mpv_windows::remove_subtitle_file(&app, file_path).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::remove_subtitle_file(&app, file_path).await
     }
 }
 
@@ -946,11 +1606,19 @@ async fn mpv_get_log<R: Runtime>(app: AppHandle<R>, tail: Option<usize>) -> Resu
     let tail = tail.unwrap_or(400);
     #[cfg(target_os = "macos")]
     {
-        Ok(serde_json::json!({ "log": "", "path": "(mpv log not available on macOS)" }))
+        mpv_core::get_log(&app, tail).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::get_mpv_log(&app, tail).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::get_log(&app, tail).await
+        } else {
+            mpv_windows::get_mpv_log(&app, tail).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::get_log(&app, tail).await
     }
 }
 
@@ -958,13 +1626,19 @@ async fn mpv_get_log<R: Runtime>(app: AppHandle<R>, tail: Option<usize>) -> Resu
 async fn mpv_set_verbose_logging<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        let _ = app;
-        let _ = enabled;
-        Ok(())
+        mpv_core::set_verbose_logging(&app, enabled).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::set_verbose_logging(&app, enabled).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_verbose_logging(&app, enabled).await
+        } else {
+            mpv_windows::set_verbose_logging(&app, enabled).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_verbose_logging(&app, enabled).await
     }
 }
 
@@ -973,15 +1647,23 @@ async fn mpv_set_properties<R: Runtime>(
     app: AppHandle<R>,
     properties: Vec<(String, serde_json::Value)>,
 ) -> Result<(), String> {
-    for (name, value) in properties {
-        #[cfg(target_os = "macos")]
-        {
-            mpv_macos::set_property(&app, name, value).await?;
+    #[cfg(target_os = "macos")]
+    {
+        mpv_core::set_properties(&app, properties.into_iter().collect()).await?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_properties(&app, properties.into_iter().collect()).await?;
+        } else {
+            for (name, value) in properties {
+                mpv_windows::set_property(&app, name, value).await?;
+            }
         }
-        #[cfg(target_os = "windows")]
-        {
-            mpv_windows::set_property(&app, name, value).await?;
-        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_properties(&app, properties.into_iter().collect()).await?;
     }
     Ok(())
 }
@@ -994,11 +1676,19 @@ async fn mpv_set_property<R: Runtime>(
 ) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::set_property(&app, name, value).await
+        mpv_core::set_property(&app, name, value).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::set_property(&app, name, value).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_property(&app, name, value).await
+        } else {
+            mpv_windows::set_property(&app, name, value).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_property(&app, name, value).await
     }
 }
 
@@ -1006,11 +1696,19 @@ async fn mpv_set_property<R: Runtime>(
 async fn mpv_get_property<R: Runtime>(app: AppHandle<R>, name: String) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::get_property(&app, &name).await
+        mpv_core::get_property(&app, name).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::get_property(&app, name).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::get_property(&app, name).await
+        } else {
+            mpv_windows::get_property(&app, name).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::get_property(&app, name).await
     }
 }
 
@@ -1022,23 +1720,34 @@ async fn mpv_sync_window<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::sync_window(&app, pos.x, pos.y, size.width, size.height).await
+        let _ = (pos, size);
+        mpv_core::sync_window(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::sync_window(&app, pos.x, pos.y, size.width, size.height).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::sync_window(&app).await
+        } else {
+            mpv_windows::sync_window(&app, pos.x, pos.y, size.width, size.height).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (pos, size);
+        mpv_core::sync_window(&app).await
     }
 }
 
 #[tauri::command]
 async fn mpv_kill<R: Runtime>(app: AppHandle<R>) {
-    #[cfg(target_os = "macos")]
-    {
-        mpv_macos::kill_mpv(&app).await;
-    }
+    mpv_core::kill_mpv(&app).await;
     #[cfg(target_os = "windows")]
     {
         mpv_windows::kill_mpv(&app).await;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        mpv_macos::kill_mpv(&app).await;
     }
 }
 
@@ -1169,7 +1878,11 @@ async fn mpv_toggle_fullscreen<R: Runtime>(
         #[cfg(target_os = "windows")]
         {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            let _ = mpv_windows::mpv_set_geometry(&app, 0, 0, 0, 0).await;
+            if get_player_engine(&app).await == PlayerEngine::LibMpv {
+                let _ = mpv_core::set_geometry(&app, 0, 0, 0, 0).await;
+            } else {
+                let _ = mpv_windows::mpv_set_geometry(&app, 0, 0, 0, 0).await;
+            }
             if should_restore_maximized {
                 let _ = window.show();
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -1180,9 +1893,7 @@ async fn mpv_toggle_fullscreen<R: Runtime>(
         #[cfg(target_os = "macos")]
         {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            let pos = window.outer_position().map_err(|e| e.to_string())?;
-            let size = window.outer_size().map_err(|e| e.to_string())?;
-            mpv_macos::sync_window(&app, pos.x, pos.y, size.width, size.height).await?;
+            let _ = mpv_core::sync_window(&app).await;
         }
         
         Ok(())
@@ -1193,19 +1904,23 @@ async fn mpv_toggle_fullscreen<R: Runtime>(
 
 #[tauri::command]
 async fn mpv_toggle_stats<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
-    // Send script-binding command for stats display
     #[cfg(target_os = "macos")]
     {
-        mpv_macos::send_command(&app, serde_json::json!({ 
-            "command": ["script-binding", "stats/display-stats-toggle"] 
-        })).await?;
+        mpv_core::toggle_stats(&app).await
     }
     #[cfg(target_os = "windows")]
     {
-        use serde_json::json;
-        mpv_windows::send_command(&app, "script-binding", vec![json!("stats/display-stats-toggle")]).await?;
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::toggle_stats(&app).await
+        } else {
+            use serde_json::json;
+            mpv_windows::send_command(&app, "script-binding", vec![json!("stats/display-stats-toggle")]).await.map(|_| ())
+        }
     }
-    Ok(())
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::toggle_stats(&app).await
+    }
 }
 
 #[tauri::command]
@@ -1218,95 +1933,23 @@ async fn mpv_set_geometry<R: Runtime>(
 ) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        // On macOS, hole-punch mode uses window syncing — geometry not directly supported
-        let _ = (x, y, width, height);
-        Ok(())
+        mpv_core::set_geometry(&app, x, y, width, height).await
     }
     #[cfg(target_os = "windows")]
     {
-        mpv_windows::mpv_set_geometry(&app, x, y, width, height).await
+        if get_player_engine(&app).await == PlayerEngine::LibMpv {
+            mpv_core::set_geometry(&app, x, y, width, height).await
+        } else {
+            mpv_windows::mpv_set_geometry(&app, x, y, width, height).await
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        mpv_core::set_geometry(&app, x, y, width, height).await
     }
 }
 
-// ============================================================================
-// Secondary MPV commands for multiview
-// ============================================================================
 
-#[tauri::command]
-async fn multiview_load_slot<R: Runtime>(
-    app: AppHandle<R>,
-    slot_id: u8,
-    url: String,
-    x: i32,
-    y: i32,
-    width: u32,
-    height: u32,
-) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::load_slot(&app, slot_id, url, x, y, width, height).await }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = (slot_id, url, x, y, width, height); Ok(()) }
-}
-
-#[tauri::command]
-async fn multiview_stop_slot<R: Runtime>(
-    app: AppHandle<R>,
-    slot_id: u8,
-) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::stop_slot(&app, slot_id).await }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = slot_id; Ok(()) }
-}
-
-#[tauri::command]
-async fn multiview_set_property_slot<R: Runtime>(
-    app: AppHandle<R>,
-    slot_id: u8,
-    property: String,
-    value: serde_json::Value,
-) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::set_property_slot(&app, slot_id, &property, value).await }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = (slot_id, property, value); Ok(()) }
-}
-
-#[tauri::command]
-async fn multiview_reposition_slot<R: Runtime>(
-    app: AppHandle<R>,
-    slot_id: u8,
-    x: i32,
-    y: i32,
-    width: u32,
-    height: u32,
-) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::reposition_slot(&app, slot_id, x, y, width, height).await }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = (slot_id, x, y, width, height); Ok(()) }
-}
-
-#[tauri::command]
-async fn multiview_kill_slot<R: Runtime>(
-    app: AppHandle<R>,
-    slot_id: u8,
-) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::kill_slot(&app, slot_id).await; Ok(()) }
-    #[cfg(not(target_os = "windows"))]
-    { let _ = slot_id; Ok(()) }
-}
-
-#[tauri::command]
-async fn multiview_kill_all<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    { mpv_secondary::kill_all(&app).await; Ok(()) }
-    #[cfg(not(target_os = "windows"))]
-    { Ok(()) }
-}
 
 // ============================================================================
 // Popout MPV Commands
@@ -1598,6 +2241,40 @@ async fn cancel_recording(
         .map_err(|e| format!("Failed to cancel recording: {}", e))?;
 
     debug!("[DVR Command] Recording {} canceled successfully", id);
+    Ok(())
+}
+
+/// Delete a recording's DB entry and optionally its file(s) from disk.
+///
+/// - delete_file = true  → also removes the recording file + thumbnail from
+///   the drive (this cannot be undone).
+/// - delete_file = false → removes the entry from the app's list only, keeping
+///   the file on the hard drive.
+#[tauri::command]
+async fn delete_recording(
+    state: tauri::State<'_, DvrState>,
+    id: i64,
+    delete_file: bool,
+) -> Result<(), String> {
+    // Always deletes the DB row; returns the file paths if they exist.
+    let paths = state.db.delete_recording(id)
+        .map_err(|e| format!("Failed to delete recording from database: {}", e))?;
+
+    if delete_file {
+        if let Some((file_path, thumbnail_path)) = paths {
+            for path in [Some(file_path), thumbnail_path].into_iter().flatten() {
+                match tokio::fs::remove_file(&path).await {
+                    Ok(()) => info!("Deleted recording file {}", path),
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                        warn!("Recording file already missing (skipping): {}", path);
+                    }
+                    Err(e) => warn!("Failed to delete recording file {}: {}", path, e),
+                }
+            }
+        }
+    }
+
+    debug!("[DVR Command] Recording {} deleted (delete_file={})", id, delete_file);
     Ok(())
 }
 
@@ -1920,6 +2597,18 @@ async fn bulk_delete_categories(
         .map_err(|e| format!("Bulk delete categories failed: {}", e))
 }
 
+/// Generic bulk insert/upsert for the renderer's SqliteAdapter (bulkPut /
+/// bulkAdd on any table). Native path replaces the JS plugin fallback, which
+/// previously re-sent every batch as a separate SQL statement round-trip.
+#[tauri::command]
+async fn bulk_insert(
+    state: tauri::State<'_, DvrState>,
+    request: db_bulk_ops::BulkInsertRequest,
+) -> Result<db_bulk_ops::BulkResult, String> {
+    db_bulk_ops::bulk_insert_generic(&state.db, request)
+        .map_err(|e| format!("Bulk insert failed: {}", e))
+}
+
 /// Update source metadata
 #[tauri::command]
 async fn update_source_meta(
@@ -1993,23 +2682,73 @@ async fn stream_parse_epg_multi(
     app: AppHandle,
     state: tauri::State<'_, DvrState>,
     epg_url: String,
-    source_configs: Vec<epg_streaming::SourceEpgConfig>,
+    sources: Vec<epg_streaming::EpgSourceRef>,
     user_agent: Option<String>,
 ) -> Result<Vec<epg_streaming::EpgParseResult>, String> {
-    epg_streaming::stream_parse_epg_multi(app, &state.db, epg_url, source_configs, user_agent)
+    epg_streaming::stream_parse_epg_multi(app, &state.db, epg_url, sources, user_agent)
         .await
         .map_err(|e| format!("Stream parse EPG multi failed: {}", e))
 }
 
-/// Sync and save all EPG channels and programs to a separate database cache file
+/// Drop the `programs` secondary indexes before a bulk EPG load (sync-all).
+/// Rebuild them afterwards with `epg_bulk_load_finish`.
+#[tauri::command]
+async fn epg_bulk_load_start(state: tauri::State<'_, DvrState>) -> Result<(), String> {
+    let db = state.db.clone();
+    tauri::async_runtime::spawn_blocking(move || epg_streaming::drop_programs_indexes(&db))
+        .await
+        .map_err(|e| format!("EPG bulk load start task failed: {}", e))?
+        .map_err(|e| format!("EPG bulk load start failed: {}", e))
+}
+
+/// Recreate the `programs` secondary indexes after a bulk EPG load (sync-all).
+///
+/// Runs on a detached background thread so `syncAllSources` resolves without
+/// waiting ~10s of index creation on the critical path. The rebuild is
+/// serialized with all other EPG writes via EPG_WRITE_LOCK and is idempotent
+/// (IF NOT EXISTS); if the app exits mid-rebuild, the schema init on next app
+/// start recreates the indexes (packages/ui/src/db/index.ts), so a missing
+/// rebuild is self-healing rather than data loss.
+#[tauri::command]
+async fn epg_bulk_load_finish(state: tauri::State<'_, DvrState>) -> Result<(), String> {
+    let db = state.db.clone();
+    std::thread::Builder::new()
+        .name("epg-index-rebuild".to_string())
+        .spawn(move || {
+            match epg_streaming::recreate_programs_indexes(&db) {
+                Ok(()) => info!("[EPG] Background programs index rebuild complete"),
+                Err(e) => error!("[EPG] Background programs index rebuild failed (recreated on next app start): {}", e),
+            }
+        })
+        .map_err(|e| format!("EPG bulk load finish spawn failed: {}", e))?;
+    Ok(())
+}
+
+/// Write one per-run summary row into `epg_timings.jsonl` and reset the
+/// accumulator. Called by the TS sync orchestration in its finally block.
+#[tauri::command]
+async fn epg_timing_run_end(
+    app: tauri::AppHandle,
+    alignment_max_ms: Option<u64>,
+    sources_ok: Option<usize>,
+    sources_failed: Option<usize>,
+) -> Result<(), String> {
+    epg_streaming::epg_timing_run_end(&app, alignment_max_ms, sources_ok, sources_failed)
+        .map_err(|e| format!("EPG timing run end failed: {}", e))
+}
+
+/// Sync and save all EPG channels and programs to a separate database cache file,
+/// applying matched programmes to the linked sources in the same pass.
 #[tauri::command]
 async fn cache_entire_epg_db(
     app: AppHandle,
+    state: tauri::State<'_, DvrState>,
     epg_url: String,
     epg_link_id: String,
     user_agent: Option<String>,
-) -> Result<(), String> {
-    epg_streaming::cache_entire_epg_db(app, epg_url, epg_link_id, user_agent)
+    sources: Vec<epg_streaming::EpgSourceRef>,
+) -> Result<Vec<epg_streaming::EpgParseResult>, String> {
+    epg_streaming::cache_entire_epg_db(app, &state.db, epg_url, epg_link_id, user_agent, sources)
         .await
         .map_err(|e| format!("Cache entire EPG failed: {}", e))
 }
@@ -4372,6 +5111,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         // Manage platform-specific MPV state
         .manage(MpvState::new())
+        .manage(MpvCoreState::new())
         .manage(audio_capture::AudioCaptureState::new())
         .manage(std::sync::Arc::new(cast::CastManager::new()))
         .setup(|app| {
@@ -4394,9 +5134,8 @@ pub fn run() {
             // Apply SOCKS5 proxy settings if configured
             apply_proxy_settings(app.handle());
 
-            // Register secondary MPV state (Windows only)
-            #[cfg(target_os = "windows")]
-            app.manage(SecondaryMpvState::new());
+            // Register canvas multiview state
+            app.manage(CanvasMultiviewState::new());
 
             #[cfg(target_os = "windows")]
             if let Some(window) = app.get_webview_window("main") {
@@ -4511,8 +5250,10 @@ pub fn run() {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-                    info!("[MPV macOS] Auto-initializing MPV...");
-                    if let Err(e) = mpv_macos::init_mpv(app_handle).await {
+                    info!("[MPV macOS] Auto-initializing MPV with stored settings...");
+                    let params = get_mpv_params_from_store(&app_handle).await;
+                    let safe_params = sanitize_mpv_args(params);
+                    if let Err(e) = mpv_core::init_mpv_with_params(app_handle, safe_params).await {
                         error!("[MPV macOS] Auto-init failed: {}", e);
                     }
                 });
@@ -4523,6 +5264,30 @@ pub fn run() {
 
             let discord_handle = app.handle().clone();
             std::thread::spawn(move || discord_rp::run_loop(discord_handle));
+
+            // Start native gamepad / controller background engines
+            gamepad::start(&app.handle());
+            // Raw HID reader for DirectInput-only Sony pads (raw DualSense /
+            // DualShock over BT or USB) that XInput and the browser API miss.
+            raw_hid_gamepad::start(&app.handle());
+
+            // Start Phone Remote web server — only when the user has the
+            // feature enabled. The frontend writes remoteControlEnabled to the
+            // settings store; honor it here so a disabled remote doesn't
+            // silently bind an open port on every launch.
+            let remote_enabled = read_store_setting(&app.handle(), "remoteControlEnabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if remote_enabled {
+                let remote_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = web_server::web_serve_start(remote_handle, Some(web_server::DEFAULT_REMOTE_PORT)).await {
+                        log::error!("[remote-server] Failed to start Phone Remote server at launch: {}", e);
+                    }
+                });
+            } else {
+                log::info!("[remote-server] Phone Remote disabled in settings; not starting server");
+            }
 
             // Note: Window size is applied by the frontend after settings are loaded
             // to ensure the user-defined startupWidth/startupHeight from Settings -> UI is respected
@@ -4537,12 +5302,20 @@ pub fn run() {
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     // If minimize-to-tray is enabled, hide instead of closing so
                     // playback/recordings can keep running in the background.
+                    // Check the in-memory flag (seeded by the frontend on startup
+                    // and on toggle) AND the persisted setting as a fallback, so
+                    // close-to-tray works even if the frontend handshake missed.
                     #[cfg(desktop)]
-                    if tray::minimize_to_tray_enabled(&window.app_handle()) {
+                    if tray::minimize_to_tray_enabled(&window.app_handle())
+                        || tray::minimize_to_tray_from_store(&window.app_handle())
+                    {
+                        info!("[Tray] Minimize-to-tray enabled; hiding window instead of closing.");
                         api.prevent_close();
                         let _ = window.hide();
                         return;
                     }
+                    gamepad::shutdown();
+                    raw_hid_gamepad::shutdown();
                     discord_rp::shutdown(&window.app_handle());
                     save_window_state(&window.app_handle());
                     // Flush the WAL so the next launch doesn't have to recover a
@@ -4616,13 +5389,13 @@ pub fn run() {
             mpv_kill,
             mpv_get_cache_debug,
             mpv_get_params_debug,
-            // Multiview secondary MPV commands
-            multiview_load_slot,
-            multiview_stop_slot,
-            multiview_set_property_slot,
-            multiview_reposition_slot,
-            multiview_kill_slot,
-            multiview_kill_all,
+            // Multiview canvas (software-rendered) commands
+            mpv_canvas::multiview_canvas_start,
+            mpv_canvas::multiview_canvas_stop,
+            mpv_canvas::multiview_canvas_resize,
+            mpv_canvas::multiview_canvas_set_property,
+            mpv_canvas::multiview_canvas_stop_all,
+            mpv_canvas::multiview_canvas_ack,
             // Popout MPV commands
             popout_open,
             popout_load,
@@ -4643,6 +5416,7 @@ pub fn run() {
             bulk_upsert_channels,
             bulk_upsert_categories,
             bulk_replace_programs,
+            bulk_insert,
             bulk_upsert_movies,
             bulk_upsert_series,
             bulk_delete_channels,
@@ -4665,6 +5439,9 @@ pub fn run() {
             stream_parse_epg,
             stream_parse_epg_multi,
             parse_epg_file,
+            epg_bulk_load_start,
+            epg_bulk_load_finish,
+            epg_timing_run_end,
             cache_entire_epg_db,
             // DVR commands
             init_dvr,
@@ -4674,6 +5451,7 @@ pub fn run() {
             get_recording_thumbnail,
             update_schedule_settings,
             check_schedule_conflicts,
+            delete_recording,
             update_playing_stream,
             update_dvr_stream_url,
             update_recording_title,
@@ -4698,6 +5476,8 @@ pub fn run() {
             clear_show_watchlist_tracking,
             // Utility commands
             open_external_url,
+            ytdlp_info,
+            update_ytdlp,
             spawn_external_player,
             spawn_external_player_reuse,
             kill_external_player,
@@ -4734,7 +5514,15 @@ pub fn run() {
             // Database health / recovery
             db_health,
             // Local folder scanner
-            local_lib::scan_local_folder
+            local_lib::scan_local_folder,
+            // Gamepad commands
+            get_connected_gamepads,
+            gamepad_debug_enabled,
+            // Phone Remote Server commands
+            web_server::web_serve_status,
+            web_server::web_serve_start,
+            web_server::web_serve_stop,
+            web_server::remote_ws_broadcast
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

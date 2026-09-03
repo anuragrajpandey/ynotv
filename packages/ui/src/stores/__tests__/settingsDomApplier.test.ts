@@ -284,4 +284,40 @@ describe('settings DOM applier idempotency', () => {
     } as any);
     expect(fake.writes).toEqual(after);
   });
+
+  it('applies custom scrollbar width and dataset attributes idempotently', () => {
+    applySettingsDom(baseState() as any);
+    expect(fake.datasetData.get('customScrollbar')).toBeUndefined();
+    expect(fake.properties.get('--app-scrollbar-width')).toBeUndefined();
+    expect(fake.properties.get('--scrollbar-width')).toBeUndefined();
+
+    // Enable custom scrollbar width (e.g. 14px)
+    applySettingsDom({
+      ...baseState(),
+      enableCustomScrollbarWidth: true,
+      customScrollbarWidth: 14,
+    } as any);
+    expect(fake.datasetData.get('customScrollbar')).toBe('true');
+    expect(fake.properties.get('--app-scrollbar-width')).toBe('14px');
+    expect(fake.properties.get('--scrollbar-width')).toBe('14px');
+
+    // Idempotent re-apply
+    const snapshot = { ...fake.writes };
+    applySettingsDom({
+      ...baseState(),
+      enableCustomScrollbarWidth: true,
+      customScrollbarWidth: 14,
+    } as any);
+    expect(fake.writes).toEqual(snapshot);
+
+    // Disable custom scrollbar width
+    applySettingsDom({
+      ...baseState(),
+      enableCustomScrollbarWidth: false,
+      customScrollbarWidth: 14,
+    } as any);
+    expect(fake.datasetData.get('customScrollbar')).toBeUndefined();
+    expect(fake.properties.get('--app-scrollbar-width')).toBeUndefined();
+    expect(fake.properties.get('--scrollbar-width')).toBeUndefined();
+  });
 });

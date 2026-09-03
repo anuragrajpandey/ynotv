@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 // Auto-sync check interval: 10 minutes
 const AUTO_SYNC_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+
+// The phone remote uses short layout names ('single'/'split'/'quad'/'triple');
+// translate them to the app's LayoutMode before switching.
+const REMOTE_LAYOUT_MAP: Record<string, LayoutMode> = {
+  single: 'main',
+  split: 'sbs',
+  quad: '2x2',
+  triple: 'bigbottom',
+};
 let hasStartupAutoSyncTriggered = false;
 import { invoke } from '@tauri-apps/api/core';
 import i18n, { translateNativeError } from './i18n';
@@ -20,15 +29,19 @@ import { ChannelInfoOverlay } from './components/ChannelInfoOverlay';
 import { TrackSelectionModal } from './components/TrackSelectionModal';
 import { SubtitleControlModal } from './components/SubtitleControlModal';
 import { StalkerSubtitleModal } from './components/StalkerSubtitleModal';
+import { ControllerSearchModal } from './components/ControllerSearchModal';
+import { getTextField } from './services/controllerTextInput';
 import { CategoryStrip } from './components/CategoryStrip';
 import { ChannelPanel } from './components/ChannelPanel';
 import { MoviesPage } from './components/MoviesPage';
 import { SeriesPage } from './components/SeriesPage';
 import { DvrDashboard } from './components/DvrDashboard';
-import { SportsHub } from './components/sports/SportsHub';
+import { SportsHub, SportsMultiviewOverlay } from './components/sports/SportsHub';
 import { TVCalendarPage } from './components/TVCalendarPage';
 import { LiveSportsOverlay } from './components/LiveSportsOverlay';
 import { SportsLiveGameSidebar } from './components/sports/SportsLiveGameSidebar';
+import { LiveGamesModal } from './components/sports/LiveGamesModal';
+import { MultiviewPlayTargetPicker } from './components/MultiviewPlayTargetPicker';
 import { RecentChannelsWidget } from './components/RecentChannelsWidget';
 import { FavoritesWidget } from './components/FavoritesWidget';
 import { WidgetBar } from './components/WidgetBar';
@@ -42,7 +55,12 @@ import { useSearchHistory } from './hooks/useSearchHistory';
 import { RecordingIndicator } from './components/RecordingIndicator';
 import { DownloadIndicator } from './components/DownloadIndicator';
 import { Logo } from './components/Logo';
-import { useSelectedCategory, useChannelSearch, useProgramSearch, useChannels, useCurrentProgram, useSourceNameMap, parseCategoryIds } from './hooks/useChannels';
+import { useSelectedCategory, useChannelSearch, useProgramSearch, useChannels, useCategories, useCurrentProgram, useSourceNameMap, parseCategoryIds } from './hooks/useChannels';
+import { epgTimeMs } from './utils/epgTime';
+import { usePhoneRemoteCompanion } from './hooks/usePhoneRemoteCompanion';
+import { getPrimaryChannelForGroup } from './services/failover-groups';
+import { useSportsSettingsStore } from './stores/sportsSettingsStore';
+import { useSportsPolling, isSportsCacheFresh } from './hooks/useSportsPolling';
 import { useActiveTmdbToken } from './hooks/useTmdbLists';
 import { getTmdbImageUrl, searchMovies, searchTvShows, getMovieDetails, getTvShowDetails } from './services/tmdb';
 import { cleanTitleForSearch } from './utils/cleanTitle';
@@ -57,6 +75,7 @@ import {
   useSetChannelSyncing,
   useSetVodSyncing,
   useSetSyncStatusMessage,
+  useSetSyncProgress,
   useSetChannelSortOrder,
   useSetChannelSortOrderMigrated,
   useChannelSortOrderMigrated,
@@ -68,6 +87,7 @@ import {
   useSetIncludeAllChannelsToPlaylist
 } from './stores/uiStore';
 import { getAdjacentEpisode, recordVodWatch, recordEpisodeWatch, getEpisodeProgress } from './db';
+import { getLocalEpisodeList, localEntryToVodPlayInfo } from './services/local-library/local-library';
 import { useVodPlaylistStore } from './stores/vodPlaylistStore';
 import { useActivePlaylistStore, isActivePlaylistItem } from './stores/activePlaylistStore';
 import { PlaylistQueueModal } from './components/vod/PlaylistQueueModal';
@@ -89,6 +109,7 @@ import { currentMonitor, getCurrentWindow, LogicalSize } from '@tauri-apps/api/w
 import { addToRecentChannels } from './utils/recentChannels';
 import { WatchlistNotificationContainer } from './components/WatchlistNotification';
 import { ToastContainer } from './components/Toast';
+import { SyncStatusToast } from './components/SyncStatusToast';
 import { useToastStore } from './stores/toastStore';
 import { MultiviewLayout } from './components/MultiviewLayout/MultiviewLayout';
 import { LayoutPicker } from './components/LayoutPicker/LayoutPicker';
@@ -100,6 +121,8 @@ import { useTimeshift } from './hooks/useTimeshift';
 import { useDvrEvents } from './hooks/useDvrEvents';
 import { useDvrUrlResolver } from './hooks/useDvrUrlResolver';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useGamepad, useKeyboardAsController } from './hooks/useGamepad';
+import { focusFirstInteractive, applyTvFocus, tryRestoreFocus, hasFocusMemory, focusViewOnOpen } from './services/spatialNavigation';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { UpdateModal } from './components/UpdateModal';
 import { registerUpdateModal } from './services/updater';
@@ -119,7 +142,6 @@ import { useUIStore } from './stores/uiStore';
 import { fetchSubtitles } from './services/stremio-addon';
 import { toSubSourceLang, fromSubSourceLang } from './services/subsource';
 import { scrobbler } from './services/scrobbler';
-import { pushNuvioWatchProgress } from './services/nuvio-api';
 import { SkipIntroButton } from './components/SkipIntroButton';
 import { useSkipIntro } from './hooks/useSkipIntro';
 import { BackButtonOverlay } from './components/BackButtonOverlay';
@@ -136,7 +158,7 @@ initUiDesign();
 
 // NEW: Extracted hooks
 import { useSettingsStore } from './stores/settingsStore';
-import { usePlayback } from './hooks/usePlayback';
+import { usePlayback, pushNuvioPlaybackProgress } from './hooks/usePlayback';
 import { useNavigation } from './hooks/useNavigation';
 import { useWatchlist } from './hooks/useWatchlist';
 import { useWindowManager } from './hooks/useWindowManager';
@@ -144,6 +166,69 @@ import { usePopoutPlayer } from './hooks/usePopoutPlayer';
 import { usePipMode } from './hooks/usePipMode';
 import { useDiscordPresence } from './hooks/useDiscordPresence';
 import { usePlaybackPresence } from './hooks/usePlaybackPresence';
+
+// ============================================================================
+// Channel navigation helpers
+// ============================================================================
+
+// Sort used by the DB fallback lists for ch up/down navigation.
+function sortByChannelNumThenName(a: StoredChannel, b: StoredChannel): number {
+  return (a.channel_num ?? 0) - (b.channel_num ?? 0) || (a.alias || a.name).localeCompare(b.alias || b.name);
+}
+
+// Resolve the ordered channel list + current index for ch up/down navigation.
+// Prefers the in-memory list for the active category; when the playing channel
+// isn't in it (tuned via phone remote, sports, or search), falls back to the
+// channel's own category from the DB, then to all channels of its source.
+// resolvedCategoryId is set when the fallback resolved a category, so the
+// caller can sync the guide to it. Returns index -1 when the channel can't be
+// found anywhere — callers should then do nothing.
+async function resolveChannelNavList(
+  currentChannel: StoredChannel,
+  currentChannels: StoredChannel[]
+): Promise<{ list: StoredChannel[]; index: number; resolvedCategoryId: string | null }> {
+  let list = currentChannels;
+  let index = list.findIndex((ch) => ch.stream_id === currentChannel.stream_id);
+  let resolvedCategoryId: string | null = null;
+
+  if (index === -1) {
+    const catId = parseCategoryIds(currentChannel.category_ids)[0];
+    if (catId) {
+      try {
+        const catChannels = await db.channels.whereRaw(
+          `source_id = ? AND EXISTS (SELECT 1 FROM json_each(category_ids) WHERE value = ?) AND (enabled IS NULL OR enabled NOT IN (0, '0', 'false'))`,
+          [currentChannel.source_id, catId]
+        ).toArray();
+        if (catChannels.length > 0) {
+          catChannels.sort(sortByChannelNumThenName);
+          list = catChannels;
+          index = list.findIndex((ch) => ch.stream_id === currentChannel.stream_id);
+          resolvedCategoryId = catId;
+        }
+      } catch (e) {
+        console.warn('[App] Failed to load adjacent channels for category:', e);
+      }
+    }
+    if (index === -1 && currentChannel.source_id) {
+      try {
+        const srcChannels = await db.channels
+          .where('source_id')
+          .equals(currentChannel.source_id)
+          .filter((c) => c.enabled !== false)
+          .toArray();
+        if (srcChannels.length > 0) {
+          srcChannels.sort(sortByChannelNumThenName);
+          list = srcChannels;
+          index = list.findIndex((ch) => ch.stream_id === currentChannel.stream_id);
+        }
+      } catch (e) {
+        console.warn('[App] Failed to load adjacent channels for source:', e);
+      }
+    }
+  }
+
+  return { list, index, resolvedCategoryId };
+}
 
 // ============================================================================
 // TransitionView Component
@@ -252,6 +337,7 @@ function App() {
   const setTransparentGuideOnZap = useSettingsStore((s) => s.setTransparentGuideOnZap);
   const overlayAutohideTimer = useSettingsStore((s) => s.overlayAutohideTimer);
   const setOverlayAutohideTimer = useSettingsStore((s) => s.setOverlayAutohideTimer);
+  const categorySidebarAutohide = useSettingsStore((s) => s.categorySidebarAutohide);
   const overlayOnClickOnly = useSettingsStore((s) => s.overlayOnClickOnly);
   const setOverlayOnClickOnly = useSettingsStore((s) => s.setOverlayOnClickOnly);
   const popoutStopMain = useSettingsStore((s) => s.popoutStopMain);
@@ -280,6 +366,12 @@ function App() {
   const setVodAutoPlayNextEpisode = useSettingsStore((s) => s.setVodAutoPlayNextEpisode);
   const vodShowSourceBadge = useSettingsStore((s) => s.vodShowSourceBadge);
   const setVodShowSourceBadge = useSettingsStore((s) => s.setVodShowSourceBadge);
+  const blurUnwatchedEpisodes = useSettingsStore((s) => s.blurUnwatchedEpisodes);
+  const setBlurUnwatchedEpisodes = useSettingsStore((s) => s.setBlurUnwatchedEpisodes);
+  const useScrollwheelSeek = useSettingsStore((s) => s.useScrollwheelSeek);
+  const setUseScrollwheelSeek = useSettingsStore((s) => s.setUseScrollwheelSeek);
+  const useScrollwheelSeekInvert = useSettingsStore((s) => s.useScrollwheelSeekInvert);
+  const setUseScrollwheelSeekInvert = useSettingsStore((s) => s.setUseScrollwheelSeekInvert);
   const failoverGroupShowSource = useSettingsStore((s) => s.failoverGroupShowSource);
   const setFailoverGroupShowSource = useSettingsStore((s) => s.setFailoverGroupShowSource);
   const playerControlDesign = useSettingsStore((s) => s.playerControlDesign);
@@ -292,8 +384,32 @@ function App() {
   const setEpgMetadataBadgeFps = useSettingsStore((s) => s.setEpgMetadataBadgeFps);
   const epgMetadataBadgeFpsSuffix = useSettingsStore((s) => s.epgMetadataBadgeFpsSuffix);
   const setEpgMetadataBadgeFpsSuffix = useSettingsStore((s) => s.setEpgMetadataBadgeFpsSuffix);
+  const epgMetadataBadgeFhdLabels = useSettingsStore((s) => s.epgMetadataBadgeFhdLabels);
+  const setEpgMetadataBadgeFhdLabels = useSettingsStore((s) => s.setEpgMetadataBadgeFhdLabels);
+  const epgResolutionFilterEnabled = useSettingsStore((s) => s.epgResolutionFilterEnabled);
+  const setEpgResolutionFilterEnabled = useSettingsStore((s) => s.setEpgResolutionFilterEnabled);
   const epgMetadataBadgeSound = useSettingsStore((s) => s.epgMetadataBadgeSound);
   const setEpgMetadataBadgeSound = useSettingsStore((s) => s.setEpgMetadataBadgeSound);
+  const epgMetadataBadgeBitrate = useSettingsStore((s) => s.epgMetadataBadgeBitrate);
+  const setEpgMetadataBadgeBitrate = useSettingsStore((s) => s.setEpgMetadataBadgeBitrate);
+  const epgMetadataBadgeAudioBitrate = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrate);
+  const setEpgMetadataBadgeAudioBitrate = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrate);
+  const epgMetadataBadgeBitrateOverlay = useSettingsStore((s) => s.epgMetadataBadgeBitrateOverlay);
+  const setEpgMetadataBadgeBitrateOverlay = useSettingsStore((s) => s.setEpgMetadataBadgeBitrateOverlay);
+  const epgMetadataBadgeAudioBitrateOverlay = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrateOverlay);
+  const setEpgMetadataBadgeAudioBitrateOverlay = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrateOverlay);
+  const epgMetadataBadgeBitrateSearch = useSettingsStore((s) => s.epgMetadataBadgeBitrateSearch);
+  const setEpgMetadataBadgeBitrateSearch = useSettingsStore((s) => s.setEpgMetadataBadgeBitrateSearch);
+  const epgMetadataBadgeAudioBitrateSearch = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrateSearch);
+  const setEpgMetadataBadgeAudioBitrateSearch = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrateSearch);
+  const epgMetadataBadgeBitrateFailover = useSettingsStore((s) => s.epgMetadataBadgeBitrateFailover);
+  const setEpgMetadataBadgeBitrateFailover = useSettingsStore((s) => s.setEpgMetadataBadgeBitrateFailover);
+  const epgMetadataBadgeAudioBitrateFailover = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrateFailover);
+  const setEpgMetadataBadgeAudioBitrateFailover = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrateFailover);
+  const epgMetadataBadgeBitrateSports = useSettingsStore((s) => s.epgMetadataBadgeBitrateSports);
+  const setEpgMetadataBadgeBitrateSports = useSettingsStore((s) => s.setEpgMetadataBadgeBitrateSports);
+  const epgMetadataBadgeAudioBitrateSports = useSettingsStore((s) => s.epgMetadataBadgeAudioBitrateSports);
+  const setEpgMetadataBadgeAudioBitrateSports = useSettingsStore((s) => s.setEpgMetadataBadgeAudioBitrateSports);
   const language = useSettingsStore((s) => s.language);
   const setLanguage = useSettingsStore((s) => s.setLanguage);
   const navHiddenTabs = useUIStore((s) => s.navHiddenTabs);
@@ -735,9 +851,6 @@ function App() {
     stopSlot,
     reloadSlot,
     setSlotProperty,
-    repositionSecondarySlots,
-    enterTabMode,
-    exitTabMode,
     notifyMainLoaded,
     syncMpvGeometry,
     isRestoring,
@@ -747,7 +860,18 @@ function App() {
 
   // Refs for multiview (used by keyboard shortcuts)
   const multiviewLayoutRef = useRef<LayoutMode>('main');
-  const handlePlayChannelRef = useRef<((channel: StoredChannel, autoSwitched?: boolean) => void) | null>(null);
+  const handlePlayChannelRef = useRef<((channel: StoredChannel, autoSwitched?: boolean, directPlay?: boolean) => void | Promise<void>) | null>(null);
+  const handlePlayChannelWrapperRef = useRef<((channel: StoredChannel, autoSwitched?: boolean, categoryOverride?: string, directPlay?: boolean) => Promise<void>) | null>(null);
+  // Monotonic sequence shared with handlePlayChannelWrapper: guards the async
+  // failover-primary lookup against out-of-order resolution on rapid channel picks.
+  const playChannelSeqRef = useRef(0);
+  // With failoverKeepView, this remembers the channel the user actually picked
+  // when failover redirects tuning to a group primary, so channel up/down keeps
+  // navigating the category they were browsing instead of jumping to the primary.
+  const failoverNavAnchorRef = useRef<StoredChannel | null>(null);
+  // Mirror of the anchor as state so the guide grid can re-render its highlight
+  // to the picked channel instead of the playing failover primary.
+  const [failoverNavAnchor, setFailoverNavAnchor] = useState<StoredChannel | null>(null);
   const lastPlayedChannelRef = useRef<StoredChannel | null>(null);
   useEffect(() => { multiviewLayoutRef.current = multiviewLayout; }, [multiviewLayout]);
 
@@ -1171,7 +1295,7 @@ function App() {
   const nav = useNavigation({
     playing,
     multiviewLayout,
-    multiviewExitTabMode: exitTabMode,
+    categoryId,
     setCategoryId,
     overlayAutohideTimer,
     overlayOnClickOnly,
@@ -1384,6 +1508,10 @@ function useTmdbPresencePoster(
     let title: string | null = null;
     let subtitle: string | undefined = undefined;
     let posterUrl: string | undefined = undefined;
+    let startTs: number | undefined = undefined;
+    let endTs: number | undefined = undefined;
+    let positionSec = position;
+    let durationSec = duration;
 
     const isVodPlayback = vodInfo != null || currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_');
 
@@ -1416,6 +1544,29 @@ function useTmdbPresencePoster(
       }
       // Use default App Icon from Discord Dev Portal for Live TV
       posterUrl = undefined;
+
+      // Live IPTV: mpv's duration is only the network buffer (~19s), which would
+      // render a bogus tiny timeline in Discord. Use the EPG program window as
+      // absolute start/end timestamps instead — Discord fills the bar from wall
+      // clock between the two, so the position tracks the program automatically.
+      // Catchup keeps the real seekable mpv timeline. Without EPG data the
+      // timeline is dropped entirely rather than showing the buffer bar.
+      if (!isCatchup && currentProgram) {
+        const startMs = epgTimeMs(currentProgram.start);
+        const endMs = epgTimeMs(currentProgram.end);
+        if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
+          startTs = Math.floor(startMs / 1000);
+          endTs = Math.floor(endMs / 1000);
+          positionSec = 0;
+          durationSec = 0;
+        } else {
+          positionSec = 0;
+          durationSec = 0;
+        }
+      } else if (!isCatchup) {
+        positionSec = 0;
+        durationSec = 0;
+      }
     }
 
     return {
@@ -1424,8 +1575,10 @@ function useTmdbPresencePoster(
       title,
       subtitle,
       posterUrl,
-      positionSec: position,
-      durationSec: duration,
+      positionSec,
+      durationSec,
+      startTs,
+      endTs,
     };
   }, [currentChannel, currentProgram, isCatchup, catchupInfo, vodInfo, tmdbPresencePoster, playing, position, duration]);
 
@@ -1442,6 +1595,92 @@ function useTmdbPresencePoster(
   );
 
   usePlaybackPresence(playbackPresenceState);
+
+  // Virtual Phone Remote Second-Screen Companion Integration.
+  // Sports polling is scoped to active remote sessions: while a phone is connected
+  // we poll scores on a modest interval; the moment the last phone disconnects the
+  // poll stops. Between sessions the shared sports cache (populated by the Sports
+  // view/overlay) is served as-is, with a one-shot refresh when a phone asks and
+  // the cache is stale.
+  const phoneRemoteLiveLeagues = useSportsSettingsStore((s) => s.liveLeagues);
+  const companionCategories = useCategories();
+
+  // The channel the phone remote should highlight as "now viewing". With
+  // failoverKeepView this is the channel the user picked (the failover primary
+  // may be what's actually streaming). Computed here (before the companion hook)
+  // because the hook needs it in its options; the desktop grid uses the stricter
+  // guideHighlightChannel memo below with the current-category membership check.
+  const failoverKeepViewSetting = useSettingsStore((s) => s.failoverKeepView);
+  const remoteViewChannel = (failoverKeepViewSetting && failoverNavAnchor) ? failoverNavAnchor : currentChannel;
+
+  const { isRemoteClientConnected } = usePhoneRemoteCompanion({
+    currentChannel,
+    currentProgram,
+    categories: companionCategories || [],
+    viewChannel: remoteViewChannel,
+    activeView,
+    searchQuery,
+    multiviewLayout,
+    multiviewSlots: multiviewSlots || [],
+    multiviewEngineMode,
+    volume,
+    isMuted: muted,
+    onPlayChannel: (channel: StoredChannel, sourceCategoryId?: string) => {
+      if (sourceCategoryId && sourceCategoryId !== categoryId) {
+        setCategoryId(sourceCategoryId);
+      }
+      if (handlePlayChannelWrapperRef.current) {
+        handlePlayChannelWrapperRef.current(channel, undefined, sourceCategoryId);
+      } else {
+        handlePlayChannel(channel);
+      }
+    },
+    onSetVolume: async (newVol: number) => {
+      setVolume(newVol);
+      await Bridge.setVolume(newVol);
+    },
+    onSendToSlot: async (slotIndex: number, channel: StoredChannel) => {
+      // The phone sends the app's slot ids (2|3|4); keep accepting 0-based ids
+      // from other callers for backward compatibility.
+      const slotId =
+        slotIndex >= 2 && slotIndex <= 4
+          ? (slotIndex as 2 | 3 | 4)
+          : (((slotIndex % 3) + 2) as 2 | 3 | 4);
+      // Ensure we're in a layout that supports the target slot, otherwise the
+      // slot window would land at a degenerate position.
+      const cur = multiviewLayoutRef.current;
+      const needsQuad = slotId === 3 || slotId === 4;
+      if (
+        (needsQuad && cur !== '2x2' && cur !== 'bigbottom') ||
+        (!needsQuad && (cur === 'main' || cur === 'pip'))
+      ) {
+        await rawSwitchLayout(needsQuad ? '2x2' : 'sbs');
+      }
+      sendToSlot(slotId, channel.alias || channel.name, channel.direct_url || '', channel.source_id);
+    },
+    onSwitchLayout: (layout: string) => {
+      const mapped = REMOTE_LAYOUT_MAP[layout];
+      if (mapped) {
+        rawSwitchLayout(mapped);
+      }
+    },
+    onSetEngineMode: (mode: string) => {
+      if (mode === 'hls' || mode === 'mpv_canvas') {
+        setMultiviewEngineMode(mode);
+      }
+    },
+    onRequestSportsRefresh: async () => {
+      // One-shot refresh only when the shared cache is stale — never a poll loop.
+      if (isSportsCacheFresh()) return;
+      await refreshPhoneSports();
+    },
+  });
+
+  const { refresh: refreshPhoneSports } = useSportsPolling({
+    leagues: phoneRemoteLiveLeagues,
+    pollingInterval: 30000,
+    enabled: isRemoteClientConnected,
+  });
 
   // ==========================================================================
   // PiP (Picture-in-Picture) Mode
@@ -1493,16 +1732,6 @@ function useTmdbPresencePoster(
   const setActiveView = useCallback((newView: any) => {
     const nextView = typeof newView === 'function' ? newView(activeView) : newView;
     const isCurrentlyNuvioSettings = (activeView === 'nuvio' && useUIStore.getState().nuvioView === 'settings') || (showSettingsPopup && settingsTab === 'nuvio');
-    
-    const updateTabMode = (view: any) => {
-      if (view === 'guide' || view === 'sports' || view === 'dvr' ||
-          view === 'settings' || view === 'movies' || view === 'series' ||
-          view === 'calendar' || view === 'stremio' || view === 'nuvio') {
-        enterTabMode(view);
-      } else {
-        exitTabMode();
-      }
-    };
 
     if (isCurrentlyNuvioSettings && nuvioHasUnsavedHomeLayout) {
       showConfirm(
@@ -1512,7 +1741,6 @@ function useTmdbPresencePoster(
           try {
             await nuvioTabSaveFn?.();
             useUIStore.setState({ nuvioHasUnsavedHomeLayout: false });
-            updateTabMode(nextView);
             rawSetActiveView(nextView);
           } catch (err) {
             // Error was already alerted inside child component
@@ -1520,54 +1748,22 @@ function useTmdbPresencePoster(
         },
         () => {
           useUIStore.setState({ nuvioHasUnsavedHomeLayout: false });
-          updateTabMode(nextView);
           rawSetActiveView(nextView);
         },
         'Save',
         'Discard Changes'
       );
     } else {
-      updateTabMode(nextView);
       rawSetActiveView(nextView);
     }
-  }, [activeView, showSettingsPopup, settingsTab, nuvioHasUnsavedHomeLayout, nuvioTabSaveFn, rawSetActiveView, showConfirm, enterTabMode, exitTabMode]);
+  }, [activeView, showSettingsPopup, settingsTab, nuvioHasUnsavedHomeLayout, nuvioTabSaveFn, rawSetActiveView, showConfirm]);
 
-  // Wrapped switchLayout to toggle EPG visibility when entering HLS or MPV multiview
-  // to force the native MPV window geometry to correctly sync with EPG cell bounds.
   const switchLayout = useCallback(async (newLayout: LayoutMode) => {
-    const isEpgOpen = activeView === 'guide';
-    const isTargetMultiview = newLayout === '2x2' || newLayout === 'bigbottom';
-
-    if (isEpgOpen && isTargetMultiview) {
-      setActiveView('none');
-      await rawSwitchLayout(newLayout);
-      setTimeout(() => {
-        setActiveView('guide');
-      }, 100);
-    } else {
-      await rawSwitchLayout(newLayout);
-    }
-  }, [activeView, rawSwitchLayout, setActiveView]);
+    await rawSwitchLayout(newLayout);
+  }, [rawSwitchLayout]);
 
   const switchLayoutRef = useRef(switchLayout);
   useEffect(() => { switchLayoutRef.current = switchLayout; }, [switchLayout]);
-
-  // Reposition secondary slots on the Hero page when the layout picker is toggled
-  useEffect(() => {
-    if (multiviewEngineMode === 'mpv' && multiviewLayout !== 'main') {
-      if (layoutPickerOpen) {
-        // Push secondary slots off-screen so they don't cover the dropdown menu on the Hero page
-        const secondaryIds = [2, 3, 4];
-        secondaryIds.forEach(async (slotId) => {
-          const { invoke } = await import('@tauri-apps/api/core');
-          invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => {});
-        });
-      } else {
-        // Reposition them back to their layout slots
-        repositionSecondarySlots(multiviewLayout);
-      }
-    }
-  }, [layoutPickerOpen, multiviewEngineMode, multiviewLayout, repositionSecondarySlots]);
 
   const setShowSettingsPopup = useCallback((val: boolean | ((prev: boolean) => boolean)) => {
     const nextVal = typeof val === 'function' ? val(showSettingsPopup) : val;
@@ -1643,25 +1839,8 @@ function useTmdbPresencePoster(
               ).catch(() => {});
             }
           } else if (isNuvio) {
-            // Sync to Nuvio cloud
-            const nuvioAuth = useNuvioAuthStore.getState();
-            const nuvioToken = nuvioAuth.token;
-            const nuvioProfile = nuvioAuth.activeProfile;
-            if (nuvioToken && nuvioProfile) {
-              pushNuvioWatchProgress(nuvioToken, nuvioProfile.profile_index, [{
-                content_id: epInfo.metaId,
-                content_type: 'series',
-                video_id: epInfo.videoId,
-                season: epInfo.season,
-                episode: epInfo.episode,
-                position: Math.floor(pos * 1000),
-                duration: Math.floor(dur * 1000),
-                last_watched: Date.now(),
-                progress_key: `${epInfo.metaId}_s${epInfo.season}e${epInfo.episode}`,
-              }]).then(() => {
-                window.dispatchEvent(new CustomEvent('ynotv:nuvio-sync-required'));
-              }).catch((err) => console.error('[NuvioProgress] Failed to sync progress:', err));
-            }
+            // Sync final progress to Nuvio cloud (stop event)
+            void pushNuvioPlaybackProgress(vodInfo, pos, dur);
           }
         } else if (movieInfo) {
           if (!isNuvio) {
@@ -1683,25 +1862,8 @@ function useTmdbPresencePoster(
               ).catch(() => {});
             }
           } else if (isNuvio) {
-            // Sync to Nuvio cloud
-            const nuvioAuth = useNuvioAuthStore.getState();
-            const nuvioToken = nuvioAuth.token;
-            const nuvioProfile = nuvioAuth.activeProfile;
-            if (nuvioToken && nuvioProfile) {
-              pushNuvioWatchProgress(nuvioToken, nuvioProfile.profile_index, [{
-                content_id: movieInfo.metaId,
-                content_type: 'movie',
-                video_id: movieInfo.metaId,
-                season: null,
-                episode: null,
-                position: Math.floor(pos * 1000),
-                duration: Math.floor(dur * 1000),
-                last_watched: Date.now(),
-                progress_key: `${movieInfo.metaId}`,
-              }]).then(() => {
-                window.dispatchEvent(new CustomEvent('ynotv:nuvio-sync-required'));
-              }).catch((err) => console.error('[NuvioProgress] Failed to sync progress:', err));
-            }
+            // Sync final progress to Nuvio cloud (stop event)
+            void pushNuvioPlaybackProgress(vodInfo, pos, dur);
           }
         }
       }
@@ -1749,7 +1911,6 @@ function useTmdbPresencePoster(
 
     // 3. Handle other active views that have onClose / exit logic
     if (
-      activeView === 'settings' ||
       activeView === 'dvr' ||
       activeView === 'sports' ||
       activeView === 'calendar'
@@ -1823,15 +1984,34 @@ function useTmdbPresencePoster(
         el = el.parentElement;
       }
 
+      // "Use Scrollwheel to Seek" — during VOD playback (Movies, Series, and
+      // Local files all route through stream_id === 'vod'), the wheel seeks
+      // instead of adjusting volume.
+      if (
+        useScrollwheelSeek &&
+        (vodInfo != null || currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_'))
+      ) {
+        e.preventDefault();
+        // e.deltaY < 0 = wheel up, e.deltaY > 0 = wheel down. By default wheel
+        // up forwards (+10s) and wheel down rewinders (-10s); when inverted,
+        // wheel up rewinds and wheel down forwards.
+        const dir = useScrollwheelSeekInvert ? -1 : 1;
+        const stepSeconds = e.deltaY < 0 ? 10 * dir : -10 * dir;
+        handleSeek(Math.min(duration, Math.max(0, position + stepSeconds)));
+        handleMouseMove();
+        return;
+      }
+
       // Intercept scroll wheel on hero page
       e.preventDefault();
 
       // e.deltaY < 0 means scroll wheel up (increase volume)
       // e.deltaY > 0 means scroll wheel down (decrease volume)
       const step = e.deltaY < 0 ? 5 : -5;
+      const maxVol = useSettingsStore.getState().subtitleSettings?.audioMaxVolume || 100;
 
       setVolume((prevVol) => {
-        const newVol = Math.min(100, Math.max(0, prevVol + step));
+        const newVol = Math.min(maxVol, Math.max(0, prevVol + step));
         if (newVol !== prevVol) {
           Bridge.setVolume(newVol).catch(console.error);
         }
@@ -1846,7 +2026,19 @@ function useTmdbPresencePoster(
     return () => {
       window.removeEventListener('wheel', handleWheel);
     };
-  }, [activeView, setVolume, handleMouseMove]);
+  }, [activeView, setVolume, handleMouseMove, useScrollwheelSeek, useScrollwheelSeekInvert, currentChannel, vodInfo, position, duration, handleSeek]);
+
+  // Remote/gamepad directional input counts as activity, exactly like a mouse
+  // move: it reveals the auto-hidden titlebar and hero overlay and resets the
+  // auto-hide timer. The event is emitted by the spatial navigation engine on
+  // every dispatched directional action.
+  useEffect(() => {
+    const onSpatialActivity = () => handleMouseMovePip();
+    window.addEventListener('ynotv:spatial-activity', onSpatialActivity);
+    return () => {
+      window.removeEventListener('ynotv:spatial-activity', onSpatialActivity);
+    };
+  }, [handleMouseMovePip]);
 
   // ==========================================================================
   // Aspect Ratio — tracked separately for the hero screen
@@ -1960,6 +2152,55 @@ function useTmdbPresencePoster(
   const channelChangeFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transparentGuideFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [guideTransparent, setGuideTransparent] = useState(false);
+  // Stable CategoryStrip callbacks so the memoized CategoryStrip doesn't re-render
+  // on every channel-highlight change while the user navigates the channel list.
+  // Without this, App's re-render (setCurrentChannel) reconciles the sidebar's full
+  // expanded-source tree (thousands of dnd-kit sortable rows for large sources)
+  // on each navigation step, which is the cause of the scroll jank with big sources.
+  const handleCategorySelect = useCallback(
+    (catId: string | null) => {
+      if (isSearchMode) {
+        setSearchQuery('');
+      }
+      if (catId !== '__watchlist__') {
+        setIsWatchlistMode(false);
+      }
+      handleSelectCategory(catId);
+    },
+    [isSearchMode, setSearchQuery, setIsWatchlistMode, handleSelectCategory]
+  );
+  const handleCategoryEditSource = useCallback((sourceId: string) => {
+    setSettingsTab('sources');
+    setEditSourceId(sourceId);
+    setShowSettingsPopup(true);
+    setCategoriesOpen(false);
+  }, [setSettingsTab, setEditSourceId, setShowSettingsPopup, setCategoriesOpen]);
+  const handleCategoryClose = useCallback(() => {
+    setCategoriesOpen(false);
+    if (guideTransparent) {
+      setCategoriesHiddenTransparent(true);
+    } else {
+      setCategoriesHidden(true);
+    }
+  }, [setCategoriesOpen, guideTransparent, setCategoriesHiddenTransparent, setCategoriesHidden]);
+  const handleCategoryShow = useCallback(() => {
+    setCategoriesOpen(true);
+    if (guideTransparent) {
+      setCategoriesHiddenTransparent(false);
+    } else {
+      setCategoriesHidden(false);
+    }
+  }, [setCategoriesOpen, guideTransparent, setCategoriesHiddenTransparent, setCategoriesHidden]);
+
+  // Auto-hide category sidebar: entering LiveTV starts with the sidebar closed
+  // (it pops open on left-edge hover). The effect only fires on view/setting
+  // changes — never while the user is already in the guide with it open, so a
+  // hover-pop-open is never yanked shut.
+  useEffect(() => {
+    if (categorySidebarAutohide && activeView === 'guide') {
+      setCategoriesOpen(false);
+    }
+  }, [categorySidebarAutohide, activeView, setCategoriesOpen]);
   const [isTransparentGuideZapActive, setIsTransparentGuideZapActive] = useState(false);
   const [liveTvDesign, setLiveTvDesign] = useState<'v1' | 'v2' | 'v3'>('v3');
   // Design version comes from the settings store (hydration latches the
@@ -1977,24 +2218,56 @@ function useTmdbPresencePoster(
       const schemes = ['scheme-apple', 'scheme-sunset', 'scheme-aurora', 'scheme-forest'];
       const chosen = schemes[Math.floor(Math.random() * schemes.length)];
       setRandomScheme(chosen);
-    } else {
+    }
+    if (activeView !== 'guide' && activeView !== 'sports') {
       setPreviewVideoRect(null);
     }
   }, [activeView]);
 
-  // Reset video scale and alignment to fullscreen globally when no preview pane is active
+  // Reset video scale and alignment to fullscreen globally when returning to main hero view without an active preview pane
   useEffect(() => {
-    if (!previewVideoRect) {
-      Bridge.setProperties({
-        'video-zoom': 0,
-        'video-align-x': 0,
-        'video-align-y': 0,
-        'video-aspect-override': -1,
-        'keepaspect': true,
-      }).catch(() => { });
-      invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
+    if (!previewVideoRect && activeView === 'none') {
+      if (multiviewLayout === 'main') {
+        Bridge.setProperties({
+          'video-zoom': 0,
+          'video-align-x': 0,
+          'video-align-y': 0,
+          'video-aspect-override': -1,
+          'keepaspect': true,
+        }).catch(() => { });
+        invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
+      } else {
+        syncMpvGeometry(multiviewLayout);
+      }
     }
-  }, [previewVideoRect]);
+  }, [previewVideoRect, activeView, multiviewLayout, syncMpvGeometry]);
+
+  // On Windows, mpv's embedded window follows the parent via a
+  // WM_WINDOWPOSCHANGED hook and re-fits itself to the FULL parent on
+  // activation (clicking another program, then clicking back). The LiveTV and
+  // sports previews re-assert their rects from their own focus listeners; this
+  // one covers the hero page and its multiview cell layouts.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let disposed = false;
+    import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+      getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+        if (!focused || activeView !== 'none') return;
+        if (multiviewLayout === 'main') {
+          invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
+        } else {
+          syncMpvGeometry(multiviewLayout);
+        }
+      }).then((u) => {
+        if (disposed) u();
+        else unlisten = u;
+      }).catch(() => { });
+    }).catch(() => { });
+    return () => {
+      disposed = true;
+      if (unlisten) unlisten();
+    };
+  }, [activeView, multiviewLayout, syncMpvGeometry]);
 
   const triggerChannelChangeFlash = useCallback(() => {
     if (!channelInfoOverlayEnabled) return;
@@ -2038,12 +2311,15 @@ function useTmdbPresencePoster(
 
   const isChannelInfoOverlayVisible = useMemo(() => {
     if (!channelInfoOverlayEnabled || !currentChannel || pipMode) return false;
+    // In multiview the main channel is confined to a grid cell — the overlay
+    // would float over unrelated cells, so it's suppressed entirely.
+    if (multiviewLayout !== 'main') return false;
     const isVod = currentChannel.stream_id === 'vod' || currentChannel.stream_id?.startsWith('recording_');
     if (isVod) return false;
     // Don't show when in LiveTV guide (unless transparent guide is active and triggered by zapping) or Sports views
     if ((activeView === 'guide' && (!guideTransparent || !isTransparentGuideZapActive)) || activeView === 'sports') return false;
     return showControls || channelChangeFlash;
-  }, [channelInfoOverlayEnabled, currentChannel, pipMode, showControls, channelChangeFlash, activeView, guideTransparent, isTransparentGuideZapActive]);
+  }, [channelInfoOverlayEnabled, currentChannel, pipMode, multiviewLayout, showControls, channelChangeFlash, activeView, guideTransparent, isTransparentGuideZapActive]);
 
 
   // ==========================================================================
@@ -2100,10 +2376,9 @@ function useTmdbPresencePoster(
   // ==========================================================================
   // Recent Channels Overlay Widget State
   // ==========================================================================
-  const [recentOverlayWidget, setRecentOverlayWidget] = useState<'5' | '10' | null>(() => {
+  const [recentOverlayWidget, setRecentOverlayWidget] = useState<'10' | null>(() => {
     const saved = localStorage.getItem('recentOverlayWidget');
-    if (saved === 'true') return '5';
-    return (saved === '5' || saved === '10') ? saved : null;
+    return (saved === 'true' || saved === '5' || saved === '10') ? '10' : null;
   });
 
   const [bgContextMenu, setBgContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -2151,12 +2426,36 @@ function useTmdbPresencePoster(
   const handleRemoveSportsLiveSidebar = useCallback(() => {
     setSportsLiveSidebarWidget(false);
     localStorage.removeItem('sportsLiveSidebarWidget');
+    setLiveGameSidebarOpen(false);
   }, []);
 
-  const handleAddRecent5Overlay = useCallback(() => {
-    setRecentOverlayWidget('5');
-    localStorage.setItem('recentOverlayWidget', '5');
+  // Open state of the Live Game Sidebar drawer (lifted so hover/trigger
+  // interactions can open/close it).
+  const [liveGameSidebarOpen, setLiveGameSidebarOpen] = useState(false);
+
+  // Open state of the Live Games modal — the controller/remote entry point
+  // for live sports (mouse users keep the hover drawer).
+  const [liveGamesModalOpen, setLiveGamesModalOpen] = useState(false);
+
+  // 'Toggle Live Game Sidebar' controller/remote action: opens the
+  // controller-friendly Live Games modal instead of the mouse hover drawer.
+  useEffect(() => {
+    const handleToggleLiveGameSidebar = () => {
+      setLiveGamesModalOpen((prev) => !prev);
+    };
+    window.addEventListener('ynotv:gamepad-toggle-live-game-sidebar', handleToggleLiveGameSidebar);
+    return () => window.removeEventListener('ynotv:gamepad-toggle-live-game-sidebar', handleToggleLiveGameSidebar);
   }, []);
+
+  // Close the Live Game Sidebar drawer and the Live Games modal when the user
+  // navigates away from the main screen (Live TV, Movies, Series, Sports hub,
+  // …) so neither lingers open behind a different view.
+  useEffect(() => {
+    if (activeView !== 'none') {
+      setLiveGameSidebarOpen(false);
+      setLiveGamesModalOpen(false);
+    }
+  }, [activeView]);
 
   const handleAddRecent10Overlay = useCallback(() => {
     setRecentOverlayWidget('10');
@@ -2297,6 +2596,7 @@ function useTmdbPresencePoster(
   const setChannelSyncing = useSetChannelSyncing();
   const setVodSyncing = useSetVodSyncing();
   const setSyncStatusMessage = useSetSyncStatusMessage();
+  const setSyncProgress = useSetSyncProgress();
   const setChannelSortOrder = useSetChannelSortOrder();
   const setChannelSortOrderMigrated = useSetChannelSortOrderMigrated();
   const channelSortOrderMigrated = useChannelSortOrderMigrated();
@@ -2352,6 +2652,8 @@ function useTmdbPresencePoster(
   // Advanced Search State
   // ==========================================================================
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  // Dedicated controller/remote search modal (opened by the mapped search button).
+  const [showControllerSearch, setShowControllerSearch] = useState(false);
   const [advancedSearchConfig, setAdvancedSearchConfig] = useState<AdvancedSearchConfig>({
     query: '',
     scope: advancedSearchScope,
@@ -2388,6 +2690,47 @@ function useTmdbPresencePoster(
   const titlebarSearchHistory = useSearchHistory('titlebar');
   const [showTitlebarHistory, setShowTitlebarHistory] = useState(false);
   const titlebarHistoryRef = useRef<HTMLDivElement | null>(null);
+
+  // Phone remote search input → live search in the guide (mirrors typing in the
+  // titlebar search box). commit = Enter / Go on the remote also records the
+  // query in search history. A remote query supersedes the controller search
+  // modal, so the modal is closed when the user types from the phone.
+  useEffect(() => {
+    const handleRemoteSearchQuery = (e: Event) => {
+      const { query, commit } = (e as CustomEvent).detail || {};
+      const q = typeof query === 'string' ? query : '';
+      setSearchQuery(q);
+      setShowControllerSearch(false);
+      if (q.trim()) {
+        setCategoriesOpen(true);
+        if (activeViewRef.current !== 'guide') {
+          setActiveView('guide');
+        }
+        if (commit) {
+          titlebarSearchHistory.addToHistory(q.trim());
+        }
+      }
+    };
+    window.addEventListener('ynotv:remote-search-query', handleRemoteSearchQuery);
+    return () => window.removeEventListener('ynotv:remote-search-query', handleRemoteSearchQuery);
+  }, []);
+
+  // Text typed in the phone remote's type-into-field modal routes to whichever
+  // search box the user activated from the remote (VOD / Stremio / Nuvio).
+  useEffect(() => {
+    const handleRemoteTextInput = (e: Event) => {
+      const { fieldId, text, commit, cancel } = (e as CustomEvent).detail || {};
+      if (cancel) return; // cancelled on the phone — keep the field's value
+      const field = getTextField(fieldId);
+      if (!field) return;
+      field.setValue(text);
+      if (commit) {
+        field.commit(text);
+      }
+    };
+    window.addEventListener('ynotv:remote-text-input', handleRemoteTextInput);
+    return () => window.removeEventListener('ynotv:remote-text-input', handleRemoteTextInput);
+  }, []);
 
   // Determine active filters for search
   const activeSearchSourceIds = useMemo(() => {
@@ -2491,17 +2834,90 @@ function useTmdbPresencePoster(
     }
   }, []);
 
-  const handlePlayChannelWrapper = useCallback(async (channel: StoredChannel, autoSwitched?: boolean) => {
+  const handlePlayChannelWrapper = useCallback(async (
+    channel: StoredChannel,
+    autoSwitched?: boolean,
+    categoryOverride?: string,
+    directPlay?: boolean
+  ) => {
     setPlaybackSourceView(null);
+    // Same monotonic guard as handlePlayChannel: the failover-primary lookup
+    // is async, so rapid channel picks must not resolve out of order.
+    const playSeq = ++playChannelSeqRef.current;
+    let targetChannel = channel;
+    let swappedToPrimary = false;
+    if (!autoSwitched && !directPlay && useSettingsStore.getState().failoverAlwaysPlayPrimary) {
+      try {
+        const primary = await getPrimaryChannelForGroup(channel.stream_id);
+        if (primary) {
+          targetChannel = primary;
+          swappedToPrimary = true;
+        }
+      } catch (err) {
+        console.error('[App] Failed to lookup primary failover channel:', err);
+      }
+    }
+    if (playSeq !== playChannelSeqRef.current) return; // superseded by a newer pick
+
+    // failoverKeepView: when the tune was redirected to a group primary, keep
+    // the guide anchored to the channel the user actually picked (and its
+    // category) instead of jumping the view to the primary. The anchor is what
+    // channel up/down then navigates from, so zapping follows the category the
+    // user was browsing even though the primary is the stream playing.
+    const keepView = useSettingsStore.getState().failoverKeepView;
+    if (keepView) {
+      failoverNavAnchorRef.current = channel;
+      setFailoverNavAnchor(channel);
+    } else if (swappedToPrimary) {
+      failoverNavAnchorRef.current = null;
+      setFailoverNavAnchor(null);
+    }
+    if (categoryOverride && categoryOverride !== categoryId) {
+      setCategoryId(categoryOverride);
+    }
     const currentMode = popoutModeRef.current;
     if (currentMode === 'external') {
-      await handlePlayInExternal(channel);
+      await handlePlayInExternal(targetChannel);
     } else if (currentMode === 'popout') {
-      popoutSwapChannel(channel);
+      popoutSwapChannel(targetChannel);
     } else {
-      handlePlayChannel(channel, autoSwitched);
+      handlePlayChannel(targetChannel, autoSwitched, true);
     }
-  }, [handlePlayChannel, popoutSwapChannel, handlePlayInExternal]);
+  }, [handlePlayChannel, popoutSwapChannel, handlePlayInExternal, categoryId, setCategoryId]);
+
+  useEffect(() => {
+    handlePlayChannelWrapperRef.current = handlePlayChannelWrapper;
+  }, [handlePlayChannelWrapper]);
+
+  // Channel queued by a live-sports play action while a multiview layout is
+  // active — the user still has to pick which screen it goes to.
+  const [multiviewPlayTarget, setMultiviewPlayTarget] = useState<StoredChannel | null>(null);
+
+  // Sports entry points (sidebar drawer, Live Games modal, ticker) play
+  // through here: in multiview the user picks a target screen; otherwise it
+  // just plays in the main player like any other channel click.
+  const handleSportsChannelPlay = useCallback((channel: StoredChannel) => {
+    if (multiviewLayout !== 'main') {
+      setMultiviewPlayTarget(channel);
+      return;
+    }
+    handlePlayChannelWrapper(channel);
+  }, [multiviewLayout, handlePlayChannelWrapper]);
+
+  // GameDetail's "Watch on" buttons only carry a channel NAME — resolve it to
+  // a StoredChannel, then route through the same picker/play flow.
+  const handleSportsChannelNamePlay = useCallback(async (channelName: string) => {
+    let channel = currentChannels.find((c) => c.name === channelName);
+    if (!channel) {
+      const channels = await db.channels.whereRaw('name = ?', [channelName]).toArray();
+      if (channels.length > 0) {
+        channel = channels[0];
+      }
+    }
+    if (channel) {
+      handleSportsChannelPlay(channel);
+    }
+  }, [currentChannels, handleSportsChannelPlay]);
 
   const handlePlayVodInExternal = useCallback(async (info: import('./types/media').VodPlayInfo) => {
     try {
@@ -2867,6 +3283,7 @@ function useTmdbPresencePoster(
     return () => window.removeEventListener('ynotv:search-vod', searchHandler);
   }, []);
 
+
   // ==========================================================================
   // Stremio & Nuvio Progress Updater — saves watch progress every 10 seconds
   // ==========================================================================
@@ -2923,26 +3340,6 @@ function useTmdbPresencePoster(
               epInfo.poster
             ).catch(() => {});
           }
-        } else if (isNuvio) {
-          // Sync to Nuvio Cloud
-          const nuvioAuth = useNuvioAuthStore.getState();
-          const nuvioToken = nuvioAuth.token;
-          const nuvioProfile = nuvioAuth.activeProfile;
-          if (nuvioToken && nuvioProfile) {
-            pushNuvioWatchProgress(nuvioToken, nuvioProfile.profile_index, [{
-              content_id: epInfo.metaId,
-              content_type: 'series',
-              video_id: epInfo.videoId,
-              season: epInfo.season,
-              episode: epInfo.episode,
-              position: Math.floor(pos * 1000),
-              duration: Math.floor(dur * 1000),
-              last_watched: Date.now(),
-              progress_key: `${epInfo.metaId}_s${epInfo.season}e${epInfo.episode}`,
-            }]).then(() => {
-              window.dispatchEvent(new CustomEvent('ynotv:nuvio-sync-required'));
-            }).catch(() => {});
-          }
         }
       } else if (movieInfo) {
         if (!isNuvio) {
@@ -2962,26 +3359,6 @@ function useTmdbPresencePoster(
               movieInfo.name,
               movieInfo.poster
             ).catch(() => {});
-          }
-        } else if (isNuvio) {
-          // Sync to Nuvio Cloud
-          const nuvioAuth = useNuvioAuthStore.getState();
-          const nuvioToken = nuvioAuth.token;
-          const nuvioProfile = nuvioAuth.activeProfile;
-          if (nuvioToken && nuvioProfile) {
-            pushNuvioWatchProgress(nuvioToken, nuvioProfile.profile_index, [{
-              content_id: movieInfo.metaId,
-              content_type: 'movie',
-              video_id: movieInfo.metaId,
-              season: null,
-              episode: null,
-              position: Math.floor(pos * 1000),
-              duration: Math.floor(dur * 1000),
-              last_watched: Date.now(),
-              progress_key: `${movieInfo.metaId}`,
-            }]).then(() => {
-              window.dispatchEvent(new CustomEvent('ynotv:nuvio-sync-required'));
-            }).catch(() => {});
           }
         }
       }
@@ -3036,6 +3413,15 @@ function useTmdbPresencePoster(
 
     // A user-initiated pause must never be treated as the episode ending.
     if (userPausedRef.current) return;
+
+    // Nuvio: push the final position on natural end so the cloud Continue
+    // Watching row reflects the completed item (NuvioDesktop flushes on player
+    // end too). endPos can read 0 on EOF (mpv resets position at unload), so
+    // fall back to the duration. No-op for non-Nuvio.
+    if (vodInfo?.source_id === 'nuvio') {
+      const finalPos = endPos > 1 ? endPos : (endDur > 0 ? endDur : 0);
+      void pushNuvioPlaybackProgress(vodInfo, finalPos, endDur);
+    }
 
     // Consume the signal so a re-render can't re-trigger auto-play.
     if (vodEndFileSignal) setVodEndFileSignal(null);
@@ -3177,7 +3563,9 @@ function useTmdbPresencePoster(
               console.log(`[AutoPlay] Found next episode: S${nextEpisode.season_num}E${nextEpisode.episode_num}`);
               
               const progress = await getEpisodeProgress(nextEpisode.id);
-              const resumePosition = progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+              const isCompleted = progress?.completed === 1 || 
+                ((progress?.total_duration ?? 0) > 0 && ((progress?.progress_seconds ?? 0) / (progress?.total_duration ?? 1)) >= 0.95);
+              const resumePosition = !isCompleted && progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
               
               const series = await db.vodSeries.get(seriesId);
               const coverUrl = series ? (series.cover || (series as any).stream_icon) : undefined;
@@ -3296,7 +3684,7 @@ function useTmdbPresencePoster(
       return;
     }
 
-    if (vodInfo?.type === 'recording') {
+    if (vodInfo?.type === 'recording' || vodInfo?.source_id === 'trailer') {
       if (scrobblingMediaRef.current) {
         const finalPercent = lastKnownProgressPercentRef.current;
         console.log('[Scrobbler] Playback ended, stopping scrobble at percent:', finalPercent);
@@ -3342,20 +3730,19 @@ function useTmdbPresencePoster(
           type = 'movie';
         }
       } else {
-        // Native VOD
-        imdbId = vodInfo.mediaId && vodInfo.mediaId.startsWith('tt') ? vodInfo.mediaId : undefined;
+        // Native VOD / Local Library
+        if (vodInfo.imdbId && /tt\d{7,8}/i.test(vodInfo.imdbId)) {
+          imdbId = vodInfo.imdbId;
+        } else {
+          const match = vodInfo.mediaId?.match(/(tt\d{7,8})/i) || vodInfo.seriesId?.match(/(tt\d{7,8})/i);
+          if (match?.[1]) {
+            imdbId = match[1];
+          }
+        }
         if (vodInfo.type === 'series') {
           type = 'series';
           season = vodInfo.seasonNum;
           episode = vodInfo.episodeNum;
-          
-          // If mediaId is structured like "imdb_ep_id", extract the first part if it's an imdb id
-          if (vodInfo.mediaId && vodInfo.mediaId.includes('_ep_')) {
-            const parts = vodInfo.mediaId.split('_ep_');
-            if (parts[0] && parts[0].startsWith('tt')) {
-              imdbId = parts[0];
-            }
-          }
         }
       }
 
@@ -3505,6 +3892,50 @@ function useTmdbPresencePoster(
             return;
           }
         }
+      } else if (vodInfo.source_id === 'local') {
+        // Local series: episodes live in the local library (not the VOD DB), so
+        // resolve adjacency from the in-memory library. Boundaries do not fall
+        // through to channel navigation — the player greys out the buttons.
+        const episodes = getLocalEpisodeList(vodInfo.episodeId);
+        const currentIdx = episodes
+          ? episodes.findIndex((ep) => ep.id === vodInfo.episodeId)
+          : -1;
+        const prevEpisode = currentIdx > 0 ? episodes![currentIdx - 1] : null;
+        if (prevEpisode) {
+          const seriesKey = (
+            prevEpisode.imdbId ||
+            (prevEpisode.tmdbId ? `tmdb_${prevEpisode.tmdbId}` : null) ||
+            prevEpisode.title ||
+            ''
+          ).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+          const head = episodes!.find((e) => e.poster) ?? episodes![0];
+          const progress = await getEpisodeProgress(prevEpisode.id);
+          const isCompleted = progress?.completed === 1 || 
+            ((progress?.total_duration ?? 0) > 0 && ((progress?.progress_seconds ?? 0) / (progress?.total_duration ?? 1)) >= 0.95);
+          const resumePosition = !isCompleted && progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+          void recordVodWatch(
+            vodInfo.seriesId,
+            'series',
+            vodInfo.source_id || '',
+            vodInfo.title,
+            undefined,
+            prevEpisode.season ?? 1,
+            prevEpisode.episode ?? 1,
+            prevEpisode.title || `Episode ${prevEpisode.episode}`
+          );
+          void recordEpisodeWatch(
+            prevEpisode.id,
+            vodInfo.seriesId,
+            vodInfo.source_id || '',
+            prevEpisode.season ?? 1,
+            prevEpisode.episode ?? 1,
+            prevEpisode.title || `Episode ${prevEpisode.episode}`,
+            resumePosition,
+            prevEpisode.runtime ? prevEpisode.runtime * 60 : 0
+          );
+          await handlePlayVod(localEntryToVodPlayInfo(prevEpisode, { key: seriesKey, head }));
+        }
+        return;
       } else {
         // VOD series: navigate via DB episodes
         const prevEpisode = await getAdjacentEpisode(
@@ -3517,7 +3948,9 @@ function useTmdbPresencePoster(
         if (prevEpisode) {
           // Get progress for resume
           const progress = await getEpisodeProgress(prevEpisode.id);
-          const resumePosition = progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+          const isCompleted = progress?.completed === 1 || 
+            ((progress?.total_duration ?? 0) > 0 && ((progress?.progress_seconds ?? 0) / (progress?.total_duration ?? 1)) >= 0.95);
+          const resumePosition = !isCompleted && progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
           
           // Record watch history
           void recordVodWatch(
@@ -3565,16 +3998,32 @@ function useTmdbPresencePoster(
     }
     
     // Default: navigate channels
-    if (currentChannels.length > 0 && currentChannel) {
-      const currentIndex = currentChannels.findIndex((ch) => ch.stream_id === currentChannel.stream_id);
-      if (currentIndex > 0) {
-        handlePlayChannel(currentChannels[currentIndex - 1]);
-      } else if (currentIndex === 0) {
-        // Wrap to last channel
-        handlePlayChannel(currentChannels[currentChannels.length - 1]);
+    if (currentChannel) {
+      // With failoverKeepView, navigate from the channel the user last picked
+      // (which may differ from the actually-playing failover primary) so zapping
+      // stays inside the category they were browsing.
+      const keepView = useSettingsStore.getState().failoverKeepView;
+      const navChannel =
+        keepView && failoverNavAnchorRef.current &&
+        currentChannels.some((c) => c.stream_id === failoverNavAnchorRef.current?.stream_id)
+          ? failoverNavAnchorRef.current
+          : currentChannel;
+      const { list: channelsList, index: currentIndex, resolvedCategoryId } = await resolveChannelNavList(navChannel, currentChannels);
+      if (resolvedCategoryId) {
+        setCategoryId(resolvedCategoryId);
+      }
+      if (currentIndex >= 0 && channelsList.length > 0) {
+        const nextChannel = currentIndex > 0
+          ? channelsList[currentIndex - 1]
+          : channelsList[channelsList.length - 1]; // Wrap to last channel
+        if (keepView) {
+          failoverNavAnchorRef.current = nextChannel;
+          setFailoverNavAnchor(nextChannel);
+        }
+        handlePlayChannel(nextChannel);
       }
     }
-  }, [currentChannels, currentChannel, handlePlayChannel, vodInfo, handlePlayVod, handleStop]);
+  }, [currentChannels, currentChannel, handlePlayChannel, vodInfo, handlePlayVod, handleStop, setCategoryId]);
 
   const handleChannelDown = useCallback(async () => {
     // Check if we're watching a series with episode info
@@ -3625,6 +4074,56 @@ function useTmdbPresencePoster(
             return;
           }
         }
+      } else if (vodInfo.source_id === 'local') {
+        // Local series: episodes live in the local library (not the VOD DB), so
+        // resolve adjacency from the in-memory library. End of the last season
+        // rolls to the next season's first episode naturally via the flat
+        // (season, episode) ordering; the final episode does not fall through
+        // to channel navigation.
+        const episodes = getLocalEpisodeList(vodInfo.episodeId);
+        const currentIdx = episodes
+          ? episodes.findIndex((ep) => ep.id === vodInfo.episodeId)
+          : -1;
+        const nextEpisode = currentIdx >= 0 && episodes && currentIdx < episodes.length - 1 ? episodes[currentIdx + 1] : null;
+        if (nextEpisode) {
+          const seriesKey = (
+            nextEpisode.imdbId ||
+            (nextEpisode.tmdbId ? `tmdb_${nextEpisode.tmdbId}` : null) ||
+            nextEpisode.title ||
+            ''
+          ).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+          const head = episodes!.find((e) => e.poster) ?? episodes![0];
+          const progress = await getEpisodeProgress(nextEpisode.id);
+          const isCompleted = progress?.completed === 1 || 
+            ((progress?.total_duration ?? 0) > 0 && ((progress?.progress_seconds ?? 0) / (progress?.total_duration ?? 1)) >= 0.95);
+          const resumePosition = !isCompleted && progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+          const curDur = durationRef.current;
+          const curPos = positionRef.current;
+          const curPercent = curDur > 0 ? Math.min(100, (curPos / curDur) * 100) : lastKnownProgressPercentRef.current;
+          scrobbler.stopScrobble(curPercent).catch(console.error);
+          void recordVodWatch(
+            vodInfo.seriesId,
+            'series',
+            vodInfo.source_id || '',
+            vodInfo.title,
+            undefined,
+            nextEpisode.season ?? 1,
+            nextEpisode.episode ?? 1,
+            nextEpisode.title || `Episode ${nextEpisode.episode}`
+          );
+          void recordEpisodeWatch(
+            nextEpisode.id,
+            vodInfo.seriesId,
+            vodInfo.source_id || '',
+            nextEpisode.season ?? 1,
+            nextEpisode.episode ?? 1,
+            nextEpisode.title || `Episode ${nextEpisode.episode}`,
+            resumePosition,
+            nextEpisode.runtime ? nextEpisode.runtime * 60 : 0
+          );
+          await handlePlayVod(localEntryToVodPlayInfo(nextEpisode, { key: seriesKey, head }));
+        }
+        return;
       } else {
         // VOD series: navigate via DB episodes
         const nextEpisode = await getAdjacentEpisode(
@@ -3637,7 +4136,9 @@ function useTmdbPresencePoster(
         if (nextEpisode) {
           // Get progress for resume
           const progress = await getEpisodeProgress(nextEpisode.id);
-          const resumePosition = progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
+          const isCompleted = progress?.completed === 1 || 
+            ((progress?.total_duration ?? 0) > 0 && ((progress?.progress_seconds ?? 0) / (progress?.total_duration ?? 1)) >= 0.95);
+          const resumePosition = !isCompleted && progress?.progress_seconds && progress.progress_seconds > 10 ? progress.progress_seconds : 0;
 
           // Stop scrobbling the current episode at its current progress so it is
           // saved as resumable playback (or watched if already >=80%) on Trakt/Simkl
@@ -3694,16 +4195,48 @@ function useTmdbPresencePoster(
     }
     
     // Default: navigate channels
-    if (currentChannels.length > 0 && currentChannel) {
-      const currentIndex = currentChannels.findIndex((ch) => ch.stream_id === currentChannel.stream_id);
-      if (currentIndex >= 0 && currentIndex < currentChannels.length - 1) {
-        handlePlayChannel(currentChannels[currentIndex + 1]);
-      } else if (currentIndex === currentChannels.length - 1) {
-        // Wrap to first channel
-        handlePlayChannel(currentChannels[0]);
+    if (currentChannel) {
+      // With failoverKeepView, navigate from the channel the user last picked
+      // (which may differ from the actually-playing failover primary) so zapping
+      // stays inside the category they were browsing.
+      const keepView = useSettingsStore.getState().failoverKeepView;
+      const navChannel =
+        keepView && failoverNavAnchorRef.current &&
+        currentChannels.some((c) => c.stream_id === failoverNavAnchorRef.current?.stream_id)
+          ? failoverNavAnchorRef.current
+          : currentChannel;
+      const { list: channelsList, index: currentIndex, resolvedCategoryId } = await resolveChannelNavList(navChannel, currentChannels);
+      if (resolvedCategoryId) {
+        setCategoryId(resolvedCategoryId);
+      }
+      if (currentIndex >= 0 && channelsList.length > 0) {
+        const nextChannel = currentIndex < channelsList.length - 1
+          ? channelsList[currentIndex + 1]
+          : channelsList[0]; // Wrap to first channel
+        if (keepView) {
+          failoverNavAnchorRef.current = nextChannel;
+          setFailoverNavAnchor(nextChannel);
+        }
+        handlePlayChannel(nextChannel);
       }
     }
-  }, [currentChannels, currentChannel, handlePlayChannel, vodInfo, handlePlayVod, handleStop]);
+  }, [currentChannels, currentChannel, handlePlayChannel, vodInfo, handlePlayVod, handleStop, setCategoryId]);
+
+  // The channel the guide grid should highlight and scroll to. With
+  // failoverKeepView, the row the user picked stays visually selected even
+  // though the failover primary is the stream that's actually playing. Stricter
+  // than remoteViewChannel: only follows the anchor while it's still in the
+  // current category, so switching categories falls back to the playing channel.
+  const guideHighlightChannel = useMemo(() => {
+    if (
+      failoverKeepViewSetting &&
+      failoverNavAnchor &&
+      currentChannels.some((c) => c.stream_id === failoverNavAnchor.stream_id)
+    ) {
+      return failoverNavAnchor;
+    }
+    return currentChannel;
+  }, [failoverKeepViewSetting, failoverNavAnchor, currentChannels, currentChannel]);
 
   // ==========================================================================
   // Keyboard Shortcuts (using latest ref pattern)
@@ -3720,6 +4253,8 @@ function useTmdbPresencePoster(
     position,
     currentChannels,
     currentChannel,
+    categoryId,
+    setCategoryId,
     switchLayout,
     titleBarSearchRef,
     handlePlayChannel,
@@ -3743,6 +4278,415 @@ function useTmdbPresencePoster(
     onTransparentGuideZapFlash: triggerTransparentGuideZapFlash,
     handleMouseBackNavigation,
   });
+
+  // ==========================================================================
+  // Gamepad & Virtual Phone Remote Event Router
+  // ==========================================================================
+  useGamepad();
+  // Keyboard-as-controller: lets mapped keyboard keys drive the controller UI
+  // (spatial nav / chords) for HTPC wireless keyboard remotes.
+  useKeyboardAsController();
+
+  const remoteRefs = useRef({
+    activeView,
+    categoriesOpen,
+    categoriesHidden,
+    guideTransparent,
+    showSettingsPopup,
+    showSubtitleModal,
+    showAdvancedSearch,
+    showControllerSearch,
+    showShortcutsOverlay,
+    currentChannel,
+    categoryId,
+    setCategoryId,
+    multiviewLayout,
+    volume,
+    muted,
+    setVolume,
+    handleVolumeChange,
+    handleTogglePlay,
+    handleToggleFullscreen,
+    handleToggleMute,
+    handleShowSubtitleModal,
+    handleSeek,
+    handleChannelUp,
+    handleChannelDown,
+    setActiveView,
+    setCategoriesOpen,
+    setGuideTransparent,
+    setShowSettingsPopup,
+    setShowSubtitleModal,
+    setShowAdvancedSearch,
+    setShowControllerSearch,
+    setShowShortcutsOverlay,
+    setShowControls,
+    categoriesHiddenTransparent,
+  });
+  remoteRefs.current = {
+    activeView,
+    categoriesOpen,
+    categoriesHidden,
+    categoriesHiddenTransparent,
+    guideTransparent,
+    showSettingsPopup,
+    showSubtitleModal,
+    showAdvancedSearch,
+    showControllerSearch,
+    showShortcutsOverlay,
+    currentChannel,
+    categoryId,
+    setCategoryId,
+    multiviewLayout,
+    volume,
+    muted,
+    setVolume,
+    handleVolumeChange,
+    handleTogglePlay,
+    handleToggleFullscreen,
+    handleToggleMute,
+    handleShowSubtitleModal,
+    handleSeek,
+    handleChannelUp,
+    handleChannelDown,
+    setActiveView,
+    setCategoriesOpen,
+    setGuideTransparent,
+    setShowSettingsPopup,
+    setShowSubtitleModal,
+    setShowAdvancedSearch,
+    setShowControllerSearch,
+    setShowShortcutsOverlay,
+    setShowControls,
+  };
+
+  useEffect(() => {
+    const onNavView = (e: Event) => {
+      const { view } = (e as CustomEvent).detail || {};
+      const {
+        activeView: curView,
+        categoriesHidden: catHidden,
+        guideTransparent: isTrans,
+        showSettingsPopup: isSettingsPopup,
+        showSubtitleModal: isSubModal,
+        showAdvancedSearch: isAdvSearch,
+        showShortcutsOverlay: isShortOverlay,
+        currentChannel: curChan,
+        categoryId: curCatId,
+        setCategoryId: setCatId,
+        multiviewLayout: layout,
+        setActiveView: setView,
+        setCategoriesOpen: setCats,
+        setGuideTransparent: setTrans,
+        setShowSettingsPopup: setSettingsPopup,
+        setShowSubtitleModal: setSubModal,
+        setShowAdvancedSearch: setSearch,
+        setShowShortcutsOverlay: setShortOverlay,
+      } = remoteRefs.current;
+
+      if (!view) return;
+
+      switch (view) {
+        case 'livetv':
+          if (curView === 'guide') {
+            if (isTrans) {
+              setTrans(false);
+              setCats(!catHidden);
+            } else {
+              setView('none');
+              setCats(false);
+            }
+          } else {
+            setView('guide');
+            setCats(!catHidden);
+            if (!curCatId && curChan?.category_ids) {
+              const catIds = parseCategoryIds(curChan.category_ids);
+              if (catIds.length > 0) {
+                setCatId(catIds[0]);
+              }
+            }
+          }
+          {
+            const focusChannel = (attempts = 0) => {
+              // Restore the last browsing position for this view when possible.
+              if (tryRestoreFocus()) return;
+              // Only fall back to the currently-playing channel when there is
+              // no remembered position (otherwise memory would be clobbered).
+              if (!hasFocusMemory()) {
+                const playingChan =
+                  document.querySelector<HTMLElement>('.guide-channel-row.currently-playing .guide-channel-info') ||
+                  document.querySelector<HTMLElement>('.guide-channel-row.selected .guide-channel-info');
+                if (playingChan) {
+                  applyTvFocus(playingChan);
+                  return;
+                }
+              }
+              if (attempts < 12) {
+                setTimeout(() => focusChannel(attempts + 1), 70);
+              } else {
+                focusFirstInteractive();
+              }
+            };
+            setTimeout(() => focusChannel(), 60);
+          }
+          break;
+
+        case 'guide':
+          if (curView === 'guide') {
+            setView('none');
+            setCats(false);
+          } else {
+            setView('guide');
+            if (!curCatId && curChan?.category_ids) {
+              const catIds = parseCategoryIds(curChan.category_ids);
+              if (catIds.length > 0) {
+                setCatId(catIds[0]);
+              }
+            }
+          }
+          {
+            const focusChannel = (attempts = 0) => {
+              // Restore the last browsing position for this view when possible.
+              if (tryRestoreFocus()) return;
+              // Only fall back to the currently-playing channel when there is
+              // no remembered position (otherwise memory would be clobbered).
+              if (!hasFocusMemory()) {
+                const playingChan =
+                  document.querySelector<HTMLElement>('.guide-channel-row.currently-playing .guide-channel-info') ||
+                  document.querySelector<HTMLElement>('.guide-channel-row.selected .guide-channel-info');
+                if (playingChan) {
+                  applyTvFocus(playingChan);
+                  return;
+                }
+              }
+              if (attempts < 12) {
+                setTimeout(() => focusChannel(attempts + 1), 70);
+              } else {
+                focusFirstInteractive();
+              }
+            };
+            setTimeout(() => focusChannel(), 60);
+          }
+          break;
+
+        case 'movies':
+          setCats(false);
+          setView(curView === 'movies' ? 'none' : 'movies');
+          setTimeout(() => focusViewOnOpen(), 120);
+          break;
+
+        case 'series':
+          setCats(false);
+          setView(curView === 'series' ? 'none' : 'series');
+          setTimeout(() => focusViewOnOpen(), 120);
+          break;
+
+        case 'sports':
+          setCats(false);
+          setView(curView === 'sports' ? 'none' : 'sports');
+          setTimeout(() => focusViewOnOpen(), 120);
+          break;
+
+        case 'calendar':
+          setCats(false);
+          setView(curView === 'calendar' ? 'none' : 'calendar');
+          setTimeout(() => focusViewOnOpen(), 120);
+          break;
+
+        case 'dvr':
+          setCats(false);
+          setView(curView === 'dvr' ? 'none' : 'dvr');
+          setTimeout(() => focusViewOnOpen(), 120);
+          break;
+
+        case 'stremio':
+          setCats(false);
+          setView(curView === 'stremio' ? 'none' : 'stremio');
+          setTimeout(() => focusViewOnOpen(), 120);
+          break;
+
+        case 'nuvio':
+          setCats(false);
+          setView(curView === 'nuvio' ? 'none' : 'nuvio');
+          setTimeout(() => focusViewOnOpen(), 120);
+          break;
+
+        case 'settings':
+          setSettingsPopup(!isSettingsPopup);
+          setTimeout(() => focusViewOnOpen(), 120);
+          break;
+
+        case 'search':
+          setSearch((s) => !s);
+          setTimeout(() => focusViewOnOpen(), 120);
+          break;
+
+        case 'back':
+          // Safe hierarchical back navigation - never exits the window
+          if (isAdvSearch) {
+            setSearch(false);
+          } else if (isSubModal) {
+            setSubModal(false);
+          } else if (isShortOverlay) {
+            setShortOverlay(false);
+          } else if (isSettingsPopup) {
+            setSettingsPopup(false);
+          } else if (
+            curView === 'movies' ||
+            curView === 'series' ||
+            curView === 'sports' ||
+            curView === 'calendar' ||
+            curView === 'dvr' ||
+            curView === 'stremio' ||
+            curView === 'nuvio'
+          ) {
+            setView('none');
+            setCats(false);
+          } else if (curView === 'guide') {
+            if (isTrans) {
+              setTrans(false);
+              setCats(!catHidden);
+            } else {
+              setView('none');
+              setCats(false);
+            }
+          }
+          break;
+
+        case 'none':
+          setView('none');
+          setCats(false);
+          setSettingsPopup(false);
+          break;
+
+        default:
+          setView(view);
+          setTimeout(() => focusViewOnOpen(), 120);
+          break;
+      }
+    };
+
+    const onPlayPause = () => {
+      remoteRefs.current.handleTogglePlay?.();
+    };
+
+    const onSeek = (e: Event) => {
+      const { delta } = (e as CustomEvent).detail || {};
+      if (typeof delta === 'number') {
+        const cur = positionRef.current;
+        const dur = durationRef.current || 999999;
+        remoteRefs.current.handleSeek?.(Math.max(0, Math.min(dur, cur + delta)));
+      }
+    };
+
+    const onChannelStep = (e: Event) => {
+      const { step } = (e as CustomEvent).detail || {};
+      if (step > 0) {
+        remoteRefs.current.handleChannelDown?.();
+      } else {
+        remoteRefs.current.handleChannelUp?.();
+      }
+    };
+
+    const onFullscreen = () => {
+      remoteRefs.current.handleToggleFullscreen?.();
+    };
+
+    const onMute = () => {
+      remoteRefs.current.handleToggleMute?.();
+    };
+
+    const onSubtitles = () => {
+      remoteRefs.current.handleShowSubtitleModal?.();
+    };
+
+    const onSearch = () => {
+      // Controller/remote search opens the dedicated controller search modal.
+      remoteRefs.current.setShowControllerSearch?.(true);
+    };
+
+    const onToggleTransparentGuide = () => {
+      const {
+        activeView: curView,
+        guideTransparent: isTrans,
+        categoriesHiddenTransparent: catHiddenTrans,
+        setActiveView: setView,
+        setGuideTransparent: setTrans,
+        setCategoriesOpen: setCats,
+        setShowControls: setControls,
+      } = remoteRefs.current;
+      setControls?.(true);
+      if (curView === 'guide') {
+        if (isTrans) {
+          setView('none');
+          setCats(false);
+        } else {
+          setTrans(true);
+          setCats(!catHiddenTrans);
+        }
+      } else {
+        setTrans(true);
+        setView('guide');
+        setCats(!catHiddenTrans);
+      }
+      setTimeout(() => focusViewOnOpen(), 120);
+    };
+
+    const onToggleOverlay = () => {
+      remoteRefs.current.setShowControls?.((prev: boolean) => !prev);
+    };
+
+    const onVolumeStep = (e: Event) => {
+      const { delta } = (e as CustomEvent).detail || {};
+      if (typeof delta === 'number') {
+        const cur = remoteRefs.current.volume ?? 100;
+        const maxVol = useSettingsStore.getState().subtitleSettings?.audioMaxVolume || 100;
+        const target = Math.max(0, Math.min(maxVol, cur + delta));
+        remoteRefs.current.setVolume?.(target);
+        Bridge.setVolume(target).catch(console.error);
+        remoteRefs.current.setShowControls?.(true);
+      }
+    };
+
+    const onSetVolume = (e: Event) => {
+      const { volume } = (e as CustomEvent).detail || {};
+      if (typeof volume === 'number') {
+        const maxVol = useSettingsStore.getState().subtitleSettings?.audioMaxVolume || 100;
+        const target = Math.max(0, Math.min(maxVol, volume));
+        remoteRefs.current.setVolume?.(target);
+        Bridge.setVolume(target).catch(console.error);
+        remoteRefs.current.setShowControls?.(true);
+      }
+    };
+
+    window.addEventListener('ynotv:navigate-view', onNavView);
+    window.addEventListener('ynotv:gamepad-play-pause', onPlayPause);
+    window.addEventListener('ynotv:gamepad-seek', onSeek);
+    window.addEventListener('ynotv:gamepad-channel-step', onChannelStep);
+    window.addEventListener('ynotv:gamepad-toggle-fullscreen', onFullscreen);
+    window.addEventListener('ynotv:gamepad-toggle-mute', onMute);
+    window.addEventListener('ynotv:gamepad-volume-step', onVolumeStep);
+    window.addEventListener('ynotv:gamepad-set-volume', onSetVolume);
+    window.addEventListener('ynotv:gamepad-open-subtitles', onSubtitles);
+    window.addEventListener('ynotv:gamepad-open-search', onSearch);
+    window.addEventListener('ynotv:gamepad-toggle-transparent-guide', onToggleTransparentGuide);
+    window.addEventListener('ynotv:gamepad-toggle-overlay', onToggleOverlay);
+
+    return () => {
+      window.removeEventListener('ynotv:navigate-view', onNavView);
+      window.removeEventListener('ynotv:gamepad-play-pause', onPlayPause);
+      window.removeEventListener('ynotv:gamepad-seek', onSeek);
+      window.removeEventListener('ynotv:gamepad-channel-step', onChannelStep);
+      window.removeEventListener('ynotv:gamepad-toggle-fullscreen', onFullscreen);
+      window.removeEventListener('ynotv:gamepad-toggle-mute', onMute);
+      window.removeEventListener('ynotv:gamepad-volume-step', onVolumeStep);
+      window.removeEventListener('ynotv:gamepad-set-volume', onSetVolume);
+      window.removeEventListener('ynotv:gamepad-open-subtitles', onSubtitles);
+      window.removeEventListener('ynotv:gamepad-open-search', onSearch);
+      window.removeEventListener('ynotv:gamepad-toggle-transparent-guide', onToggleTransparentGuide);
+      window.removeEventListener('ynotv:gamepad-toggle-overlay', onToggleOverlay);
+    };
+  }, []);
 
   // ==========================================================================
   // Auto-Sync on Startup & Periodic Checking
@@ -3865,6 +4809,7 @@ function useTmdbPresencePoster(
               const batchNum = Math.floor(i / CONCURRENCY) + 1;
               const totalBatches = Math.ceil(total / CONCURRENCY);
               setSyncStatusMessage(i18n.t('common:syncingBatchWithPrefix', { prefix: statusPrefix, batch: batchNum, total: totalBatches, names: batch.map((s: any) => s.name).join(', ') }));
+              setSyncProgress({ done: batchNum, total: totalBatches });
               await Promise.all(
                 batch.map(async (source: any, idx: number) => {
                   const prefix = `[${i + idx + 1}/${total}] ${source.name}`;
@@ -3905,6 +4850,7 @@ function useTmdbPresencePoster(
                 const batchNum = Math.floor(i / CONCURRENCY) + 1;
                 const totalBatches = Math.ceil(total / CONCURRENCY);
                 setSyncStatusMessage(i18n.t('common:syncingVodBatchWithPrefix', { prefix: statusPrefix, batch: batchNum, total: totalBatches, names: batch.map((s: any) => s.name).join(', ') }));
+                setSyncProgress({ done: batchNum, total: totalBatches });
                 await Promise.all(batch.map((source: any) => syncVodForSource(source)));
               }
               setSyncStatusMessage(null);
@@ -3923,6 +4869,7 @@ function useTmdbPresencePoster(
         isAutoSyncingRef.current = false;
         setChannelSyncing(false);
         setVodSyncing(false);
+        setSyncProgress(null);
       }
     };
 
@@ -3936,7 +4883,7 @@ function useTmdbPresencePoster(
 
     // Cleanup interval on unmount
     return () => clearInterval(intervalId);
-  }, [setChannelSortOrder, setChannelSyncing, setVodSyncing, setSyncStatusMessage]);
+  }, [setChannelSortOrder, setChannelSyncing, setVodSyncing, setSyncStatusMessage, setSyncProgress]);
 
   // ==========================================================================
   // Window Size Initialization
@@ -3949,9 +4896,13 @@ function useTmdbPresencePoster(
         const settings = result.data || {};
 
         // Seed the Rust minimize-to-tray flag so close-to-tray works before the
-        // user ever opens Settings in this session.
+        // user ever opens Settings in this session. (The Rust close handler also
+        // reads the persisted setting directly as a fallback, so a failure here
+        // is logged rather than silently breaking close-to-tray.)
         if (typeof settings.minimizeToTray === 'boolean') {
-          invoke('set_minimize_to_tray', { enabled: settings.minimizeToTray }).catch(() => {});
+          invoke('set_minimize_to_tray', { enabled: settings.minimizeToTray }).catch((err) =>
+            console.warn('[Tray] Failed to seed minimize-to-tray flag on startup:', err)
+          );
         }
 
         const requestedWidth = settings.startupWidth || 1920;
@@ -4099,9 +5050,45 @@ function useTmdbPresencePoster(
         stremioMeta={currentStremioMeta}
         vodInfo={vodInfo}
         currentEpisode={currentStremioEpisode}
-        onOpenAppDetails={() => {
+        onOpenAppDetails={async () => {
           setShowPlaybackDetailsModal(false);
-          handleStop();
+          // Stremio/Nuvio: stopping already restores the detail page in those
+          // apps (the app keeps its own view state), so nothing else to do.
+          const isStremio = vodInfo?.source_id === 'stremio' || vodInfo?.source_id === 'trailer';
+          const isNuvio = vodInfo?.source_id === 'nuvio';
+          if (isStremio || isNuvio) {
+            await handleStop();
+            return;
+          }
+          // VOD series/movies: stop playback, then open the app's full detail
+          // page for the item that was playing (not just the browse home).
+          const store = useUIStore.getState();
+          if (vodInfo?.type === 'series' && vodInfo?.seriesId) {
+            const series = await db.vodSeries.get(vodInfo.seriesId);
+            await handleStop();
+            if (series) {
+              store.setSeriesSelectedItem(series);
+              // Open on the season being watched.
+              if (vodInfo.seasonNum) store.setSeriesSelectedSeason(vodInfo.seasonNum);
+            } else if (vodInfo.title) {
+              // Series row missing (e.g. cache cleared): fall back to a search.
+              store.setSeriesSearchQuery(vodInfo.title);
+              store.setSeriesSelectedItem(null);
+            }
+            setActiveView('series');
+          } else if (vodInfo?.type === 'movie' && vodInfo?.mediaId) {
+            const movie = await db.vodMovies.get(vodInfo.mediaId);
+            await handleStop();
+            if (movie) {
+              store.setMoviesSelectedItem(movie);
+            } else if (vodInfo.title) {
+              store.setMoviesSearchQuery(vodInfo.title);
+              store.setMoviesSelectedItem(null);
+            }
+            setActiveView('movies');
+          } else {
+            await handleStop();
+          }
         }}
         onPlayEpisode={(video) => {
           const meta = currentStremioMeta;
@@ -4207,7 +5194,7 @@ function useTmdbPresencePoster(
             {/* Segmented Control for View Switching */}
             <div className="title-bar-segmented">
               <button
-                className={`segmented-btn ${activeView === 'guide' || (activeView === 'none' && categoriesOpen) ? 'active' : ''}`}
+                className={`segmented-btn ${activeView === 'guide' ? 'active' : ''}`}
                 onClick={() => {
                   if (activeView === 'guide') {
                     if (guideTransparent) {
@@ -4222,6 +5209,12 @@ function useTmdbPresencePoster(
                     // Open LiveTV, respect user's category hidden preference
                     setActiveView('guide');
                     setCategoriesOpen(!categoriesHidden);
+                    if (!categoryId && currentChannel?.category_ids) {
+                      const catIds = parseCategoryIds(currentChannel.category_ids);
+                      if (catIds.length > 0) {
+                        setCategoryId(catIds[0]);
+                      }
+                    }
                   }
                 }}
                 title={i18n.t('nav:items.liveTv')}
@@ -4509,16 +5502,9 @@ function useTmdbPresencePoster(
 
         {/* Settings Button */}
         <button
-          className={`title-bar-settings-btn ${(showSettingsPopup || activeView === 'settings') ? 'active' : ''}`}
+          className={`title-bar-settings-btn ${showSettingsPopup ? 'active' : ''}`}
           onClick={() => {
-            // In multiview (not main), use full view mode; otherwise use popup
-            if (multiviewLayout !== 'main') {
-              setCategoriesOpen(false);
-              setActiveView(activeView === 'settings' ? 'none' : 'settings');
-            } else {
-              // In main layout, settings is a popup - don't close categories
-              setShowSettingsPopup(!showSettingsPopup);
-            }
+            setShowSettingsPopup(!showSettingsPopup);
             setSettingsTab('sources');
             setEditSourceId(null);
           }}
@@ -4572,7 +5558,7 @@ function useTmdbPresencePoster(
           />
         )}
 
-        {!currentChannel && !error && !isRestoring && activeView !== 'guide' && activeView !== 'sports' && (
+        {!currentChannel && !error && !isRestoring && activeView === 'none' && (
           <div className="placeholder">
             <Logo className="placeholder__logo" />
             {(channelSyncing || vodSyncing || tmdbMatching) ? (
@@ -4650,24 +5636,56 @@ function useTmdbPresencePoster(
         />
       )}
 
-      {/* Live Sports Overlay Widget */}
-      {sportsOverlayWidget && !pipMode && !(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_')) && multiviewLayout !== 'sbs' && multiviewLayout !== 'bigbottom' && multiviewLayout !== '2x2' && (
+      {/* Live Sports Overlay Widget — stays active in multiview so the score
+          ticker (and its Game Detail) is reachable from any layout */}
+      {sportsOverlayWidget && !pipMode && !(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_')) && (
         <LiveSportsOverlay
           mode={sportsOverlayWidget}
           showControls={showControls}
           activeView={activeView}
+          onChannelClickName={handleSportsChannelNamePlay}
         />
       )}
 
-      {/* Sports Live Game Sidebar Widget */}
-      {sportsLiveSidebarWidget && !pipMode && !(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_')) && multiviewLayout !== 'sbs' && multiviewLayout !== 'bigbottom' && multiviewLayout !== '2x2' && (
+      {/* Sports Live Game Sidebar Widget (mouse hover drawer) */}
+      {sportsLiveSidebarWidget && !pipMode && !(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_')) && (
         <SportsLiveGameSidebar
           showControls={showControls}
           activeView={activeView}
-          onChannelClick={handlePlayChannelWrapper}
+          onChannelClick={handleSportsChannelPlay}
+          onChannelClickName={handleSportsChannelNamePlay}
           currentChannel={currentChannel}
+          isOpen={liveGameSidebarOpen}
+          onOpenChange={setLiveGameSidebarOpen}
         />
       )}
+
+      {/* Live Games Modal (controller/remote entry point) */}
+      <LiveGamesModal
+        open={liveGamesModalOpen}
+        onClose={() => setLiveGamesModalOpen(false)}
+        onChannelClick={handleSportsChannelPlay}
+        onChannelClickName={handleSportsChannelNamePlay}
+        currentChannel={currentChannel}
+      />
+
+      {/* Multiview "send to screen" picker — shown when a sports play action
+          happens while a multiview layout is active */}
+      <MultiviewPlayTargetPicker
+        channel={multiviewPlayTarget}
+        layout={multiviewLayout}
+        slots={multiviewSlots}
+        mainChannelName={currentChannel?.name || null}
+        onPlayMain={(channel) => {
+          handlePlayChannelWrapper(channel);
+          setMultiviewPlayTarget(null);
+        }}
+        onSendToSlot={(slotId, channel) => {
+          sendToSlot(slotId, channel.alias || channel.name, channel.direct_url || '', channel.source_id);
+          setMultiviewPlayTarget(null);
+        }}
+        onClose={() => setMultiviewPlayTarget(null)}
+      />
 
       {/* Overlay Widgets — all sit inside a shared WidgetBar flex container.
            The bar owns positioning and scale; widgets are just flex children.
@@ -4707,7 +5725,7 @@ function useTmdbPresencePoster(
                     showControls={showControls}
                     activeView={activeView}
                     onChannelClick={handlePlayChannelWrapper}
-                    limit={recentOverlayWidget === '10' ? 10 : 5}
+                    limit={10}
                     isVod={Boolean(currentChannel?.stream_id === 'vod' || currentChannel?.stream_id?.startsWith('recording_'))}
                     onMoveLeft={moveLeft}
                     onMoveRight={moveRight}
@@ -4776,7 +5794,6 @@ function useTmdbPresencePoster(
           onRemoveSports={handleRemoveSportsOverlay}
           onAddSportsLiveSidebar={handleAddSportsLiveSidebar}
           onRemoveSportsLiveSidebar={handleRemoveSportsLiveSidebar}
-          onAddRecent5={handleAddRecent5Overlay}
           onAddRecent10={handleAddRecent10Overlay}
           onRemoveRecent={handleRemoveRecentOverlay}
           onAddFavorites={handleAddFavoritesOverlay}
@@ -4803,7 +5820,6 @@ function useTmdbPresencePoster(
           onRemoveSports={handleRemoveSportsOverlay}
           onAddSportsLiveSidebar={handleAddSportsLiveSidebar}
           onRemoveSportsLiveSidebar={handleRemoveSportsLiveSidebar}
-          onAddRecent5={handleAddRecent5Overlay}
           onAddRecent10={handleAddRecent10Overlay}
           onRemoveRecent={handleRemoveRecentOverlay}
           onAddFavorites={handleAddFavoritesOverlay}
@@ -4848,12 +5864,12 @@ function useTmdbPresencePoster(
         visible={
           showControls &&
           !pipMode &&
-          activeView !== 'guide' &&
+          activeView === 'none' &&
           !categoriesOpen &&
           multiviewLayout !== '2x2' &&
           multiviewLayout !== 'bigbottom'
         }
-        channel={currentChannel}
+        channel={guideHighlightChannel}
         playing={playing}
         muted={muted}
         volume={volume}
@@ -4968,10 +5984,34 @@ function useTmdbPresencePoster(
         duration={duration}
       />
 
+      {/* Multiview slot layout over the Sports preview pane (root-level so the
+          cells render above its cutout shadow, below the hub's controls) */}
+      {activeView === 'sports' && multiviewLayout !== 'main' && previewVideoRect && (
+        <SportsMultiviewOverlay
+          rect={previewVideoRect}
+          layout={multiviewLayout}
+          mainChannelName={currentChannel?.name || null}
+          mainPlaying={playing}
+          mainMuted={muted}
+          mainVolume={volume}
+          mainAspectRatio={heroAspectRatio}
+          onMainSetAspectRatio={handleSetAspectRatio}
+          onMainTogglePlayPause={handleTogglePlay}
+          onMainToggleMute={handleToggleMute}
+          onMainSetVolume={(vol) => handleVolumeChange({ target: { value: vol.toString() } } as any)}
+          onMainReload={currentChannel ? () => handlePlayChannelWrapper(currentChannel) : () => {}}
+          onMainStop={handleStop}
+        />
+      )}
+
       {/* Multiview Layout */}
       {multiviewLayout !== 'main' && (
         <MultiviewLayout
-          hidden={activeView !== 'none'}
+          // The layout grids hide themselves whenever activeView !== 'none', so
+          // this gate only controls whether the slot CELLS keep streaming. Sports
+          // renders its own slot containers inside the preview pane, so the cells
+          // must stay alive there (like Guide) instead of stopping.
+          hidden={activeView !== 'none' && activeView !== 'guide' && activeView !== 'sports'}
           layout={multiviewLayout}
           slots={multiviewSlots}
           engineMode={multiviewEngineMode}
@@ -4979,6 +6019,8 @@ function useTmdbPresencePoster(
           mainPlaying={playing}
           mainMuted={muted}
           mainVolume={volume}
+          mainAspectRatio={heroAspectRatio}
+          onMainSetAspectRatio={handleSetAspectRatio}
           onMainTogglePlayPause={handleTogglePlay}
           onMainToggleMute={handleToggleMute}
           onMainSetVolume={(vol) => handleVolumeChange({ target: { value: vol.toString() } } as any)}
@@ -4988,7 +6030,6 @@ function useTmdbPresencePoster(
           onStop={stopSlot}
           onReload={reloadSlot}
           onSetProperty={setSlotProperty}
-          onReposition={repositionSecondarySlots}
           onSwitchLayout={switchLayout}
           activeView={activeView}
           syncMpvGeometry={syncMpvGeometry}
@@ -5081,6 +6122,31 @@ function useTmdbPresencePoster(
         onClose={() => setShowAdvancedSearch(false)}
       />
 
+      {/* Controller / Remote Search Modal */}
+      <ControllerSearchModal
+        isOpen={showControllerSearch}
+        initialScope={advancedSearchConfig.scope}
+        history={titlebarSearchHistory.history}
+        addToHistory={titlebarSearchHistory.addToHistory}
+        removeFromHistory={titlebarSearchHistory.removeFromHistory}
+        clearHistory={titlebarSearchHistory.clearHistory}
+        onSearch={(query, scope) => {
+          setAdvancedSearchConfig((prev) => ({ ...prev, query, scope }));
+          setAdvancedSearchScope(scope);
+          if (window.storage) {
+            window.storage.updateSettings({ advancedSearchScope: scope }).catch((err: any) => console.error('Failed to save search settings:', err));
+          }
+          setForceAdvancedFilters(false);
+          setSearchQuery(query);
+          setCategoriesOpen(true);
+          if (activeView !== 'guide') {
+            setActiveView('guide');
+          }
+          setShowControllerSearch(false);
+        }}
+        onClose={() => setShowControllerSearch(false)}
+      />
+
       {/* Channel Stream Probe / IPTV Checker Modal */}
       <ChannelProbeModal
         isOpen={showChannelProbeModal}
@@ -5096,22 +6162,42 @@ function useTmdbPresencePoster(
         }}
       />
 
-      {/* V3 Liquid Glass Background */}
+      {/* V3 Liquid Glass Background (and v1/v2 solid cover for the multiview grid) */}
       {(() => {
         const isPreviewView = activeView === 'guide' || activeView === 'sports';
         const isPageOverlayView = activeView !== 'guide' && activeView !== 'sports' && activeView !== 'none';
-        const hasPreviewRect = !!previewVideoRect;
+        // The guide and Sports hub are frosted-glass surfaces in v3 (fully
+        // transparent in OLED), so they need the liquid-glass backdrop behind
+        // them to stay opaque. The guide previously only got the backdrop when
+        // no channel was playing or a preview rect had been reported — coming
+        // here from Sports while a channel played left nothing painted behind
+        // the hub and the fullscreen MPV video showed straight through the page.
         const shouldRenderGlassBg = liveTvDesign === 'v3' && (
           isPageOverlayView ||
-          (isPreviewView && !guideTransparent && (!currentChannel || hasPreviewRect)) ||
+          (isPreviewView && !guideTransparent) ||
           (activeView === 'none' && !currentChannel)
         );
 
-        if (!shouldRenderGlassBg) return null;
+        // v1/v2 have no liquid-glass backdrop. They keep the guide opaque via
+        // solid `--guide-solid-bg` covers on .guide-grid-section and
+        // .guide-info-pane only. When a multiview grid (2x2/bigbottom) is
+        // active the top section becomes the 1x4 preview grid with no info
+        // pane, so nothing solid would sit behind it and the desktop bleeds
+        // through as transparency. Render an opaque cover here (with the same
+        // main-preview hole, so the primary native video still shows) to close
+        // that gap. Split layouts still render .guide-info-pane, so they stay
+        // covered by the existing CSS rule and don't need this.
+        const isGridMultiview = multiviewLayout === '2x2' || multiviewLayout === 'bigbottom';
+        const shouldRenderSolidCover = liveTvDesign !== 'v3' &&
+          activeView === 'guide' && !guideTransparent && isGridMultiview;
+
+        if (!shouldRenderGlassBg && !shouldRenderSolidCover) return null;
+
+        const isGlass = shouldRenderGlassBg;
 
         return (
           <div 
-            className={`livetv-liquid-glass-bg ${randomScheme}`}
+            className={`${isGlass ? `livetv-liquid-glass-bg ${randomScheme}` : 'livetv-multiview-solid-cover'}`}
             style={
               previewVideoRect && currentChannel
                 ? (() => {
@@ -5171,38 +6257,11 @@ function useTmdbPresencePoster(
       {/* Category Strip */}
       <CategoryStrip
         selectedCategoryId={categoryId}
-        onSelectCategory={(catId) => {
-          if (isSearchMode) {
-            setSearchQuery('');
-          }
-          if (catId !== '__watchlist__') {
-            setIsWatchlistMode(false);
-          }
-          handleSelectCategory(catId);
-        }}
-        visible={categoriesOpen}
-        onEditSource={(sourceId) => {
-          setSettingsTab('sources');
-          setEditSourceId(sourceId);
-          setActiveView('settings');
-          setCategoriesOpen(false);
-        }}
-        onClose={() => {
-          setCategoriesOpen(false);
-          if (guideTransparent) {
-            setCategoriesHiddenTransparent(true);
-          } else {
-            setCategoriesHidden(true);
-          }
-        }}
-        onShow={() => {
-          setCategoriesOpen(true);
-          if (guideTransparent) {
-            setCategoriesHiddenTransparent(false);
-          } else {
-            setCategoriesHidden(false);
-          }
-        }}
+        onSelectCategory={handleCategorySelect}
+        visible={categoriesOpen && activeView === 'guide'}
+        onEditSource={handleCategoryEditSource}
+        onClose={categorySidebarAutohide ? () => setCategoriesOpen(false) : handleCategoryClose}
+        onShow={categorySidebarAutohide ? () => setCategoriesOpen(true) : handleCategoryShow}
         isLiveTV={activeView === 'guide'}
       />
 
@@ -5210,7 +6269,7 @@ function useTmdbPresencePoster(
       <ChannelPanel
         categoryId={isSearchMode || isWatchlistMode ? null : categoryId}
         visible={activeView === 'guide'}
-        categoryStripOpen={categoriesOpen}
+        categoryStripOpen={categoriesOpen && !categorySidebarAutohide}
         onPlayChannel={handlePlayChannelWrapper}
         popoutMode={popoutMode}
         onTogglePopoutMode={cyclePopoutMode}
@@ -5246,7 +6305,10 @@ function useTmdbPresencePoster(
         epgMetadataBadgeResolution={epgMetadataBadgeResolution}
         epgMetadataBadgeFps={epgMetadataBadgeFps}
         epgMetadataBadgeSound={epgMetadataBadgeSound}
+        epgMetadataBadgeBitrate={epgMetadataBadgeBitrate}
+        epgMetadataBadgeAudioBitrate={epgMetadataBadgeAudioBitrate}
         currentChannel={currentChannel}
+        highlightChannel={guideHighlightChannel}
         onTogglePlay={handleTogglePlay}
         isPlaying={playing}
         onChannelUp={handleChannelUp}
@@ -5298,8 +6360,8 @@ function useTmdbPresencePoster(
         }
       />
 
-      {/* Settings Panel - as popup overlay in main layout, or full view in multiview */}
-      {(showSettingsPopup || activeView === 'settings') && (
+      {/* Settings Panel - as popup overlay */}
+      {showSettingsPopup && (
         <Settings
           language={language}
           onLanguageChange={setLanguage}
@@ -5323,6 +6385,12 @@ function useTmdbPresencePoster(
           onVodAutoPlayNextEpisodeChange={setVodAutoPlayNextEpisode}
           vodShowSourceBadge={vodShowSourceBadge}
           onVodShowSourceBadgeChange={setVodShowSourceBadge}
+          blurUnwatchedEpisodes={blurUnwatchedEpisodes}
+          onBlurUnwatchedEpisodesChange={setBlurUnwatchedEpisodes}
+          useScrollwheelSeek={useScrollwheelSeek}
+          onUseScrollwheelSeekChange={setUseScrollwheelSeek}
+          useScrollwheelSeekInvert={useScrollwheelSeekInvert}
+          onUseScrollwheelSeekInvertChange={setUseScrollwheelSeekInvert}
           failoverGroupShowSource={failoverGroupShowSource}
           onFailoverGroupShowSourceChange={setFailoverGroupShowSource}
           playerControlDesign={playerControlDesign}
@@ -5366,11 +6434,7 @@ function useTmdbPresencePoster(
           onConsumePendingSubTab={() => setPendingSettingsSubTab(null)}
           editSourceId={editSourceId}
           onClose={() => {
-            if (showSettingsPopup) {
-              setShowSettingsPopup(false);
-            } else {
-              setActiveView('none');
-            }
+            setShowSettingsPopup(false);
             setEditSourceId(null);
           }}
           onShortcutsChange={setShortcuts}
@@ -5413,8 +6477,32 @@ function useTmdbPresencePoster(
           onEpgMetadataBadgeFpsChange={setEpgMetadataBadgeFps}
           epgMetadataBadgeFpsSuffix={epgMetadataBadgeFpsSuffix}
           onEpgMetadataBadgeFpsSuffixChange={setEpgMetadataBadgeFpsSuffix}
+          epgMetadataBadgeFhdLabels={epgMetadataBadgeFhdLabels}
+          onEpgMetadataBadgeFhdLabelsChange={setEpgMetadataBadgeFhdLabels}
+          epgResolutionFilterEnabled={epgResolutionFilterEnabled}
+          onEpgResolutionFilterEnabledChange={setEpgResolutionFilterEnabled}
           epgMetadataBadgeSound={epgMetadataBadgeSound}
           onEpgMetadataBadgeSoundChange={setEpgMetadataBadgeSound}
+          epgMetadataBadgeBitrate={epgMetadataBadgeBitrate}
+          onEpgMetadataBadgeBitrateChange={setEpgMetadataBadgeBitrate}
+          epgMetadataBadgeAudioBitrate={epgMetadataBadgeAudioBitrate}
+          onEpgMetadataBadgeAudioBitrateChange={setEpgMetadataBadgeAudioBitrate}
+          epgMetadataBadgeBitrateOverlay={epgMetadataBadgeBitrateOverlay}
+          onEpgMetadataBadgeBitrateOverlayChange={setEpgMetadataBadgeBitrateOverlay}
+          epgMetadataBadgeAudioBitrateOverlay={epgMetadataBadgeAudioBitrateOverlay}
+          onEpgMetadataBadgeAudioBitrateOverlayChange={setEpgMetadataBadgeAudioBitrateOverlay}
+          epgMetadataBadgeBitrateSearch={epgMetadataBadgeBitrateSearch}
+          onEpgMetadataBadgeBitrateSearchChange={setEpgMetadataBadgeBitrateSearch}
+          epgMetadataBadgeAudioBitrateSearch={epgMetadataBadgeAudioBitrateSearch}
+          onEpgMetadataBadgeAudioBitrateSearchChange={setEpgMetadataBadgeAudioBitrateSearch}
+          epgMetadataBadgeBitrateFailover={epgMetadataBadgeBitrateFailover}
+          onEpgMetadataBadgeBitrateFailoverChange={setEpgMetadataBadgeBitrateFailover}
+          epgMetadataBadgeAudioBitrateFailover={epgMetadataBadgeAudioBitrateFailover}
+          onEpgMetadataBadgeAudioBitrateFailoverChange={setEpgMetadataBadgeAudioBitrateFailover}
+          epgMetadataBadgeBitrateSports={epgMetadataBadgeBitrateSports}
+          onEpgMetadataBadgeBitrateSportsChange={setEpgMetadataBadgeBitrateSports}
+          epgMetadataBadgeAudioBitrateSports={epgMetadataBadgeAudioBitrateSports}
+          onEpgMetadataBadgeAudioBitrateSportsChange={setEpgMetadataBadgeAudioBitrateSports}
         />
       )}
 
@@ -5478,7 +6566,12 @@ function useTmdbPresencePoster(
           onStop={handleStop}
           onChannelUp={handleChannelUp}
           onChannelDown={handleChannelDown}
+          aspectRatio={heroAspectRatio}
+          onSetAspectRatio={handleSetAspectRatio}
+          pipMode={pipMode}
+          onTogglePip={handleTogglePip}
           onPreviewVideoRectChange={setPreviewVideoRect}
+          multiviewLayout={multiviewLayout}
           sportsOverlayWidget={sportsOverlayWidget}
           onSportsOverlayWidgetChange={(mode) => {
             if (mode === null) {
@@ -5590,6 +6683,9 @@ function useTmdbPresencePoster(
 
       {/* Sync Toast Notifications */}
       <ToastContainer />
+
+      {/* Active sync status toast (mirrors the hero screen sync indicator) */}
+      <SyncStatusToast />
 
       {/* Popout Player Control Bar */}
       {popoutIsOpen && (

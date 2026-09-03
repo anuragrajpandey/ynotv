@@ -22,3 +22,23 @@
 .favorite-btn.favorited:hover {
     color: #ffed4e;
 }
+
+/* SVG variant — sized to match the clean NowPlayingBar icon buttons */
+.favorite-btn-svg {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: inherit;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.favorite-btn-svg svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    flex-shrink: 0;
+}

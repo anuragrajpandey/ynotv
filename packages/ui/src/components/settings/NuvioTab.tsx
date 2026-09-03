@@ -11,6 +11,7 @@ import { NuvioPinModal } from '../nuvio/NuvioPinModal';
 import { useModal } from '../Modal';
 import { TraktCatalogsModal } from './TraktCatalogsModal';
 import { getEffectiveNuvioUrl, getEffectiveNuvioKey } from '../../services/nuvio-api';
+import { openAddonConfigureUrl } from '../../services/stremio-addon';
 import type { InstalledAddon, BadgeSource, StreamAutoPlayMode, StreamAutoPlaySourceScope } from '../../types/stremio';
 import { parseBadgePayload, isLightColor, convertArgbToRgba } from '../../utils/streamBadges';
 import { formatTime } from '../../utils/dateTime';
@@ -1420,10 +1421,12 @@ color: current === style ? 'var(--accent-primary)' : 'var(--text-secondary)',
                   {(() => {
                   // Normalize: handle old string[] format too
                   const raw: any[] = JSON.parse(localStorage.getItem('nuvio_hero_catalogs') || '[]');
-                  const heroEntries: { key: string; baseUrl: string }[] = raw.map((e: any) =>
+                  const heroEntries: { key: string; baseUrl?: string; isCollection?: boolean; collectionId?: string }[] = raw.map((e: any) =>
                     typeof e === 'string' ? { key: e, baseUrl: '' } : e
                   );
                   const selectedKeys = heroEntries.map(e => e.key);
+                  const allHeroSources = [...catalogsList, ...collectionsList];
+
                   return (
                     <>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -1450,21 +1453,21 @@ color: current === style ? 'var(--accent-primary)' : 'var(--text-secondary)',
                           {i18n.t('settings:nuvio.resetSelection')}
                         </button>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
-                        {catalogsList.map((cat) => {
-                          const isSelected = selectedKeys.includes(cat.key);
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+                        {allHeroSources.map((sourceItem) => {
+                          const isSelected = selectedKeys.includes(sourceItem.key);
                           const atLimit = selectedKeys.length >= 2;
                           return (
                             <label
-                              key={cat.key}
+                              key={sourceItem.key}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '10px',
                                 padding: '6px 10px',
                                 borderRadius: '6px',
-background: isSelected ? 'var(--surface-glow)' : 'var(--surface-color)',
-border: isSelected ? '1px solid var(--accent-glow)' : '1px solid var(--surface-border)',
+                                background: isSelected ? 'var(--surface-glow)' : 'var(--surface-color)',
+                                border: isSelected ? '1px solid var(--accent-glow)' : '1px solid var(--surface-border)',
                                 cursor: atLimit && !isSelected ? 'not-allowed' : 'pointer',
                                 opacity: atLimit && !isSelected ? 0.4 : 1,
                                 transition: 'all 0.15s ease',
@@ -1476,32 +1479,43 @@ border: isSelected ? '1px solid var(--accent-glow)' : '1px solid var(--surface-b
                                 disabled={atLimit && !isSelected}
                                 onChange={() => {
                                   const raw: any[] = JSON.parse(localStorage.getItem('nuvio_hero_catalogs') || '[]');
-                                  const current: { key: string; baseUrl: string }[] = raw.map((e: any) =>
+                                  const current: any[] = raw.map((e: any) =>
                                     typeof e === 'string' ? { key: e, baseUrl: '' } : e
                                   );
                                   if (isSelected) {
-                                    localStorage.setItem('nuvio_hero_catalogs', JSON.stringify(current.filter((e) => e.key !== cat.key)));
+                                    localStorage.setItem('nuvio_hero_catalogs', JSON.stringify(current.filter((e) => e.key !== sourceItem.key)));
                                   } else if (current.length < 2) {
-                                    // Find the addon's baseUrl
-                                    const addon = activeAddons.find(a => (a.manifest?.id || a.id) === cat.addonId);
-                                    const baseUrl = addon?.baseUrl || cat.addonId;
-                                    localStorage.setItem('nuvio_hero_catalogs', JSON.stringify([...current, { key: cat.key, baseUrl }]));
+                                    if (sourceItem.isCollection) {
+                                      localStorage.setItem(
+                                        'nuvio_hero_catalogs',
+                                        JSON.stringify([...current, { key: sourceItem.key, isCollection: true, collectionId: sourceItem.collectionId, title: sourceItem.title }])
+                                      );
+                                    } else {
+                                      const addon = activeAddons.find(a => (a.manifest?.id || a.id) === sourceItem.addonId);
+                                      const baseUrl = addon?.baseUrl || sourceItem.addonId;
+                                      localStorage.setItem(
+                                        'nuvio_hero_catalogs',
+                                        JSON.stringify([...current, { key: sourceItem.key, baseUrl }])
+                                      );
+                                    }
                                   }
                                   window.dispatchEvent(new Event('nuvioHeroCatalogsChanged'));
                                 }}
                               />
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ fontSize: '0.8rem', fontWeight: 500, color: isSelected ? 'var(--text-primary)' : 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {cat.title || cat.catalogId}
+                                  {sourceItem.title || sourceItem.catalogId}
                                 </div>
                                 <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                                  {cat.addonName} · {cat.type}
+                                  {sourceItem.isCollection
+                                    ? `Collection · ${sourceItem.subtitle}`
+                                    : `${sourceItem.addonName} · ${sourceItem.type}`}
                                 </div>
                               </div>
                             </label>
                           );
                         })}
-                        {catalogsList.length === 0 && (
+                        {allHeroSources.length === 0 && (
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', padding: '10px 0' }}>
                             {i18n.t('settings:nuvio.noCatalogs')}
                           </div>
@@ -1765,6 +1779,28 @@ border: '1px solid var(--accent-glow)',
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                          <button
+                            onClick={() => openAddonConfigureUrl(addon.baseUrl)}
+                            title={i18n.t('stremio:configureAddon')}
+                            style={{
+                              background: 'none',
+                              border: '1px solid var(--surface-border)',
+                              color: 'var(--text-secondary)',
+                              borderRadius: '4px',
+                              padding: '0',
+                              width: '26px',
+                              height: '26px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '0.7rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.486.486 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/>
+                            </svg>
+                          </button>
                           <button
                             onClick={() => handleToggleAddon(addon.id)}
                             style={{

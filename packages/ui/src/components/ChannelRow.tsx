@@ -10,6 +10,7 @@ import { addToRecentChannels } from '../utils/recentChannels';
 import { ChannelLogo } from './ChannelLogo';
 import type { StoredChannel, StoredProgram } from '../db';
 import { normalizeBoolean } from '../utils/db-helpers';
+import { useSettingsStore } from '../stores/settingsStore';
 import type { RecordingInfo } from '../hooks/useActiveRecordings';
 
 // Channel column width is controlled via CSS custom property for resizability
@@ -38,12 +39,14 @@ interface ChannelRowProps {
   epgMetadataBadgeResolution?: boolean;
   epgMetadataBadgeFps?: boolean;
   epgMetadataBadgeSound?: boolean;
+  epgMetadataBadgeBitrate?: boolean;
+  epgMetadataBadgeAudioBitrate?: boolean;
+  altView?: boolean;
 }
 
 export const ChannelRow = memo(function ChannelRow({
   channel,
   index,
-  sortOrder,
   programs,
   windowStart,
   windowEnd,
@@ -64,15 +67,24 @@ export const ChannelRow = memo(function ChannelRow({
   epgMetadataBadgeResolution,
   epgMetadataBadgeFps,
   epgMetadataBadgeSound,
+  epgMetadataBadgeBitrate,
+  epgMetadataBadgeAudioBitrate,
+  altView,
 }: ChannelRowProps) {
+  // Per-source logo overrides are read straight from the store so changes
+  // apply live without re-running the channel query.
+  const sourceLogoDisplayOverrides = useSettingsStore((s) => s.sourceLogoDisplayOverrides);
+  const sourceLogoBackgroundOverrides = useSettingsStore((s) => s.sourceLogoBackgroundOverrides);
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ program: StoredProgram; x: number; y: number } | null>(null);
   const [channelContextMenu, setChannelContextMenu] = useState<{ x: number; y: number } | null>(null);
 
-  // Show channel_num when sorting by number, otherwise show list position
-  const displayNumber = sortOrder === 'number' && channel.channel_num !== undefined
-    ? channel.channel_num
-    : index + 1;
+  // Show metadata badges in the 3-column strip row (3rd line under the channel
+  // name + current program) only when at least one badge is enabled.
+  const showAltMetadata = altView && Boolean(
+    epgMetadataBadgeResolution || epgMetadataBadgeFps || epgMetadataBadgeSound ||
+    epgMetadataBadgeBitrate || epgMetadataBadgeAudioBitrate
+  );
 
   // Normalize the is_favorite value (SQLite stores BOOLEAN as 0/1)
   const isFavorite = normalizeBoolean(channel.is_favorite);
@@ -86,6 +98,24 @@ export const ChannelRow = memo(function ChannelRow({
 
   // Channel name is already filtered at the data level (useChannels hook)
   // No need to apply filter words here anymore
+
+  // Alternate view: the single program currently airing, shown instead of the
+  // full horizontal grid cells. Picked in JS from the same per-channel program
+  // array the grid renders, so it shares the grid's memoized data and never
+  // issues an extra query or re-runs on scroll.
+  const currentProgramInfo = useMemo(() => {
+    if (!altView || programs.length === 0) return null;
+    const now = Date.now();
+    for (const p of programs) {
+      const s = p.start instanceof Date ? p.start.getTime() : new Date(p.start).getTime();
+      const e = p.end instanceof Date ? p.end.getTime() : new Date(p.end).getTime();
+      if (Number.isFinite(s) && Number.isFinite(e) && s <= now && e > now) {
+        const pct = e > s ? Math.max(0, Math.min(100, ((now - s) / (e - s)) * 100)) : 0;
+        return { program: p, startMs: s, endMs: e, pct };
+      }
+    }
+    return null;
+  }, [altView, programs]);
 
   // Check if this channel is being recorded
   const isRecording = useMemo(() => {
@@ -129,6 +159,7 @@ export const ChannelRow = memo(function ChannelRow({
   }
 
   const isPlaylistNameShown = Boolean(showPlaylistName);
+  const isBitrateBadgeShown = Boolean(epgMetadataBadgeBitrate || epgMetadataBadgeAudioBitrate);
   const showMultiviewButtons = Boolean(onSendToSlot && currentLayout && currentLayout !== 'main');
 
   const isSlotActive = useCallback((slotId: 1 | 2 | 3 | 4) => {
@@ -175,19 +206,31 @@ export const ChannelRow = memo(function ChannelRow({
   }, [channel, onSendToSlot]);
 
   return (
-    <div className={`guide-channel-row ${isCurrentlyPlaying ? 'currently-playing' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}>
+    <div className={`guide-channel-row ${isCurrentlyPlaying ? 'currently-playing' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''} ${altView ? 'alt-mode' : ''}`}>
       {/* Channel info column */}
       <div
-        className={`guide-channel-info ${isRecording ? 'is-recording' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''}`}
-        style={{
-          width: 'var(--epg-channel-column-width, 264px)',
-          minWidth: 'var(--epg-channel-column-width, 264px)',
-          maxWidth: 'var(--epg-channel-column-width, 264px)'
-        }}
+        className={`guide-channel-info guide-channel-item ${isRecording ? 'is-recording' : ''} ${isPlaylistNameShown ? 'has-playlist-name' : ''} ${isBitrateBadgeShown ? 'has-bitrate-badge' : ''} ${showMultiviewButtons ? 'has-multiview-buttons' : ''} ${altView ? 'alt-mode' : ''}`}
+        data-stream-id={channel.stream_id}
+        data-index={index}
+        style={altView
+          ? { width: '100%', minWidth: 0, maxWidth: '100%', flex: '1 1 auto' }
+          : {
+              width: 'var(--epg-channel-column-width, 264px)',
+              minWidth: 'var(--epg-channel-column-width, 264px)',
+              maxWidth: 'var(--epg-channel-column-width, 264px)'
+            }}
         onClick={onPlay}
         onContextMenu={handleChannelContextMenu}
+        tabIndex={0}
+        role="button"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onPlay();
+          }
+        }}
       >
-        {isRecording && (
+        {!altView && isRecording && (
           <div className="channel-recording-indicator">
             <RecordingIndicator size="small" />
           </div>
@@ -202,8 +245,9 @@ export const ChannelRow = memo(function ChannelRow({
           name={channelDisplayName}
           className="guide-channel-logo"
           background={channel.logo_background as 'auto' | 'light' | 'dark' | undefined}
+          defaultBackground={sourceLogoBackgroundOverrides[channel.source_id]}
           padding={channel.logo_padding as 'default' | 'none' | undefined}
-          shape={channel.logo_display as 'square' | 'rectangle' | undefined}
+          shape={sourceLogoDisplayOverrides[channel.source_id]}
         />
         <div className="guide-channel-name-container">
           <span className="guide-channel-name" title={channelTitle}>
@@ -227,7 +271,17 @@ export const ChannelRow = memo(function ChannelRow({
               }}>18+</span>
             )}
           </span>
-          {isPlaylistNameShown && (
+          {altView ? (
+            currentProgramInfo ? (
+              <span className="guide-channel-alt-program-title" title={currentProgramInfo.program.title}>
+                {currentProgramInfo.program.title}
+              </span>
+            ) : (
+              <span className="guide-channel-alt-no-program">
+                {i18n.t('common:noProgramInfo', { defaultValue: 'No Program Information' })}
+              </span>
+            )
+          ) : isPlaylistNameShown && (
             <span
               className="guide-channel-playlist-name"
               title={channel.source_category_display || channel.source_name || sourceNames?.get(channel.source_id) || channel.source_id}
@@ -235,8 +289,21 @@ export const ChannelRow = memo(function ChannelRow({
               {channel.source_category_display || channel.source_name || sourceNames?.get(channel.source_id) || channel.source_id}
             </span>
           )}
+          {showAltMetadata && (
+            <div className="guide-channel-alt-metadata">
+              <MetadataBadge
+                streamId={channel.stream_id}
+                variant="detailed"
+                showResolution={epgMetadataBadgeResolution}
+                showFps={epgMetadataBadgeFps}
+                showSound={epgMetadataBadgeSound}
+                showBitrate={epgMetadataBadgeBitrate}
+                showAudioBitrate={epgMetadataBadgeAudioBitrate}
+              />
+            </div>
+          )}
         </div>
-        {showMultiviewButtons && (
+        {!altView && showMultiviewButtons && (
           <div className="multiview-slots-container">
             {[1, 2, 3, 4].map((slotId) => {
               const active = isSlotActive(slotId as 1 | 2 | 3 | 4);
@@ -256,6 +323,7 @@ export const ChannelRow = memo(function ChannelRow({
             })}
           </div>
         )}
+        {!altView && (
         <div className="channel-row-metadata">
           <MetadataBadge
             streamId={channel.stream_id}
@@ -263,11 +331,22 @@ export const ChannelRow = memo(function ChannelRow({
             showResolution={epgMetadataBadgeResolution}
             showFps={epgMetadataBadgeFps}
             showSound={epgMetadataBadgeSound}
+            showBitrate={epgMetadataBadgeBitrate}
+            showAudioBitrate={epgMetadataBadgeAudioBitrate}
           />
         </div>
+        )}
       </div>
 
-      {/* Program grid */}
+      {/* Program grid — or, in the alternate view, a thin progress bar at the bottom of the row */}
+      {altView ? (
+        <div className="guide-channel-alt-progress-track">
+          <div
+            className="guide-channel-alt-progress-fill"
+            style={{ width: `${currentProgramInfo?.pct ?? 0}%` }}
+          />
+        </div>
+      ) : (
       <div className="guide-program-grid">
         {programs.length > 0 ? (
           programs.map((program, index, arr) => {
@@ -324,6 +403,7 @@ export const ChannelRow = memo(function ChannelRow({
           <EmptyProgramBlock pixelsPerHour={pixelsPerHour} visibleHours={visibleHours} />
         )}
       </div>
+      )}
 
       {/* Program Context Menu */}
       {contextMenu && (

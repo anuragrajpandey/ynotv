@@ -125,7 +125,7 @@
 }
 
 .category-list::-webkit-scrollbar {
-    width: 6px;
+    width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .category-list::-webkit-scrollbar-track {
@@ -671,8 +671,8 @@
 .cm-bulk-scroll-list::-webkit-scrollbar,
 .cm-bulk-col::-webkit-scrollbar,
 .cm-bulk-modal *::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
+  height: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .cm-bulk-scroll-list::-webkit-scrollbar-track,

@@ -5,7 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { StoredChannel } from '../db';
 import { getFailoverCandidatesAfter, getPrimaryChannelForGroup } from '../services/failover-groups';
 import type { VodPlayInfo } from '../types/media';
-import { Bridge, registerOnAppClose, unregisterOnAppClose } from '../services/tauri-bridge';
+import { Bridge, registerOnAppClose, unregisterOnAppClose, resolveSubAssOverride } from '../services/tauri-bridge';
 import { resolvePlayUrl } from '../services/stream-resolver';
 import { addToRecentChannels } from '../utils/recentChannels';
 import { db, recordVodWatch, updateVodWatchProgress, getVodWatchProgress, recordEpisodeWatch, getEpisodeProgress, updateDvrRecordingProgress } from '../db';
@@ -13,12 +13,54 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useDownloadStore } from '../stores/downloadStore';
 import { useStremioWatchStore } from '../stores/stremioWatchStore';
 import { useNuvioAuthStore } from '../stores/nuvioAuthStore';
-import { fetchNuvioWatchProgress } from '../services/nuvio-api';
+import { fetchNuvioWatchProgress, pushNuvioWatchProgress, type NuvioWatchProgressSyncEntry } from '../services/nuvio-api';
 import type { useMpvListeners } from './useMpvListeners';
 import { logInfo, logWarn, logError } from '../utils/logger';
 import { toSubSourceLang, fromSubSourceLang, LANG_MAP } from '../services/subsource';
 import { snapshotPlaylistProgress } from '../utils/playlistPlayback';
 import i18n, { translateNativeError } from '../i18n';
+
+/**
+ * Push Nuvio watch progress for the given item, building the entry from the
+ * same fields the old per-tick sync used. Mirrors NuvioDesktop's cadence:
+ * remote pushes happen only on discrete events (stop/pause/seek/natural end),
+ * never on a timer. Local in-app progress saving is unaffected.
+ */
+export async function pushNuvioPlaybackProgress(
+  info: VodPlayInfo | null,
+  positionSec: number,
+  durationSec: number
+): Promise<void> {
+  if (!info || info.source_id !== 'nuvio') return;
+  if (!(positionSec > 0) || !(durationSec > 0)) return;
+  const isSeries = info.type === 'series';
+  const contentId = isSeries ? (info.seriesId || info.mediaId) : info.mediaId;
+  if (!contentId) return;
+  const entry: NuvioWatchProgressSyncEntry = {
+    content_id: contentId,
+    content_type: isSeries ? 'series' : 'movie',
+    video_id: info.episodeId || info.mediaId || contentId,
+    season: isSeries ? (info.seasonNum ?? null) : null,
+    episode: isSeries ? (info.episodeNum ?? null) : null,
+    position: Math.floor(positionSec * 1000),
+    duration: Math.floor(durationSec * 1000),
+    last_watched: Date.now(),
+    progress_key:
+      isSeries && info.seasonNum != null && info.episodeNum != null
+        ? `${contentId}_s${info.seasonNum}e${info.episodeNum}`
+        : info.mediaId || contentId,
+  };
+  const nuvioAuth = useNuvioAuthStore.getState();
+  const token = nuvioAuth.token;
+  const profile = nuvioAuth.activeProfile;
+  if (!token || !profile) return;
+  try {
+    await pushNuvioWatchProgress(token, profile.profile_index, [entry]);
+    window.dispatchEvent(new CustomEvent('ynotv:nuvio-sync-required'));
+  } catch (e) {
+    logWarn('[NuvioProgress] Failed to sync progress:', e);
+  }
+}
 
 /**
  * Apply saved subtitle settings to MPV.
@@ -31,10 +73,8 @@ async function applySubtitleSettings() {
     const size = ss.defaultSize || 35;
     await Bridge.setSubtitleSize(size).catch(() => {});
 
-    const assOverride = ss.subAssOverride || 'yes';
-    const effectiveOverride = assOverride === 'no' ? 'no' : (assOverride === 'scale' ? 'scale' : 'strip');
+    const effectiveOverride = resolveSubAssOverride(ss.subAssOverride);
     await Bridge.setSubAssOverride(effectiveOverride).catch(() => {});
-    await Bridge.setProperty('sub-use-media-style', assOverride === 'no').catch(() => {});
     await Bridge.setProperty('sub-ass-scale-with-window', true).catch(() => {});
 
     const align = ss.subAlign || 'center';
@@ -100,11 +140,20 @@ function isLocalUrl(urlString: string): boolean {
 }
 
 /**
+ * Checks if a URL is a YouTube video URL (trailers, streams).
+ */
+function isYouTubeUrl(urlString?: string | null): boolean {
+  if (!urlString) return false;
+  return /^(https?:\/\/)?(www\.|m\.)?(youtube\.com|youtu\.be)\//i.test(urlString);
+}
+
+/**
  * Generate fallback stream URLs when primary fails.
  * Live TV: .ts → .m3u8 → .m3u
  * VOD: provider extension → .m3u8 → .ts
  */
 function getStreamFallbacks(url: string, isLive: boolean): string[] {
+  if (isYouTubeUrl(url)) return [];
   try {
     const urlObj = new URL(url);
     const pathname = urlObj.pathname;
@@ -158,6 +207,13 @@ function mpvObject(value: any): Record<string, any> | null {
 
 /**
  * Try loading a stream URL with fallbacks on failure.
+ *
+ * Note: we deliberately do NOT steer mpv's ytdl-format here. Modern YouTube
+ * uploads (trailers included) often have no progressive 22/18 formats at all,
+ * so overriding to a progressive format makes the load fail outright with
+ * "Requested format is not available". yt-dlp's default (bestvideo*+bestaudio)
+ * resolves and plays those correctly; transient 403s are handled by
+ * yt-dlp/mpv internally and the trailer retry in maybeRetryTrailerStream.
  */
 async function tryLoadWithFallbacks(
   primaryUrl: string,
@@ -317,7 +373,7 @@ export interface PlaybackState {
   setPosition: (position: number) => void;
   setVolume: (volume: number) => void;
   setCurrentChannel: (channel: StoredChannel | null) => void;
-  handlePlayChannel: (channel: StoredChannel, autoSwitched?: boolean) => void;
+  handlePlayChannel: (channel: StoredChannel, autoSwitched?: boolean, directPlay?: boolean) => void | Promise<void>;
   handlePlayCatchup: (channel: StoredChannel, programTitle: string, startTimeMs: number, durationMinutes: number, programDesc?: string) => Promise<void>;
   handleCatchupSeek: (channel: StoredChannel, programTitle: string, startTimeMs: number, durationMinutes: number, seekSeconds: number, programDesc?: string) => Promise<void>;
   handlePlayVod: (info: VodPlayInfo, onCloseView?: () => void) => Promise<void>;
@@ -385,9 +441,18 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
   const pendingResumeSeekRef = useRef<number | null>(null);
   const isInitialSeekPendingRef = useRef(false);
   const cancelPendingSeekRef = useRef<(() => void) | null>(null);
+  const wasSeekingRef = useRef(false);
+
+  // Trailer playback recovery: YouTube streams can die a few seconds in when
+  // the CDN 403s the media segments. Track load time + retry count so an
+  // unexpected early end can be retried (fresh yt-dlp resolve) while a genuine
+  // natural end never is.
+  const trailerLoadStartTimeRef = useRef(0);
+  const trailerRetryCountRef = useRef(0);
 
   const seekWithRetry = useCallback((targetSeek: number, description: string, onSuccess?: () => void) => {
     cancelPendingSeekRef.current?.();
+    wasSeekingRef.current = true;
 
     let attempts = 0;
     const maxAttempts = 15;
@@ -683,6 +748,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
   const lastAudioTracksCountRef = useRef(0);
   const autoSelectTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSelectAttemptsRef = useRef(0);
+  // Monotonic sequence for handlePlayChannel: guards against the async
+  // failover-primary lookup resolving out of order during rapid channel zaps.
+  const playChannelSeqRef = useRef(0);
   const streamFailureHandlingRef = useRef(false);
   const recoveryArmedRef = useRef(false);
   const userPausedRef = useRef(false);
@@ -690,11 +758,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
   // main player was intentionally stopped (e.g. popout opened with "stop main").
   const intentionallyStoppedRef = useRef(false);
   // Tracks whether we're currently playing a stalker_portal VOD over HLS (.m3u8).
-  // Used to apply seek-time subtitle cleanup exclusive to that context.
   const isStalkerVodRef = useRef(false);
-  // Holds the subtitle track id that was active before a stalker VOD seek, so we
-  // can restore it (instead of clobbering the user's choice) on playback-restart.
-  const stalkerSubTrackIdRef = useRef<number | null>(null);
   // Cleanup autoSelectTimer on unmount
   useEffect(() => {
     return () => {
@@ -800,7 +864,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
   // Periodic progress saving for VOD playback + save on app close
   useEffect(() => {
-    if (!vodInfo || !playing || duration <= 0) {
+    if (!vodInfo || !playing || duration <= 0 || vodInfo.source_id === 'trailer' || isYouTubeUrl(vodInfo.url)) {
       return;
     }
 
@@ -856,7 +920,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
                 seriesId,
                 'series',
                 Math.floor(currentPosition),
-                Math.floor(currentDuration)
+                Math.floor(currentDuration),
+                currentVodInfo.source_id || '',
+                currentVodInfo.title || '',
+                currentVodInfo.posterUrl
               );
               
               // Save episode-level progress (for episode resume)
@@ -864,9 +931,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
                 episodeId,
                 seriesId,
                 currentVodInfo.source_id || '',
-                0,
-                0,
-                '',
+                currentVodInfo.seasonNum ?? 0,
+                currentVodInfo.episodeNum ?? 0,
+                currentVodInfo.episodeInfo || '',
                 Math.floor(currentPosition),
                 Math.floor(currentDuration)
               );
@@ -880,7 +947,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               mediaId,
               currentVodInfo.type as 'movie' | 'series',
               Math.floor(currentPosition),
-              Math.floor(currentDuration)
+              Math.floor(currentDuration),
+              currentVodInfo.source_id || '',
+              currentVodInfo.title || '',
+              currentVodInfo.posterUrl
             );
             console.log('[Playback] ✅ Auto-saved VOD progress at position:', Math.floor(currentPosition));
           }
@@ -982,7 +1052,8 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
       const isStalker = sourceData?.type === 'stalker';
       const isLocal = isLocalUrl(resolved.url);
-      setIgnoreHttpErrors(isStalker || isLocal);
+      const isTrailer = channel.source_id === 'trailer' || isYouTubeUrl(resolved.url) || isYouTubeUrl(channel.direct_url);
+      setIgnoreHttpErrors(isStalker || isLocal || isTrailer);
 
       if (Bridge.getIsCasting?.()) {
         Bridge.setCastMetadata(channel.name, 'Live TV');
@@ -1379,6 +1450,55 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
     }
   }, [handleFailover, startRetryCountdown, clearWatchdog, setError]);
 
+  // Trailers can die a few seconds in when YouTube 403s the media segments
+  // (bot detection / transient). handleStreamDied ignores VOD entirely, so
+  // without this the trailer just stops. Re-resolve + reload up to 2 times;
+  // a genuine natural end (played roughly the full duration) is never retried.
+  const maybeRetryTrailerStream = useCallback(async (): Promise<boolean> => {
+    const info = vodInfoRef.current;
+    if (!info || (info.source_id !== 'trailer' && !isYouTubeUrl(info.url))) return false;
+    if (intentionallyStoppedRef.current || userPausedRef.current) return false;
+    if (Bridge.getIsCasting?.()) return false;
+
+    const dur = durationRef.current;
+    const elapsed = (Date.now() - trailerLoadStartTimeRef.current) / 1000;
+    const threshold = dur > 0 ? Math.max(10, dur - 5) : 45;
+    if (elapsed >= threshold) {
+      logInfo(`[Trailer] Stream ended after ${elapsed.toFixed(1)}s (>= ${threshold.toFixed(1)}s threshold), treating as natural end`);
+      return false;
+    }
+    if (trailerRetryCountRef.current >= 2) {
+      logWarn('[Trailer] Stream ended early; max retries reached, giving up');
+      return false;
+    }
+
+    trailerRetryCountRef.current += 1;
+    logInfo(`[Trailer] Stream ended early (elapsed=${elapsed.toFixed(1)}s of ${dur}s), retrying ${trailerRetryCountRef.current}/2`);
+    try {
+      const resolved = await resolvePlayUrl(info.source_id, info.url);
+      if (resolved.url.startsWith('infoHash:')) return false;
+      setIgnoreHttpErrors(true);
+      setPosition(0);
+      setDuration(0);
+      // Start the retry from 0 — never re-apply a stale resume seek.
+      pendingResumeSeekRef.current = null;
+      isInitialSeekPendingRef.current = false;
+      const result = await tryLoadWithFallbacks(resolved.url, false, resolved.userAgent);
+      if (!result.success) {
+        logWarn('[Trailer] Retry failed to load:', result.error);
+        return false;
+      }
+      setPlaying(true);
+      if (!Bridge.getIsCasting?.()) {
+        Bridge.play().catch((e) => console.warn('[usePlayback] play() after trailer retry failed:', e));
+      }
+      return true;
+    } catch (err) {
+      logWarn('[Trailer] Retry threw:', err);
+      return false;
+    }
+  }, [setIgnoreHttpErrors, setPosition, setDuration, setPlaying]);
+
   // ── mpv-stream-ended / mpv-end-file-error / mpv-http-error listeners ───────
   // All three failure signals route through handleStreamDied so failover runs.
   useEffect(() => {
@@ -1391,12 +1511,15 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
     let disposed = false;
 
     import('@tauri-apps/api/event').then(({ listen }) => {
-      listen('mpv-stream-ended', () => {
+      listen('mpv-stream-ended', async () => {
         if (!useEventBasedReconnectRef.current) {
           logInfo('[Retry] Ignoring mpv-stream-ended event (event-based reconnect disabled)');
           return;
         }
         logInfo('[Retry] Received mpv-stream-ended event');
+        if (await maybeRetryTrailerStream()) {
+          return;
+        }
         handleStreamDied();
       }).then((fn) => {
         if (disposed) fn();
@@ -1451,7 +1574,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
       unlistenHttpError?.();
       unlistenMpvError?.();
     };
-  }, [handleStreamDied, isIgnoringHttpErrors]);
+  }, [handleStreamDied, isIgnoringHttpErrors, maybeRetryTrailerStream]);
 
   // ── Live recording duration updater ────────────────────────────────────────
   // When playing a recording that's still being recorded, dynamically update
@@ -1691,7 +1814,11 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentChannel?.stream_id, !!vodInfo, !!catchupInfo, resetHealthTracking]);
 
-  const handlePlayChannel = useCallback((channel: StoredChannel, autoSwitched: boolean = false) => {
+  const handlePlayChannel = useCallback(async (
+    channel: StoredChannel,
+    autoSwitched: boolean = false,
+    directPlay: boolean = false
+  ) => {
     // Cancel any in-progress retry when the user switches channels
     if (autoSelectTimerRef.current) {
       clearInterval(autoSelectTimerRef.current);
@@ -1753,7 +1880,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               seriesId,
               'series',
               Math.floor(position),
-              Math.floor(duration)
+              Math.floor(duration),
+              vodInfo.source_id || '',
+              vodInfo.title || '',
+              vodInfo.posterUrl
             );
             
             // Save episode-level progress (for episode resume)
@@ -1761,9 +1891,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               episodeId,
               seriesId,
               vodInfo.source_id || '',
-              0,
-              0,
-              '',
+              vodInfo.seasonNum ?? 0,
+              vodInfo.episodeNum ?? 0,
+              vodInfo.episodeInfo || '',
               Math.floor(position),
               Math.floor(duration)
             );
@@ -1774,17 +1904,41 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
             mediaId,
             vodInfo.type as 'movie' | 'series',
             Math.floor(position),
-            Math.floor(duration)
+            Math.floor(duration),
+            vodInfo.source_id || '',
+            vodInfo.title || '',
+            vodInfo.posterUrl
           );
         }
       }
     }
     setVodInfo(null);
     setCatchupInfo(null);
-    if (!autoSwitched) {
-      addToRecentChannels(channel);
+
+    // Monotonic guard: the primary-channel lookup below is async, so a fast
+    // sequence of zaps could otherwise resolve out of order (a group-member
+    // lookup also round-trips through storage, making it slower than a plain
+    // non-member lookup) and load the wrong channel last. Bump a sequence
+    // number per call and ignore this invocation if a newer one arrived while
+    // we were awaiting.
+    const playSeq = ++playChannelSeqRef.current;
+    let channelToPlay = channel;
+    if (!autoSwitched && !directPlay && useSettingsStore.getState().failoverAlwaysPlayPrimary) {
+      try {
+        const primary = await getPrimaryChannelForGroup(channel.stream_id);
+        if (primary) {
+          channelToPlay = primary;
+        }
+      } catch (err) {
+        console.error('[Playback] Failed to lookup primary failover channel:', err);
+      }
     }
-    handleLoadStream(channel);
+    if (playSeq !== playChannelSeqRef.current) return; // superseded by a newer zap
+
+    if (!autoSwitched) {
+      addToRecentChannels(channelToPlay);
+    }
+    handleLoadStream(channelToPlay);
   }, [handleLoadStream, resetHealthTracking, vodInfo, position, duration]);
 
   const autoSelectSubtitle = useCallback(async (providedSubTracks?: any[]) => {
@@ -1871,50 +2025,46 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
     }
   }, []);
 
-  // ── Stalker VOD seek subtitle cleanup ──────────────────────────────────────
-  // On stalker portal HLS VODs, seeking can cause mpv to re-activate both the
-  // embedded CEA-608 CC track and the soft WebVTT track simultaneously, producing
-  // duplicate/triple subtitle rendering. We suppress subs on seek-start and
-  // re-trigger autoSelectSubtitle when playback restarts after the seek.
+  // ── Universal seek subtitle cleanup ────────────────────────────────────────
+  // On Live TV (timeshifting/seeking) and Stalker/HLS VODs, seeking backwards or
+  // forwards can cause mpv's libass / FFmpeg EIA-608 CC decoder to retain past
+  // dialogue events and decode duplicate dialogue events at the same timestamps,
+  // producing double/triple/multi-layered stacked subtitles.
+  // We do NOT disable subtitles during mid-seek scrubbing (which causes tracks to
+  // unselect during seekbar drag). Instead, when seeking finishes (playback-restart),
+  // we re-apply the user's active subtitle track so libass decodes cleanly from the
+  // new timestamp with proper styling.
   useEffect(() => {
     if (!Bridge.isTauri) return;
 
-    let unlistenSeek: (() => void) | null = null;
     let unlistenRestart: (() => void) | null = null;
     let disposed = false;
 
     import('@tauri-apps/api/event').then(({ listen }) => {
-      listen('mpv-seek', async () => {
-        if (!isStalkerVodRef.current) return;
-        logInfo('[Subtitle] Stalker VOD seek detected — disabling subs during seek');
-        // Remember the user's currently selected subtitle track so we can restore
-        // exactly that one after the seek (instead of clobbering it with auto-select).
-        try {
-          const trackList = await Bridge.getTrackList();
-          const selected = (trackList as any[]).find((t: any) => t.type === 'sub' && t.selected);
-          stalkerSubTrackIdRef.current = selected ? selected.id : 0;
-        } catch {
-          stalkerSubTrackIdRef.current = null;
-        }
-        Bridge.setSubtitleTrack(0).catch(() => {});
-      }).then((fn) => {
-        if (disposed) fn();
-        else unlistenSeek = fn;
-      });
-
       listen('mpv-playback-restart', async () => {
-        if (!isStalkerVodRef.current) return;
-        const restoreId = stalkerSubTrackIdRef.current;
-        stalkerSubTrackIdRef.current = null;
+        const wasSeeking = wasSeekingRef.current;
+        wasSeekingRef.current = false;
 
-        if (restoreId !== null && restoreId !== undefined && restoreId > 0) {
-          // Restore the user's selection — fixes duplicate CC/WebVTT rendering while
-          // respecting the track they had enabled before the seek.
-          logInfo(`[Subtitle] Stalker VOD playback-restart — restoring subtitle track ${restoreId}`);
-          await Bridge.setSubtitleTrack(restoreId).catch(() => {});
-          hasAutoSelectedSubRef.current = true;
-        } else {
-          // Nothing was selected before the seek — re-run default-language auto-select.
+        // Read the currently active/selected subtitle track (from Bridge or MPV track list)
+        let currentSubId = Bridge.getSubtitleTrackId?.() ?? null;
+
+        if (currentSubId === null) {
+          // If we don't have a track recorded in Bridge, check MPV's track list
+          try {
+            const trackList = await Bridge.getTrackList();
+            const selected = (trackList as any[]).find((t: any) => t.type === 'sub' && t.selected);
+            if (selected && selected.id > 0) {
+              currentSubId = selected.id;
+            }
+          } catch {}
+        }
+
+        if (wasSeeking && currentSubId !== null && currentSubId > 0) {
+          logInfo(`[Subtitle] Playback-restart after seek — cycling subtitle track ${currentSubId} to clear libass/CC decoder cache`);
+          // Toggle sid to 0 then restore target ID to purge stale dialogue events and reset the CC decoder
+          await invoke('mpv_set_subtitle', { id: 0 }).catch(() => {});
+          await Bridge.setSubtitleTrack(currentSubId).catch(() => {});
+        } else if (isStalkerVodRef.current && !subAutoSelectEverCompletedRef.current) {
           logInfo('[Subtitle] Stalker VOD playback-restart — re-running subtitle auto-select');
           hasAutoSelectedSubRef.current = false;
           lastSubTracksCountRef.current = 0;
@@ -1928,10 +2078,17 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
     return () => {
       disposed = true;
-      unlistenSeek?.();
       unlistenRestart?.();
     };
   }, [autoSelectSubtitle]);
+
+  // Synchronize live MPV playback when subtitle settings change in store
+  const subtitleSettings = useSettingsStore((s) => s.subtitleSettings);
+  useEffect(() => {
+    if (playing) {
+      applySubtitleSettings().catch(() => {});
+    }
+  }, [subtitleSettings, playing]);
 
   const autoSelectAudio = useCallback(async (providedAudioTracks?: any[]) => {
     const ss = useSettingsStore.getState().subtitleSettings;
@@ -2068,7 +2225,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               seriesId,
               'series',
               Math.floor(position),
-              Math.floor(duration)
+              Math.floor(duration),
+              vodInfo.source_id || '',
+              vodInfo.title || '',
+              vodInfo.posterUrl
             );
             
             // Save episode-level progress (for episode resume)
@@ -2076,9 +2236,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               episodeId,
               seriesId,
               vodInfo.source_id || '',
-              0,
-              0,
-              '',
+              vodInfo.seasonNum ?? 0,
+              vodInfo.episodeNum ?? 0,
+              vodInfo.episodeInfo || '',
               Math.floor(position),
               Math.floor(duration)
             );
@@ -2089,7 +2249,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
             mediaId,
             vodInfo.type as 'movie' | 'series',
             Math.floor(position),
-            Math.floor(duration)
+            Math.floor(duration),
+            vodInfo.source_id || '',
+            vodInfo.title || '',
+            vodInfo.posterUrl
           );
         }
       }
@@ -2151,6 +2314,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
   const handleCatchupSeek = useCallback(async (channel: StoredChannel, programTitle: string, startTimeMs: number, durationMinutes: number, seekSeconds: number, programDesc?: string) => {
     seekingRef.current = true;
+    wasSeekingRef.current = true;
     clearPendingSeeks();
     const startPaddingSecs = catchupStartPaddingRef.current * 60;
     pendingCatchupSeekRef.current = seekSeconds + startPaddingSecs;
@@ -2204,10 +2368,16 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
     // Stalker/MAC sources require session headers that MPV doesn't send,
     // so they always trigger a 401/403 HTTP error — but the stream plays fine.
-    // Suppress these false positives. We also suppress local URLs.
+    // Suppress these false positives. We also suppress local and YouTube/trailer URLs
+    // where mpv/yt-dlp handles format negotiation and transient 403s internally.
     const isStalker = sourceData?.type === 'stalker';
     const isLocal = isLocalUrl(resolved.url);
-    setIgnoreHttpErrors(isStalker || isLocal);
+    const isTrailer = info.source_id === 'trailer' || isYouTubeUrl(resolved.url) || isYouTubeUrl(info.url);
+    setIgnoreHttpErrors(isStalker || isLocal || isTrailer);
+    if (isTrailer) {
+      trailerLoadStartTimeRef.current = Date.now();
+      trailerRetryCountRef.current = 0;
+    }
     // Track whether this is a stalker portal VOD playing an HLS stream (m3u8).
     // CEA-608 CC + WebVTT tracks in these streams can duplicate on seek.
     const resolvedUrlLower = resolved.url.toLowerCase();
@@ -2230,10 +2400,11 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
         ? `${info.source_id}_${info.url}`
         : null);
       
-      // Check for saved progress
+      // Check for saved progress (never for trailers — they're short previews
+      // and stale resume positions make a 30s clip jump straight to the end)
       let resumePosition = 0;
       console.log('[Playback] Checking for progress. mediaId:', mediaId, 'type:', info.type);
-      if (mediaId && info.type !== 'recording') {
+      if (mediaId && info.type !== 'recording' && info.source_id !== 'trailer' && !isYouTubeUrl(info.url)) {
         // For series episodes, check episode-level progress first
         if (info.type === 'series' && mediaId.includes('_ep_')) {
           const parts = mediaId.split('_ep_');
@@ -2249,33 +2420,35 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               progress_seconds: episodeProgress?.progress_seconds,
               valid: episodeProgress && episodeProgress.total_duration && episodeProgress.total_duration > 0
             });
-            if (episodeProgress && episodeProgress.total_duration && episodeProgress.total_duration > 0) {
-              const totalDuration = episodeProgress.total_duration;
+            if (episodeProgress && (episodeProgress.progress_seconds ?? 0) > 0) {
+              const totalDuration = episodeProgress.total_duration ?? 0;
               const progressSeconds = episodeProgress.progress_seconds ?? 0;
-              const progressPercent = (progressSeconds / totalDuration) * 100;
+              const progressPercent = totalDuration > 0 ? (progressSeconds / totalDuration) * 100 : 0;
               console.log('[Playback] Episode progress calculation:', { progressSeconds, totalDuration, progressPercent });
-              if ((progressSeconds >= 10 || progressPercent > 1) && progressPercent < 95) {
+              if ((progressSeconds >= 10 || progressPercent > 1) && (totalDuration === 0 || progressPercent < 95)) {
                 resumePosition = progressSeconds;
                 logInfo('[Playback] Resuming episode from:', resumePosition, 'seconds');
               } else {
                 console.log('[Playback] Episode progress outside resume range:', progressPercent + '%');
               }
             } else {
-              console.log('[Playback] No episode progress found or invalid duration');
+              console.log('[Playback] No episode progress found');
             }
           }
         }
         
-        // If no episode progress found, try series-level progress
+        // If no episode progress found, try movie/series-level progress
         if (resumePosition === 0) {
-          console.log('[Playback] Trying series-level progress lookup');
+          console.log('[Playback] Looking up VOD watch progress for:', mediaId, info.type);
           const savedProgress = await getVodWatchProgress(mediaId, info.type as 'movie' | 'series');
-          console.log('[Playback] Series progress result:', savedProgress);
-          if (savedProgress && savedProgress.total_duration > 0) {
-            const progressPercent = (savedProgress.progress_seconds / savedProgress.total_duration) * 100;
-            // Only resume if between 10s/1% and 95% watched
-            if ((savedProgress.progress_seconds >= 10 || progressPercent > 1) && progressPercent < 95) {
-              resumePosition = savedProgress.progress_seconds;
+          console.log('[Playback] VOD progress result:', savedProgress);
+          if (savedProgress && (savedProgress.progress_seconds ?? 0) > 0) {
+            const totalDuration = savedProgress.total_duration ?? 0;
+            const progressSeconds = savedProgress.progress_seconds ?? 0;
+            const progressPercent = totalDuration > 0 ? (progressSeconds / totalDuration) * 100 : 0;
+            // Only resume if between 10s/1% and 95% watched (or unknown total duration)
+            if ((progressSeconds >= 10 || progressPercent > 1) && (totalDuration === 0 || progressPercent < 95)) {
+              resumePosition = progressSeconds;
               logInfo('[Playback] Resuming VOD at:', resumePosition, 'seconds');
             }
           }
@@ -2328,6 +2501,21 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
       
       console.log('[Playback] Final resume position:', resumePosition);
       
+      // Ensure initial watch entry exists in vod_history with full metadata
+      if (mediaId && info.type !== 'recording') {
+        const seriesId = info.type === 'series' && mediaId.includes('_ep_') ? mediaId.split('_ep_')[0] : mediaId;
+        void recordVodWatch(
+          seriesId,
+          info.type === 'series' ? 'series' : 'movie',
+          info.source_id || 'unknown',
+          info.title || 'Unknown',
+          info.posterUrl,
+          info.seasonNum,
+          info.episodeNum,
+          info.episodeInfo
+        ).catch(e => console.warn('[usePlayback] Failed to record initial VOD watch:', e));
+      }
+
       setCurrentChannel({
         stream_id: 'vod',
         name: info.title,
@@ -2468,7 +2656,7 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
     // Save progress before stopping if playing VOD and initial seek is not pending
     if (isInitialSeekPendingRef.current) {
       console.log('[Playback] Initial seek was still pending on stop, skipping progress save');
-    } else if (vodInfo && position > 0 && duration > 0) {
+    } else if (vodInfo && position > 0 && duration > 0 && vodInfo.source_id !== 'trailer' && !isYouTubeUrl(vodInfo.url)) {
       if (vodInfo.type === 'recording') {
         console.log('[Playback] Saving progress for recording on stop:', position, '/', duration);
         if (vodInfo.recordingId) {
@@ -2497,7 +2685,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
                 seriesId,  // Use series_id, not episode-specific mediaId
                 'series',
                 Math.floor(position),
-                Math.floor(duration)
+                Math.floor(duration),
+                vodInfo.source_id || '',
+                vodInfo.title || '',
+                vodInfo.posterUrl
               );
               
               // Save episode-level progress (for episode resume)
@@ -2511,9 +2702,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
                 episodeId,
                 seriesId,
                 vodInfo.source_id || '',
-                0, // We'll update these from DB
-                0,
-                '',
+                vodInfo.seasonNum ?? 0,
+                vodInfo.episodeNum ?? 0,
+                vodInfo.episodeInfo || '',
                 Math.floor(position),
                 Math.floor(duration)
               );
@@ -2524,7 +2715,10 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
               mediaId,
               vodInfo.type as 'movie' | 'series',
               Math.floor(position),
-              Math.floor(duration)
+              Math.floor(duration),
+              vodInfo.source_id || '',
+              vodInfo.title || '',
+              vodInfo.posterUrl
             );
           }
         }
@@ -2572,12 +2766,16 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
 
   const handleSeek = useCallback(async (seconds: number) => {
     seekingRef.current = true;
+    wasSeekingRef.current = true;
     setPosition(seconds);
     try {
       await Bridge.seek(seconds);
     } catch (e) {
       console.warn('[usePlayback] Seek command failed:', e);
     }
+    // Nuvio: push the new position right after a seek so the cloud resume
+    // point is current (matches NuvioDesktop's seek sync). No-op for non-Nuvio.
+    void pushNuvioPlaybackProgress(vodInfoRef.current, seconds, durationRef.current);
     setTimeout(() => { seekingRef.current = false; }, 200);
   }, [setPosition]);
 
@@ -2586,6 +2784,9 @@ export function usePlayback(options: UsePlaybackOptions): PlaybackState {
       userPausedRef.current = true;
       resetHealthTracking(0);
       await Bridge.pause();
+      // Nuvio: push the pause position so the cloud row reflects where the
+      // user stopped mid-item (NuvioDesktop flushes on pause too).
+      void pushNuvioPlaybackProgress(vodInfoRef.current, positionRef.current, durationRef.current);
     } else {
       userPausedRef.current = false;
       intentionallyStoppedRef.current = false;

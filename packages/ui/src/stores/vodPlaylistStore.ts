@@ -19,6 +19,12 @@ export interface PlaylistItem {
   sourceName?: string;
   duration?: number;
   addedAt: number;
+  /**
+   * Set when the item could not be resolved against the live source (row
+   * missing from the DB / local library). Cleared as soon as it resolves
+   * again. Used to auto-prune items whose source/file is permanently gone.
+   */
+  unresolvableSince?: number;
 }
 
 export interface Playlist {
@@ -45,6 +51,7 @@ interface VodPlaylistState {
   addItemsToPlaylist: (playlistId: string, items: Array<Omit<PlaylistItem, 'id' | 'playlistId' | 'addedAt'>>) => void;
   removeItemFromPlaylist: (playlistId: string, itemId: string) => void;
   removeItemsFromPlaylist: (playlistId: string, itemIds: string[]) => void;
+  updatePlaylistItem: (playlistId: string, itemId: string, patch: Partial<PlaylistItem>) => void;
   reorderPlaylistItems: (playlistId: string, fromIndex: number, toIndex: number) => void;
   randomizePlaylistItems: (playlistId: string) => void;
   undoRandomizePlaylistItems: (playlistId: string) => void;
@@ -143,6 +150,16 @@ export const useVodPlaylistStore = create<VodPlaylistState>()(
           if (p.id !== playlistId || itemIds.length === 0) return p;
           const removeIds = new Set(itemIds);
           return { ...p, items: p.items.filter((item) => !removeIds.has(item.id)), updatedAt: Date.now() };
+        }),
+      })),
+
+      updatePlaylistItem: (playlistId, itemId, patch) => set((state) => ({
+        playlists: state.playlists.map((p) => {
+          if (p.id !== playlistId) return p;
+          const items = p.items.map((item) =>
+            item.id === itemId ? { ...item, ...patch } : item
+          );
+          return { ...p, items, updatedAt: Date.now() };
         }),
       })),
 

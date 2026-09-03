@@ -27,6 +27,8 @@ interface LiveTVTabProps {
   onEpgVisibleHoursChange: (hours: 'auto' | number) => void;
   epgClockFormat: '12h' | '24h';
   onEpgClockFormatChange: (format: '12h' | '24h') => void;
+  epgResolutionFilterEnabled: boolean;
+  onEpgResolutionFilterEnabledChange: (enabled: boolean) => void;
   epgShowDate?: boolean;
   onEpgShowDateChange?: (enabled: boolean) => void;
   epgBoldChannelNames: boolean;
@@ -49,22 +51,54 @@ interface LiveTVTabProps {
   onLogoSmartTrimChange?: (enabled: boolean) => void;
   logoLightBackgroundDetection?: boolean;
   onLogoLightBackgroundDetectionChange?: (enabled: boolean) => void;
+  logoDefaultBackground?: 'auto' | 'light' | 'dark';
+  onLogoDefaultBackgroundChange?: (background: 'auto' | 'light' | 'dark') => void;
   sourceLogoDisplayOverrides: Record<string, 'square' | 'rectangle'>;
   onSetSourceLogoDisplayOverride: (sourceId: string, display: 'square' | 'rectangle' | 'default') => void;
+  sourceLogoBackgroundOverrides: Record<string, 'auto' | 'light' | 'dark'>;
+  onSetSourceLogoBackgroundOverride: (sourceId: string, background: 'auto' | 'light' | 'dark' | 'default') => void;
   epgMetadataBadgeResolution: boolean;
   onEpgMetadataBadgeResolutionChange: (enabled: boolean) => void;
   epgMetadataBadgeFps: boolean;
   onEpgMetadataBadgeFpsChange: (enabled: boolean) => void;
   epgMetadataBadgeFpsSuffix: boolean;
   onEpgMetadataBadgeFpsSuffixChange: (enabled: boolean) => void;
+  epgMetadataBadgeFhdLabels: boolean;
+  onEpgMetadataBadgeFhdLabelsChange: (enabled: boolean) => void;
   epgMetadataBadgeSound: boolean;
   onEpgMetadataBadgeSoundChange: (enabled: boolean) => void;
+  epgMetadataBadgeBitrate: boolean;
+  onEpgMetadataBadgeBitrateChange: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrate: boolean;
+  onEpgMetadataBadgeAudioBitrateChange: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateOverlay: boolean;
+  onEpgMetadataBadgeBitrateOverlayChange: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateOverlay: boolean;
+  onEpgMetadataBadgeAudioBitrateOverlayChange: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSearch: boolean;
+  onEpgMetadataBadgeBitrateSearchChange: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSearch: boolean;
+  onEpgMetadataBadgeAudioBitrateSearchChange: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateFailover: boolean;
+  onEpgMetadataBadgeBitrateFailoverChange: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateFailover: boolean;
+  onEpgMetadataBadgeAudioBitrateFailoverChange: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSports: boolean;
+  onEpgMetadataBadgeBitrateSportsChange: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSports: boolean;
+  onEpgMetadataBadgeAudioBitrateSportsChange: (enabled: boolean) => void;
   epgView: 'traditional' | 'alternate';
   onEpgViewChange: (view: 'traditional' | 'alternate') => void;
+  epgThreeColumn: boolean;
+  onEpgThreeColumnChange: (enabled: boolean) => void;
+  categorySidebarAutohide: boolean;
+  onCategorySidebarAutohideChange: (enabled: boolean) => void;
   epgTitleFontSize: number;
   onEpgTitleFontSizeChange: (size: number) => void;
   epgBodyFontSize: number;
   onEpgBodyFontSizeChange: (size: number) => void;
+  epgProgramFontSize: number;
+  onEpgProgramFontSizeChange: (size: number) => void;
   // Font Size props
   channelFontSize: number;
   onChannelFontSizeChange: (size: number) => void;
@@ -153,6 +187,8 @@ export function LiveTVTab({
   onEpgVisibleHoursChange,
   epgClockFormat,
   onEpgClockFormatChange,
+  epgResolutionFilterEnabled,
+  onEpgResolutionFilterEnabledChange,
   epgShowDate = false,
   onEpgShowDateChange,
   epgBoldChannelNames,
@@ -175,22 +211,54 @@ export function LiveTVTab({
   onLogoSmartTrimChange = () => {},
   logoLightBackgroundDetection = true,
   onLogoLightBackgroundDetectionChange = () => {},
+  logoDefaultBackground = 'auto',
+  onLogoDefaultBackgroundChange = () => {},
   sourceLogoDisplayOverrides,
   onSetSourceLogoDisplayOverride,
+  sourceLogoBackgroundOverrides,
+  onSetSourceLogoBackgroundOverride,
   epgMetadataBadgeResolution,
   onEpgMetadataBadgeResolutionChange,
   epgMetadataBadgeFps,
   onEpgMetadataBadgeFpsChange,
   epgMetadataBadgeFpsSuffix,
   onEpgMetadataBadgeFpsSuffixChange,
+  epgMetadataBadgeFhdLabels,
+  onEpgMetadataBadgeFhdLabelsChange,
   epgMetadataBadgeSound,
   onEpgMetadataBadgeSoundChange,
+  epgMetadataBadgeBitrate,
+  onEpgMetadataBadgeBitrateChange,
+  epgMetadataBadgeAudioBitrate,
+  onEpgMetadataBadgeAudioBitrateChange,
+  epgMetadataBadgeBitrateOverlay,
+  onEpgMetadataBadgeBitrateOverlayChange,
+  epgMetadataBadgeAudioBitrateOverlay,
+  onEpgMetadataBadgeAudioBitrateOverlayChange,
+  epgMetadataBadgeBitrateSearch,
+  onEpgMetadataBadgeBitrateSearchChange,
+  epgMetadataBadgeAudioBitrateSearch,
+  onEpgMetadataBadgeAudioBitrateSearchChange,
+  epgMetadataBadgeBitrateFailover,
+  onEpgMetadataBadgeBitrateFailoverChange,
+  epgMetadataBadgeAudioBitrateFailover,
+  onEpgMetadataBadgeAudioBitrateFailoverChange,
+  epgMetadataBadgeBitrateSports,
+  onEpgMetadataBadgeBitrateSportsChange,
+  epgMetadataBadgeAudioBitrateSports,
+  onEpgMetadataBadgeAudioBitrateSportsChange,
   epgView,
   onEpgViewChange,
+  epgThreeColumn,
+  onEpgThreeColumnChange,
+  categorySidebarAutohide,
+  onCategorySidebarAutohideChange,
   epgTitleFontSize,
   onEpgTitleFontSizeChange,
   epgBodyFontSize,
   onEpgBodyFontSizeChange,
+  epgProgramFontSize,
+  onEpgProgramFontSizeChange,
   channelFontSize,
   onChannelFontSizeChange,
   categoryFontSize,
@@ -324,6 +392,38 @@ export function LiveTVTab({
           <>
             <div className="settings-section">
               <div className="timeshift-settings" style={{ marginTop: 0 }}>
+                {/* Three-Column Guide Toggle */}
+                <div className="timeshift-toggle-row">
+                  <div className="timeshift-toggle-info">
+                    <span className="timeshift-toggle-label">{i18n.t('settings:livetv.threeColumnView')}</span>
+                    <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.threeColumnViewSub')}</span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={epgThreeColumn}
+                      onChange={(e) => onEpgThreeColumnChange(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+
+                {/* Auto-hide Category Sidebar Toggle */}
+                <div className="timeshift-toggle-row">
+                  <div className="timeshift-toggle-info">
+                    <span className="timeshift-toggle-label">{i18n.t('settings:livetv.categorySidebarAutohide')}</span>
+                    <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.categorySidebarAutohideSub')}</span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={categorySidebarAutohide}
+                      onChange={(e) => onCategorySidebarAutohideChange(e.target.checked)}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+
                 {/* EPG Visible Hours */}
                 <div className="timeshift-toggle-row">
                   <div className="timeshift-toggle-info">
@@ -343,6 +443,10 @@ export function LiveTVTab({
                     <option value="4">{i18n.t('settings:livetv.hours', { count: 4 })}</option>
                     <option value="5">{i18n.t('settings:livetv.hours', { count: 5 })}</option>
                     <option value="6">{i18n.t('settings:livetv.hours', { count: 6 })}</option>
+                    <option value="7">{i18n.t('settings:livetv.hours', { count: 7 })}</option>
+                    <option value="8">{i18n.t('settings:livetv.hours', { count: 8 })}</option>
+                    <option value="9">{i18n.t('settings:livetv.hours', { count: 9 })}</option>
+                    <option value="10">{i18n.t('settings:livetv.hours', { count: 10 })}</option>
                   </select>
                 </div>
 
@@ -359,6 +463,22 @@ export function LiveTVTab({
                     <option value="12h">{i18n.t('settings:livetv.clock12')}</option>
                     <option value="24h">{i18n.t('settings:livetv.clock24')}</option>
                   </select>
+                </div>
+
+                {/* Resolution filter */}
+                <div className="timeshift-toggle-row">
+                  <div className="timeshift-toggle-info">
+                    <span className="timeshift-toggle-label">{i18n.t('settings:livetv.epgResolutionFilter')}</span>
+                    <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.epgResolutionFilterSub')}</span>
+                  </div>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={epgResolutionFilterEnabled}
+                      onChange={(e) => onEpgResolutionFilterEnabledChange(e.target.checked)}
+                    />
+                    <span className="toggle-slider" />
+                  </label>
                 </div>
 
                 {/* Show Date in EPG */}
@@ -495,7 +615,7 @@ export function LiveTVTab({
                           <span className="toggle-slider" />
                         </label>
                       </td>
-                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                      <td style={{ padding: '16px', textAlign: 'center', borderRight: '1px solid var(--surface-border)' }}>
                         <label className="toggle-switch" style={{ margin: '0 auto' }}>
                           <input
                             type="checkbox"
@@ -512,6 +632,21 @@ export function LiveTVTab({
 
               <div className="timeshift-toggle-row" style={{ marginTop: '12px' }}>
                 <div className="timeshift-toggle-info">
+                  <span className="timeshift-toggle-label">{i18n.t('settings:livetv.fhdLabels')}</span>
+                  <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.fhdLabelsSub')}</span>
+                </div>
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={epgMetadataBadgeFhdLabels}
+                    onChange={(e) => onEpgMetadataBadgeFhdLabelsChange(e.target.checked)}
+                  />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+
+              <div className="timeshift-toggle-row" style={{ marginTop: '12px' }}>
+                <div className="timeshift-toggle-info">
                   <span className="timeshift-toggle-label">{i18n.t('settings:livetv.fpsSuffix')}</span>
                   <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.fpsSuffixSub')}</span>
                 </div>
@@ -523,6 +658,63 @@ export function LiveTVTab({
                   />
                   <span className="toggle-slider" />
                 </label>
+              </div>
+
+              {/* Average Bitrate - per-location toggles */}
+              <div style={{ marginTop: '24px' }}>
+                <div className="section-header">
+                  <h4 style={{ color: 'var(--text-primary, #ffffff)', fontSize: '0.95rem', fontWeight: 600, textTransform: 'none', letterSpacing: 'normal', margin: 0 }}>
+                    {i18n.t('settings:livetv.avgBitrate', 'Avg Bitrate')}
+                  </h4>
+                </div>
+                <p className="section-description" style={{ marginTop: '4px' }}>
+                  {i18n.t('settings:livetv.avgBitrateDescription', 'Choose where the average video and audio bitrate badges are shown.')}
+                </p>
+
+                <div style={{ marginTop: '12px', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', background: 'var(--bg-tertiary)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface-color)', borderBottom: '1px solid var(--surface-border)' }}>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.avgBitrateLocation', 'Location')}</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.avgVideoBitrate', 'Avg Video Bitrate')}</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>{i18n.t('settings:livetv.avgAudioBitrate', 'Avg Audio Bitrate')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {([
+                        { key: 'epg', label: i18n.t('settings:livetv.avgBitrateLocationEpg', 'EPG'), video: epgMetadataBadgeBitrate, onVideo: onEpgMetadataBadgeBitrateChange, audio: epgMetadataBadgeAudioBitrate, onAudio: onEpgMetadataBadgeAudioBitrateChange },
+                        { key: 'overlay', label: i18n.t('settings:livetv.avgBitrateLocationOverlay', 'Channel Info Overlay'), video: epgMetadataBadgeBitrateOverlay, onVideo: onEpgMetadataBadgeBitrateOverlayChange, audio: epgMetadataBadgeAudioBitrateOverlay, onAudio: onEpgMetadataBadgeAudioBitrateOverlayChange },
+                        { key: 'search', label: i18n.t('settings:livetv.avgBitrateLocationSearch', 'Search Results'), video: epgMetadataBadgeBitrateSearch, onVideo: onEpgMetadataBadgeBitrateSearchChange, audio: epgMetadataBadgeAudioBitrateSearch, onAudio: onEpgMetadataBadgeAudioBitrateSearchChange },
+                        { key: 'failover', label: i18n.t('settings:livetv.avgBitrateLocationFailover', 'Failover'), video: epgMetadataBadgeBitrateFailover, onVideo: onEpgMetadataBadgeBitrateFailoverChange, audio: epgMetadataBadgeAudioBitrateFailover, onAudio: onEpgMetadataBadgeAudioBitrateFailoverChange },
+                        { key: 'sports', label: i18n.t('settings:livetv.avgBitrateLocationSports', 'Sports Channel Linking'), video: epgMetadataBadgeBitrateSports, onVideo: onEpgMetadataBadgeBitrateSportsChange, audio: epgMetadataBadgeAudioBitrateSports, onAudio: onEpgMetadataBadgeAudioBitrateSportsChange },
+                      ]).map((row) => (
+                        <tr key={row.key}>
+                          <td style={{ padding: '12px 16px', textAlign: 'left', color: 'var(--text-primary)', fontWeight: 500, borderRight: '1px solid var(--surface-border)' }}>{row.label}</td>
+                          <td style={{ padding: '16px', textAlign: 'center', borderRight: '1px solid var(--surface-border)' }}>
+                            <label className="toggle-switch" style={{ margin: '0 auto' }}>
+                              <input
+                                type="checkbox"
+                                checked={row.video}
+                                onChange={(e) => row.onVideo(e.target.checked)}
+                              />
+                              <span className="toggle-slider" />
+                            </label>
+                          </td>
+                          <td style={{ padding: '16px', textAlign: 'center' }}>
+                            <label className="toggle-switch" style={{ margin: '0 auto' }}>
+                              <input
+                                type="checkbox"
+                                checked={row.audio}
+                                onChange={(e) => row.onAudio(e.target.checked)}
+                              />
+                              <span className="toggle-slider" />
+                            </label>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
@@ -925,6 +1117,27 @@ export function LiveTVTab({
               </div>
             )}
 
+            {/* Program Font Size (EPG time grid) */}
+            <div className="form-group" style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{i18n.t('settings:livetv.programFontSize')}</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <input
+                  type="range"
+                  min="10"
+                  max="24"
+                  value={epgProgramFontSize}
+                  onChange={(e) => onEpgProgramFontSizeChange(parseInt(e.target.value))}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ minWidth: '3rem', textAlign: 'right', color: 'var(--text-primary)' }}>
+                  {epgProgramFontSize}px
+                </span>
+              </div>
+              <p className="form-hint" style={{ marginTop: '0.5rem' }}>
+                {i18n.t('settings:livetv.previewLabel')}: <span style={{ fontSize: `${epgProgramFontSize}px`, color: '#00d4ff' }}>{i18n.t('settings:livetv.programNameExample')}</span>
+              </p>
+            </div>
+
             {/* Reset Button */}
             <div style={{ marginTop: '16px' }}>
               <button
@@ -938,6 +1151,7 @@ export function LiveTVTab({
                     onChannelFontSizeChange(14);
                     onCategoryFontSizeChange(14);
                   }
+                  onEpgProgramFontSizeChange(14);
                 }}
                 style={{ maxWidth: '200px' }}
               >
@@ -983,8 +1197,12 @@ export function LiveTVTab({
             onLogoSmartTrimChange={onLogoSmartTrimChange}
             logoLightBackgroundDetection={logoLightBackgroundDetection}
             onLogoLightBackgroundDetectionChange={onLogoLightBackgroundDetectionChange}
+            logoDefaultBackground={logoDefaultBackground}
+            onLogoDefaultBackgroundChange={onLogoDefaultBackgroundChange}
             sourceLogoDisplayOverrides={sourceLogoDisplayOverrides}
             onSetSourceLogoDisplayOverride={onSetSourceLogoDisplayOverride}
+            sourceLogoBackgroundOverrides={sourceLogoBackgroundOverrides}
+            onSetSourceLogoBackgroundOverride={onSetSourceLogoBackgroundOverride}
             logoCacheEnabled={logoCacheEnabled}
             onLogoCacheEnabledChange={onLogoCacheEnabledChange}
             logoCacheMaxMb={logoCacheMaxMb}

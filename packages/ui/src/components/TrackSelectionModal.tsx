@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bridge } from '../services/tauri-bridge';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -234,6 +234,15 @@ export function TrackSelectionModal({ isOpen, type, onClose, channel }: TrackSel
       onClose();
     } catch (e) {
       console.error('Failed to set CC track:', e);
+    }
+  };
+
+  // Track rows are focus targets for controller/remote (spatial) navigation, so
+  // they also need keyboard activation (Enter/Space) like a real button.
+  const handleTrackKeyDown = (e: ReactKeyboardEvent<HTMLElement>, action: () => void) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      action();
     }
   };
 
@@ -669,8 +678,11 @@ export function TrackSelectionModal({ isOpen, type, onClose, channel }: TrackSel
                     return (
                       <li
                         key={device.name}
+                        role="button"
+                        tabIndex={0}
                         className={`track-item ${isSelected ? 'selected' : ''}`}
                         onClick={() => handleSelectDevice(device.name)}
+                        onKeyDown={(e) => handleTrackKeyDown(e, () => handleSelectDevice(device.name))}
                       >
                         <span className="track-name">
                           {device.description || device.name}
@@ -695,8 +707,11 @@ export function TrackSelectionModal({ isOpen, type, onClose, channel }: TrackSel
                       <ul className="track-list">
                         {type === 'subtitle' && (
                           <li
+                            role="button"
+                            tabIndex={0}
                             className={`track-item ${selectedId === 0 && !selectedCcId ? 'selected' : ''}`}
                             onClick={handleDisable}
+                            onKeyDown={(e) => handleTrackKeyDown(e, handleDisable)}
                           >
                             <span className="track-name">{t('disabled')}</span>
                           </li>
@@ -704,8 +719,11 @@ export function TrackSelectionModal({ isOpen, type, onClose, channel }: TrackSel
                         {tracks.map((track) => (
                           <li
                             key={track.id}
+                            role="button"
+                            tabIndex={0}
                             className={`track-item ${selectedId === track.id && !selectedCcId ? 'selected' : ''}`}
                             onClick={() => handleSelect(track.id)}
+                            onKeyDown={(e) => handleTrackKeyDown(e, () => handleSelect(track.id))}
                           >
                             <span className="track-name">
                               {track.title || `${type === 'audio' ? 'Audio' : 'Subtitle'} ${track.id}`}
@@ -729,8 +747,11 @@ export function TrackSelectionModal({ isOpen, type, onClose, channel }: TrackSel
                         {ccTracks.map((cc) => (
                           <li
                             key={cc.id}
+                            role="button"
+                            tabIndex={0}
                             className={`track-item ${selectedCcId === cc.id ? 'selected' : ''}`}
                             onClick={() => handleSelectCc(cc.id)}
+                            onKeyDown={(e) => handleTrackKeyDown(e, () => handleSelectCc(cc.id))}
                           >
                             <span className="track-name">
                               CC{cc.channel} - Closed Captions

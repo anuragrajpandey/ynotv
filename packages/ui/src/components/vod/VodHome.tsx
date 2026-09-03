@@ -4,7 +4,7 @@
  * Shows Cinemeta-curated content rows for discovery.
  */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { HeroSection } from './HeroSection';
 import { HorizontalCarousel } from './HorizontalCarousel';
 import type { StoredMovie, StoredSeries } from '../../db';
@@ -43,8 +43,14 @@ export function VodHome({ type, onItemClick, onPlay, vodPlayerMode, onSelectVodP
   const { series: recentlyWatchedSeriesData, loading: recentlyWatchedSeriesLoading } = useRecentlyWatchedSeries(20);
   
   // Extract items and create progress maps
-  const recentlyWatchedMovies = recentlyWatchedMoviesData.map(m => m.item);
-  const recentlyWatchedSeries = recentlyWatchedSeriesData.map(s => s.item);
+  const recentlyWatchedMovies = useMemo(
+    () => recentlyWatchedMoviesData.map(m => m.item),
+    [recentlyWatchedMoviesData]
+  );
+  const recentlyWatchedSeries = useMemo(
+    () => recentlyWatchedSeriesData.map(s => s.item),
+    [recentlyWatchedSeriesData]
+  );
   
   // Debug logging for Recently Watched
   useEffect(() => {
@@ -55,8 +61,27 @@ export function VodHome({ type, onItemClick, onPlay, vodPlayerMode, onSelectVodP
   }, [recentlyWatchedMoviesData, recentlyWatchedSeriesData, recentlyWatchedMoviesLoading, recentlyWatchedSeriesLoading, recentlyWatchedMovies.length, recentlyWatchedSeries.length]);
   
   // Create progress maps for Recently Watched carousels
-  const movieProgressMap = new Map(recentlyWatchedMoviesData.map(m => [m.item.stream_id, m.progress_percent]));
-  const seriesProgressMap = new Map(recentlyWatchedSeriesData.map(s => [s.item.series_id, s.progress_percent]));
+  const movieProgressMap = useMemo(
+    () => new Map(recentlyWatchedMoviesData.map(m => [m.item.stream_id, m.progress_percent])),
+    [recentlyWatchedMoviesData]
+  );
+  const seriesProgressMap = useMemo(
+    () => new Map(recentlyWatchedSeriesData.map(s => [s.item.series_id, s.progress_percent])),
+    [recentlyWatchedSeriesData]
+  );
+
+  // Create episode data map for Recently Watched series
+  const seriesEpisodeDataMap = useMemo(() => {
+    const map = new Map<string, { seasonNum?: number; episodeNum?: number; episodeTitle?: string }>();
+    recentlyWatchedSeriesData.forEach(item => {
+      map.set(item.item.series_id, {
+        seasonNum: item.season_num,
+        episodeNum: item.episode_num,
+        episodeTitle: item.episode_title,
+      });
+    });
+    return map;
+  }, [recentlyWatchedSeriesData]);
 
   const handleHeroPlay = useCallback((item: StoredMovie | StoredSeries, targetMode?: VodPlayerMode) => {
     onPlay(item, targetMode);
@@ -162,6 +187,7 @@ export function VodHome({ type, onItemClick, onPlay, vodPlayerMode, onSelectVodP
             maxItems={20}
             progressData={seriesProgressMap}
             isRecentlyWatched={true}
+            episodeData={seriesEpisodeDataMap}
           />
         )}
 

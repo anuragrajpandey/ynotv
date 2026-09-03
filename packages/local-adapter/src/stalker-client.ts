@@ -26,6 +26,18 @@ interface StalkerResponse<T> {
     js: T;
 }
 
+/**
+ * Progress reported while paginating a Stalker VOD/series category.
+ * currentPage/totalPages are 1-indexed and only set once known — Stalker
+ * portals that return `total_items`/`pages` metadata enable the "Page X of Y"
+ * display; portals that don't get an indeterminate "Page X" instead.
+ */
+export type StalkerPageProgress = (
+    percent: number,
+    currentPage?: number,
+    totalPages?: number
+) => void;
+
 interface StalkerGenre {
     id: string;
     title: string;
@@ -160,6 +172,38 @@ export class StalkerClient {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Extract items + page metadata from a get_ordered_list response.
+     * Most Stalker portals return `{ data: [...], total_items, max_page_items, pages }`
+     * (wrapped in `js` by fetchStalker), which lets us show "Page X of Y" while
+     * lazy-loading a category. Portals that omit the metadata just get an
+     * indeterminate page count.
+     */
+    private extractOrderedList(raw: any): {
+        items: any[];
+        total_items?: number;
+        max_page_items?: number;
+        pages?: number;
+    } {
+        let obj = raw;
+        // fetchStalker unwraps `js`, but some portals double-wrap: { js: { data: [...] } }
+        if (obj && obj.js && Array.isArray(obj.js.data)) {
+            obj = obj.js;
+        }
+        if (Array.isArray(obj)) {
+            return { items: obj };
+        }
+        if (obj && Array.isArray(obj.data)) {
+            return {
+                items: obj.data,
+                total_items: obj.total_items != null ? Number(obj.total_items) : undefined,
+                max_page_items: obj.max_page_items != null ? Number(obj.max_page_items) : undefined,
+                pages: obj.pages != null ? Number(obj.pages) : undefined,
+            };
+        }
+        return { items: [] };
     }
 
     /**
@@ -817,7 +861,7 @@ export class StalkerClient {
         }));
     }
 
-    async getVodStreams(categoryId?: string): Promise<Channel[]> {
+    async getVodStreams(categoryId?: string, onProgress?: StalkerPageProgress): Promise<Channel[]> {
         await this.ensureToken();
         console.log('[Stalker] getVodStreams: fetching with parallel pagination...');
 
@@ -828,6 +872,8 @@ export class StalkerClient {
         const allItems: any[] = [];
         let page = 0;
         let hasMore = true;
+        let pagesFetched = 0; // 1-indexed count of pages actually retrieved (for the "Page X of Y" display)
+        let totalPages: number | undefined;
         const BATCH_SIZE = 4;
 
         while (hasMore) {
@@ -850,17 +896,21 @@ export class StalkerClient {
 
             for (let i = 0; i < responses.length; i++) {
                 const response = responses[i];
-                let vodData = response?.data || response;
-                if (vodData && vodData.js && vodData.js.data) {
-                    vodData = vodData.js.data;
+                const { items: vodItems, total_items, max_page_items, pages } = this.extractOrderedList(response);
+                const pageSize = max_page_items || 14;
+
+                if (!totalPages && pages) totalPages = pages;
+                if (!totalPages && total_items != null) {
+                    totalPages = Math.max(1, Math.ceil(total_items / pageSize));
                 }
 
-                if (Array.isArray(vodData) && vodData.length > 0) {
-                    allItems.push(...vodData);
-                    itemsInBatch += vodData.length;
+                if (vodItems.length > 0) {
+                    allItems.push(...vodItems);
+                    itemsInBatch += vodItems.length;
+                    pagesFetched++;
 
-                    // If any page has less than 14 items, we've reached the end
-                    if (vodData.length < 14) {
+                    // If any page has less than a full page of items, we've reached the end
+                    if (vodItems.length < pageSize) {
                         hasMore = false;
                         break;
                     }
@@ -877,9 +927,15 @@ export class StalkerClient {
             } else {
                 page += BATCH_SIZE;
             }
+
+            // Report progress so the UI can show "Page X of Y" while lazy-loading
+            if (onProgress) {
+                const percent = totalPages ? Math.min(100, Math.round((pagesFetched / totalPages) * 100)) : 0;
+                onProgress(percent, pagesFetched, totalPages);
+            }
         }
 
-        console.log(`[Stalker] Fetched ${allItems.length} total VOD items from ${page} page(s)`);
+        console.log(`[Stalker] Fetched ${allItems.length} total VOD items from ${pagesFetched} page(s)`);
 
         // Filter for movies only (is_series!="1")
         const filteredMovies = allItems.filter((item: any) => {
@@ -974,7 +1030,7 @@ export class StalkerClient {
         }));
     }
 
-    async getSeriesStreams(categoryId?: string): Promise<Channel[]> {
+    async getSeriesStreams(categoryId?: string, onProgress?: StalkerPageProgress): Promise<Channel[]> {
         await this.ensureToken();
         console.log('[Stalker] getSeriesStreams: fetching with parallel pagination...');
 
@@ -985,6 +1041,8 @@ export class StalkerClient {
             const items: any[] = [];
             let page = 0;
             let hasMore = true;
+            let pagesFetched = 0; // 1-indexed count of pages retrieved so far
+            let totalPages: number | undefined;
             const BATCH_SIZE = 4;
 
             while (hasMore) {
@@ -1014,16 +1072,20 @@ export class StalkerClient {
 
                 for (let i = 0; i < responses.length; i++) {
                     const response = responses[i];
-                    let data = response?.data || response;
-                    if (data && data.js && data.js.data) {
-                        data = data.js.data;
+                    const { items: pageItems, total_items, max_page_items, pages } = this.extractOrderedList(response);
+                    const pageSize = max_page_items || 14;
+
+                    if (!totalPages && pages) totalPages = pages;
+                    if (!totalPages && total_items != null) {
+                        totalPages = Math.max(1, Math.ceil(total_items / pageSize));
                     }
 
-                    if (Array.isArray(data) && data.length > 0) {
-                        items.push(...data);
-                        itemsInBatch += data.length;
+                    if (pageItems.length > 0) {
+                        items.push(...pageItems);
+                        itemsInBatch += pageItems.length;
+                        pagesFetched++;
 
-                        if (data.length < 14) {
+                        if (pageItems.length < pageSize) {
                             hasMore = false;
                             break;
                         }
@@ -1037,6 +1099,12 @@ export class StalkerClient {
                     hasMore = false;
                 } else {
                     page += BATCH_SIZE;
+                }
+
+                // Report progress so the UI can show "Page X of Y" while lazy-loading
+                if (onProgress) {
+                    const percent = totalPages ? Math.min(100, Math.round((pagesFetched / totalPages) * 100)) : 0;
+                    onProgress(percent, pagesFetched, totalPages);
                 }
             }
 
@@ -1082,17 +1150,26 @@ export class StalkerClient {
         }
 
         // --- Attempt 4: type=vod, category=* then filter client-side (is_series=1 portals) ---
-        if (allItems.length === 0 && catId !== '*') {
+        // Runs for ANY category (including '*' = All): portals that serve series
+        // under the VOD endpoint with is_series=1 return nothing for type=series,
+        // so the All view previously came back empty even though every specific
+        // category loaded fine. The client-side category filter below only applies
+        // to non-'*' categories; for '*' the is_series filter at the end decides.
+        if (allItems.length === 0) {
             console.log('[Stalker] getSeriesStreams: Trying category=* with type=vod and filtering client-side...');
             const allVod = await fetchAllPages('vod', '*');
             console.log(`[Stalker] Fetched ${allVod.length} items via type=vod, category=*`);
             if (allVod.length > 0) {
-                const filtered = allVod.filter((item: any) => {
-                    const itemCat = String(item.category_id ?? item.genre_id ?? item.cat_id ?? '');
-                    return itemCat === catId;
-                });
-                console.log(`[Stalker] Client-side filtered to ${filtered.length} items for category ${catId} from ${allVod.length} total VOD`);
-                allItems = filtered.length > 0 ? filtered : allVod;
+                let selected = allVod;
+                if (catId !== '*') {
+                    const filtered = allVod.filter((item: any) => {
+                        const itemCat = String(item.category_id ?? item.genre_id ?? item.cat_id ?? '');
+                        return itemCat === catId;
+                    });
+                    console.log(`[Stalker] Client-side filtered to ${filtered.length} items for category ${catId} from ${allVod.length} total VOD`);
+                    selected = filtered.length > 0 ? filtered : allVod;
+                }
+                allItems = selected;
                 if (allItems.length > 0) {
                     activeType = 'vod';
                 }
@@ -1909,11 +1986,11 @@ export class StalkerClient {
     }
 
     // Methods expected by sync.ts
-    async getCategoryItems(categoryId: string, type: 'vod' | 'series', onProgress?: (percent: number, message: string) => void): Promise<Channel[]> {
+    async getCategoryItems(categoryId: string, type: 'vod' | 'series', onProgress?: StalkerPageProgress): Promise<Channel[]> {
         if (type === 'vod') {
-            return this.getVodStreams(categoryId);
+            return this.getVodStreams(categoryId, onProgress);
         } else {
-            return this.getSeriesStreams(categoryId);
+            return this.getSeriesStreams(categoryId, onProgress);
         }
     }
 

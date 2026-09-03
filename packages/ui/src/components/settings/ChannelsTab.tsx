@@ -1,5 +1,11 @@
 import { useSetChannelSortOrder, useSetCategorySortOrder, useSetIncludeAllChannelsToPlaylist, useSidebarDragHotkey, useSetSidebarDragHotkey } from '../../stores/uiStore';
-import { MAX_SEARCH_RESULTS_LIMIT } from '../../stores/settingsStore';
+import { MAX_SEARCH_RESULTS_LIMIT, useSettingsStore } from '../../stores/settingsStore';
+import { useLiveQuery } from '../../hooks/useSqliteLiveQuery';
+import { useCategoriesBySource } from '../../hooks/useChannels';
+import { db, type CustomGroup } from '../../db';
+import { DefaultCategoryModal, defaultCategoryDisplayLabel, DEFAULT_CATEGORY_LAST } from './DefaultCategoryModal';
+import { useEffect, useMemo, useState } from 'react';
+import type { Source } from '@ynotv/core';
 import './PlaybackTab.css'; // Reuse existing tab styles for toggle
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
@@ -73,6 +79,38 @@ export function ChannelsTab({
   const sidebarDragHotkey = useSidebarDragHotkey();
   const setSidebarDragHotkey = useSetSidebarDragHotkey();
 
+  // Default category picker — mirrors the LiveTV sidebar list/order.
+  const groupedCategories = useCategoriesBySource();
+  const customGroups = useLiveQuery<CustomGroup[]>(
+    () => db.customGroups.orderBy('display_order').toArray(),
+    []
+  ) ?? [];
+  const [sourceNames, setSourceNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let disposed = false;
+    (async () => {
+      if (!window.storage) return;
+      const result = await window.storage.getSources();
+      if (!disposed && result.data) {
+        const map: Record<string, string> = {};
+        result.data.forEach((s: Source) => { map[s.id] = s.name; });
+        setSourceNames(map);
+      }
+    })();
+    return () => { disposed = true; };
+  }, []);
+  const [showDefaultCategoryModal, setShowDefaultCategoryModal] = useState(false);
+  const defaultCategory = useSettingsStore((s) => s.defaultCategory);
+  const setDefaultCategory = useSettingsStore((s) => s.setDefaultCategory);
+  const defaultCategoryLabel = useMemo(
+    () => defaultCategoryDisplayLabel(defaultCategory, {
+      grouped: groupedCategories,
+      customGroups,
+      sourceNames,
+    }),
+    [defaultCategory, groupedCategories, customGroups, sourceNames]
+  );
+
   async function handleSortOrderChange(order: 'alphabetical' | 'number' | 'provider') {
     onChannelSortOrderChange(order);
     setChannelSortOrder(order); // Update global store immediately
@@ -123,7 +161,56 @@ export function ChannelsTab({
             </div>
           </div>
 
-          <div className="settings-section">
+          {/* Default Category */}
+          <div className="settings-section" style={{ marginTop: '24px' }}>
+            <div className="section-header">
+              <h3>{i18n.t('settings:livetv.channels.defaultCategory')}</h3>
+            </div>
+
+            <p className="section-description">
+              {i18n.t('settings:livetv.channels.defaultCategorySub')}
+            </p>
+
+            <div className="refresh-settings">
+              <div className="form-group inline">
+                <label>{i18n.t('settings:livetv.channels.defaultCategory')}</label>
+                <button
+                  type="button"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    padding: '8px 14px',
+                    border: '1px solid var(--surface-border, rgba(255, 255, 255, 0.1))',
+                    borderRadius: '4px',
+                    background: 'var(--surface-color, rgba(255, 255, 255, 0.03))',
+                    color: 'var(--text-primary, white)',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    minWidth: '180px',
+                    maxWidth: '320px',
+                    flex: '0 0 auto',
+                    fontWeight: 500,
+                  }}
+                  onClick={() => setShowDefaultCategoryModal(true)}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {defaultCategoryLabel}
+                  </span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" style={{ flexShrink: 0, opacity: 0.7 }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <p className="form-hint" style={{ marginTop: '0.75rem' }}>
+              {i18n.t('settings:livetv.channels.defaultCategoryHint')}
+            </p>
+          </div>
+
+          <div className="settings-section" style={{ marginTop: '24px' }}>
             <div className="section-header">
               <h3>{i18n.t('settings:livetv.channels.channelDisplay')}</h3>
             </div>
@@ -229,6 +316,16 @@ export function ChannelsTab({
           </div>
         </>
       )}
+
+      <DefaultCategoryModal
+        isOpen={showDefaultCategoryModal}
+        current={defaultCategory || DEFAULT_CATEGORY_LAST}
+        grouped={groupedCategories}
+        customGroups={customGroups}
+        sourceNames={sourceNames}
+        onClose={() => setShowDefaultCategoryModal(false)}
+        onSelect={(mode) => setDefaultCategory(mode)}
+      />
 
       {showSearch && (
         <div className="settings-section" style={{ marginTop: showSortOrder ? '24px' : '0' }}>

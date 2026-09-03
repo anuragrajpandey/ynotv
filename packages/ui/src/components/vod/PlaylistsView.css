@@ -18,8 +18,9 @@
   scrollbar-color: var(--scrollbar-hover-color, var(--accent-primary, rgba(0, 212, 255, 0.5))) transparent;
 }
 
-.playlists-view::-webkit-scrollbar {
-  width: 6px;
+.playlists-view::-webkit-scrollbar,
+.playlists-view *::-webkit-scrollbar {
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .playlists-view::-webkit-scrollbar-track {

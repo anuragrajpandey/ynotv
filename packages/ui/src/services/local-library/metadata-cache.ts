@@ -1,4 +1,5 @@
 import { rateLimitedFetch } from '../../services/tmdbRateLimit';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 /**
  * Metadata Cache for Local Library
@@ -139,9 +140,10 @@ export async function getCachedSeasonEpisodes(
     const headers: Record<string, string> = isBearer
       ? { Authorization: `Bearer ${tmdbToken}`, 'Content-Type': 'application/json' }
       : { 'Content-Type': 'application/json' };
+    const language = useSettingsStore.getState().tmdbLanguage || 'en-US';
     const url = isBearer
-      ? `https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}?language=en-US`
-      : `https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}?api_key=${tmdbToken}&language=en-US`;
+      ? `https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}?language=${language}`
+      : `https://api.themoviedb.org/3/tv/${tmdbId}/season/${seasonNumber}?api_key=${tmdbToken}&language=${language}`;
 
     const res = await rateLimitedFetch(url, { headers });
     if (!res.ok) return [];

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import type { StoredChannel } from '../db';
 import { db } from '../db';
 import { getFailoverGroupMembers, reorderFailoverGroupChannels } from '../services/failover-groups';
@@ -27,7 +28,7 @@ import { CSS } from '@dnd-kit/utilities';
 
 interface FailoverChannelOverlayProps {
   currentChannel: StoredChannel | null;
-  onChannelClick: (channel: StoredChannel) => void;
+  onChannelClick: (channel: StoredChannel, autoSwitched?: boolean, categoryOverride?: string, directPlay?: boolean) => void;
   isCleanDesign?: boolean;
   showSource?: boolean;
   showLabel?: boolean;
@@ -156,13 +157,15 @@ function SortableFailoverItem({
               {sourceName}
             </span>
           )}
+          <MetadataBadge
+            streamId={member.stream_id}
+            variant="detailed"
+            location="failover"
+            singleLine
+          />
         </div>
 
         <div className="fco-item-tags">
-          <MetadataBadge
-            streamId={member.stream_id}
-            variant="compact"
-          />
           <span className={`fco-priority-pill ${isPrimary ? 'primary' : ''}`}>
             {isPrimary
               ? t('primary', 'Primary')
@@ -194,7 +197,10 @@ export function FailoverChannelOverlay({
   const [groupName, setGroupName] = useState<string>('');
   const [groupId, setGroupId] = useState<string>('');
   const [members, setMembers] = useState<MemberChannel[]>([]);
+  const [dropdownPos, setDropdownPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // @dnd-kit sensors: 5px activation distance so row clicks don't start drags
   const sensors = useSensors(
@@ -295,12 +301,45 @@ export function FailoverChannelOverlay({
     };
   }, [currentChannel?.stream_id]);
 
+  // Position the portaled dropdown over the trigger's screen rect so it is
+  // never clipped by the guide info pane's overflow (the preview pane can be
+  // very wide, leaving a narrow info pane that would otherwise cut the list).
+  const updateDropdownPos = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const dropdownWidth = 360;
+    const margin = 8;
+    const approxHeight = 340; // header + max 5-item list + padding
+    const openUp = rect.top >= approxHeight;
+    const left = Math.max(margin, Math.min(rect.right - dropdownWidth, window.innerWidth - dropdownWidth - margin));
+    const next = openUp
+      ? { left, top: undefined as number | undefined, bottom: window.innerHeight - rect.top + 10 }
+      : { left, top: rect.bottom + 10, bottom: undefined as number | undefined };
+    setDropdownPos((prev) =>
+      prev && prev.left === next.left && prev.top === next.top && prev.bottom === next.bottom ? prev : next
+    );
+  }, []);
+
+  // Reposition while open (preview resize / guide scroll / window resize)
+  useEffect(() => {
+    if (!isOpen) return;
+    window.addEventListener('resize', updateDropdownPos);
+    document.addEventListener('scroll', updateDropdownPos, true);
+    return () => {
+      window.removeEventListener('resize', updateDropdownPos);
+      document.removeEventListener('scroll', updateDropdownPos, true);
+    };
+  }, [isOpen, updateDropdownPos]);
+
   // Close on click outside or escape
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideTrigger = containerRef.current && containerRef.current.contains(target);
+      const insideDropdown = dropdownRef.current && dropdownRef.current.contains(target);
+      if (!insideTrigger && !insideDropdown) {
         setIsOpen(false);
       }
     };
@@ -332,7 +371,7 @@ export function FailoverChannelOverlay({
       .first()
       .then((ch) => {
         if (ch) {
-          onChannelClick(ch);
+          onChannelClick(ch, false, undefined, true);
           setIsOpen(false);
         } else {
           // Synthetic fallback
@@ -346,7 +385,7 @@ export function FailoverChannelOverlay({
             direct_url: '',
             stream_type: 'live',
           };
-          onChannelClick(fallbackChannel);
+          onChannelClick(fallbackChannel, false, undefined, true);
           setIsOpen(false);
         }
       });
@@ -364,8 +403,16 @@ export function FailoverChannelOverlay({
       ref={containerRef}
     >
       <button
+        ref={triggerRef}
         className={`${isCleanDesign ? 'npb-clean-btn' : 'npb-btn'} fco-trigger-btn${isOpen ? ' active' : ''}${showLabel ? ' fco-pill-btn' : ''}`}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => {
+          if (isOpen) {
+            setIsOpen(false);
+          } else {
+            updateDropdownPos();
+            setIsOpen(true);
+          }
+        }}
         title={buttonTitle}
       >
         <LinkSvgIcon />
@@ -377,9 +424,11 @@ export function FailoverChannelOverlay({
         <span className="fco-badge-count">{members.length}</span>
       </button>
 
-      {isOpen && (
+      {isOpen && dropdownPos && createPortal(
         <div
-          className={`fco-dropdown ${placement !== 'default' ? `placement-${placement}` : ''}`}
+          ref={dropdownRef}
+          className={`fco-dropdown fco-portaled ${placement !== 'default' ? `placement-${placement}` : ''}`}
+          style={{ left: dropdownPos.left, top: dropdownPos.top, bottom: dropdownPos.bottom }}
           onMouseEnter={(e) => e.stopPropagation()}
           onMouseLeave={(e) => e.stopPropagation()}
         >
@@ -432,7 +481,8 @@ export function FailoverChannelOverlay({
               </SortableContext>
             </DndContext>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

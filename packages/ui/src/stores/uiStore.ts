@@ -65,11 +65,13 @@ interface UIState {
   tmdbMatching: boolean;
   cacheClearing: boolean;
   syncStatusMessage: string | null;
+  syncProgress: { done: number; total: number } | null;
   setChannelSyncing: (value: boolean) => void;
   setVodSyncing: (value: boolean) => void;
   setTmdbMatching: (value: boolean) => void;
   setCacheClearing: (value: boolean) => void;
   setSyncStatusMessage: (msg: string | null) => void;
+  setSyncProgress: (progress: { done: number; total: number } | null) => void;
 
   // Channel display settings
   channelSortOrder: 'alphabetical' | 'number' | 'provider';
@@ -80,6 +82,8 @@ interface UIState {
   setCategorySortOrder: (value: 'default' | 'alphabetical') => void;
   epgView: 'traditional' | 'alternate';
   setEpgView: (value: 'traditional' | 'alternate') => void;
+  epgThreeColumn: boolean;
+  setEpgThreeColumn: (value: boolean) => void;
   epgVisibleHours: 'auto' | number;
   setEpgVisibleHours: (value: 'auto' | number) => void;
   epgClockFormat: '12h' | '24h';
@@ -176,6 +180,25 @@ function getInitialEpgView(): 'traditional' | 'alternate' {
   return 'traditional';
 }
 
+function getInitialEpgThreeColumn(): boolean {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const localData = localStorage.getItem('app-settings');
+      if (localData) {
+        const parsed = JSON.parse(localData);
+        if (typeof parsed.epgThreeColumn === 'boolean') {
+          return parsed.epgThreeColumn;
+        }
+        // Accept the old key so existing users who enabled it don't lose it.
+        if (typeof parsed.epgSmarters === 'boolean') {
+          return parsed.epgSmarters;
+        }
+      }
+    }
+  } catch {}
+  return false;
+}
+
 export const useUIStore = create<UIState>((set) => ({
   // Movies
   moviesSelectedCategory: null,
@@ -215,11 +238,13 @@ export const useUIStore = create<UIState>((set) => ({
   tmdbMatching: false,
   cacheClearing: false,
   syncStatusMessage: null,
+  syncProgress: null,
   setChannelSyncing: (value) => set({ channelSyncing: value }),
   setVodSyncing: (value) => set({ vodSyncing: value }),
   setTmdbMatching: (value) => set({ tmdbMatching: value }),
   setCacheClearing: (value) => set({ cacheClearing: value }),
   setSyncStatusMessage: (msg) => set({ syncStatusMessage: msg }),
+  setSyncProgress: (progress) => set({ syncProgress: progress }),
 
   // Channel display settings
   channelSortOrder: 'provider',
@@ -238,6 +263,17 @@ export const useUIStore = create<UIState>((set) => ({
       }
     } catch {}
     set({ epgView: value });
+  },
+  epgThreeColumn: getInitialEpgThreeColumn(),
+  setEpgThreeColumn: (value) => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const existing = localStorage.getItem('app-settings');
+        const parsed = existing ? JSON.parse(existing) : {};
+        localStorage.setItem('app-settings', JSON.stringify({ ...parsed, epgThreeColumn: value }));
+      }
+    } catch {}
+    set({ epgThreeColumn: value });
   },
   epgVisibleHours: 'auto',
   setEpgVisibleHours: (value) => set({ epgVisibleHours: value }),
@@ -447,6 +483,8 @@ export const useCacheClearing = () => useUIStore((s) => s.cacheClearing);
 export const useSetCacheClearing = () => useUIStore((s) => s.setCacheClearing);
 export const useSyncStatusMessage = () => useUIStore((s) => s.syncStatusMessage);
 export const useSetSyncStatusMessage = () => useUIStore((s) => s.setSyncStatusMessage);
+export const useSyncProgress = () => useUIStore((s) => s.syncProgress);
+export const useSetSyncProgress = () => useUIStore((s) => s.setSyncProgress);
 
 // Channel display settings selectors
 export const useChannelSortOrder = () => useUIStore((s) => s.channelSortOrder);
@@ -457,6 +495,8 @@ export const useCategorySortOrder = () => useUIStore((s) => s.categorySortOrder)
 export const useSetCategorySortOrder = () => useUIStore((s) => s.setCategorySortOrder);
 export const useEpgView = () => useUIStore((s) => s.epgView);
 export const useSetEpgView = () => useUIStore((s) => s.setEpgView);
+export const useEpgThreeColumn = () => useUIStore((s) => s.epgThreeColumn);
+export const useSetEpgThreeColumn = () => useUIStore((s) => s.setEpgThreeColumn);
 export const useEpgVisibleHours = () => useUIStore((s) => s.epgVisibleHours);
 export const useSetEpgVisibleHours = () => useUIStore((s) => s.setEpgVisibleHours);
 export const useEpgClockFormat = () => useUIStore((s) => s.epgClockFormat);

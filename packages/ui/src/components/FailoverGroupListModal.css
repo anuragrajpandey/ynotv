@@ -331,6 +331,7 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
+    flex-wrap: wrap;
 }
 
 .fgl-priority-badge {

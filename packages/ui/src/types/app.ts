@@ -128,6 +128,8 @@ export interface AppSettings {
     categorySortOrder?: 'default' | 'alphabetical';
     // Favorites placement in the LiveTV sidebar: 'global' (top-level), 'perSource' (nested under each source), or 'both'
     favoritesMode?: 'global' | 'perSource' | 'both';
+    // Default category opened when LiveTV loads: '__last__' or a sidebar category id
+    defaultCategory?: string;
     // Automated backups (same JSON format as Settings -> Export / Import)
     autoBackupEnabled?: boolean;
     autoBackupIntervalHours?: number;
@@ -137,6 +139,7 @@ export interface AppSettings {
     categoryFontSize?: number;
     epgTitleFontSize?: number;
     epgBodyFontSize?: number;
+    epgProgramFontSize?: number;
     epgDarkenCurrent?: boolean;
     epgHighlightBorderCurrent?: boolean;
     epgBoldChannelNames?: boolean;
@@ -145,15 +148,19 @@ export interface AppSettings {
     epgPreferEpgLogos?: boolean;
     epgLogoDisplay?: 'square' | 'rectangle';
     sourceLogoDisplayOverrides?: Record<string, 'square' | 'rectangle'>;
+    sourceLogoBackgroundOverrides?: Record<string, 'auto' | 'light' | 'dark'>;
     channelLogoSize?: number;
     channelLogoRoundEdges?: boolean;
     channelLogoPadding?: 'none' | 'padded';
     logoSmartTrim?: boolean;
     logoLightBackgroundDetection?: boolean;
+    logoDefaultBackground?: 'auto' | 'light' | 'dark';
     epgMetadataBadgeResolution?: boolean;
     epgMetadataBadgeFps?: boolean;
     epgMetadataBadgeFpsSuffix?: boolean;
     epgMetadataBadgeSound?: boolean;
+    epgMetadataBadgeBitrate?: boolean;
+    epgMetadataBadgeAudioBitrate?: boolean;
     logoCacheEnabled?: boolean;
     logoCacheMaxMb?: number;
     logoCacheTtlDays?: number;
@@ -218,7 +225,11 @@ export interface AppSettings {
     catchupContinuePlaying?: boolean;
     vodAutoPlayNextEpisode?: boolean;
     vodShowSourceBadge?: boolean;
+    blurUnwatchedEpisodes?: boolean;
+    useScrollwheelSeek?: boolean;
+    useScrollwheelSeekInvert?: boolean;
     failoverGroupShowSource?: boolean;
+    failoverAlwaysPlayPrimary?: boolean;
     [key: string]: any;
 }
 

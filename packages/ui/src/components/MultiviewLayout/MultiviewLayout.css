@@ -1,3 +1,17 @@
+/* ── HLS FIXED WRAPPER ───────────────────── */
+
+/* The HLS video cells are position:fixed overlays that track their grid
+   containers on a 50ms poll. Promote the wrapper to its own compositing layer
+   and isolate the subtree, so page-level re-composites — the continuously-
+   animating liquid-glass blobs behind the guide/sports preview, neighbor
+   restyles, native-window resizes — can't invalidate the <video> surface and
+   make it flicker black in WebView2. */
+.hls-absolute-wrapper {
+    transform: translateZ(0);
+    will-change: transform;
+    contain: layout paint;
+}
+
 /* ── SHARED MPV PLACEHOLDER ─────────────── */
 
 /* Semi-transparent label showing where MPV is rendering */
@@ -38,6 +52,18 @@
 /* Hide hover badge in PiP (controls already show the name) */
 .layout-pip-overlay .multiview-cell-badge {
     display: none;
+}
+
+/* Round the PiP cell so the second player nestles inside the overlay's rounded
+   frame. The slot video is rendered by a position:fixed wrapper (HlsAbsoluteWrapper)
+   that mirrors this container's computed border-radius and clips its own content,
+   so the radius here is what gives the video its rounded corners — the overlay's
+   own overflow:hidden can't clip a fixed-position sibling. The radius matches the
+   overlay's 10px frame minus its 1.5px border, so the video corners meet the
+   border's inner curve instead of poking out. */
+.layout-pip-container .multiview-cell-container {
+    border-radius: calc(10px - 1.5px);
+    overflow: hidden;
 }
 
 /* Close button (top-right) */
@@ -108,10 +134,8 @@
 
 .layout-2x2-cells {
     position: absolute;
-    top: 32px;
-    /* Below title bar */
+    top: 0;
     bottom: 0;
-    /* Removed media bar gap */
     left: 0;
     right: 0;
     display: grid;
@@ -119,44 +143,36 @@
     grid-template-rows: 1fr 1fr;
     gap: 2px;
     background: transparent;
-    /* Transparent so MPV windows show through */
     z-index: 5;
-    pointer-events: none;
+    pointer-events: all;
+    overflow: hidden;
 }
 
-/* Top-left quadrant is occupied by MPV (transparent placeholder) */
+/* Top-left quadrant is occupied by primary MPV.
+   The 4000px box-shadow is the black backdrop that fills the grid gaps and any
+   letterbox area: the app window is transparent and the primary MPV is an
+   embedded HWND beneath the WebView, so the DOM must stay transparent over the
+   video. A shadow paints around the element (never over its own rect), and
+   overflow:hidden on the grid clips it so it can never leak over other views. */
+.layout-mpv-placeholder,
 .layout-2x2-mpv {
     position: relative;
     grid-column: 1;
     grid-row: 1;
-    pointer-events: none;
+    pointer-events: all;
     box-shadow: 0 0 0 4000px #000;
 }
 
-/* Allow pointer events for the primary MPV controls */
-.layout-2x2-mpv .primary-mpv-controls,
-.layout-bigbottom-mpv .primary-mpv-controls,
-.layout-sbs-mpv .primary-mpv-controls {
-    pointer-events: all;
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    /* Controls autohide like the secondary cells — controlled by .app:not(.controls-hidden) */
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-/* Show main player controls when mouse is active */
-.app:not(.controls-hidden) .layout-2x2-mpv .primary-mpv-controls,
-.app:not(.controls-hidden) .layout-bigbottom-mpv .primary-mpv-controls,
-.app:not(.controls-hidden) .layout-sbs-mpv .primary-mpv-controls {
+.layout-mpv-placeholder:hover .multiview-cell-controls,
+.layout-pip-container:hover .multiview-cell-controls {
     opacity: 1;
+    pointer-events: auto;
 }
 
-/* HLS cells need pointer events */
 .layout-2x2-cells .multiview-cell-container,
-.layout-sbs-cells .multiview-cell-container {
+.layout-sbs-cells .multiview-cell-container,
+.layout-2x2-cells .canvas-cell-container,
+.layout-sbs-cells .canvas-cell-container {
     pointer-events: all;
 }
 
@@ -164,7 +180,7 @@
 
 .layout-sbs-cells {
     position: absolute;
-    top: 32px;
+    top: 0;
     bottom: 0;
     left: 0;
     right: 0;
@@ -174,11 +190,13 @@
     gap: 2px;
     background: transparent;
     z-index: 5;
-    pointer-events: none;
+    pointer-events: all;
+    overflow: hidden;
 }
 
 .layout-sbs-mpv,
-.layout-sbs-cells .multiview-cell-container {
+.layout-sbs-cells .multiview-cell-container,
+.layout-sbs-cells .canvas-cell-container {
     width: 100%;
     height: auto;
     max-width: calc(50% - 1px);
@@ -188,7 +206,12 @@
 
 .layout-sbs-mpv {
     position: relative;
-    pointer-events: none;
+    pointer-events: all;
+    /* Letterbox backdrop: the two 16:9 cells are vertically centered, so the
+       transparent window would otherwise show the desktop above/below them.
+       The shadow fills everything except the element's own rect (where the
+       embedded MPV HWND shows through the transparent DOM); overflow:hidden on
+       .layout-sbs-cells clips it to the window. */
     box-shadow: 0 0 0 4000px #000;
 }
 
@@ -196,25 +219,24 @@
 
 .layout-bigbottom-cells {
     position: absolute;
-    top: 32px;
-    /* Below title bar */
+    top: 0;
     bottom: 0;
-    /* Removed media bar gap */
     left: 0;
     right: 0;
     display: grid;
     grid-template-rows: 1fr 320px;
     gap: 2px;
     background: transparent;
-    /* Transparent so MPV windows show through */
     z-index: 5;
-    pointer-events: none;
+    pointer-events: all;
+    overflow: hidden;
 }
 
 .layout-bigbottom-mpv {
     position: relative;
     grid-row: 1;
-    pointer-events: none;
+    pointer-events: all;
+    /* Black backdrop for the main-cell area and grid gaps — see .layout-2x2-mpv */
     box-shadow: 0 0 0 4000px #000;
 }
 
@@ -224,21 +246,5 @@
     grid-template-columns: 1fr 1fr 1fr;
     gap: 2px;
     pointer-events: all;
-}
-
-/* ── HLS ENGINE MODE overrides ──────────────────────────────────────── */
-
-/*
- * In HLS mode, secondary cells are real DOM <video> elements so the whole
- * grid container must receive pointer events (the container itself is
- * pointer-events:none in MPV mode to let clicks pass through to native windows).
- * Also, the grid can stretch into the titlebar area (top: 0) because the 
- * titlebar has a higher z-index in the DOM.
- */
-.layout-2x2-cells[data-engine="hls"],
-.layout-bigbottom-cells[data-engine="hls"],
-.layout-sbs-cells[data-engine="hls"] {
-    pointer-events: all;
-    top: 0;
 }
 

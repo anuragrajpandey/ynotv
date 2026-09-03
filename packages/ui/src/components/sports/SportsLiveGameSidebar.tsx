@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import type { Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { SportsEvent } from '@ynotv/core';
@@ -9,13 +10,14 @@ import { useSportsSettingsStore } from '../../stores/sportsSettingsStore';
 import { useTeamChannelLinks, useTeamLinks } from '../../stores/teamChannelLinksStore';
 import { isEventLiveOrPastStart } from '../../services/sports';
 import { getStatusDisplay } from '../../services/sports/utils';
-import { buildTeamSearchQuery } from '../../services/sports/teamChannelMatcher';
+import { buildTeamSearchQuery, buildTeamSearchQueries } from '../../services/sports/teamChannelMatcher';
 import {
   searchGameStreams,
   getCachedGameStreams,
   setCachedGameStreams,
   queuePrefetchGameStreams,
 } from '../../services/sports/gameStreamSearcher';
+import { applyTvFocus } from '../../services/spatialNavigation';
 import { useUIStore } from '../../stores/uiStore';
 import { GameDetail } from './GameDetail';
 import './SportsLiveGameSidebar.css';
@@ -24,7 +26,11 @@ interface SportsLiveGameSidebarProps {
   showControls: boolean;
   activeView: string;
   onChannelClick: (channel: StoredChannel) => void;
+  /** Resolves GameDetail's "Watch on" channel-name buttons into a play action. */
+  onChannelClickName?: (channelName: string) => void;
   currentChannel?: StoredChannel | null;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 function stringToColor(str: string): string {
@@ -283,18 +289,24 @@ function SidebarTeamPlayButton({
   );
 }
 
-interface MiniGameCardProps {
+export interface MiniGameCardProps {
   event: SportsEvent;
   onPlayChannel: (channel: StoredChannel) => void;
   onOpenDetails: (event: SportsEvent) => void;
   currentStreamId?: string;
+  /** Extra classes added to the card root (e.g. a modal-context marker). */
+  className?: string;
+  /** Ref to the card root DOM node (e.g. to restore D-pad focus after a modal closes). */
+  rootRef?: Ref<HTMLDivElement>;
 }
 
-function MiniGameCard({
+export function MiniGameCard({
   event,
   onPlayChannel,
   onOpenDetails,
   currentStreamId,
+  className,
+  rootRef,
 }: MiniGameCardProps) {
   const { t } = useTranslation('sports');
   const homeLinks = useTeamLinks(event.league.id, event.homeTeam.id);
@@ -302,6 +314,35 @@ function MiniGameCard({
 
   const [isSearching, setIsSearching] = useState(false);
   const [localSearchChannels, setLocalSearchChannels] = useState<StoredChannel[] | null>(null);
+
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const setCardRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      cardRef.current = node;
+      if (!rootRef) return;
+      if (typeof rootRef === 'function') {
+        rootRef(node);
+      } else {
+        (rootRef as { current: HTMLDivElement | null }).current = node;
+      }
+    },
+    [rootRef]
+  );
+
+  // When inline search results finish loading, drop the D-pad highlight on the
+  // first result (controller flows only), so selecting Find Streams lands at
+  // the top of the results instead of leaving the highlight on the toggle or
+  // the results ✕ button.
+  useEffect(() => {
+    if (!localSearchChannels || localSearchChannels.length === 0) return;
+    if (!document.body.classList.contains('tv-nav-active')) return;
+    const cardEl = cardRef.current;
+    if (!cardEl) return;
+    const firstPill = cardEl.querySelector<HTMLElement>('.slg-stream-pill');
+    if (firstPill) {
+      applyTvFocus(firstPill);
+    }
+  }, [localSearchChannels]);
 
   const awayWinning = (event.awayScore ?? 0) > (event.homeScore ?? 0);
   const homeWinning = (event.homeScore ?? 0) > (event.awayScore ?? 0);
@@ -316,16 +357,16 @@ function MiniGameCard({
 
     setIsSearching(true);
     try {
-      const query = buildTeamSearchQuery(event.homeTeam.name, event.awayTeam.name, event.league.id, event.title);
-      const cacheKey = `${event.id}_${query}_${event.league.id}`;
-      const cached = getCachedGameStreams(cacheKey) || getCachedGameStreams(`${query}_${event.league.id}_15`);
+      const queries = buildTeamSearchQueries(event.homeTeam.name, event.awayTeam.name, event.league.id, event.title);
+      const cacheKey = `${event.id}_${queries.join('||')}_${event.league.id}`;
+      const cached = getCachedGameStreams(cacheKey) || getCachedGameStreams(`${queries.join('||')}_${event.league.id}_15`);
       if (cached) {
         setLocalSearchChannels(cached);
         setIsSearching(false);
         return;
       }
 
-      const results = await searchGameStreams(query, event.league.id, 15);
+      const results = await searchGameStreams(queries, event.league.id, 15);
       setCachedGameStreams(cacheKey, results);
       setLocalSearchChannels(results);
     } catch (err) {
@@ -360,7 +401,11 @@ function MiniGameCard({
   }, [onPlayChannel]);
 
   return (
-    <div className="slg-card" onClick={() => onOpenDetails(event)}>
+    <div
+      ref={setCardRef}
+      className={`slg-card${className ? ` ${className}` : ''}`}
+      onClick={() => onOpenDetails(event)}
+    >
       {/* Card Header: League & Live Clock with Hover Search */}
       <div className="slg-card-header">
         <span className="slg-card-league">{event.league.name}</span>
@@ -485,10 +530,12 @@ export function SportsLiveGameSidebar({
   showControls,
   activeView,
   onChannelClick,
+  onChannelClickName,
   currentChannel,
+  isOpen,
+  onOpenChange,
 }: SportsLiveGameSidebarProps) {
   const { t } = useTranslation('sports');
-  const [isOpen, setIsOpen] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState<string>('all');
   const [selectedEventForDetail, setSelectedEventForDetail] = useState<SportsEvent | null>(null);
 
@@ -519,8 +566,8 @@ export function SportsLiveGameSidebar({
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-    setIsOpen(true);
-  }, []);
+    onOpenChange(true);
+  }, [onOpenChange]);
 
   const handleMouseEnterDrawer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -534,17 +581,17 @@ export function SportsLiveGameSidebar({
       clearTimeout(closeTimerRef.current);
     }
     closeTimerRef.current = setTimeout(() => {
-      setIsOpen(false);
+      onOpenChange(false);
     }, 200);
-  }, []);
+  }, [onOpenChange]);
 
   const handleClose = useCallback(() => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-    setIsOpen(false);
-  }, []);
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   useEffect(() => {
     return () => {
@@ -625,8 +672,8 @@ export function SportsLiveGameSidebar({
   useEffect(() => {
     if (!startupReady || liveEvents.length === 0) return;
     for (const e of liveEvents) {
-      const query = buildTeamSearchQuery(e.homeTeam.name, e.awayTeam.name, e.league.id, e.title);
-      queuePrefetchGameStreams(e.id, query, e.league.id, 15);
+      const queries = buildTeamSearchQueries(e.homeTeam.name, e.awayTeam.name, e.league.id, e.title);
+      queuePrefetchGameStreams(e.id, queries, e.league.id, 15);
     }
   }, [startupReady, liveEvents]);
 
@@ -652,7 +699,7 @@ export function SportsLiveGameSidebar({
         className={`slg-tab-trigger ${showControls ? '' : 'controls-hidden'} ${isOpen ? 'open' : ''}`}
         onMouseEnter={handleMouseEnterTrigger}
         onMouseLeave={handleMouseLeave}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => onOpenChange(!isOpen)}
         title={t('liveGamesSidebar', 'Live Games Sidebar')}
       >
         <span className={`slg-live-dot ${liveEvents.length > 0 ? 'pulsing' : 'idle'}`} />
@@ -750,6 +797,7 @@ export function SportsLiveGameSidebar({
           onClose={() => setSelectedEventForDetail(null)}
           variant="glass"
           onPlayChannel={onChannelClick}
+          onChannelClick={onChannelClickName}
         />
       )}
     </>

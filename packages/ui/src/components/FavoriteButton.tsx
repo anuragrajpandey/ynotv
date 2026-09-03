@@ -8,9 +8,12 @@ interface FavoriteButtonProps {
     streamId: string;
     isFavorite: boolean;
     onToggle?: () => void;
+    // Render the star as an SVG outline/filled glyph (matches the EPG category
+    // list star) instead of the ★/☆ text character.
+    svg?: boolean;
 }
 
-export function FavoriteButton({ streamId, isFavorite, onToggle }: FavoriteButtonProps) {
+export function FavoriteButton({ streamId, isFavorite, onToggle, svg = false }: FavoriteButtonProps) {
     const { t } = useTranslation('live');
     const override = useFavoriteOverride(streamId);
     const setOverride = useFavoriteOverridesStore((s) => s.setOverride);
@@ -42,11 +45,15 @@ export function FavoriteButton({ streamId, isFavorite, onToggle }: FavoriteButto
 
     return (
         <button
-            className={`favorite-btn ${effectiveFavorite ? 'favorited' : ''}`}
+            className={`favorite-btn ${svg ? 'favorite-btn-svg' : ''} ${effectiveFavorite ? 'favorited' : ''}`}
             onClick={handleClick}
             title={effectiveFavorite ? t('removeFromFavorites') : t('addToFavorites')}
         >
-            {effectiveFavorite ? '★' : '☆'}
+            {svg ? (
+                <svg viewBox="0 0 24 24" fill={effectiveFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+            ) : effectiveFavorite ? '★' : '☆'}
         </button>
     );
 }

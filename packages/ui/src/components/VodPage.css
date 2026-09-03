@@ -84,27 +84,28 @@
 .vod-page__content {
   flex: 1;
   min-height: 0;
-  /* Important: allows flex child to shrink below content size */
-  overflow-y: auto;
-  overflow-x: hidden;
+  height: 100%;
+  /* Virtualized sub-views (VodBrowse, Home, Favorites, Local) manage their own internal scrolling */
+  overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--glass-surface-bg, var(--bg-primary, #0d0d0d));
   backdrop-filter: var(--glass-surface-filter, none);
   -webkit-backdrop-filter: var(--glass-surface-filter, none);
   border: var(--glass-surface-border, none);
   border-radius: var(--glass-panel-radius, 0);
   box-shadow: var(--glass-surface-shadow, none);
-  scrollbar-width: thin;
-  scrollbar-color: var(--surface-hover, rgba(255, 255, 255, 0.15)) transparent;
 }
 
-.vod-page__content:hover {
+.vod-page__content:hover,
+.vod-page__home:hover {
   scrollbar-color: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff)) transparent;
 }
 
 .vod-page__content::-webkit-scrollbar,
 .vod-page__content *::-webkit-scrollbar {
-  width: 6px;
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .vod-page__content::-webkit-scrollbar-track,
@@ -121,7 +122,9 @@
 .vod-page__content::-webkit-scrollbar-thumb:hover,
 .vod-page__content *::-webkit-scrollbar-thumb:hover,
 .vod-page__content:hover::-webkit-scrollbar-thumb,
-.vod-page__content:hover *::-webkit-scrollbar-thumb {
+.vod-page__content:hover *::-webkit-scrollbar-thumb,
+.vod-page__home:hover::-webkit-scrollbar-thumb,
+.vod-page__home::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff));
 }
 
@@ -129,13 +132,33 @@
   padding-top: 24px;
 }
 
-/* Virtualized home view - must fill container for Virtuoso */
+/* Home view - scrollable container */
 .vod-page__home {
+  flex: 1;
+  min-height: 0;
   height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--bg-primary, #0d0d0d);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-hover, rgba(255, 255, 255, 0.15)) transparent;
 }
 
-/* Wrapper for genre carousels in virtualized list */
+.vod-page__home::-webkit-scrollbar {
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
+}
+
+.vod-page__home::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.vod-page__home::-webkit-scrollbar-thumb {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.15));
+  border-radius: 3px;
+}
+
+/* Wrapper for genre carousels in home view */
 .vod-page__carousel-slot {
   /* No min-height - let content determine size */
   /* Empty carousels will collapse, which is fine */

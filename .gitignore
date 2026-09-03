@@ -57,5 +57,9 @@ thoughts/
 # Vulkan loader (auto-downloaded during build)
 **/bin/vulkan-1.dll
 **/bin/VulkanRT-License.txt
+
+# libmpv runtime DLL (auto-downloaded + SHA256-verified by setup-libmpv.ps1;
+# over GitHub's 100 MB file limit, so it lives in the v-assets release instead)
+**/libmpv/libmpv-2.dll
 nul
 /.freebuff

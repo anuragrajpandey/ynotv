@@ -10,10 +10,22 @@ export interface PlaybackState {
   posterUrl?: string | null;
   positionSec?: number;
   durationSec?: number;
+  startTs?: number;
+  endTs?: number;
 }
 
 export function usePlaybackPresence(state: PlaybackState): void {
-  const { playing, paused, title, subtitle, posterUrl, positionSec = 0, durationSec = 0 } = state;
+  const {
+    playing,
+    paused,
+    title,
+    subtitle,
+    posterUrl,
+    positionSec = 0,
+    durationSec = 0,
+    startTs,
+    endTs,
+  } = state;
 
   useEffect(() => {
     if (!playing || !title) {
@@ -28,8 +40,10 @@ export function usePlaybackPresence(state: PlaybackState): void {
       paused,
       positionSec,
       durationSec,
+      startTs,
+      endTs,
     });
-  }, [playing, paused, title, subtitle, posterUrl, positionSec, durationSec]);
+  }, [playing, paused, title, subtitle, posterUrl, positionSec, durationSec, startTs, endTs]);
 
   // Clean up playback presence on unmount
   useEffect(() => {

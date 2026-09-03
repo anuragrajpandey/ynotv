@@ -115,6 +115,18 @@
   top: auto;
 }
 
+/* Portaled variant (guide) — the dropdown is rendered into document.body with
+   fixed coordinates from the trigger's screen rect, so it overlays the (often
+   very large) preview pane instead of being clipped by the guide info pane's
+   overflow. Position is set inline; left/right/top/bottom are neutralized here. */
+.fco-dropdown.fco-portaled {
+  position: fixed;
+  left: auto;
+  right: auto;
+  top: auto;
+  bottom: auto;
+}
+
 @keyframes fcoSlideUp {
   from {
     opacity: 0;

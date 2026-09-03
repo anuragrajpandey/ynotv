@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+      # v-assets is a non-app release that only hosts binary dependencies
+      # (e.g. libmpv-2.dll) for the setup-libmpv script. Exclude it so pushing
+      # that tag doesn't trigger a full app build/publish.
+      - '!v-assets'
 
 jobs:
   release:
@@ -52,6 +56,19 @@ jobs:
           ls -la packages/app/src-tauri/bin/ || echo "bin directory not found or empty"
         shell: bash
         continue-on-error: true
+
+      - name: Setup libmpv (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          powershell -ExecutionPolicy Bypass -File packages/app/src-tauri/setup-libmpv.ps1
+          echo "LIBMPV_PATH=$GITHUB_WORKSPACE/packages/app/src-tauri/libmpv" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Setup libmpv (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install mpv pkg-config
+          echo "PKG_CONFIG_PATH=$(brew --prefix mpv)/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
 
       - name: Read release notes
         id: release-notes

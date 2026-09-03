@@ -32,6 +32,8 @@ static AUDIO_LAYOUT_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"Audio: .*?,\s*\d+\s*Hz,\s*([^,]+)").unwrap());
 static FORMAT_BR_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"bitrate:\s*(\d+)\s*kb/s").unwrap());
+static STATS_BYTES_READ_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"Statistics:\s*(\d+)\s+bytes read").unwrap());
 
 const GEOBLOCK_STATUSES: &[u16] = &[403, 451, 426, 423];
 const PLACEHOLDER_PATHS: &[&str] = &[
@@ -75,12 +77,17 @@ pub struct ProbeOptions {
     pub capture_screenshots: bool,
     #[serde(default)]
     pub screenshots_dir: Option<String>,
+    #[serde(default)]
+    pub measure_bitrate: bool,
+    #[serde(default = "default_bitrate_sample_secs")]
+    pub bitrate_sample_secs: f64,
     #[serde(default = "default_true")]
     pub auto_save_badges: bool,
 }
 
 fn default_concurrency() -> usize { 6 }
 fn default_timeout() -> f64 { 8.0 }
+fn default_bitrate_sample_secs() -> f64 { 8.0 }
 fn default_true() -> bool { true }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,6 +111,8 @@ pub struct ProbeChannelResult {
     pub audio_channels: Option<String>,
     pub quality_label: Option<String>,
     pub bitrate_kbps: Option<u32>,
+    pub video_bitrate_kbps: Option<u32>,
+    pub audio_bitrate_kbps: Option<u32>,
     pub screenshot_path: Option<String>,
     pub error_reason: Option<String>,
 }
@@ -212,6 +221,82 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
     }
 
     None
+}
+
+/// Measure the audio stream bitrate with ffmpeg alone (no ffprobe required).
+///
+/// ffprobe is not bundled with the app, and live/HLS streams typically don't
+/// report a `bit_rate` anyway. Instead we demux only the first audio stream
+/// (`-map 0:a:0 -c copy -f data`) and count the payload bytes written to
+/// stdout over the sample window, then compute kbps = bytes*8/1000/sample.
+async fn probe_audio_bitrate(
+    ffmpeg_bin: &Path,
+    url: &str,
+    user_agent: Option<&str>,
+    timeout_duration: Duration,
+    sample_secs: f64,
+) -> Option<u32> {
+    let mut cmd = Command::new(ffmpeg_bin);
+    cmd.arg("-v").arg("error");
+
+    let ua = user_agent
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or("VLC/3.0.18 LibVLC/3.0.18");
+    cmd.arg("-user_agent").arg(ua);
+    cmd.arg("-analyzeduration").arg("3000000");
+    cmd.arg("-probesize").arg("3000000");
+    cmd.arg("-rw_timeout").arg(format!("{}", timeout_duration.as_micros()));
+    cmd.arg("-i").arg(url);
+    cmd.arg("-map").arg("0:a:0");
+    cmd.arg("-t").arg(format!("{}", sample_secs));
+    cmd.arg("-c").arg("copy");
+    cmd.arg("-f").arg("data");
+    cmd.arg("-");
+
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::null());
+
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(_) => return None,
+    };
+
+    let stdout_pipe = child.stdout.take();
+    let reader = tokio::spawn(async move {
+        use tokio::io::AsyncReadExt;
+        let mut total: u64 = 0;
+        let mut buf = [0u8; 65536];
+        if let Some(mut pipe) = stdout_pipe {
+            loop {
+                match pipe.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => total += n as u64,
+                }
+            }
+        }
+        total
+    });
+
+    // Give the demuxer the sample window plus headroom for startup/buffering
+    let (_, _) = tokio::select! {
+        _ = tokio::time::sleep(Duration::from_secs_f64(sample_secs + 3.0)) => {
+            let _ = child.kill().await;
+            ((), ())
+        }
+        _ = child.wait() => {
+            ((), ())
+        }
+    };
+
+    let total_bytes = reader.await.unwrap_or(0);
+    if total_bytes > 0 && sample_secs > 0.0 {
+        Some(((total_bytes as f64 * 8.0) / 1000.0 / sample_secs).round() as u32)
+    } else {
+        None
+    }
 }
 
 #[tauri::command]
@@ -407,6 +492,8 @@ struct StreamMetadata {
     audio_codec: Option<String>,
     audio_channels: Option<String>,
     bitrate_kbps: Option<u32>,
+    video_bitrate_kbps: Option<u32>,
+    audio_bitrate_kbps: Option<u32>,
 }
 
 fn quality_from_resolution(width: Option<u32>, height: Option<u32>) -> Option<String> {
@@ -434,7 +521,7 @@ fn normalize_audio_channels(raw: &str) -> String {
     }
 }
 
-fn parse_ffmpeg_stderr(stderr: &str) -> StreamMetadata {
+fn parse_ffmpeg_stderr(stderr: &str, sample_secs: f64) -> StreamMetadata {
     let mut meta = StreamMetadata::default();
 
     for line in stderr.lines() {
@@ -503,6 +590,18 @@ fn parse_ffmpeg_stderr(stderr: &str) -> StreamMetadata {
                 meta.bitrate_kbps = caps[1].parse::<u32>().ok();
             }
         }
+
+        // Measured Video Bitrate (bytes read over the sample window)
+        if meta.video_bitrate_kbps.is_none() {
+            if let Some(caps) = STATS_BYTES_READ_RE.captures(line) {
+                if let Ok(bytes) = caps[1].parse::<u64>() {
+                    if sample_secs > 0.0 {
+                        meta.video_bitrate_kbps =
+                            Some((bytes as f64 * 8.0 / 1000.0 / sample_secs).round() as u32);
+                    }
+                }
+            }
+        }
     }
 
     meta
@@ -515,9 +614,14 @@ async fn run_ffmpeg_probe(
     timeout_duration: Duration,
     capture_screenshot: bool,
     screenshot_dest: Option<PathBuf>,
+    sample_secs: f64,
 ) -> (StreamMetadata, Option<String>, Option<String>) {
     let mut cmd = Command::new(ffmpeg_bin);
-    cmd.arg("-v").arg("verbose");
+    if sample_secs > 1.0 {
+        cmd.arg("-v").arg("debug");
+    } else {
+        cmd.arg("-v").arg("verbose");
+    }
 
     let ua = user_agent
         .filter(|s| !s.trim().is_empty())
@@ -527,20 +631,34 @@ async fn run_ffmpeg_probe(
     cmd.arg("-probesize").arg("3000000");
     cmd.arg("-rw_timeout").arg(format!("{}", timeout_duration.as_micros()));
     cmd.arg("-i").arg(url);
-    cmd.arg("-t").arg("1");
+    cmd.arg("-t").arg(format!("{}", sample_secs));
 
     let mut saved_screenshot_path = None;
 
+    let count_video_payload: bool;
     if capture_screenshot && screenshot_dest.is_some() {
         let dest = screenshot_dest.unwrap();
         let dest_str = dest.to_string_lossy().to_string();
         cmd.arg("-frames:v").arg("1").arg("-update").arg("1").arg("-y").arg(&dest_str);
         saved_screenshot_path = Some(dest_str);
+        count_video_payload = false;
     } else {
-        cmd.arg("-f").arg("null").arg("-");
+        // Demux only the first video stream's payload to stdout so the video
+        // bitrate is measured from pure compressed video data instead of the
+        // total input byte count (which also includes ffmpeg's initial probing
+        // reads and container overhead). Mirrors the audio measurement path.
+        cmd.arg("-map").arg("0:v:0");
+        cmd.arg("-c").arg("copy");
+        cmd.arg("-f").arg("data");
+        cmd.arg("-");
+        count_video_payload = true;
     }
 
-    cmd.stdout(std::process::Stdio::null());
+    cmd.stdout(if count_video_payload {
+        std::process::Stdio::piped()
+    } else {
+        std::process::Stdio::null()
+    });
     cmd.stderr(std::process::Stdio::piped());
 
     #[cfg(windows)]
@@ -563,8 +681,24 @@ async fn run_ffmpeg_probe(
         buf
     });
 
+    let stdout_pipe = if count_video_payload { child.stdout.take() } else { None };
+    let video_reader = tokio::spawn(async move {
+        use tokio::io::AsyncReadExt;
+        let mut total: u64 = 0;
+        let mut buf = [0u8; 65536];
+        if let Some(mut pipe) = stdout_pipe {
+            loop {
+                match pipe.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => total += n as u64,
+                }
+            }
+        }
+        total
+    });
+
     let (timed_out, _) = tokio::select! {
-        _ = tokio::time::sleep(timeout_duration) => {
+        _ = tokio::time::sleep(timeout_duration.max(Duration::from_secs_f64(sample_secs + 2.0))) => {
             let _ = child.kill().await;
             (true, None)
         }
@@ -578,7 +712,18 @@ async fn run_ffmpeg_probe(
     let _ = child.wait().await;
     let stderr_str = String::from_utf8_lossy(&stderr_buf);
 
-    let meta = parse_ffmpeg_stderr(&stderr_str);
+    let mut meta = parse_ffmpeg_stderr(&stderr_str, sample_secs);
+
+    // Prefer the pure demuxed video payload byte count over the input
+    // `Statistics:` figure, which includes probing reads and container overhead.
+    if count_video_payload {
+        let video_bytes = video_reader.await.unwrap_or(0);
+        meta.video_bitrate_kbps = if video_bytes > 0 && sample_secs > 0.0 {
+            Some(((video_bytes as f64 * 8.0) / 1000.0 / sample_secs).round() as u32)
+        } else {
+            None
+        };
+    }
 
     let err_msg = if timed_out && meta.width.is_none() {
         Some("FFmpeg probe timed out".to_string())
@@ -598,6 +743,7 @@ pub async fn probe_single_stream(
     url: String,
     user_agent: Option<String>,
     timeout_secs: Option<f64>,
+    measure_bitrate: Option<bool>,
 ) -> Result<ProbeChannelResult, String> {
     let timeout = Duration::from_secs_f64(timeout_secs.unwrap_or(8.0).clamp(2.0, 30.0));
     let client = reqwest::Client::builder()
@@ -632,6 +778,8 @@ pub async fn probe_single_stream(
             audio_channels: None,
             quality_label: None,
             bitrate_kbps: None,
+            video_bitrate_kbps: None,
+            audio_bitrate_kbps: None,
             screenshot_path: None,
             error_reason: http_res.error_reason,
         });
@@ -639,10 +787,25 @@ pub async fn probe_single_stream(
 
     // Step 2: FFmpeg probe
     let ffmpeg_path = find_ffmpeg();
+    // Only report measured bitrates when bitrate measurement was explicitly enabled,
+    // otherwise quick probes would store 1-second spot samples in the avg columns.
+    let measure = measure_bitrate.unwrap_or(false);
+    let sample_secs = if measure { 8.0 } else { 1.0 };
     let (meta, _, ffmpeg_err) = if let Some(ref bin) = ffmpeg_path {
-        run_ffmpeg_probe(bin, &url, user_agent.as_deref(), timeout, false, None).await
+        run_ffmpeg_probe(bin, &url, user_agent.as_deref(), timeout, false, None, sample_secs).await
     } else {
         (StreamMetadata::default(), None, Some("FFmpeg not found".to_string()))
+    };
+
+    // Audio bitrate measured from the same ffmpeg binary when requested
+    let audio_bitrate_kbps = if measure {
+        if let Some(ref bin) = ffmpeg_path {
+            probe_audio_bitrate(bin, &url, user_agent.as_deref(), timeout, sample_secs).await
+        } else {
+            None
+        }
+    } else {
+        meta.audio_bitrate_kbps
     };
 
     Ok(ProbeChannelResult {
@@ -665,6 +828,8 @@ pub async fn probe_single_stream(
         audio_channels: meta.audio_channels,
         quality_label: meta.quality_label,
         bitrate_kbps: meta.bitrate_kbps,
+        video_bitrate_kbps: if measure { meta.video_bitrate_kbps } else { None },
+        audio_bitrate_kbps,
         screenshot_path: None,
         error_reason: ffmpeg_err.or(http_res.error_reason),
     })
@@ -707,6 +872,8 @@ pub async fn start_channel_probe(
     let concurrency = options.concurrency.clamp(1, 32);
     let timeout_duration = Duration::from_secs_f64(options.timeout_secs.clamp(2.0, 30.0));
     let max_retries = options.max_retries.min(10);
+    let measure_bitrate = options.measure_bitrate;
+    let bitrate_sample_secs = options.bitrate_sample_secs.clamp(3.0, 15.0);
     let ffmpeg_bin = find_ffmpeg();
 
     let client = reqwest::Client::builder()
@@ -869,6 +1036,8 @@ pub async fn start_channel_probe(
                         audio_channels: None,
                         quality_label: None,
                         bitrate_kbps: None,
+                        video_bitrate_kbps: None,
+                        audio_bitrate_kbps: None,
                         screenshot_path: None,
                         error_reason: http_res.error_reason.clone(),
                     };
@@ -887,7 +1056,21 @@ pub async fn start_channel_probe(
 
                         // Step 2: FFmpeg probe for metadata
                         if let Some(ref bin) = ff {
-                            let (meta, _, ffmpeg_err) = run_ffmpeg_probe(bin, &url, ua.as_deref(), timeout_duration, false, None).await;
+                            let probe_timeout = if measure_bitrate {
+                                timeout_duration.max(Duration::from_secs_f64(bitrate_sample_secs + 2.0))
+                            } else {
+                                timeout_duration
+                            };
+                            let (meta, _, ffmpeg_err) = run_ffmpeg_probe(
+                                bin,
+                                &url,
+                                ua.as_deref(),
+                                probe_timeout,
+                                false,
+                                None,
+                                if measure_bitrate { bitrate_sample_secs } else { 1.0 },
+                            )
+                            .await;
                             result.resolution = meta.resolution.clone();
                             result.width = meta.width;
                             result.height = meta.height;
@@ -898,6 +1081,19 @@ pub async fn start_channel_probe(
                             result.audio_channels = meta.audio_channels;
                             result.quality_label = meta.quality_label.clone();
                             result.bitrate_kbps = meta.bitrate_kbps;
+                            if measure_bitrate {
+                                result.video_bitrate_kbps = meta.video_bitrate_kbps;
+                            }
+                            if measure_bitrate {
+                                result.audio_bitrate_kbps = probe_audio_bitrate(
+                                    bin,
+                                    &url,
+                                    ua.as_deref(),
+                                    probe_timeout,
+                                    bitrate_sample_secs,
+                                )
+                                .await;
+                            }
                             if ffmpeg_err.is_some() && result.error_reason.is_none() {
                                 result.error_reason = ffmpeg_err;
                             }

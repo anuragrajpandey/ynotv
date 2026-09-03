@@ -515,7 +515,10 @@ pub async fn sync_m3u_source(
 ) -> Result<M3uSyncResult, String> {
     info!("[M3U Sync] Starting native sync for {}", source_id);
 
-    let client_builder = Client::builder();
+    let client_builder = Client::builder()
+        .brotli(true)
+        .deflate(true)
+        .gzip(true);
     let ua = match user_agent {
         Some(ref u) if !u.trim().is_empty() => u.clone(),
         _ => "VLC/3.0.18 LibVLC/3.0.18".to_string(),
@@ -548,17 +551,69 @@ pub async fn sync_m3u_source(
     let mut current_extinf: Option<String> = None;
     let mut channel_counter = 0;
     let mut epg_url: Option<String> = None;
+    let mut header_catchup_type: Option<String> = None;
+    let mut header_catchup_source: Option<String> = None;
+    let mut header_catchup_days: Option<i32> = None;
+
+    let extract_attr = |text: &str, keys: &[&str]| -> String {
+        for key in keys {
+            let dquote_prefix = format!("{}=\"", key);
+            if let Some(start) = text.find(&dquote_prefix) {
+                let substr = &text[start + dquote_prefix.len()..];
+                if let Some(end) = substr.find('"') {
+                    return substr[..end].trim().to_string();
+                }
+            }
+
+            let squote_prefix = format!("{}='", key);
+            if let Some(start) = text.find(&squote_prefix) {
+                let substr = &text[start + squote_prefix.len()..];
+                if let Some(end) = substr.find('\'') {
+                    return substr[..end].trim().to_string();
+                }
+            }
+
+            let unquoted_prefix = format!("{}=", key);
+            if let Some(start) = text.find(&unquoted_prefix) {
+                let substr = &text[start + unquoted_prefix.len()..];
+                let end = substr.find(|c: char| c.is_whitespace() || c == ',').unwrap_or(substr.len());
+                let val = substr[..end].trim().trim_matches('"').trim_matches('\'');
+                if !val.is_empty() {
+                    return val.to_string();
+                }
+            }
+        }
+        "".to_string()
+    };
 
     for line in content.lines().map(|l| l.trim()) {
         if line.is_empty() { continue; }
 
         if line.starts_with("#EXTM3U") {
-            // Extract epg_url from url-tvg=".." or x-tvg-url=".."
-            if let Some(start) = line.find("url-tvg=\"").or_else(|| line.find("x-tvg-url=\"")) {
-                let quote_start = line[start..].find('"').unwrap() + 1;
-                let substr = &line[start + quote_start..];
-                if let Some(end) = substr.find('"') {
-                    epg_url = Some(substr[..end].to_string());
+            let extracted_epg = extract_attr(line, &["url-tvg", "x-tvg-url"]);
+            if !extracted_epg.is_empty() {
+                epg_url = Some(extracted_epg);
+            }
+            let catchup_attr = extract_attr(line, &["catchup", "catchup-type", "catchup-mode"]);
+            if !catchup_attr.is_empty() {
+                header_catchup_type = Some(catchup_attr);
+            }
+            let catchup_days_str = extract_attr(line, &["catchup-days", "catchup-days-max", "catchup-range"]);
+            if let Ok(days) = catchup_days_str.parse::<i32>() {
+                if days > 0 {
+                    header_catchup_days = Some(days);
+                }
+            }
+            let catchup_source_attr = extract_attr(line, &["catchup-source", "catchup-url"]);
+            if !catchup_source_attr.is_empty() {
+                header_catchup_source = Some(catchup_source_attr);
+            }
+            let timeshift_str = extract_attr(line, &["timeshift", "tvg-shift"]);
+            if header_catchup_type.is_none() {
+                if let Ok(shift) = timeshift_str.parse::<i32>() {
+                    if shift > 0 {
+                        header_catchup_type = Some("shift".to_string());
+                    }
                 }
             }
             continue;
@@ -577,34 +632,36 @@ pub async fn sync_m3u_source(
             if line.starts_with("http://") || line.starts_with("https://") || line.starts_with("rtmp://") {
                 channel_counter += 1;
 
-                // Simple attribute extraction
-                let extract_attr = |key: &str| -> String {
-                    if let Some(start) = extinf.find(&format!("{}=\"", key)) {
-                        let substr = &extinf[start + key.len() + 2..];
-                        if let Some(end) = substr.find('"') {
-                            return substr[..end].trim().to_string();
-                        }
-                    }
-                    "".to_string()
-                };
-
                 let duration_str = extinf[8..].split_whitespace().next().unwrap_or("-1").replace(",", "");
                 let _duration = duration_str.parse::<i32>().unwrap_or(-1);
 
-                let tvg_id = extract_attr("tvg-id");
-                let tvg_name = extract_attr("tvg-name");
-                let tvg_logo = extract_attr("tvg-logo");
-                let group_title = extract_attr("group-title");
-                let tvg_chno_str = extract_attr("tvg-chno");
+                let tvg_id = extract_attr(&extinf, &["tvg-id"]);
+                let tvg_name = extract_attr(&extinf, &["tvg-name"]);
+                let tvg_logo = extract_attr(&extinf, &["tvg-logo", "tvg-icon", "logo"]);
+                let group_title = extract_attr(&extinf, &["group-title", "group"]);
+                let tvg_chno_str = extract_attr(&extinf, &["tvg-chno", "tvg-ch", "channel-id"]);
                 let tvg_chno = tvg_chno_str.parse::<i32>().ok();
                 
-                let catchup_attr = extract_attr("catchup");
-                let catchup_source_attr = extract_attr("catchup-source");
-                let catchup_days_attr = extract_attr("catchup-days");
+                let catchup_attr = extract_attr(&extinf, &["catchup", "catchup-type", "catchup-mode"]);
+                let catchup_source_attr = extract_attr(&extinf, &["catchup-source", "catchup-url"]);
+                let catchup_days_attr = extract_attr(&extinf, &["catchup-days", "catchup-days-max", "catchup-range"]);
+                let timeshift_attr = extract_attr(&extinf, &["timeshift", "tvg-shift"]);
 
-                let catchup_type = if !catchup_attr.is_empty() { Some(catchup_attr) } else { None };
-                let catchup_source = if !catchup_source_attr.is_empty() { Some(catchup_source_attr) } else { None };
-                let catchup_days = catchup_days_attr.parse::<i32>().ok();
+                let catchup_type = if !catchup_attr.is_empty() {
+                    Some(catchup_attr)
+                } else if !timeshift_attr.is_empty() {
+                    Some("shift".to_string())
+                } else {
+                    header_catchup_type.clone()
+                };
+
+                let catchup_source = if !catchup_source_attr.is_empty() {
+                    Some(catchup_source_attr)
+                } else {
+                    header_catchup_source.clone()
+                };
+
+                let catchup_days = catchup_days_attr.parse::<i32>().ok().or(header_catchup_days);
 
                 let tv_archive = if catchup_type.is_some() || catchup_source.is_some() || catchup_days.is_some() { 1 } else { 0 };
 

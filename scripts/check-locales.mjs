@@ -122,6 +122,9 @@ const UNTRANSLATED_ALLOWLIST = new Set([
   'settings.strem.badgeUrlPlaceholder', 'settings.categoryManager.enterFolderNamePost',
   'settings.categoryManager.enterNewFolderNamePost', 'settings.categoryManager.deleteFolderConfirmPost',
   'settings.categoryManager.deleteFolderConfirmName',
+  // controller hardware labels (printed on the physical buttons) + universal terms
+  'settings.controllers.mapping.buttons.select', 'settings.controllers.mapping.buttons.start',
+  'settings.controllers.mapping.groups.dpad', 'settings.controllers.mapping.groups.menu',
   // brand / product names
   'nav.items.nuvio', 'nav.items.stremio', 'settings.tabs.nuvio', 'settings.tabs.strem',
   'settings.tabs.scrobbling', 'settings.tabs.simkl', 'settings.tabs.discord',
@@ -147,7 +150,8 @@ const UNTRANSLATED_ALLOWLIST = new Set([
   'probe.tabDrm', 'probe.tab4k', 'probe.tab1080p', 'probe.tab720p', 'probe.tabSd', 'probe.colFps',
   'settings.livetv.logos.gb1', 'settings.livetv.logos.mb100', 'settings.livetv.logos.mb250',
   'settings.livetv.logos.mb500', 'settings.livetv.logos.xl56', 'settings.livetv.fps',
-  'settings.navigation.tabs.epg', 'vod.sortName', 'common.ok', 'common.rec', 'common.live',
+  'settings.livetv.avgBitrateLocationFailover', 'settings.subtitles.maxVolume100',
+  'settings.navigation.tabs.epg', 'settings.navigation.tabs.vod', 'vod.sortName', 'common.ok', 'common.rec', 'common.live',
   'tvShows.nA', 'tvShows.tba', 'tvShows.tbd', 'sports.pct', 'sports.pts', 'sports.pos', 'sports.vs',
   'sports.tbd', 'sports.statusLive', 'sports.live', 'sports.statusFinal', 'sports.wins',
   'player.dl', 'player.dlWithCount', 'nuvio.tv', 'stremio.tv', 'subtitles.tv', 'tvShows.idLabel',
@@ -155,7 +159,7 @@ const UNTRANSLATED_ALLOWLIST = new Set([
   // tech loanwords — universally kept in English (Cast, Proxy, Audio, Auto, ...)
   'settings.playback.tabs.cast', 'nav.items.cast', 'player.cast', 'stremio.cast', 'vod.cast',
   'settings.tabs.proxy', 'settings.subtitles.tabs.audio', 'probe.colAudio', 'probe.colVideo',
-  'settings.sources.expLabel', 'epg.autoBg', 'logoEditor.autoTab', 'logoEditor.auto', 'common.test',
+  'settings.sources.expLabel', 'logoEditor.autoTab', 'logoEditor.auto', 'common.test',
   'settings.nuvio.cwPoster', 'nuvio.poster', 'settings.overlay.logoPlaceholder', 'tvShows.statusLabel',
   'probe.colStatus', 'settings.livetv.logos.formatLabel', 'settings.tabs.cache', 'epg.normalPadding',
   'player.trailer', 'vod.trailerSuffix', 'settings.livetv.favoritesModeGlobal', 'settings.posterdb.tier',
@@ -190,11 +194,34 @@ const UNTRANSLATED_ALLOWLIST = new Set([
   'settings.failover.streamCount_one', 'settings.sources.seriesCount', 'sports.backupsCount',
   'common.programsCount_one', 'settings.failover.smartAutoGroup', 'settings.failover.matchingOptions',
   'settings.failover.sportsOnly', 'settings.failover.created',
+  // bitrate/unit column headers + value tokens
+  'probe.kbpsValue', 'probe.sortByBitrate', 'probe.colVideoBitrate', 'probe.colAudioBitrate',
+  'vod.folderTypeSeries', 'settings.navigation.showVodPlaylists',
   // loanwords Google (rightly) keeps identical in specific languages
   'settings.ui.player', 'stremio.account', 'settings.about.documentation', 'sports.filterSuggestions',
   'epg.description', 'common.syncingBatchWithPrefix', 'nav.items.liveTv', 'updates.later',
   // per-locale exceptions: "Local" is the correct word in Spanish/Portuguese
   'es:vod.local', 'pt-BR:vod.local', 'es:stremio.local', 'pt-BR:stremio.local',
+  'es:settings.navigation.showVodLocal', 'pt-BR:settings.navigation.showVodLocal',
+  // per-locale exceptions: the English word is already the correct translation
+  // (Dutch "Recent", German "Episode", French "Pause"/"Auto")
+  'nl:settings.navigation.showVodRecent', 'de:vod.episode',
+  'fr:vod.pauseScan', 'fr:vod.editEpisodeSeasonPlaceholder',
+  // "Auto" is the native word in these locales (loanword), not an untranslated gap
+  'bs:settings.livetv.logos.defaultBgAuto', 'de:settings.livetv.logos.defaultBgAuto',
+  'fr:settings.livetv.logos.defaultBgAuto', 'hr:settings.livetv.logos.defaultBgAuto',
+  'it:settings.livetv.logos.defaultBgAuto', 'nl:settings.livetv.logos.defaultBgAuto',
+  'pl:settings.livetv.logos.defaultBgAuto', 'sq:settings.livetv.logos.defaultBgAuto',
+  // per-locale exceptions: "Normal"/"Compact" size labels are universal loanwords
+  'de:settings.controllers.remoteCustomizer.buttonSizeNormal',
+  'de:settings.controllers.remoteCustomizer.centerSizeNormal',
+  'fr:settings.controllers.remoteCustomizer.buttonSizeCompact',
+  'fr:settings.controllers.remoteCustomizer.buttonSizeNormal',
+  'es:settings.controllers.remoteCustomizer.buttonSizeNormal',
+  'nl:settings.controllers.remoteCustomizer.buttonSizeCompact',
+  'pt-BR:settings.controllers.remoteCustomizer.buttonSizeNormal',
+  'sq:settings.controllers.remoteCustomizer.buttonSizeNormal',
+  'tr:settings.controllers.remoteCustomizer.buttonSizeNormal',
 ]);
 
 // Values with no lowercase ASCII letters ("DRM", "OK", "4K / UHD", "1 GB") or no
@@ -237,6 +264,49 @@ if (untranslatedWarnings.length > 0) {
     console.warn(`    ${code}: ${keys.length} key(s) — ${keys.slice(0, 8).join(', ')}${keys.length > 8 ? ', …' : ''}`);
   }
   console.warn('  Check whether these are genuine gaps (translate them) or constants (add to UNTRANSLATED_ALLOWLIST).');
+}
+
+// --- Check 5 (report-only): stale logo-background wording ---
+// The logo-background feature reworded two English strings. Guard against
+// future diffs that re-add English keys or re-translate the old semantics:
+//   - settings.livetv.logos.perSourceOverridesSub must mention the BACKGROUND
+//     dimension (the OLD wording only mentioned icon SHAPE).
+//   - epg.logoBgHint must use the Default/Light/Dark semantics, not the OLD
+//     "pick background if automatic detection gets it wrong" wording.
+const staleBgWarnings = []; // [locale, key, sample]
+const OLD_SHAPE_ONLY = /(shape|forma|forme|Symbolform|vorm|форму|şekil|شكل|hình|आकृति|shape)/;
+const OLD_AUTO_HINT = /(if\s+automatic|si\s+la\s+d\u00e9tection|automatische|otomat|t\u1ef1 \u0111\u1ed9ng \u0111\u1ecbnh|t\u1ef1 \u0111\u1ed9ng|\u0430\u0432\u0442\u043e\u043c\u0430\u0442|auto\s+detect|detection\s+gets|\u0627\u0644\u062a\u0644\u0642\u0627\u0626\u064a|aut\u00f3m\u00e1tico|\u0434\u0435\u0442\u0435\u043a\u0442)/;
+// Background words per major script, to confirm the "and background" clause
+// is present (if detected as shape-only, we flag regardless).
+for (const code of fileCodes) {
+  if (code === 'en') continue;
+  const localeObj = JSON.parse(readFileSync(join(localesDir, `${code}.json`), 'utf8'));
+  const ov = localeObj.settings?.livetv?.logos?.perSourceOverridesSub;
+  const hint = localeObj.epg?.logoBgHint;
+  if (typeof ov === 'string') {
+    // Old wording named only the SHAPE; new wording also names the background.
+    // Heuristic: if it reads as shape-only (no background dimension spelled out) flag it.
+    // Background-word coverage per script: el → παρασκήνιο*, fa → پس‌زمینه (ZWNJ),
+    // ur → بیک گراؤنڈ (English loanword, regular space), hu → hátter*/háttér,
+    // de → Hintergrund, nl → achtergrond, sq → sfond*, sr/bs/hr → позадин*/pozadin*,
+    // uk/ru → фон, pl → tło, tr → arka, vi → nền, zh → 背景, hi → पृष्ठभूमि.
+    const mentionsBackground = /background|achtergrond|fond|hintergrund|fundo|sfondo|фон|позадин|παρασκην|زمینه|خلف|بیک گراؤنڈ|पृष्ठभूमि|hátter|háttér|tło|tłem|arka|nền|背景|pozadinu|pozadini|sfond|позад|hinter|fondo/i.test(ov);
+    if (!mentionsBackground) {
+      staleBgWarnings.push([code, 'settings.livetv.logos.perSourceOverridesSub', ov]);
+    }
+  }
+  if (typeof hint === 'string' && OLD_AUTO_HINT.test(hint)) {
+    staleBgWarnings.push([code, 'epg.logoBgHint', hint]);
+  }
+}
+
+if (staleBgWarnings.length > 0) {
+  console.warn(`\n[i18n:check] WARN — ${staleBgWarnings.length} logo-background strings may use stale wording (report-only; not a failure).`);
+  for (const [code, key, sample] of staleBgWarnings) {
+    console.warn(`    ${code}: ${key} → ${JSON.stringify(sample.slice(0, 110))}`);
+  }
+  console.warn('  Expected: perSourceOverridesSub mentions icon BACKGROUND (not shape only);');
+  console.warn('            logoBgHint uses the Default/Light/Dark semantics (not old auto-detection wording).');
 }
 
 // --- Report ---

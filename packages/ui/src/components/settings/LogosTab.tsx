@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { clearLogoCache, getLogoCacheStats, pruneLogoCache, LogoCacheStats } from '../../services/logoCache';
+import { resetLogoVerdictCache } from '../../utils/logoLuminance';
 import './PlaybackTab.css';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
@@ -19,8 +20,12 @@ interface LogosTabProps {
   onLogoSmartTrimChange?: (enabled: boolean) => void;
   logoLightBackgroundDetection?: boolean;
   onLogoLightBackgroundDetectionChange?: (enabled: boolean) => void;
+  logoDefaultBackground?: 'auto' | 'light' | 'dark';
+  onLogoDefaultBackgroundChange?: (background: 'auto' | 'light' | 'dark') => void;
   sourceLogoDisplayOverrides: Record<string, 'square' | 'rectangle'>;
   onSetSourceLogoDisplayOverride: (sourceId: string, display: 'square' | 'rectangle' | 'default') => void;
+  sourceLogoBackgroundOverrides: Record<string, 'auto' | 'light' | 'dark'>;
+  onSetSourceLogoBackgroundOverride: (sourceId: string, background: 'auto' | 'light' | 'dark' | 'default') => void;
   logoCacheEnabled: boolean;
   onLogoCacheEnabledChange: (enabled: boolean) => void;
   logoCacheMaxMb: number;
@@ -75,8 +80,12 @@ export function LogosTab({
   onLogoSmartTrimChange = () => {},
   logoLightBackgroundDetection = true,
   onLogoLightBackgroundDetectionChange = () => {},
+  logoDefaultBackground = 'auto',
+  onLogoDefaultBackgroundChange = () => {},
   sourceLogoDisplayOverrides,
   onSetSourceLogoDisplayOverride,
+  sourceLogoBackgroundOverrides,
+  onSetSourceLogoBackgroundOverride,
   logoCacheEnabled,
   onLogoCacheEnabledChange,
   logoCacheMaxMb,
@@ -87,6 +96,7 @@ export function LogosTab({
   useTranslation();
   const [stats, setStats] = useState<LogoCacheStats | null>(null);
   const [isClearing, setIsClearing] = useState(false);
+  const [isResettingLuminance, setIsResettingLuminance] = useState(false);
   const [showSourceDrawer, setShowSourceDrawer] = useState(false);
   const [sources, setSources] = useState<{ id: string; name: string; type?: string }[]>([]);
 
@@ -128,17 +138,29 @@ export function LogosTab({
       await clearLogoCache();
       await loadStats();
       try {
-        localStorage.removeItem('ynotv.logo-luminance.v1');
-      } catch (e) {
-        // Ignore localStorage clear errors
-      }
-      try {
         localStorage.removeItem('ynotv.logo-contentbox.v1');
       } catch (e) {
         // Ignore localStorage clear errors
       }
+      // The luminance verdict cache is separate from the disk logo cache —
+      // clear it too so tiles re-sample with the freshly downloaded logos.
+      resetLogoVerdictCache();
+      window.dispatchEvent(new CustomEvent('ynotv:logo-verdict-cache-reset'));
     } finally {
       setIsClearing(false);
+    }
+  };
+
+  const handleResetLuminance = async () => {
+    if (isResettingLuminance) return;
+    setIsResettingLuminance(true);
+    try {
+      resetLogoVerdictCache();
+      // Re-seed + re-sample the logos currently on screen so the fix is
+      // visible immediately without a reload.
+      window.dispatchEvent(new CustomEvent('ynotv:logo-verdict-cache-reset'));
+    } finally {
+      setIsResettingLuminance(false);
     }
   };
 
@@ -233,6 +255,58 @@ export function LogosTab({
               />
               <span className="toggle-slider" />
             </label>
+          </div>
+
+          {/* Default Logo Background */}
+          <div className="timeshift-toggle-row">
+            <div className="timeshift-toggle-info">
+              <span className="timeshift-toggle-label">{i18n.t('settings:livetv.logos.defaultBg')}</span>
+              <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.logos.defaultBgSub')}</span>
+            </div>
+            <div className="timeshift-presets" style={{ gap: '6px' }}>
+              <button
+                type="button"
+                className={`timeshift-preset-btn ${logoDefaultBackground === 'auto' ? 'active' : ''}`}
+                onClick={() => onLogoDefaultBackgroundChange('auto')}
+              >
+                {i18n.t('settings:livetv.logos.defaultBgAuto')}
+              </button>
+              <button
+                type="button"
+                className={`timeshift-preset-btn ${logoDefaultBackground === 'light' ? 'active' : ''}`}
+                onClick={() => onLogoDefaultBackgroundChange('light')}
+              >
+                {i18n.t('settings:livetv.logos.defaultBgLight')}
+              </button>
+              <button
+                type="button"
+                className={`timeshift-preset-btn ${logoDefaultBackground === 'dark' ? 'active' : ''}`}
+                onClick={() => onLogoDefaultBackgroundChange('dark')}
+              >
+                {i18n.t('settings:livetv.logos.defaultBgDark')}
+              </button>
+            </div>
+          </div>
+
+          {/* Reset Logo Background Detection Cache */}
+          <div className="timeshift-toggle-row">
+            <div className="timeshift-toggle-info">
+              <span className="timeshift-toggle-label">{i18n.t('settings:livetv.logos.resetBgDetection')}</span>
+              <span className="timeshift-toggle-sub">{i18n.t('settings:livetv.logos.resetBgDetectionSub')}</span>
+            </div>
+            <button
+              type="button"
+              className="sync-btn"
+              onClick={handleResetLuminance}
+              disabled={isResettingLuminance}
+              style={{
+                background: 'rgba(224, 82, 82, 0.15)',
+                color: '#ff6b6b',
+                borderColor: 'rgba(224, 82, 82, 0.3)',
+              }}
+            >
+              {isResettingLuminance ? i18n.t('common:clearing') : i18n.t('settings:livetv.logos.resetBgDetection')}
+            </button>
           </div>
 
           {/* Smart Trim Logos Toggle */}
@@ -427,6 +501,7 @@ export function LogosTab({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {sources.map((src) => {
                     const currentOverride: string = sourceLogoDisplayOverrides[src.id] || 'default';
+                    const currentBg: string = sourceLogoBackgroundOverrides[src.id] || 'default';
                     return (
                       <div
                         key={src.id}
@@ -449,28 +524,72 @@ export function LogosTab({
                           </span>
                         </div>
 
-                        <div className="card-segmented-control" style={{ width: 240, margin: 0 }}>
-                          <button
-                            type="button"
-                            className={`segmented-btn ${currentOverride === 'default' ? 'active' : ''}`}
-                            onClick={() => onSetSourceLogoDisplayOverride(src.id, 'default')}
-                          >
-                            {i18n.t('common:default')}
-                          </button>
-                          <button
-                            type="button"
-                            className={`segmented-btn ${currentOverride === 'square' ? 'active' : ''}`}
-                            onClick={() => onSetSourceLogoDisplayOverride(src.id, 'square')}
-                          >
-                            {i18n.t('common:square')}
-                          </button>
-                          <button
-                            type="button"
-                            className={`segmented-btn ${currentOverride === 'rectangle' ? 'active' : ''}`}
-                            onClick={() => onSetSourceLogoDisplayOverride(src.id, 'rectangle')}
-                          >
-                            {i18n.t('common:rectangle')}
-                          </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                              {i18n.t('settings:livetv.logos.perSourceShape')}
+                            </span>
+                            <div className="card-segmented-control" style={{ width: 240, margin: 0 }}>
+                              <button
+                                type="button"
+                                className={`segmented-btn ${currentOverride === 'default' ? 'active' : ''}`}
+                                onClick={() => onSetSourceLogoDisplayOverride(src.id, 'default')}
+                              >
+                                {i18n.t('common:default')}
+                              </button>
+                              <button
+                                type="button"
+                                className={`segmented-btn ${currentOverride === 'square' ? 'active' : ''}`}
+                                onClick={() => onSetSourceLogoDisplayOverride(src.id, 'square')}
+                              >
+                                {i18n.t('common:square')}
+                              </button>
+                              <button
+                                type="button"
+                                className={`segmented-btn ${currentOverride === 'rectangle' ? 'active' : ''}`}
+                                onClick={() => onSetSourceLogoDisplayOverride(src.id, 'rectangle')}
+                              >
+                                {i18n.t('common:rectangle')}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                              {i18n.t('settings:livetv.logos.perSourceBackground')}
+                            </span>
+                            <div className="card-segmented-control" style={{ width: 300, margin: 0 }}>
+                              <button
+                                type="button"
+                                className={`segmented-btn ${currentBg === 'default' ? 'active' : ''}`}
+                                onClick={() => onSetSourceLogoBackgroundOverride(src.id, 'default')}
+                              >
+                                {i18n.t('common:default')}
+                              </button>
+                              <button
+                                type="button"
+                                className={`segmented-btn ${currentBg === 'light' ? 'active' : ''}`}
+                                onClick={() => onSetSourceLogoBackgroundOverride(src.id, 'light')}
+                              >
+                                {i18n.t('settings:livetv.logos.defaultBgLight')}
+                              </button>
+                              <button
+                                type="button"
+                                className={`segmented-btn ${currentBg === 'dark' ? 'active' : ''}`}
+                                onClick={() => onSetSourceLogoBackgroundOverride(src.id, 'dark')}
+                              >
+                                {i18n.t('settings:livetv.logos.defaultBgDark')}
+                              </button>
+                              <button
+                                type="button"
+                                className={`segmented-btn ${currentBg === 'auto' ? 'active' : ''}`}
+                                onClick={() => onSetSourceLogoBackgroundOverride(src.id, 'auto')}
+                                title={i18n.t('settings:livetv.logos.defaultBgAutoTitle')}
+                              >
+                                {i18n.t('settings:livetv.logos.defaultBgAuto')}
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );

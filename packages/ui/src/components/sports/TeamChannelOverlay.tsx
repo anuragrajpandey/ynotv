@@ -8,11 +8,12 @@ import { useSourceNameMap } from '../../hooks/useChannels';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useTranslation } from 'react-i18next';
 import type { SportsTeam } from '@ynotv/core';
+import { MetadataBadge } from '../MetadataBadge';
 import './TeamChannelOverlay.css';
 
 interface TeamChannelOverlayProps {
   currentChannel: StoredChannel | null;
-  onChannelClick: (channel: StoredChannel) => void;
+  onChannelClick: (channel: StoredChannel, autoSwitched?: boolean, categoryOverride?: string, directPlay?: boolean) => void;
   isCleanDesign?: boolean;
   showSource?: boolean;
   onDropdownOpenChange?: (open: boolean) => void;
@@ -224,13 +225,13 @@ export function TeamChannelOverlay({
 
     const fullChannel = currentTeamData.channelMap.get(link.stream_id);
     if (fullChannel) {
-      onChannelClick(fullChannel);
+      onChannelClick(fullChannel, false, undefined, true);
       setIsOpen(false);
     } else {
       // Fallback: fetch directly from DB or create a fallback channel object
       db.channels.where('stream_id').equals(link.stream_id).first().then((ch) => {
         if (ch) {
-          onChannelClick(ch);
+          onChannelClick(ch, false, undefined, true);
           setIsOpen(false);
         } else {
           // If channel not in db, create minimal channel object
@@ -244,7 +245,7 @@ export function TeamChannelOverlay({
             direct_url: '',
             stream_type: 'live',
           };
-          onChannelClick(minimalChannel);
+          onChannelClick(minimalChannel, false, undefined, true);
           setIsOpen(false);
         }
       });
@@ -376,6 +377,7 @@ export function TeamChannelOverlay({
                         {sourceName}
                       </span>
                     )}
+                    <MetadataBadge streamId={link.stream_id} variant="detailed" location="sports" />
                   </div>
 
                   <div className="tco-item-tags">

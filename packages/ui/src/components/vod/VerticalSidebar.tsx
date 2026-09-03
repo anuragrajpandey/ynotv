@@ -15,6 +15,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useLiveQuery } from '../../hooks/useSqliteLiveQuery';
 import { db } from '../../db';
 import { useSidebarDragHotkey } from '../../stores/uiStore';
+import { KeyboardSearchInput } from '../KeyboardSearchInput';
 import {
   DndContext,
   PointerSensor,
@@ -111,6 +112,9 @@ export interface VerticalSidebarProps {
     onSearchChange?: (query: string) => void;
     onSearchSubmit?: () => void;
     onContextMenu?: (e: React.MouseEvent, sourceId: string, sourceName: string) => void;
+    visible?: boolean;
+    onClose?: () => void;
+    onShow?: () => void;
 }
 
 // Icons
@@ -164,6 +168,9 @@ export function VerticalSidebar({
     onSearchChange,
     onSearchSubmit,
     onContextMenu,
+    visible = true,
+    onClose,
+    onShow,
 }: VerticalSidebarProps) {
     useTranslation();
     const [sources, setSources] = useState<Record<string, string>>({});
@@ -176,6 +183,13 @@ export function VerticalSidebar({
         setIsV3(document.documentElement.classList.contains('modern-ui-v3'));
     }, []);
 
+    // VOD navigation category visibility
+    const showVodAll = useSettingsStore((s) => s.showVodAll);
+    const showVodFavorites = useSettingsStore((s) => s.showVodFavorites);
+    const showVodPlaylists = useSettingsStore((s) => s.showVodPlaylists);
+    const showVodLocal = useSettingsStore((s) => s.showVodLocal);
+    const showVodRecent = useSettingsStore((s) => s.showVodRecent);
+
     // One-shot per session: collapse all source categories once the
     // (authoritative, hydrated) setting is known — reactive on the setting so
     // the boot race (store still at its hardcoded default while hydration
@@ -187,6 +201,44 @@ export function VerticalSidebar({
             isFirstLoad.current = false;
         }
     }, [collapseOnStartup]);
+
+    // Track mouse position for hover-to-show sidebar button
+    const [mouseX, setMouseX] = useState(0);
+    const [mouseY, setMouseY] = useState(0);
+
+    // Mouse in the "middle left" area (center 40% of screen height, within 50px of left edge)
+    const isInMiddleLeftZone = useMemo(() => {
+        const windowHeight = window.innerHeight;
+        const middleStart = windowHeight * 0.3;
+        const middleEnd = windowHeight * 0.7;
+        const isInVerticalZone = mouseY >= middleStart && mouseY <= middleEnd;
+        const isNearLeftEdge = mouseX <= 50;
+        return isNearLeftEdge && isInVerticalZone && !visible && !!onShow;
+    }, [mouseX, mouseY, visible, onShow]);
+
+    // Mouse near left edge but NOT in the middle zone (for hint)
+    const isNearLeftEdgeOutsideMiddle = useMemo(() => {
+        const windowHeight = window.innerHeight;
+        const middleStart = windowHeight * 0.3;
+        const middleEnd = windowHeight * 0.7;
+        const isOutsideVerticalZone = mouseY < middleStart || mouseY > middleEnd;
+        const isNearLeftEdge = mouseX <= 50;
+        return isNearLeftEdge && isOutsideVerticalZone && !visible && !!onShow;
+    }, [mouseX, mouseY, visible, onShow]);
+
+    // Handle mouse movement globally when sidebar is hidden
+    useEffect(() => {
+        if (!visible && onShow) {
+            const handleMouseMove = (e: MouseEvent) => {
+                setMouseX(e.clientX);
+                setMouseY(e.clientY);
+            };
+            document.addEventListener('mousemove', handleMouseMove);
+            return () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+            };
+        }
+    }, [visible, onShow]);
 
     // Fetch sources to resolve names and initialize expanded state according to user setting
     useEffect(() => {
@@ -475,7 +527,23 @@ export function VerticalSidebar({
     }, [onSearchSubmit]);
 
     return (
-        <div className="vertical-sidebar">
+        <>
+        <div className={`vertical-sidebar ${visible ? '' : 'hidden'}`}>
+            {/* Collapse strip (V3 layout has no header row) */}
+            {isV3 && onClose && (
+                <div className="vertical-sidebar__collapse-strip">
+                    <button
+                        className="vertical-sidebar__collapse"
+                        onClick={onClose}
+                        title={i18n.t('live:hideSidebar')}
+                        aria-label={i18n.t('live:hideSidebar')}
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                    </button>
+                </div>
+            )}
             {/* Header: Back Button & Title */}
             {!isV3 && (
                 <div className="vertical-sidebar__header">
@@ -494,6 +562,18 @@ export function VerticalSidebar({
                             </span>
                         </button>
                     )}
+                    {onClose && (
+                        <button
+                            className="vertical-sidebar__collapse"
+                            onClick={onClose}
+                            title={i18n.t('live:hideSidebar')}
+                            aria-label={i18n.t('live:hideSidebar')}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="15 18 9 12 15 6" />
+                            </svg>
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -502,11 +582,12 @@ export function VerticalSidebar({
                 <div className="vertical-sidebar__search-container">
                     <div className="vertical-sidebar__search">
                         <SearchIcon />
-                        <input
-                            type="text"
+                        <KeyboardSearchInput
                             placeholder={type === 'series' ? i18n.t('vod:searchSeries') : i18n.t('vod:searchMovies')}
+                            label={type === 'series' ? i18n.t('vod:searchSeries') : i18n.t('vod:searchMovies')}
                             value={searchQuery}
-                            onChange={(e) => onSearchChange(e.target.value)}
+                            onValueChange={onSearchChange}
+                            onSubmit={onSearchSubmit}
                             onKeyDown={handleSearchKeyDown}
                         />
                         {searchQuery && (
@@ -543,86 +624,96 @@ export function VerticalSidebar({
                         </button>
 
                         {/* All Link */}
-                        <button
-                            className={`vertical-sidebar__item category-list-bar ${selectedId === 'all' ? 'active' : ''}`}
-                            onClick={() => onSelect('all')}
-                        >
-                            <div className="category-item-left">
-                                <span className="category-icon all-channels-icon">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
-                                        <polyline points="17 2 12 7 7 2" />
-                                    </svg>
-                                </span>
-                                <span className="category-name">{type === 'series' ? i18n.t('vod:allSeries') : i18n.t('vod:allMovies')}</span>
-                            </div>
-                        </button>
+                        {showVodAll && (
+                            <button
+                                className={`vertical-sidebar__item category-list-bar ${selectedId === 'all' ? 'active' : ''}`}
+                                onClick={() => onSelect('all')}
+                            >
+                                <div className="category-item-left">
+                                    <span className="category-icon all-channels-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
+                                            <polyline points="17 2 12 7 7 2" />
+                                        </svg>
+                                    </span>
+                                    <span className="category-name">{type === 'series' ? i18n.t('vod:allSeries') : i18n.t('vod:allMovies')}</span>
+                                </div>
+                            </button>
+                        )}
 
                         {/* Favorites Link */}
-                        <button
-                            className={`vertical-sidebar__item category-list-bar ${selectedId === 'favorites' ? 'active' : ''}`}
-                            onClick={() => onSelect('favorites')}
-                        >
-                            <div className="category-item-left">
-                                <span className="category-icon favorites-icon">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                                    </svg>
-                                </span>
-                                <span className="category-name">{i18n.t('vod:favorites')}</span>
-                            </div>
-                        </button>
+                        {showVodFavorites && (
+                            <button
+                                className={`vertical-sidebar__item category-list-bar ${selectedId === 'favorites' ? 'active' : ''}`}
+                                onClick={() => onSelect('favorites')}
+                            >
+                                <div className="category-item-left">
+                                    <span className="category-icon favorites-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                        </svg>
+                                    </span>
+                                    <span className="category-name">{i18n.t('vod:favorites')}</span>
+                                </div>
+                            </button>
+                        )}
 
                         {/* Playlists Link */}
-                        <button
-                            className={`vertical-sidebar__item category-list-bar ${selectedId === 'playlists' ? 'active' : ''}`}
-                            onClick={() => onSelect('playlists')}
-                        >
-                            <div className="category-item-left">
-                                <span className="category-icon playlist-icon">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="8" y1="6" x2="21" y2="6" />
-                                        <line x1="8" y1="12" x2="21" y2="12" />
-                                        <line x1="8" y1="18" x2="21" y2="18" />
-                                        <line x1="3" y1="6" x2="3.01" y2="6" />
-                                        <line x1="3" y1="12" x2="3.01" y2="12" />
-                                        <line x1="3" y1="18" x2="3.01" y2="18" />
-                                    </svg>
-                                </span>
-                                <span className="category-name">{i18n.t('vod:playlists')}</span>
-                            </div>
-                        </button>
+                        {showVodPlaylists && (
+                            <button
+                                className={`vertical-sidebar__item category-list-bar ${selectedId === 'playlists' ? 'active' : ''}`}
+                                onClick={() => onSelect('playlists')}
+                            >
+                                <div className="category-item-left">
+                                    <span className="category-icon playlist-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <line x1="8" y1="6" x2="21" y2="6" />
+                                            <line x1="8" y1="12" x2="21" y2="12" />
+                                            <line x1="8" y1="18" x2="21" y2="18" />
+                                            <line x1="3" y1="6" x2="3.01" y2="6" />
+                                            <line x1="3" y1="12" x2="3.01" y2="12" />
+                                            <line x1="3" y1="18" x2="3.01" y2="18" />
+                                        </svg>
+                                    </span>
+                                    <span className="category-name">{i18n.t('vod:playlists')}</span>
+                                </div>
+                            </button>
+                        )}
 
                         {/* Local Link */}
-                        <button
-                            className={`vertical-sidebar__item category-list-bar ${selectedId === 'local' ? 'active' : ''}`}
-                            onClick={() => onSelect('local')}
-                        >
-                            <div className="category-item-left">
-                                <span className="category-icon local-icon">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                                    </svg>
-                                </span>
-                                <span className="category-name">{i18n.t('vod:local')}</span>
-                            </div>
-                        </button>
+                        {showVodLocal && (
+                            <button
+                                className={`vertical-sidebar__item category-list-bar ${selectedId === 'local' ? 'active' : ''}`}
+                                onClick={() => onSelect('local')}
+                            >
+                                <div className="category-item-left">
+                                    <span className="category-icon local-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                                        </svg>
+                                    </span>
+                                    <span className="category-name">{i18n.t('vod:local')}</span>
+                                </div>
+                            </button>
+                        )}
 
                         {/* Recent Link */}
-                        <button
-                            className={`vertical-sidebar__item category-list-bar ${selectedId === 'recent' ? 'active' : ''}`}
-                            onClick={() => onSelect('recent')}
-                        >
-                            <div className="category-item-left">
-                                <span className="category-icon recent-icon">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <circle cx="12" cy="12" r="10" />
-                                        <polyline points="12 6 12 12 16 14" />
-                                    </svg>
-                                </span>
-                                <span className="category-name">{i18n.t('vod:recent')}</span>
-                            </div>
-                        </button>
+                        {showVodRecent && (
+                            <button
+                                className={`vertical-sidebar__item category-list-bar ${selectedId === 'recent' ? 'active' : ''}`}
+                                onClick={() => onSelect('recent')}
+                            >
+                                <div className="category-item-left">
+                                    <span className="category-icon recent-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <polyline points="12 6 12 12 16 14" />
+                                        </svg>
+                                    </span>
+                                    <span className="category-name">{i18n.t('vod:recent')}</span>
+                                </div>
+                            </button>
+                        )}
                     </>
                 ) : (
                     <>
@@ -635,44 +726,54 @@ export function VerticalSidebar({
                         </button>
 
                         {/* All Link */}
-                        <button
-                            className={`vertical-sidebar__item ${selectedId === 'all' ? 'active' : ''}`}
-                            onClick={() => onSelect('all')}
-                        >
-                            {type === 'series' ? i18n.t('vod:allSeries') : i18n.t('vod:allMovies')}
-                        </button>
+                        {showVodAll && (
+                            <button
+                                className={`vertical-sidebar__item ${selectedId === 'all' ? 'active' : ''}`}
+                                onClick={() => onSelect('all')}
+                            >
+                                {type === 'series' ? i18n.t('vod:allSeries') : i18n.t('vod:allMovies')}
+                            </button>
+                        )}
 
                         {/* Favorites Link */}
-                        <button
-                            className={`vertical-sidebar__item ${selectedId === 'favorites' ? 'active' : ''}`}
-                            onClick={() => onSelect('favorites')}
-                        >
-                            {i18n.t('vod:favorites')}
-                        </button>
+                        {showVodFavorites && (
+                            <button
+                                className={`vertical-sidebar__item ${selectedId === 'favorites' ? 'active' : ''}`}
+                                onClick={() => onSelect('favorites')}
+                            >
+                                {i18n.t('vod:favorites')}
+                            </button>
+                        )}
 
                         {/* Playlists Link */}
-                        <button
-                            className={`vertical-sidebar__item ${selectedId === 'playlists' ? 'active' : ''}`}
-                            onClick={() => onSelect('playlists')}
-                        >
-                            {i18n.t('vod:playlists')}
-                        </button>
+                        {showVodPlaylists && (
+                            <button
+                                className={`vertical-sidebar__item ${selectedId === 'playlists' ? 'active' : ''}`}
+                                onClick={() => onSelect('playlists')}
+                            >
+                                {i18n.t('vod:playlists')}
+                            </button>
+                        )}
 
                         {/* Local Link */}
-                        <button
-                            className={`vertical-sidebar__item ${selectedId === 'local' ? 'active' : ''}`}
-                            onClick={() => onSelect('local')}
-                        >
-                            {i18n.t('vod:local')}
-                        </button>
+                        {showVodLocal && (
+                            <button
+                                className={`vertical-sidebar__item ${selectedId === 'local' ? 'active' : ''}`}
+                                onClick={() => onSelect('local')}
+                            >
+                                {i18n.t('vod:local')}
+                            </button>
+                        )}
 
                         {/* Recent Link */}
-                        <button
-                            className={`vertical-sidebar__item ${selectedId === 'recent' ? 'active' : ''}`}
-                            onClick={() => onSelect('recent')}
-                        >
-                            {i18n.t('vod:recent')}
-                        </button>
+                        {showVodRecent && (
+                            <button
+                                className={`vertical-sidebar__item ${selectedId === 'recent' ? 'active' : ''}`}
+                                onClick={() => onSelect('recent')}
+                            >
+                                {i18n.t('vod:recent')}
+                            </button>
+                        )}
                     </>
                 )}
             </div>
@@ -784,6 +885,32 @@ export function VerticalSidebar({
                 </div>
             )}
         </div>
+
+        {/* Sidebar hint - subtle indicator when hovering left edge outside middle zone */}
+        {isNearLeftEdgeOutsideMiddle && (
+            <div
+                className="vod-sidebar-hint-indicator"
+                style={{ top: mouseY - 15 }}
+            />
+        )}
+
+        {/* Show Sidebar Button - visible when sidebar is hidden and hovering middle-left */}
+        {!visible && onShow && (
+            <button
+                className={`vod-show-sidebar-btn ${isInMiddleLeftZone ? 'visible' : ''}`}
+                onClick={onShow}
+                onMouseEnter={() => {
+                    setMouseX(25);
+                }}
+                title={i18n.t('live:showSidebar')}
+                aria-label={i18n.t('live:showSidebar')}
+            >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="9 18 15 12 9 6" />
+                </svg>
+            </button>
+        )}
+        </>
     );
 }
 

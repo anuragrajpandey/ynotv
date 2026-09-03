@@ -26,6 +26,30 @@ pub fn minimize_to_tray_enabled(app: &AppHandle<impl Runtime>) -> bool {
         .load(Ordering::Relaxed)
 }
 
+/// Fallback: read the persisted "minimize to tray" setting straight from the
+/// settings store.
+///
+/// The frontend normally seeds the in-memory flag via `set_minimize_to_tray`
+/// once on startup and again whenever the toggle changes. If that handshake
+/// never lands (startup seed raced or was skipped, Settings was never opened
+/// this session, the invoke failed), the flag would stay false and closing the
+/// window would exit the app instead of hiding to the tray. Reading the store
+/// here makes close-to-tray work regardless of the handshake.
+pub fn minimize_to_tray_from_store(app: &AppHandle<impl Runtime>) -> bool {
+    use tauri_plugin_store::StoreExt;
+
+    match app.store(".settings.dat") {
+        Ok(store) => store
+            .get("settings")
+            // Clone the settings object so the chain doesn't borrow from a
+            // temporary (mirrors get_mpv_params_from_store in lib.rs).
+            .and_then(|v| v.as_object().cloned())
+            .and_then(|o| o.get("minimizeToTray").and_then(|v| v.as_bool()))
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
 /// Bring the main window back on screen and give it focus.
 pub fn show_main_window(app: &AppHandle<impl Runtime>) {
     if let Some(window) = app.get_webview_window("main") {

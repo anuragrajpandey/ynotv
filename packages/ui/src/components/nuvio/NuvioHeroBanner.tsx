@@ -4,6 +4,9 @@ import i18n from '../../i18n';
 import type { StremioMetaPreview } from '../../types/stremio';
 import { fetchCatalog } from '../../services/stremio-addon';
 import { useNuvioAddonStore } from '../../stores/nuvioAddonStore';
+import { useNuvioCollectionStore } from '../../stores/nuvioCollectionStore';
+import { useNuvioAuthStore } from '../../stores/nuvioAuthStore';
+import { resolveCollectionsForHero } from '../../services/collectionSourceResolver';
 import '../stremio/StremioHeroBanner.css';
 
 interface NuvioHeroBannerProps {
@@ -30,7 +33,7 @@ export function NuvioHeroBanner({ onItemClick, onAddToLibrary, libraryIds }: Nuv
     return () => window.removeEventListener('nuvioHeroCatalogsChanged', handler);
   }, []);
 
-  // Fetch items from selected hero catalogs
+  // Fetch items from selected hero catalogs or fallback to collections
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -38,61 +41,118 @@ export function NuvioHeroBanner({ onItemClick, onAddToLibrary, libraryIds }: Nuv
     const loadHeroItems = async () => {
       try {
         const raw: any[] = JSON.parse(localStorage.getItem('nuvio_hero_catalogs') || '[]');
+        const addons = useNuvioAddonStore.getState().enabledAddons;
+        const allCollections = useNuvioCollectionStore.getState().collections || [];
+        const homeCatalogSettings = useNuvioAuthStore.getState().homeCatalogSettings;
 
-        if (raw.length === 0) {
-          // Auto-populate with first 2 non-parameterized catalogs from enabled addons
-          const addons = useNuvioAddonStore.getState().enabledAddons;
-          for (const addon of addons) {
-            if (raw.length >= 2) break;
-            for (const catalog of addon.manifest?.catalogs || []) {
-              if (raw.length >= 2) break;
-              if (catalog.extra?.some((e: any) => e.isRequired)) continue;
-              const key = `${addon.manifest?.id || addon.id}:${catalog.type}:${catalog.id}`;
-              raw.push({ key, baseUrl: addon.baseUrl });
+        let allItems: StremioMetaPreview[] = [];
+
+        if (raw.length > 0) {
+          // Process configured hero entries
+          const entries: any[] = raw.map((e: any) =>
+            typeof e === 'string' ? { key: e, baseUrl: '' } : e
+          );
+
+          const promises = entries.map(async (entry) => {
+            const isCollection = entry.isCollection || entry.key?.startsWith('collection_');
+            if (isCollection) {
+              const collectionId = entry.collectionId || entry.key?.replace('collection_', '');
+              const coll = allCollections.find(c => c.id === collectionId);
+              if (!coll) return [] as StremioMetaPreview[];
+              return resolveCollectionsForHero([coll], addons, 15);
+            }
+
+            if (!entry.baseUrl) return [] as StremioMetaPreview[];
+            const parts = entry.key.split(':');
+            const type = parts[parts.length - 2];
+            const catalogId = parts[parts.length - 1];
+            try {
+              const resp = await fetchCatalog(entry.baseUrl, type, catalogId, { limit: '15' });
+              return (resp?.metas || []).filter((m: StremioMetaPreview) => m.background || m.poster);
+            } catch {
+              return [] as StremioMetaPreview[];
+            }
+          });
+
+          const results = await Promise.all(promises);
+          const maxLen = Math.max(0, ...results.map((r) => r.length));
+          for (let i = 0; i < maxLen; i++) {
+            for (let j = 0; j < results.length; j++) {
+              if (i < results[j].length) {
+                allItems.push(results[j][i]);
+              }
             }
           }
-          if (raw.length > 0) {
-            localStorage.setItem('nuvio_hero_catalogs', JSON.stringify(raw));
+        }
+
+        // If no items were produced from configured sources (or no sources configured)
+        if (allItems.length === 0) {
+          // If no sources configured, attempt auto-populating from addon catalogs if available
+          if (raw.length === 0) {
+            const autoSources: any[] = [];
+            for (const addon of addons) {
+              if (autoSources.length >= 2) break;
+              for (const catalog of addon.manifest?.catalogs || []) {
+                if (autoSources.length >= 2) break;
+                if (catalog.extra?.some((e: any) => e.isRequired)) continue;
+                const key = `${addon.manifest?.id || addon.id}:${catalog.type}:${catalog.id}`;
+                autoSources.push({ key, baseUrl: addon.baseUrl });
+              }
+            }
+
+            if (autoSources.length > 0) {
+              const promises = autoSources.map(async (entry) => {
+                const parts = entry.key.split(':');
+                const type = parts[parts.length - 2];
+                const catalogId = parts[parts.length - 1];
+                try {
+                  const resp = await fetchCatalog(entry.baseUrl, type, catalogId, { limit: '15' });
+                  return (resp?.metas || []).filter((m: StremioMetaPreview) => m.background || m.poster);
+                } catch {
+                  return [] as StremioMetaPreview[];
+                }
+              });
+              const results = await Promise.all(promises);
+              const maxLen = Math.max(0, ...results.map((r) => r.length));
+              for (let i = 0; i < maxLen; i++) {
+                for (let j = 0; j < results.length; j++) {
+                  if (i < results[j].length) {
+                    allItems.push(results[j][i]);
+                  }
+                }
+              }
+            }
+          }
+
+          // Fallback to Collections (mirrors Nuvio Desktop ensureCollectionHeroFallback)
+          if (allItems.length === 0 && allCollections.length > 0) {
+            const settingsItems = homeCatalogSettings?.items || [];
+            // Filter collections that are not explicitly disabled in settings
+            const enabledCollections = allCollections.filter(coll => {
+              if (!coll.folders || coll.folders.length === 0) return false;
+              const pref = settingsItems.find(
+                (s: any) => (s.is_collection || s.isCollection) && (s.collection_id === coll.id || s.collectionId === coll.id)
+              );
+              return pref ? pref.enabled !== false : true;
+            });
+
+            if (enabledCollections.length > 0) {
+              allItems = await resolveCollectionsForHero(enabledCollections, addons, 15);
+            }
           }
         }
 
-        if (raw.length === 0) {
-          if (active) { setItems([]); setLoading(false); }
-          return;
-        }
-
-        // Normalize: old format was string[] (keys only), new format is {key,baseUrl}[]
-        const entries: { key: string; baseUrl: string }[] = raw.map((e: any) =>
-          typeof e === 'string' ? { key: e, baseUrl: '' } : e
-        );
-
-        const promises = entries.map(async (entry) => {
-          if (!entry.baseUrl) return [] as StremioMetaPreview[];
-          const parts = entry.key.split(':');
-          const type = parts[parts.length - 2];
-          const catalogId = parts[parts.length - 1];
-          try {
-            const resp = await fetchCatalog(entry.baseUrl, type, catalogId, { limit: '15' });
-            return (resp?.metas || []).filter((m: StremioMetaPreview) => m.background || m.poster);
-          } catch {
-            return [] as StremioMetaPreview[];
-          }
+        // Deduplicate by type:id
+        const seen = new Set<string>();
+        const unique = allItems.filter(item => {
+          const key = `${item.type}:${item.id}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
         });
 
-        const results = await Promise.all(promises);
-        const allItems: StremioMetaPreview[] = [];
-
-        const maxLen = Math.max(...results.map((r) => r.length));
-        for (let i = 0; i < maxLen; i++) {
-          for (let j = 0; j < results.length; j++) {
-            if (i < results[j].length) {
-              allItems.push(results[j][i]);
-            }
-          }
-        }
-
         if (active) {
-          setItems(allItems.slice(0, 15));
+          setItems(unique.slice(0, 15));
           setLoading(false);
         }
       } catch (err) {

@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 export type LayoutMode = 'main' | 'pip' | '2x2' | 'bigbottom' | 'sbs';
-export type MultiviewEngineMode = 'mpv' | 'hls';
+export type MultiviewEngineMode = 'mpv_canvas' | 'hls';
 
 export interface ViewerSlot {
     id: 2 | 3 | 4;
@@ -24,44 +24,32 @@ const EMPTY_SLOTS: ViewerSlot[] = [
     { id: 4, channelName: null, channelUrl: null, sourceName: null, active: false },
 ];
 
-// BOTTOM_BAR_HEIGHT is dynamically calculated for 16:9 ratio in useMultiview now
-const CONTROL_BAR_HEIGHT = 36;
-
-// UI element heights that multiview must avoid
-const TITLE_BAR_HEIGHT = 32; // Title bar height
-const MEDIA_BAR_HEIGHT = 124; // Now playing bar height (approximate, includes padding)
-
 /** Scale factor applied to mpv_set_geometry coordinates to account for DPR */
 function dpr() {
     return window.devicePixelRatio || 1;
 }
 
-/** Compute the target rect (in physical pixels) for the primary MPV slot */
-export function primaryRect(mode: LayoutMode, engineMode: MultiviewEngineMode = 'mpv'): { x: number; y: number; w: number; h: number } {
+/** Compute the target rect (in physical pixels) for the primary MPV slot on the Hero page */
+export function primaryRect(mode: LayoutMode, _engineMode?: MultiviewEngineMode): { x: number; y: number; w: number; h: number } {
     const d = dpr();
-    const zoom = parseFloat(document.documentElement.style.getPropertyValue('--app-zoom')) || 1;
     const W = Math.round(window.innerWidth * d);
     const H = Math.round(window.innerHeight * d);
     const gap = Math.round(2 * d);
 
-    const titleBarH = engineMode === 'hls' ? 0 : Math.round(TITLE_BAR_HEIGHT * zoom * d);
-    const mediaBarH = (mode === '2x2' || mode === 'bigbottom' || mode === 'sbs') ? 0 : Math.round(MEDIA_BAR_HEIGHT * zoom * d);
-    const availableH = H - titleBarH - mediaBarH;
-
     switch (mode) {
         case '2x2': {
             const cw = Math.floor((W - gap) / 2);
-            const ch = Math.floor((availableH - gap) / 2);
-            return { x: 0, y: titleBarH, w: cw, h: ch };
+            const ch = Math.floor((H - gap) / 2);
+            return { x: 0, y: 0, w: cw, h: ch };
         }
         case 'bigbottom': {
             const cellW = Math.floor((W - 2 * gap) / 3);
             const cellH = Math.floor(cellW * 9 / 16);
-            return { x: 0, y: titleBarH, w: W, h: availableH - cellH };
+            return { x: 0, y: 0, w: W, h: H - cellH };
         }
         case 'sbs': {
             const maxW = Math.floor((W - gap) / 2);
-            const maxH = availableH;
+            const maxH = H;
             let cellW = maxW;
             let cellH = Math.floor(cellW * 9 / 16);
             if (cellH > maxH) {
@@ -70,92 +58,13 @@ export function primaryRect(mode: LayoutMode, engineMode: MultiviewEngineMode = 
             }
             const totalW = cellW * 2 + gap;
             const offsetX = Math.floor((W - totalW) / 2);
-            const offsetY = titleBarH + Math.floor((availableH - cellH) / 2);
+            const offsetY = Math.floor((H - cellH) / 2);
             return { x: offsetX, y: offsetY, w: cellW, h: cellH };
         }
         default:
             // main / pip — fill window
-            return { x: 0, y: 0, w: 0, h: 0 }; // 0,0 => restore to full size
+            return { x: 0, y: 0, w: 0, h: 0 };
     }
-}
-
-/** Compute the secondary slot rect (physical pixels) */
-export function secondaryRect(slotId: 2 | 3 | 4, mode: LayoutMode): { x: number; y: number; w: number; h: number } {
-    const el = document.getElementById(`mpv-video-rect-${slotId}`);
-    const d = dpr();
-
-    // Prefer reading the exact DOM coordinates of the React layout
-    if (el) {
-        const rect = el.getBoundingClientRect();
-        return {
-            x: Math.round(rect.left * d),
-            y: Math.round(rect.top * d),
-            w: Math.round(rect.width * d),
-            h: Math.round(rect.height * d),
-        };
-    }
-
-    // Fallback math if DOM element is missing 
-    const W = Math.round(window.innerWidth * d);
-    const H = Math.round(window.innerHeight * d);
-    const gap = Math.round(2 * d);
-    const titleBarH = Math.round(TITLE_BAR_HEIGHT * d);
-    const mediaBarH = (mode === '2x2' || mode === 'bigbottom' || mode === 'sbs') ? 0 : Math.round(MEDIA_BAR_HEIGHT * d);
-    const availableH = H - titleBarH - mediaBarH;
-
-    if (mode === 'pip') {
-        if (slotId !== 2) {
-            return { x: -10000, y: -10000, w: 1, h: 1 };
-        }
-        const pw = Math.floor(W / 4);
-        const ph = Math.floor(availableH / 4);
-        const cbh = Math.round(CONTROL_BAR_HEIGHT * d);
-        return { x: W - pw - gap, y: H - mediaBarH - ph - gap, w: pw, h: ph - cbh };
-    }
-
-    if (mode === '2x2') {
-        const cw = Math.floor((W - gap) / 2);
-        const ch = Math.floor((availableH - gap) / 2);
-        const cbh = Math.round(CONTROL_BAR_HEIGHT * d);
-        const positions: Record<2 | 3 | 4, { x: number; y: number }> = {
-            2: { x: cw + gap, y: titleBarH },
-            3: { x: 0, y: titleBarH + ch + gap },
-            4: { x: cw + gap, y: titleBarH + ch + gap },
-        };
-        const pos = positions[slotId];
-        return { x: pos.x, y: pos.y, w: cw, h: ch - cbh };
-    }
-
-    if (mode === 'bigbottom') {
-        const cellW = Math.floor((W - 2 * gap) / 3);
-        const cellH = Math.floor(cellW * 9 / 16);
-        const mainH = availableH - cellH;
-        const cbh = Math.round(CONTROL_BAR_HEIGHT * d);
-        const slotMap: Record<2 | 3 | 4, number> = { 2: 0, 3: 1, 4: 2 };
-        const idx = slotMap[slotId];
-        return { x: idx * (cellW + gap), y: titleBarH + mainH + gap, w: cellW, h: cellH - cbh };
-    }
-
-    if (mode === 'sbs') {
-        if (slotId !== 2) {
-            return { x: -10000, y: -10000, w: 1, h: 1 };
-        }
-        const maxW = Math.floor((W - gap) / 2);
-        const maxH = availableH;
-        let cellW = maxW;
-        let cellH = Math.floor(cellW * 9 / 16);
-        if (cellH > maxH) {
-            cellH = maxH;
-            cellW = Math.floor(cellH * 16 / 9);
-        }
-        const totalW = cellW * 2 + gap;
-        const offsetX = Math.floor((W - totalW) / 2);
-        const offsetY = titleBarH + Math.floor((availableH - cellH) / 2);
-        const cbh = Math.round(CONTROL_BAR_HEIGHT * d);
-        return { x: offsetX + cellW + gap, y: offsetY, w: cellW, h: cellH - cbh };
-    }
-
-    return { x: 0, y: 0, w: 0, h: 0 };
 }
 
 export function useMultiview() {
@@ -165,10 +74,12 @@ export function useMultiview() {
     const layoutRef = useRef<LayoutMode>('main');
     const slotsRef = useRef<ViewerSlot[]>(slots);
 
-    // Engine mode: 'mpv' uses native secondary MPV windows; 'hls' uses in-DOM <video> via hls.js
+    // Engine mode: 'mpv_canvas' uses in-DOM <canvas> via libmpv; 'hls' uses in-DOM <video> via hls.js
     const [engineMode, setEngineModeState] = useState<MultiviewEngineMode>(() => {
         const saved = localStorage.getItem('multiviewEngineMode');
-        return saved === 'hls' ? 'hls' : 'mpv';
+        // HLS is the default engine; only an explicit 'mpv_canvas' choice opts
+        // into the canvas engine.
+        return saved === 'mpv_canvas' ? 'mpv_canvas' : 'hls';
     });
     const engineModeRef = useRef<MultiviewEngineMode>(engineMode);
     useEffect(() => { engineModeRef.current = engineMode; }, [engineMode]);
@@ -179,32 +90,17 @@ export function useMultiview() {
         setEngineModeState(mode);
         localStorage.setItem('multiviewEngineMode', mode);
 
-        // When switching from MPV → HLS, kill any existing native MPV secondary windows
-        // so they don't persist as invisible orphans behind the new HLS cells.
-        if (prev === 'mpv' && mode === 'hls') {
-            const activeSlots = slotsRef.current.filter(s => s.active);
-            if (activeSlots.length > 0) {
-                await invoke('multiview_kill_all').catch(() => { });
-            }
+        // When switching away from canvas mode, stop canvas streaming slots
+        if (prev === 'mpv_canvas' && mode !== 'mpv_canvas') {
+            await invoke('multiview_canvas_stop_all').catch(() => { });
         }
     }, []);
-
-    // Tab mode state: save multiview state when a full-screen UI tab opens (Guide, Sports, DVR)
-    const savedStateRef = useRef<{ layout: LayoutMode; slots: ViewerSlot[] } | null>(null);
-    const isTabModeRef = useRef(false);
 
     useEffect(() => { layoutRef.current = layout; }, [layout]);
     useEffect(() => { slotsRef.current = slots; }, [slots]);
 
-    /** Resize primary MPV HWND to match the current layout mode */
+    /** Resize primary MPV HWND to match the current layout mode on Hero page */
     const syncMpvGeometry = useCallback(async (mode?: LayoutMode) => {
-        // Do not enforce multiview quadrant geometry if we are currently inside a full-screen Tab!
-        // The EPG preview pane relies on the Main MPV being strictly unrestricted
-        // so its software `video-zoom` scaler can project the video into the preview pane.
-        if (isTabModeRef.current) {
-            return;
-        }
-
         const m = mode ?? layoutRef.current;
         const placeholder = m !== 'main' ? document.querySelector('.layout-mpv-placeholder') : null;
         
@@ -214,7 +110,7 @@ export function useMultiview() {
         if (placeholder) {
             try {
                 const rect = placeholder.getBoundingClientRect();
-                const d = window.devicePixelRatio || 1;
+                const d = dpr();
                 r = {
                     x: Math.round(rect.left * d),
                     y: Math.round(rect.top * d),
@@ -228,6 +124,7 @@ export function useMultiview() {
         }
 
         if (!hasPlaceholder) {
+            // Only use primaryRect math if we are on the hero page and not in a tab view
             const pr = primaryRect(m, engineModeRef.current);
             r = { x: pr.x, y: pr.y, w: pr.w, h: pr.h };
         }
@@ -235,24 +132,20 @@ export function useMultiview() {
         try {
             const { Bridge } = await import('../services/tauri-bridge');
 
-            // CRITICAL: Reset video zoom/align when switching to multiview layouts.
-            // EPG preview may have set these, causing black screen if not reset.
             if (m !== 'main') {
                 try {
                     await Bridge.setProperty('video-zoom', 0);
                     await Bridge.setProperty('video-align-x', 0);
                     await Bridge.setProperty('video-align-y', 0);
-                    // Stretch to fill the cell in 2x2 grid; preserve aspect in bigbottom/pip/sbs.
                     await Bridge.setProperty('keepaspect', m !== '2x2');
-                } catch (e) {
-                    // Ignore reset errors
-                }
+                } catch (e) {}
             } else {
                 try {
                     await Bridge.setProperty('keepaspect', true);
-                } catch (e) {
-                    // Ignore reset errors
-                }
+                    await Bridge.setProperty('video-zoom', 0);
+                    await Bridge.setProperty('video-align-x', 0);
+                    await Bridge.setProperty('video-align-y', 0);
+                } catch (e) {}
             }
 
             if (r.w > 0 && r.h > 0) {
@@ -260,369 +153,130 @@ export function useMultiview() {
             } else {
                 await invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 });
             }
-        } catch (e) {
-            // Ignore geometry sync errors
-        }
+        } catch (e) {}
     }, []);
-
-    /** Reposition all active secondary MPV slots for the current (or provided) layout */
-    const repositionSecondarySlots = useCallback(async (mode?: LayoutMode) => {
-        const m = mode ?? layoutRef.current;
-        const activeSlots = slotsRef.current.filter(s => s.active);
-
-        if (activeSlots.length === 0) {
-            return;
-        }
-
-        const ops = activeSlots.map(async (slot) => {
-            const r = secondaryRect(slot.id, m);
-            try {
-                await invoke('multiview_reposition_slot', {
-                    slotId: slot.id,
-                    x: r.x,
-                    y: r.y,
-                    width: r.w,
-                    height: r.h,
-                });
-            } catch (e) {
-                // Ignore reposition errors
-            }
-        });
-
-        await Promise.all(ops);
-    }, []);
-
-    /** Re-sync on resize and window move - only when in multiview mode */
-    useEffect(() => {
-        // Only enable resize/move handlers when in a multiview layout (not 'main')
-        if (layoutRef.current === 'main') return;
-
-        let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
-        let moveTimeout: ReturnType<typeof setTimeout> | null = null;
-        let pendingSync = false;
-
-        const handleSync = () => {
-            // When in tab mode, keep secondaries hidden off-screen
-            if (isTabModeRef.current) {
-                // Keep secondary MPVs hidden off-screen (only if in MPV mode)
-                if (engineModeRef.current !== 'hls') {
-                    // Do not hide them if EPG multiview grid is active in the DOM (since ChannelPanel positions them)
-                    const hasEpgMultiviewGrid = !!document.querySelector('.guide-preview-line-1x4');
-                    if (!hasEpgMultiviewGrid) {
-                        const hideOps = slotsRef.current.filter(s => s.active).map(s =>
-                            invoke('multiview_reposition_slot', { slotId: s.id, x: -10000, y: -10000, width: 1, height: 1 })
-                        );
-                        Promise.all(hideOps).catch(() => { });
-                    }
-                }
-                return;
-            }
-
-            const m = layoutRef.current;
-            if (m === 'main') return;
-
-            // Primary MPV (main feed)
-            syncMpvGeometry(m);
-            // Secondary MPVs (slots 2/3/4)
-            repositionSecondarySlots(m);
-        };
-
-        // Debounced handler - only triggers ONCE after resize finishes
-        // Using a long timeout (400ms) to ensure user has stopped resizing
-        const scheduleSync = () => {
-            pendingSync = true;
-            if (resizeTimeout) clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                pendingSync = false;
-                handleSync();
-            }, 400); // 400ms - only trigger once resize fully settles
-        };
-
-        window.addEventListener('resize', scheduleSync);
-
-        // Listen for window move events to keep MPVs positioned correctly after dragging
-        let unlistenMove: (() => void) | null = null;
-        let disposed = false;
-        import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
-            const appWindow = getCurrentWindow();
-            appWindow.onMoved(() => {
-                if (moveTimeout) clearTimeout(moveTimeout);
-                moveTimeout = setTimeout(handleSync, 150); // 150ms debounce for move
-            }).then(unlisten => {
-                if (disposed) unlisten();
-                else unlistenMove = unlisten;
-            }).catch(() => { /* ignore if not available */ });
-        }).catch(() => { /* ignore if Tauri API not available */ });
-
-        return () => {
-            disposed = true;
-            if (resizeTimeout) clearTimeout(resizeTimeout);
-            if (moveTimeout) clearTimeout(moveTimeout);
-            window.removeEventListener('resize', scheduleSync);
-            if (unlistenMove) unlistenMove();
-        };
-        // Re-bind when layout changes to/from multiview modes
-    }, [layout, syncMpvGeometry, repositionSecondarySlots]);
 
     const notifyMainLoaded = useCallback((channelName: string, channelUrl: string, sourceName?: string | null) => {
         mainSlotRef.current = { channelName, channelUrl, sourceName: sourceName || null };
     }, []);
 
-    // Tracks the URL currently loaded in each secondary MPV's process
-    const activeUrlsRef = useRef<Record<number, string | null>>({ 2: null, 3: null, 4: null });
-
     const switchLayout = useCallback(async (newLayout: LayoutMode) => {
-        if (isTabModeRef.current && savedStateRef.current) {
-
-            // If switching to 'main' while tab is open, we need to clear pending secondary slots
-            if (newLayout === 'main') {
-                savedStateRef.current.slots = EMPTY_SLOTS.map(s => ({ ...s }));
-                setSlots(EMPTY_SLOTS.map(s => ({ ...s })));
-            } else if (newLayout === 'pip' || newLayout === 'sbs') {
-                // Clear Slots 3 & 4 so they don't leak or stack behind Slot 2
-                const ops = [];
-                for (const id of [3, 4]) {
-                    if (slotsRef.current.find(s => s.id === id)?.active) {
-                        ops.push(invoke('multiview_kill_slot', { slotId: id }).catch(() => { }));
-                    }
-                }
-                if (ops.length > 0) await Promise.all(ops);
-                savedStateRef.current.slots = savedStateRef.current.slots.map(s =>
-                    (s.id === 3 || s.id === 4) ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s
-                );
-                setSlots(prev => prev.map(s => (s.id === 3 || s.id === 4) ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s));
-                activeUrlsRef.current[3] = null;
-                activeUrlsRef.current[4] = null;
-            }
-            // Update the pending layout to be restored later
-            savedStateRef.current.layout = newLayout;
-
-            // Sync keepaspect property for primary MPV (2x2 grid stretches; SBS/PiP/Main keep aspect)
-            try {
-                const { Bridge } = await import('../services/tauri-bridge');
-                await Bridge.setProperty('keepaspect', newLayout !== '2x2');
-            } catch (e) {}
-
-            setLayout(newLayout);
-            return;
-        }
-
-        const isHls = engineModeRef.current === 'hls';
-
         if (newLayout === 'main') {
-            // Kill all secondary MPV windows.
-            // Safe to call even in HLS mode (no-op if no windows exist).
-            // Must happen before restoring main MPV to prevent black overlay flash.
-            await invoke('multiview_kill_all').catch(() => { });
+            // Only canvas engine keeps native streams in the backend; HLS cells stop on unmount
+            if (engineModeRef.current === 'mpv_canvas') {
+                await invoke('multiview_canvas_stop_all').catch(() => { });
+            }
             setSlots(EMPTY_SLOTS.map(s => ({ ...s })));
-            activeUrlsRef.current = { 2: null, 3: null, 4: null };
-            if (!isHls) {
-                // Extra delay for native window destruction before restoring main MPV
-                await new Promise(resolve => setTimeout(resolve, 200));
-            }
         } else if (newLayout === 'pip' || newLayout === 'sbs') {
-            if (!isHls) {
-                // When switching to PiP or SBS, we must manually kill slots 3 and 4 since they only use slot 2
-                const ops = [];
-                for (const id of [3, 4]) {
-                    if (slotsRef.current.find(s => s.id === id)?.active) {
-                        ops.push(invoke('multiview_kill_slot', { slotId: id }).catch(() => { }));
-                    }
+            // Stop and clear slots 3 and 4
+            for (const id of [3, 4]) {
+                if (slotsRef.current.find(s => s.id === id)?.active && engineModeRef.current === 'mpv_canvas') {
+                    invoke('multiview_canvas_stop', { slotId: id }).catch(() => { });
                 }
-                if (ops.length > 0) await Promise.all(ops);
             }
-            // Wipe them from state
             setSlots(prev => prev.map(s => (s.id === 3 || s.id === 4) ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s));
-            activeUrlsRef.current[3] = null;
-            activeUrlsRef.current[4] = null;
         }
 
         setLayout(newLayout);
         await syncMpvGeometry(newLayout);
-        // In HLS mode, secondary slots are in-DOM <video> elements — no native repositioning needed.
-        // When switching between 2x2 / pip / bigbottom, reposition existing secondary slots
-        // (but NOT when switching to 'main' - they're already killed above)
-        if (newLayout !== 'main' && !isHls) {
-            // Wait for React to render the new DOM containers before measuring their geometry
-            setTimeout(() => {
-                repositionSecondarySlots(newLayout);
-            }, 50);
-        }
-    }, [syncMpvGeometry, repositionSecondarySlots]);
+        // One-shot re-sync after React commits the new layout and any CSS
+        // transitions settle — replaces the old continuous 100ms polling in
+        // MultiviewLayout. Idempotent, so extra calls are harmless.
+        setTimeout(() => { syncMpvGeometry(newLayout); }, 100);
+    }, [syncMpvGeometry]);
 
-    /** Load a stream URL into a secondary slot (MPV window or HLS <video> depending on engine mode) */
-    const sendToSlot = useCallback(async (slotId: 2 | 3 | 4, channelName: string, channelUrl: string, sourceName: string | null = null, force: boolean = false) => {
-        if (isTabModeRef.current && savedStateRef.current && !force && layoutRef.current === 'main') {
-            savedStateRef.current.slots = savedStateRef.current.slots.map(s =>
-                s.id === slotId ? { ...s, channelName, channelUrl, sourceName, active: true } : s
-            );
-            setSlots(prev => prev.map(s =>
-                s.id === slotId ? { ...s, channelName, channelUrl, sourceName, active: true } : s
-            ));
-            return;
-        }
-
-        if (savedStateRef.current) {
-            savedStateRef.current.slots = savedStateRef.current.slots.map(s =>
-                s.id === slotId ? { ...s, channelName, channelUrl, sourceName, active: true } : s
-            );
-        }
-
-        // In HLS mode, secondary slots are in-DOM <video> elements — just update state.
-        // The HlsMultiviewCell component self-manages hls.js playback from the URL in state.
-        if (engineModeRef.current === 'hls') {
-            activeUrlsRef.current[slotId] = channelUrl;
-            setSlots(prev => prev.map(s =>
-                s.id === slotId ? { ...s, channelName, channelUrl, sourceName, active: true } : s
-            ));
-            return;
-        }
-
-        const mode = layoutRef.current;
-        const r = secondaryRect(slotId, mode);
-        // Reserve space for the 36px control bar upfront so the MPV window never
-        // covers it while React is rendering the active state.
-        const wasInactive = !slotsRef.current.find(s => s.id === slotId)?.active;
-        let loadH = r.h;
-        if (wasInactive) {
-            const cbh = Math.round(CONTROL_BAR_HEIGHT * dpr());
-            loadH = Math.max(1, loadH - cbh);
-        }
-        try {
-            await invoke('multiview_load_slot', {
-                slotId,
-                url: channelUrl,
-                x: r.x, y: r.y, width: r.w, height: loadH,
-            });
-            activeUrlsRef.current[slotId] = channelUrl;
-            setSlots(prev => prev.map(s =>
-                s.id === slotId ? { ...s, channelName, channelUrl, sourceName, active: true } : s
-            ));
-
-            // Stretch video to fill the cell in grid layouts.
-            if (mode === '2x2' || mode === 'bigbottom') {
-                invoke('multiview_set_property_slot', { slotId, property: 'keepaspect', value: false }).catch(() => { });
-            }
-
-            // Wait for the browser to paint the controls bar, then refine position.
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    const updatedRect = secondaryRect(slotId, layoutRef.current);
-                    invoke('multiview_reposition_slot', {
-                        slotId,
-                        x: updatedRect.x,
-                        y: updatedRect.y,
-                        width: updatedRect.w,
-                        height: updatedRect.h,
-                    }).catch(() => { });
-                });
-            });
-        } catch (e) {
-            // Ignore sendToSlot errors
-        }
+    /** Load a stream URL into a secondary slot */
+    const sendToSlot = useCallback(async (slotId: 2 | 3 | 4, channelName: string, channelUrl: string, sourceName: string | null = null) => {
+        setSlots(prev => prev.map(s =>
+            s.id === slotId ? { ...s, channelName, channelUrl, sourceName, active: true } : s
+        ));
     }, []);
 
     /** Swap: load a secondary slot's stream into the primary MPV and vice versa */
     const swapWithMain = useCallback(async (slotId: 2 | 3 | 4, currentSlots: ViewerSlot[]) => {
         const slot = currentSlots.find(s => s.id === slotId);
-        if (!slot?.channelUrl) {
-            return;
-        }
+        if (!slot?.channelUrl) return;
 
         const prevMain = { ...mainSlotRef.current };
         const newMainUrl = slot.channelUrl;
         const newMainName = slot.channelName;
         const newMainSourceName = slot.sourceName;
 
-        if (isTabModeRef.current && savedStateRef.current) {
-            // Update saved state for deferred loading of new secondary assignment
-            if (prevMain.channelUrl) {
-                savedStateRef.current.slots = savedStateRef.current.slots.map(s =>
-                    s.id === slotId
-                        ? { ...s, channelName: prevMain.channelName, channelUrl: prevMain.channelUrl, sourceName: prevMain.sourceName, active: true }
-                        : s
-                );
-            } else {
-                savedStateRef.current.slots = savedStateRef.current.slots.map(s =>
-                    s.id === slotId ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s
-                );
-            }
-
-            // Sync UI state
-            setSlots(prev => prev.map(s =>
-                s.id === slotId
-                    ? (prevMain.channelUrl
-                        ? { ...s, channelName: prevMain.channelName, channelUrl: prevMain.channelUrl, sourceName: prevMain.sourceName, active: true }
-                        : { ...s, channelName: null, channelUrl: null, sourceName: null, active: false })
-                    : s
-            ));
-
-            // Still change the primary MPV, because primary MPV runs in background of Tab UI
-            await invoke('mpv_load', { url: newMainUrl });
-            mainSlotRef.current = { channelName: newMainName, channelUrl: newMainUrl, sourceName: newMainSourceName };
-            return;
-        }
-
-        // Load the slot's stream into primary MPV
+        // Load the secondary stream on Main MPV
         try {
             await invoke('mpv_load', { url: newMainUrl });
-        } catch (e) {
-            // Ignore mpv_load errors
-        }
+        } catch (e) {}
         mainSlotRef.current = { channelName: newMainName, channelUrl: newMainUrl, sourceName: newMainSourceName };
 
         // Put the old main stream into the secondary slot
         if (prevMain.channelUrl) {
-            if (engineModeRef.current !== 'hls') {
-                const r = secondaryRect(slotId, layoutRef.current);
-                try {
-                    await invoke('multiview_load_slot', {
-                        slotId,
-                        url: prevMain.channelUrl,
-                        x: r.x, y: r.y, width: r.w, height: r.h,
-                    });
-                } catch (e) {
-                    // Ignore multiview_load_slot errors
-                }
-            }
-            activeUrlsRef.current[slotId] = prevMain.channelUrl;
             setSlots(prev => prev.map(s =>
                 s.id === slotId
                     ? { ...s, channelName: prevMain.channelName, channelUrl: prevMain.channelUrl, sourceName: prevMain.sourceName, active: true }
                     : s
             ));
         } else {
-            if (engineModeRef.current !== 'hls') {
-                // Old main was empty — just stop the slot
-                await invoke('multiview_stop_slot', { slotId }).catch(() => { });
-                // Move the stopped MPV window off-screen to prevent black overlay
-                await invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => { });
+            if (engineModeRef.current === 'mpv_canvas') {
+                invoke('multiview_canvas_stop', { slotId }).catch(() => { });
             }
-            activeUrlsRef.current[slotId] = null;
             setSlots(prev => prev.map(s =>
                 s.id === slotId ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s
             ));
         }
-    }, []);
+
+        // The primary MPV window is a child HWND that's physically resized to its
+        // cell via SetWindowPos. When mpv loads the swapped stream it re-fits that
+        // child window to the new video's natural size (it doesn't know the window
+        // was resized externally), so the video ends up fullscreen-sized and the
+        // grid's black backdrop only exposes its top-left corner inside cell 1.
+        // Every other load path re-applies geometry afterward (the guide re-syncs
+        // via ChannelPanel's own effect on multiviewSlots change; returning to the
+        // hero re-syncs via App.tsx), but the swap does not — so re-apply here.
+        // Delayed passes outlast mpv's async window re-fit, which happens once the
+        // new stream's first frame lands (network-dependent). Idempotent, so extra
+        // passes are harmless.
+        const reapplyGeometry = () => {
+            const d = window.devicePixelRatio || 1;
+
+            // Hero page: the layout placeholder only exists with a real rect while
+            // activeView === 'none'. syncMpvGeometry also re-asserts the video
+            // properties (keepaspect/video-zoom) for the layout, so prefer it.
+            const placeholder = document.querySelector<HTMLElement>('.layout-mpv-placeholder');
+            if (placeholder) {
+                const r = placeholder.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0) {
+                    void syncMpvGeometry(layoutRef.current);
+                    return;
+                }
+            }
+
+            // Sports preview: main cell for 2x2/sbs, or the whole pane for pip.
+            const sportsTarget = document.querySelector<HTMLElement>('.sports-mv-main')
+                ?? document.querySelector<HTMLElement>('.sports-preview-pane');
+            if (sportsTarget) {
+                const r = sportsTarget.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0) {
+                    void invoke('mpv_set_geometry', {
+                        x: Math.round(r.left * d),
+                        y: Math.round(r.top * d),
+                        width: Math.round(r.width * d),
+                        height: Math.round(r.height * d),
+                    }).catch(() => { });
+                }
+            }
+        };
+        reapplyGeometry();
+        setTimeout(reapplyGeometry, 300);
+        setTimeout(reapplyGeometry, 900);
+        setTimeout(reapplyGeometry, 1800);
+        setTimeout(reapplyGeometry, 3000);
+    }, [syncMpvGeometry]);
 
     const stopSlot = useCallback(async (slotId: 2 | 3 | 4) => {
-        if (isTabModeRef.current && savedStateRef.current) {
-            savedStateRef.current.slots = savedStateRef.current.slots.map(s =>
-                s.id === slotId ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s
-            );
-            setSlots(prev => prev.map(s =>
-                s.id === slotId ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s
-            ));
-            return;
+        // Only canvas engine keeps native streams in the backend; HLS cells stop on unmount
+        if (engineModeRef.current === 'mpv_canvas') {
+            invoke('multiview_canvas_stop', { slotId }).catch(() => { });
         }
-
-        if (engineModeRef.current !== 'hls') {
-            await invoke('multiview_stop_slot', { slotId }).catch(() => { });
-            // Move the stopped MPV window off-screen to prevent black overlay
-            // (MPV with --idle=yes keeps window visible after stop)
-            await invoke('multiview_reposition_slot', { slotId, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => { });
-        }
-        activeUrlsRef.current[slotId] = null;
         setSlots(prev => prev.map(s =>
             s.id === slotId ? { ...s, channelName: null, channelUrl: null, sourceName: null, active: false } : s
         ));
@@ -630,10 +284,8 @@ export function useMultiview() {
 
     const setSlotProperty = useCallback(async (slotId: 2 | 3 | 4, property: string, value: any) => {
         try {
-            await invoke('multiview_set_property_slot', { slotId, property, value });
-        } catch (e) {
-            // Ignore setProperty errors
-        }
+            await invoke('multiview_canvas_set_property', { slotId, property, value });
+        } catch (e) {}
     }, []);
 
     /** Reload a slot's stream by re-loading the same URL */
@@ -641,113 +293,16 @@ export function useMultiview() {
         const slot = slotsRef.current.find(s => s.id === slotId);
         if (!slot?.channelUrl || !slot?.channelName) return;
 
-        if (engineModeRef.current === 'hls') {
-            // For HLS, briefly clear the URL then restore to force hls.js re-initialization
-            activeUrlsRef.current[slotId] = null;
+        // Briefly clear URL then restore to trigger re-initialization
+        setSlots(prev => prev.map(s =>
+            s.id === slotId ? { ...s, channelUrl: null, active: false } : s
+        ));
+        setTimeout(() => {
             setSlots(prev => prev.map(s =>
-                s.id === slotId ? { ...s, channelUrl: null, active: false } : s
+                s.id === slotId ? { ...s, channelUrl: slot.channelUrl, channelName: slot.channelName, sourceName: slot.sourceName, active: true } : s
             ));
-            setTimeout(() => {
-                activeUrlsRef.current[slotId] = slot.channelUrl!;
-                setSlots(prev => prev.map(s =>
-                    s.id === slotId ? { ...s, channelUrl: slot.channelUrl, channelName: slot.channelName, sourceName: slot.sourceName, active: true } : s
-                ));
-            }, 150);
-        } else {
-            await sendToSlot(slotId, slot.channelName, slot.channelUrl, slot.sourceName);
-        }
-    }, [sendToSlot]);
-
-    /** Enter tab mode: push secondary MPVs off-screen to keep them buffering/playing */
-    const enterTabMode = useCallback(async (tabName?: string) => {
-        if (isTabModeRef.current) return;
-        isTabModeRef.current = true;
-
-        savedStateRef.current = {
-            layout: layoutRef.current,
-            slots: [...slotsRef.current],
-        };
-
-        if (layoutRef.current !== 'main') {
-            // Push all active secondary slots off-screen (-10000, -10000) so they don't block the UI
-            // but keep playing/buffering audio in the background. (Only needed in MPV mode)
-            if (engineModeRef.current !== 'hls') {
-                const ops = slotsRef.current.filter(s => s.active).map(s =>
-                    invoke('multiview_reposition_slot', { slotId: s.id, x: -10000, y: -10000, width: 1, height: 1 })
-                );
-                await Promise.all(ops).catch(() => { });
-            }
-
-            // Temporarily reset primary MPV geometry to fullscreen so the Guide preview
-            // pane's `video-zoom` and `video-align` software scaling can work normally.
-            await invoke('mpv_set_geometry', { x: 0, y: 0, width: 0, height: 0 }).catch(() => { });
-        }
+        }, 150);
     }, []);
-
-    /** Exit tab mode: restore saved multiview state, unhiding or loading slots as needed */
-    const exitTabMode = useCallback(async () => {
-        if (!isTabModeRef.current) return;
-        isTabModeRef.current = false;
-
-        const saved = savedStateRef.current;
-        savedStateRef.current = null;
-
-        if (!saved) return;
-
-        if (saved.layout === 'main') {
-            // The user switched to main layout while tab was open; we need to kill the hidden MPVs
-            await invoke('multiview_kill_all').catch(() => { });
-            activeUrlsRef.current = { 2: null, 3: null, 4: null };
-            await syncMpvGeometry('main');
-        } else {
-            // Restore primary MPV layout
-            await syncMpvGeometry(saved.layout);
-            
-            // Keep the current active slots that were playing inside EPG
-            const currentSlots = slotsRef.current;
-
-            // Stretch secondary slots to fill the cell in grid layouts
-            const setStretch = (id: 2 | 3 | 4) => {
-                if (engineModeRef.current !== 'hls' && (saved.layout === '2x2' || saved.layout === 'bigbottom')) {
-                    invoke('multiview_set_property_slot', { slotId: id, property: 'keepaspect', value: false }).catch(() => { });
-                }
-            };
-
-            for (const slot of currentSlots) {
-                if (slot.active && slot.channelUrl) {
-                    const r = secondaryRect(slot.id, saved.layout);
-                    // Ensure the slot is loaded and playing the correct URL
-                    if (activeUrlsRef.current[slot.id] !== slot.channelUrl) {
-                        if (engineModeRef.current !== 'hls') {
-                            invoke('multiview_load_slot', {
-                                slotId: slot.id, url: slot.channelUrl, x: r.x, y: r.y, width: r.w, height: r.h
-                            }).catch(() => { });
-                        }
-                        activeUrlsRef.current[slot.id] = slot.channelUrl;
-                    } else {
-                        // Just reposition it back on-screen
-                        if (engineModeRef.current !== 'hls') {
-                            invoke('multiview_reposition_slot', {
-                                slotId: slot.id, x: r.x, y: r.y, width: r.w, height: r.h
-                            }).catch(() => { });
-                        }
-                    }
-                    setStretch(slot.id);
-                } else {
-                    // It is inactive, so make sure it is stopped and positioned off-screen
-                    if (activeUrlsRef.current[slot.id]) {
-                        if (engineModeRef.current !== 'hls') {
-                            invoke('multiview_stop_slot', { slotId: slot.id }).catch(() => { });
-                        }
-                        activeUrlsRef.current[slot.id] = null;
-                    }
-                    if (engineModeRef.current !== 'hls') {
-                        invoke('multiview_reposition_slot', { slotId: slot.id, x: -10000, y: -10000, width: 1, height: 1 }).catch(() => { });
-                    }
-                }
-            }
-        }
-    }, [syncMpvGeometry]);
 
     const visibleSlotIds = ((): Array<2 | 3 | 4> => {
         switch (layout) {
@@ -771,10 +326,7 @@ export function useMultiview() {
         stopSlot,
         reloadSlot,
         setSlotProperty,
-        repositionSecondarySlots,
         notifyMainLoaded,
         syncMpvGeometry,
-        enterTabMode,
-        exitTabMode,
     };
 }

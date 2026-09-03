@@ -52,17 +52,17 @@ export interface NavigationState {
 interface UseNavigationOptions {
   playing: boolean;
   multiviewLayout: import('./useLayoutPersistence').LayoutMode;
-  multiviewExitTabMode: () => void;
+  categoryId?: string | null;
   setCategoryId: (catId: string | null) => void;
   overlayAutohideTimer: number;
   overlayOnClickOnly: boolean;
 }
 
 export function useNavigation(options: UseNavigationOptions): NavigationState {
-  const { playing, multiviewLayout, multiviewExitTabMode, setCategoryId, overlayAutohideTimer, overlayOnClickOnly } = options;
+  const { playing, multiviewLayout, categoryId, setCategoryId, overlayAutohideTimer, overlayOnClickOnly } = options;
 
   // View state
-  const [activeView, setActiveView] = useState<View>('movies');
+  const [activeView, setActiveView] = useState<View>('none');
   const [settingsTab, setSettingsTab] = useState<SettingsTabId>('sources');
   const [editSourceId, setEditSourceId] = useState<string | null>(null);
   const [showSettingsPopup, setShowSettingsPopup] = useState(false);
@@ -77,7 +77,12 @@ export function useNavigation(options: UseNavigationOptions): NavigationState {
   const [isSearchMode, setIsSearchMode] = useState(false);
 
   // Watchlist mode
-  const [isWatchlistMode, setIsWatchlistMode] = useState(false);
+  const [isWatchlistMode, setIsWatchlistMode] = useState(categoryId === '__watchlist__');
+
+  // Keep watchlist mode in sync when categoryId changes externally (e.g. initial load or defaultCategory)
+  useEffect(() => {
+    setIsWatchlistMode(categoryId === '__watchlist__');
+  }, [categoryId]);
 
   // Controls visibility
   const [showControls, setShowControls] = useState(true);
@@ -114,31 +119,14 @@ export function useNavigation(options: UseNavigationOptions): NavigationState {
       if (customEvent.detail?.subTab) {
         setPendingSettingsSubTab(customEvent.detail.subTab);
       }
-      // Open as popup if in main layout, otherwise as full view
-      if (multiviewLayoutRef.current === 'main') {
-        setShowSettingsPopup(true);
-      } else {
-        setActiveView('settings');
-      }
+      setShowSettingsPopup(true);
     };
     window.addEventListener('open-settings', handleOpenSettings);
     return () => window.removeEventListener('open-settings', handleOpenSettings);
   }, []);
 
-  // Tab Mode: enter when EPG, Sports, DVR, Settings, Movies, Series, or Settings popup opens; exit when they close
   const multiviewLayoutRef = useRef(multiviewLayout);
   useEffect(() => { multiviewLayoutRef.current = multiviewLayout; }, [multiviewLayout]);
-
-  useEffect(() => {
-    if (activeView === 'guide' || activeView === 'sports' || activeView === 'dvr' ||
-        activeView === 'settings' || activeView === 'movies' || activeView === 'series' ||
-        activeView === 'calendar' || activeView === 'stremio' || activeView === 'nuvio' || showSettingsPopup) {
-
-      // Note: enterTabMode is called via the multiview hook in App.tsx
-    } else {
-      multiviewExitTabMode();
-    }
-  }, [activeView, showSettingsPopup, multiviewExitTabMode]);
 
   // Ensure video software scaling is reset when completely exiting tab views
   useEffect(() => {

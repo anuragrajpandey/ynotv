@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Source } from '@ynotv/core';
-import { useEpgView, useSetEpgView, useSetEpgVisibleHours, useSetEpgClockFormat, useSetEpgShowDate, useUIStore, useIncludeAllChannelsToPlaylist, useSetIncludeAllChannelsToPlaylist } from '../stores/uiStore';
+import { useEpgView, useSetEpgView, useSetEpgVisibleHours, useSetEpgClockFormat, useSetEpgShowDate, useUIStore, useIncludeAllChannelsToPlaylist, useSetIncludeAllChannelsToPlaylist, useEpgThreeColumn, useSetEpgThreeColumn } from '../stores/uiStore';
 import { SettingsSidebar, SETTINGS_TAB_LABEL_KEYS, type SettingsTabId } from './settings/SettingsSidebar';
 import { searchSettings, type SettingsSearchResult } from './settings/SettingsSearchIndex';
 import { SourcesTab } from './settings/SourcesTab';
 import { SecurityTab } from './settings/SecurityTab';
 import { DebugTab } from './settings/DebugTab';
 import { ShortcutsTab } from './settings/ShortcutsTab';
+import { ControllersTab } from './settings/ControllersTab';
 import { ImportExportTab } from './settings/ImportExportTab';
 import { UITab } from './settings/UITab';
 import { ThemeTab } from './settings/ThemeTab';
@@ -127,12 +128,42 @@ interface SettingsProps {
   onEpgMetadataBadgeFpsChange?: (enabled: boolean) => void;
   epgMetadataBadgeFpsSuffix?: boolean;
   onEpgMetadataBadgeFpsSuffixChange?: (enabled: boolean) => void;
+  epgMetadataBadgeFhdLabels?: boolean;
+  onEpgMetadataBadgeFhdLabelsChange?: (enabled: boolean) => void;
+  epgResolutionFilterEnabled?: boolean;
+  onEpgResolutionFilterEnabledChange?: (enabled: boolean) => void;
   epgMetadataBadgeSound?: boolean;
   onEpgMetadataBadgeSoundChange?: (enabled: boolean) => void;
+  epgMetadataBadgeBitrate?: boolean;
+  onEpgMetadataBadgeBitrateChange?: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrate?: boolean;
+  onEpgMetadataBadgeAudioBitrateChange?: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateOverlay?: boolean;
+  onEpgMetadataBadgeBitrateOverlayChange?: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateOverlay?: boolean;
+  onEpgMetadataBadgeAudioBitrateOverlayChange?: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSearch?: boolean;
+  onEpgMetadataBadgeBitrateSearchChange?: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSearch?: boolean;
+  onEpgMetadataBadgeAudioBitrateSearchChange?: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateFailover?: boolean;
+  onEpgMetadataBadgeBitrateFailoverChange?: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateFailover?: boolean;
+  onEpgMetadataBadgeAudioBitrateFailoverChange?: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSports?: boolean;
+  onEpgMetadataBadgeBitrateSportsChange?: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSports?: boolean;
+  onEpgMetadataBadgeAudioBitrateSportsChange?: (enabled: boolean) => void;
   vodAutoPlayNextEpisode?: boolean;
   onVodAutoPlayNextEpisodeChange?: (enabled: boolean) => void;
   vodShowSourceBadge?: boolean;
   onVodShowSourceBadgeChange?: (enabled: boolean) => void;
+  blurUnwatchedEpisodes?: boolean;
+  onBlurUnwatchedEpisodesChange?: (enabled: boolean) => void;
+  useScrollwheelSeek?: boolean;
+  onUseScrollwheelSeekChange?: (enabled: boolean) => void;
+  useScrollwheelSeekInvert?: boolean;
+  onUseScrollwheelSeekInvertChange?: (enabled: boolean) => void;
   failoverGroupShowSource?: boolean;
   onFailoverGroupShowSourceChange?: (enabled: boolean) => void;
   discordRichPresence?: boolean;
@@ -239,12 +270,42 @@ export function Settings({
   onEpgMetadataBadgeFpsChange,
   epgMetadataBadgeFpsSuffix: epgMetadataBadgeFpsSuffixProp,
   onEpgMetadataBadgeFpsSuffixChange,
+  epgMetadataBadgeFhdLabels: epgMetadataBadgeFhdLabelsProp,
+  onEpgMetadataBadgeFhdLabelsChange,
+  epgResolutionFilterEnabled: epgResolutionFilterEnabledProp,
+  onEpgResolutionFilterEnabledChange,
   epgMetadataBadgeSound: epgMetadataBadgeSoundProp,
   onEpgMetadataBadgeSoundChange,
+  epgMetadataBadgeBitrate: epgMetadataBadgeBitrateProp,
+  onEpgMetadataBadgeBitrateChange,
+  epgMetadataBadgeAudioBitrate: epgMetadataBadgeAudioBitrateProp,
+  onEpgMetadataBadgeAudioBitrateChange,
+  epgMetadataBadgeBitrateOverlay: epgMetadataBadgeBitrateOverlayProp,
+  onEpgMetadataBadgeBitrateOverlayChange,
+  epgMetadataBadgeAudioBitrateOverlay: epgMetadataBadgeAudioBitrateOverlayProp,
+  onEpgMetadataBadgeAudioBitrateOverlayChange,
+  epgMetadataBadgeBitrateSearch: epgMetadataBadgeBitrateSearchProp,
+  onEpgMetadataBadgeBitrateSearchChange,
+  epgMetadataBadgeAudioBitrateSearch: epgMetadataBadgeAudioBitrateSearchProp,
+  onEpgMetadataBadgeAudioBitrateSearchChange,
+  epgMetadataBadgeBitrateFailover: epgMetadataBadgeBitrateFailoverProp,
+  onEpgMetadataBadgeBitrateFailoverChange,
+  epgMetadataBadgeAudioBitrateFailover: epgMetadataBadgeAudioBitrateFailoverProp,
+  onEpgMetadataBadgeAudioBitrateFailoverChange,
+  epgMetadataBadgeBitrateSports: epgMetadataBadgeBitrateSportsProp,
+  onEpgMetadataBadgeBitrateSportsChange,
+  epgMetadataBadgeAudioBitrateSports: epgMetadataBadgeAudioBitrateSportsProp,
+  onEpgMetadataBadgeAudioBitrateSportsChange,
   vodAutoPlayNextEpisode: vodAutoPlayNextEpisodeProp,
   onVodAutoPlayNextEpisodeChange,
   vodShowSourceBadge: vodShowSourceBadgeProp,
   onVodShowSourceBadgeChange,
+  blurUnwatchedEpisodes: blurUnwatchedEpisodesProp,
+  onBlurUnwatchedEpisodesChange,
+  useScrollwheelSeek: useScrollwheelSeekProp,
+  onUseScrollwheelSeekChange,
+  useScrollwheelSeekInvert: useScrollwheelSeekInvertProp,
+  onUseScrollwheelSeekInvertChange,
   failoverGroupShowSource: failoverGroupShowSourceProp,
   onFailoverGroupShowSourceChange,
   discordRichPresence: discordRichPresenceProp,
@@ -418,12 +479,12 @@ export function Settings({
   }>({
     modernUiEnabled: 'v3',
     minimizeToTray: false,
-    collapseSourceCategoriesOnStartup: false,
+    collapseSourceCategoriesOnStartup: true,
     overlayAutohideTimer: 3,
     overlayOnClickOnly: false,
     uiScale: 100,
     playerControlDesign: 'clean',
-    showVolumePercent: false,
+    showVolumePercent: true,
   });
 
   // Font size state (moved to LiveTV tab)
@@ -459,6 +520,9 @@ export function Settings({
   const [catchupContinuePlaying, setCatchupContinuePlaying] = useState(false);
   const [vodAutoPlayNextEpisode, setVodAutoPlayNextEpisode] = useState(true);
   const [vodShowSourceBadge, setVodShowSourceBadge] = useState(false);
+  const [blurUnwatchedEpisodes, setBlurUnwatchedEpisodes] = useState(false);
+  const [useScrollwheelSeek, setUseScrollwheelSeek] = useState(false);
+  const [useScrollwheelSeekInvert, setUseScrollwheelSeekInvert] = useState(false);
   const [failoverGroupShowSource, setFailoverGroupShowSource] = useState(false);
   // Stremio settings
   const [stremioStreamPickerMode, setStremioStreamPickerMode] = useState<StremioStreamPickerMode>('modal');
@@ -597,6 +661,8 @@ export function Settings({
   const setLogoCacheTtlDays = useSettingsStore((s) => s.setLogoCacheTtlDays);
   const sourceLogoDisplayOverrides = useSettingsStore((s) => s.sourceLogoDisplayOverrides);
   const setSourceLogoDisplayOverride = useSettingsStore((s) => s.setSourceLogoDisplayOverride);
+  const sourceLogoBackgroundOverrides = useSettingsStore((s) => s.sourceLogoBackgroundOverrides);
+  const setSourceLogoBackgroundOverride = useSettingsStore((s) => s.setSourceLogoBackgroundOverride);
   const channelLogoSize = useSettingsStore((s) => s.channelLogoSize);
   const setChannelLogoSize = useSettingsStore((s) => s.setChannelLogoSize);
   const channelLogoRoundEdges = useSettingsStore((s) => s.channelLogoRoundEdges);
@@ -607,6 +673,14 @@ export function Settings({
   const setLogoSmartTrim = useSettingsStore((s) => s.setLogoSmartTrim);
   const logoLightBackgroundDetection = useSettingsStore((s) => s.logoLightBackgroundDetection);
   const setLogoLightBackgroundDetection = useSettingsStore((s) => s.setLogoLightBackgroundDetection);
+  const logoDefaultBackground = useSettingsStore((s) => s.logoDefaultBackground);
+  const setLogoDefaultBackground = useSettingsStore((s) => s.setLogoDefaultBackground);
+  const epgPreferEpgLogos = useSettingsStore((s) => s.epgPreferEpgLogos);
+  const setEpgPreferEpgLogos = useSettingsStore((s) => s.setEpgPreferEpgLogos);
+  const categorySidebarAutohide = useSettingsStore((s) => s.categorySidebarAutohide);
+  const setCategorySidebarAutohide = useSettingsStore((s) => s.setCategorySidebarAutohide);
+  const epgLogoDisplay = useSettingsStore((s) => s.epgLogoDisplay);
+  const setEpgLogoDisplay = useSettingsStore((s) => s.setEpgLogoDisplay);
   const oledBlack = useSettingsStore((s) => s.oledBlack);
   const setOledBlack = useSettingsStore((s) => s.setOledBlack);
 
@@ -617,22 +691,42 @@ export function Settings({
   const [showRecentlyViewed, setShowRecentlyViewed] = useState(true);
   const [favoritesMode, setFavoritesMode] = useState<'global' | 'perSource' | 'both'>('global');
 
+  // VOD Category settings state
+  const [showVodAll, setShowVodAll] = useState(true);
+  const [showVodFavorites, setShowVodFavorites] = useState(true);
+  const [showVodPlaylists, setShowVodPlaylists] = useState(true);
+  const [showVodLocal, setShowVodLocal] = useState(true);
+  const [showVodRecent, setShowVodRecent] = useState(true);
+
   // LiveTV settings state
   const [epgDarkenCurrent, setEpgDarkenCurrent] = useState(false);
   const [epgHighlightBorderCurrent, setEpgHighlightBorderCurrent] = useState(false);
   const [epgBoldChannelNames, setEpgBoldChannelNames] = useState(false);
   const [epgBoldTopCategories, setEpgBoldTopCategories] = useState(false);
   const [epgBoldSourceCategories, setEpgBoldSourceCategories] = useState(false);
-  const [epgPreferEpgLogos, setEpgPreferEpgLogos] = useState(false);
-  const [epgLogoDisplay, setEpgLogoDisplay] = useState<'square' | 'rectangle'>('square');
   const [epgMetadataBadgeResolution, setEpgMetadataBadgeResolution] = useState(epgMetadataBadgeResolutionProp ?? true);
   const [epgMetadataBadgeFps, setEpgMetadataBadgeFps] = useState(epgMetadataBadgeFpsProp ?? true);
   const [epgMetadataBadgeFpsSuffix, setEpgMetadataBadgeFpsSuffix] = useState(epgMetadataBadgeFpsSuffixProp ?? true);
+  const [epgMetadataBadgeFhdLabels, setEpgMetadataBadgeFhdLabels] = useState(epgMetadataBadgeFhdLabelsProp ?? false);
+  const [epgResolutionFilterEnabled, setEpgResolutionFilterEnabled] = useState(epgResolutionFilterEnabledProp ?? false);
   const [epgMetadataBadgeSound, setEpgMetadataBadgeSound] = useState(epgMetadataBadgeSoundProp ?? true);
+  const [epgMetadataBadgeBitrate, setEpgMetadataBadgeBitrate] = useState(epgMetadataBadgeBitrateProp ?? false);
+  const [epgMetadataBadgeAudioBitrate, setEpgMetadataBadgeAudioBitrate] = useState(epgMetadataBadgeAudioBitrateProp ?? false);
+  const [epgMetadataBadgeBitrateOverlay, setEpgMetadataBadgeBitrateOverlay] = useState(epgMetadataBadgeBitrateOverlayProp ?? false);
+  const [epgMetadataBadgeAudioBitrateOverlay, setEpgMetadataBadgeAudioBitrateOverlay] = useState(epgMetadataBadgeAudioBitrateOverlayProp ?? false);
+  const [epgMetadataBadgeBitrateSearch, setEpgMetadataBadgeBitrateSearch] = useState(epgMetadataBadgeBitrateSearchProp ?? false);
+  const [epgMetadataBadgeAudioBitrateSearch, setEpgMetadataBadgeAudioBitrateSearch] = useState(epgMetadataBadgeAudioBitrateSearchProp ?? false);
+  const [epgMetadataBadgeBitrateFailover, setEpgMetadataBadgeBitrateFailover] = useState(epgMetadataBadgeBitrateFailoverProp ?? false);
+  const [epgMetadataBadgeAudioBitrateFailover, setEpgMetadataBadgeAudioBitrateFailover] = useState(epgMetadataBadgeAudioBitrateFailoverProp ?? false);
+  const [epgMetadataBadgeBitrateSports, setEpgMetadataBadgeBitrateSports] = useState(epgMetadataBadgeBitrateSportsProp ?? false);
+  const [epgMetadataBadgeAudioBitrateSports, setEpgMetadataBadgeAudioBitrateSports] = useState(epgMetadataBadgeAudioBitrateSportsProp ?? false);
   const [epgTitleFontSize, setEpgTitleFontSize] = useState(32);
   const [epgBodyFontSize, setEpgBodyFontSize] = useState(16);
+  const [epgProgramFontSize, setEpgProgramFontSize] = useState(14);
   const epgView = useEpgView();
   const setEpgView = useSetEpgView();
+  const epgThreeColumn = useEpgThreeColumn();
+  const setEpgThreeColumn = useSetEpgThreeColumn();
   const setEpgVisibleHours = useSetEpgVisibleHours();
   const [epgVisibleHours, setEpgVisibleHoursState] = useState<'auto' | number>('auto');
   const setEpgClockFormat = useSetEpgClockFormat();
@@ -697,7 +791,19 @@ export function Settings({
   useEffect(() => { setEpgMetadataBadgeResolution(epgMetadataBadgeResolutionProp ?? true); }, [epgMetadataBadgeResolutionProp]);
   useEffect(() => { setEpgMetadataBadgeFps(epgMetadataBadgeFpsProp ?? true); }, [epgMetadataBadgeFpsProp]);
   useEffect(() => { setEpgMetadataBadgeFpsSuffix(epgMetadataBadgeFpsSuffixProp ?? true); }, [epgMetadataBadgeFpsSuffixProp]);
+  useEffect(() => { setEpgMetadataBadgeFhdLabels(epgMetadataBadgeFhdLabelsProp ?? false); }, [epgMetadataBadgeFhdLabelsProp]);
+  useEffect(() => { setEpgResolutionFilterEnabled(epgResolutionFilterEnabledProp ?? false); }, [epgResolutionFilterEnabledProp]);
   useEffect(() => { setEpgMetadataBadgeSound(epgMetadataBadgeSoundProp ?? true); }, [epgMetadataBadgeSoundProp]);
+  useEffect(() => { setEpgMetadataBadgeBitrate(epgMetadataBadgeBitrateProp ?? false); }, [epgMetadataBadgeBitrateProp]);
+  useEffect(() => { setEpgMetadataBadgeAudioBitrate(epgMetadataBadgeAudioBitrateProp ?? false); }, [epgMetadataBadgeAudioBitrateProp]);
+  useEffect(() => { setEpgMetadataBadgeBitrateOverlay(epgMetadataBadgeBitrateOverlayProp ?? false); }, [epgMetadataBadgeBitrateOverlayProp]);
+  useEffect(() => { setEpgMetadataBadgeAudioBitrateOverlay(epgMetadataBadgeAudioBitrateOverlayProp ?? false); }, [epgMetadataBadgeAudioBitrateOverlayProp]);
+  useEffect(() => { setEpgMetadataBadgeBitrateSearch(epgMetadataBadgeBitrateSearchProp ?? false); }, [epgMetadataBadgeBitrateSearchProp]);
+  useEffect(() => { setEpgMetadataBadgeAudioBitrateSearch(epgMetadataBadgeAudioBitrateSearchProp ?? false); }, [epgMetadataBadgeAudioBitrateSearchProp]);
+  useEffect(() => { setEpgMetadataBadgeBitrateFailover(epgMetadataBadgeBitrateFailoverProp ?? false); }, [epgMetadataBadgeBitrateFailoverProp]);
+  useEffect(() => { setEpgMetadataBadgeAudioBitrateFailover(epgMetadataBadgeAudioBitrateFailoverProp ?? false); }, [epgMetadataBadgeAudioBitrateFailoverProp]);
+  useEffect(() => { setEpgMetadataBadgeBitrateSports(epgMetadataBadgeBitrateSportsProp ?? false); }, [epgMetadataBadgeBitrateSportsProp]);
+  useEffect(() => { setEpgMetadataBadgeAudioBitrateSports(epgMetadataBadgeAudioBitrateSportsProp ?? false); }, [epgMetadataBadgeAudioBitrateSportsProp]);
   useEffect(() => { setCastEnabled(castEnabledProp ?? false); }, [castEnabledProp]);
   useEffect(() => { setCastRewriteTs(castRewriteTsProp ?? true); }, [castRewriteTsProp]);
   
@@ -746,6 +852,34 @@ export function Settings({
     window.addEventListener('ynotv:category-settings-changed', handleCategorySettingsChange);
     return () => {
       window.removeEventListener('ynotv:category-settings-changed', handleCategorySettingsChange);
+    };
+  }, []);
+
+  // Listen for VOD navigation settings changes from other components
+  useEffect(() => {
+    const handleVodNavSettingsChange = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        if (customEvent.detail.showVodAll !== undefined) {
+          setShowVodAll(customEvent.detail.showVodAll);
+        }
+        if (customEvent.detail.showVodFavorites !== undefined) {
+          setShowVodFavorites(customEvent.detail.showVodFavorites);
+        }
+        if (customEvent.detail.showVodPlaylists !== undefined) {
+          setShowVodPlaylists(customEvent.detail.showVodPlaylists);
+        }
+        if (customEvent.detail.showVodLocal !== undefined) {
+          setShowVodLocal(customEvent.detail.showVodLocal);
+        }
+        if (customEvent.detail.showVodRecent !== undefined) {
+          setShowVodRecent(customEvent.detail.showVodRecent);
+        }
+      }
+    };
+    window.addEventListener('ynotv:vod-navigation-settings-changed', handleVodNavSettingsChange);
+    return () => {
+      window.removeEventListener('ynotv:vod-navigation-settings-changed', handleVodNavSettingsChange);
     };
   }, []);
 
@@ -864,6 +998,16 @@ export function Settings({
         epgMetadataBadgeFps?: boolean;
         epgMetadataBadgeFpsSuffix?: boolean;
         epgMetadataBadgeSound?: boolean;
+        epgMetadataBadgeBitrate?: boolean;
+        epgMetadataBadgeAudioBitrate?: boolean;
+        epgMetadataBadgeBitrateOverlay?: boolean;
+        epgMetadataBadgeAudioBitrateOverlay?: boolean;
+        epgMetadataBadgeBitrateSearch?: boolean;
+        epgMetadataBadgeAudioBitrateSearch?: boolean;
+        epgMetadataBadgeBitrateFailover?: boolean;
+        epgMetadataBadgeAudioBitrateFailover?: boolean;
+        epgMetadataBadgeBitrateSports?: boolean;
+        epgMetadataBadgeAudioBitrateSports?: boolean;
         epgView?: 'traditional' | 'alternate';
         collapseSourceCategoriesOnStartup?: boolean;
         modernUiEnabled?: boolean | string;
@@ -878,6 +1022,7 @@ export function Settings({
         epgShowDate?: boolean;
         epgTitleFontSize?: number;
         epgBodyFontSize?: number;
+        epgProgramFontSize?: number;
         channelInfoOverlayEnabled?: boolean;
         channelInfoOverlayFontSize?: number;
         channelInfoOverlayLogoSize?: number;
@@ -937,13 +1082,26 @@ export function Settings({
         includeAllChannelsToPlaylist?: boolean;
         vodAutoPlayNextEpisode?: boolean;
         vodShowSourceBadge?: boolean;
+        blurUnwatchedEpisodes?: boolean;
+        useScrollwheelSeek?: boolean;
+        useScrollwheelSeekInvert?: boolean;
         failoverGroupShowSource?: boolean;
+        showVodAll?: boolean;
+        showVodFavorites?: boolean;
+        showVodPlaylists?: boolean;
+        showVodLocal?: boolean;
+        showVodRecent?: boolean;
       };
 
       setShowAllChannels(settings.showAllChannels ?? true);
       setShowFavorites(settings.showFavorites ?? true);
       setShowWatchlist(settings.showWatchlist ?? true);
       setShowRecentlyViewed(settings.showRecentlyViewed ?? true);
+      setShowVodAll(settings.showVodAll ?? true);
+      setShowVodFavorites(settings.showVodFavorites ?? true);
+      setShowVodPlaylists(settings.showVodPlaylists ?? true);
+      setShowVodLocal(settings.showVodLocal ?? true);
+      setShowVodRecent(settings.showVodRecent ?? true);
       const favMode = settings.favoritesMode;
       setFavoritesMode(favMode === 'perSource' || favMode === 'both' || favMode === 'global' ? favMode : 'global');
 
@@ -1029,7 +1187,7 @@ export function Settings({
         overlayOnClickOnly: settings.overlayOnClickOnly ?? false,
         uiScale: settings.uiScale ?? 100,
         playerControlDesign: settings.playerControlDesign ?? 'clean',
-        showVolumePercent: settings.showVolumePercent ?? showVolumePercentProp ?? false,
+        showVolumePercent: settings.showVolumePercent ?? showVolumePercentProp ?? true,
       };
       setUiSettings(loadedUiSettings);
 
@@ -1055,7 +1213,7 @@ export function Settings({
       setMpvParams(settings.mpvParams ?? '');
       setMpvHwdecEnabled(settings.mpvHwdecEnabled ?? true);
       setTimeshiftEnabled(settings.timeshiftEnabled ?? true);
-      setTimeshiftCacheBytes(settings.timeshiftCacheBytes ?? 268_435_456);
+      useSettingsStore.getState().setTimeshiftCacheBytes(settings.timeshiftCacheBytes ?? 268_435_456);
       setLiveBufferOffset(settings.liveBufferOffset ?? 0);
       setStreamWatchdogSeconds(settings.streamWatchdogSeconds ?? 10);
       setStreamMaxRetries(settings.streamMaxRetries ?? 20);
@@ -1067,6 +1225,9 @@ export function Settings({
       setCatchupContinuePlaying(settings.catchupContinuePlaying ?? false);
       setVodAutoPlayNextEpisode(settings.vodAutoPlayNextEpisode ?? true);
       setVodShowSourceBadge(settings.vodShowSourceBadge ?? false);
+      setBlurUnwatchedEpisodes(settings.blurUnwatchedEpisodes ?? false);
+      setUseScrollwheelSeek(settings.useScrollwheelSeek ?? false);
+      setUseScrollwheelSeekInvert(settings.useScrollwheelSeekInvert ?? false);
       setFailoverGroupShowSource(settings.failoverGroupShowSource ?? false);
       setStremioStreamPickerMode(settings.stremioStreamPickerMode ?? 'modal');
       setShowStremioStreamBadges(settings.showStremioStreamBadges ?? true);
@@ -1129,8 +1290,6 @@ export function Settings({
       setEpgBoldChannelNames(settings.epgBoldChannelNames ?? false);
       setEpgBoldTopCategories(settings.epgBoldTopCategories ?? false);
       setEpgBoldSourceCategories(settings.epgBoldSourceCategories ?? false);
-      setEpgPreferEpgLogos(settings.epgPreferEpgLogos ?? false);
-      setEpgLogoDisplay(settings.epgLogoDisplay ?? 'square');
 
       // Load EPG visible hours setting
       const rawEpgVisibleHours = settings.epgVisibleHours ?? 'auto';
@@ -1163,10 +1322,12 @@ export function Settings({
       // Load EPG font size settings
       const loadedEpgTitleFontSize = settings.epgTitleFontSize ?? 32;
       const loadedEpgBodyFontSize = settings.epgBodyFontSize ?? 16;
+      const loadedEpgProgramFontSize = settings.epgProgramFontSize ?? 14;
       // EPG font-size CSS vars are owned by the DOM applier — already applied
       // at boot/hydration.
       setEpgTitleFontSize(loadedEpgTitleFontSize);
       setEpgBodyFontSize(loadedEpgBodyFontSize);
+      setEpgProgramFontSize(loadedEpgProgramFontSize);
 
       // Load Live View settings
       setChannelInfoOverlayEnabled(settings.channelInfoOverlayEnabled ?? false);
@@ -1390,6 +1551,45 @@ export function Settings({
     }));
     if (onVodShowSourceBadgeChange) {
       onVodShowSourceBadgeChange(enabled);
+    }
+  };
+
+  const handleBlurUnwatchedEpisodesChange = async (enabled: boolean) => {
+    setBlurUnwatchedEpisodes(enabled);
+    if (window.storage) {
+      await window.storage.updateSettings({ blurUnwatchedEpisodes: enabled });
+    }
+    window.dispatchEvent(new CustomEvent('ynotv:vod-settings-changed', {
+      detail: { blurUnwatchedEpisodes: enabled }
+    }));
+    if (onBlurUnwatchedEpisodesChange) {
+      onBlurUnwatchedEpisodesChange(enabled);
+    }
+  };
+
+  const handleUseScrollwheelSeekChange = async (enabled: boolean) => {
+    setUseScrollwheelSeek(enabled);
+    if (window.storage) {
+      await window.storage.updateSettings({ useScrollwheelSeek: enabled });
+    }
+    window.dispatchEvent(new CustomEvent('ynotv:vod-settings-changed', {
+      detail: { useScrollwheelSeek: enabled }
+    }));
+    if (onUseScrollwheelSeekChange) {
+      onUseScrollwheelSeekChange(enabled);
+    }
+  };
+
+  const handleUseScrollwheelSeekInvertChange = async (enabled: boolean) => {
+    setUseScrollwheelSeekInvert(enabled);
+    if (window.storage) {
+      await window.storage.updateSettings({ useScrollwheelSeekInvert: enabled });
+    }
+    window.dispatchEvent(new CustomEvent('ynotv:vod-settings-changed', {
+      detail: { useScrollwheelSeekInvert: enabled }
+    }));
+    if (onUseScrollwheelSeekInvertChange) {
+      onUseScrollwheelSeekInvertChange(enabled);
     }
   };
 
@@ -1658,6 +1858,31 @@ export function Settings({
     useSettingsStore.getState().setCategorySettings({ showRecentlyViewed: enabled });
   };
 
+  const handleShowVodAllChange = async (enabled: boolean) => {
+    setShowVodAll(enabled);
+    useSettingsStore.getState().setVodNavigationSettings({ showVodAll: enabled });
+  };
+
+  const handleShowVodFavoritesChange = async (enabled: boolean) => {
+    setShowVodFavorites(enabled);
+    useSettingsStore.getState().setVodNavigationSettings({ showVodFavorites: enabled });
+  };
+
+  const handleShowVodPlaylistsChange = async (enabled: boolean) => {
+    setShowVodPlaylists(enabled);
+    useSettingsStore.getState().setVodNavigationSettings({ showVodPlaylists: enabled });
+  };
+
+  const handleShowVodLocalChange = async (enabled: boolean) => {
+    setShowVodLocal(enabled);
+    useSettingsStore.getState().setVodNavigationSettings({ showVodLocal: enabled });
+  };
+
+  const handleShowVodRecentChange = async (enabled: boolean) => {
+    setShowVodRecent(enabled);
+    useSettingsStore.getState().setVodNavigationSettings({ showVodRecent: enabled });
+  };
+
   const handleEpgDarkenCurrentChange = async (enabled: boolean) => {
     setEpgDarkenCurrent(enabled);
     // Apply CSS class to document for ProgramBlock to use
@@ -1680,25 +1905,6 @@ export function Settings({
     }
     if (window.storage) {
       await window.storage.updateSettings({ epgHighlightBorderCurrent: enabled });
-    }
-  };
-
-  const handleEpgPreferEpgLogosChange = async (enabled: boolean) => {
-    setEpgPreferEpgLogos(enabled);
-    if (window.storage) {
-      await window.storage.updateSettings({ epgPreferEpgLogos: enabled });
-    }
-  };
-
-  const handleEpgLogoDisplayChange = async (display: 'square' | 'rectangle') => {
-    setEpgLogoDisplay(display);
-    if (display === 'rectangle') {
-      document.documentElement.classList.add('epg-rectangle-logos');
-    } else {
-      document.documentElement.classList.remove('epg-rectangle-logos');
-    }
-    if (window.storage) {
-      await window.storage.updateSettings({ epgLogoDisplay: display });
     }
   };
 
@@ -1732,6 +1938,26 @@ export function Settings({
     }
   };
 
+  const handleEpgMetadataBadgeFhdLabelsChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeFhdLabels(enabled);
+    if (onEpgMetadataBadgeFhdLabelsChange) {
+      onEpgMetadataBadgeFhdLabelsChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeFhdLabels: enabled });
+    }
+  };
+
+  const handleEpgResolutionFilterEnabledChange = async (enabled: boolean) => {
+    setEpgResolutionFilterEnabled(enabled);
+    if (onEpgResolutionFilterEnabledChange) {
+      onEpgResolutionFilterEnabledChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgResolutionFilterEnabled: enabled });
+    }
+  };
+
   const handleEpgMetadataBadgeSoundChange = async (enabled: boolean) => {
     setEpgMetadataBadgeSound(enabled);
     if (onEpgMetadataBadgeSoundChange) {
@@ -1739,6 +1965,106 @@ export function Settings({
     }
     if (window.storage) {
       await window.storage.updateSettings({ epgMetadataBadgeSound: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeBitrateChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeBitrate(enabled);
+    if (onEpgMetadataBadgeBitrateChange) {
+      onEpgMetadataBadgeBitrateChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeBitrate: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeAudioBitrateChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeAudioBitrate(enabled);
+    if (onEpgMetadataBadgeAudioBitrateChange) {
+      onEpgMetadataBadgeAudioBitrateChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeAudioBitrate: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeBitrateOverlayChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeBitrateOverlay(enabled);
+    if (onEpgMetadataBadgeBitrateOverlayChange) {
+      onEpgMetadataBadgeBitrateOverlayChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeBitrateOverlay: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeAudioBitrateOverlayChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeAudioBitrateOverlay(enabled);
+    if (onEpgMetadataBadgeAudioBitrateOverlayChange) {
+      onEpgMetadataBadgeAudioBitrateOverlayChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeAudioBitrateOverlay: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeBitrateSearchChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeBitrateSearch(enabled);
+    if (onEpgMetadataBadgeBitrateSearchChange) {
+      onEpgMetadataBadgeBitrateSearchChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeBitrateSearch: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeAudioBitrateSearchChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeAudioBitrateSearch(enabled);
+    if (onEpgMetadataBadgeAudioBitrateSearchChange) {
+      onEpgMetadataBadgeAudioBitrateSearchChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeAudioBitrateSearch: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeBitrateFailoverChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeBitrateFailover(enabled);
+    if (onEpgMetadataBadgeBitrateFailoverChange) {
+      onEpgMetadataBadgeBitrateFailoverChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeBitrateFailover: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeAudioBitrateFailoverChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeAudioBitrateFailover(enabled);
+    if (onEpgMetadataBadgeAudioBitrateFailoverChange) {
+      onEpgMetadataBadgeAudioBitrateFailoverChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeAudioBitrateFailover: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeBitrateSportsChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeBitrateSports(enabled);
+    if (onEpgMetadataBadgeBitrateSportsChange) {
+      onEpgMetadataBadgeBitrateSportsChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeBitrateSports: enabled });
+    }
+  };
+
+  const handleEpgMetadataBadgeAudioBitrateSportsChange = async (enabled: boolean) => {
+    setEpgMetadataBadgeAudioBitrateSports(enabled);
+    if (onEpgMetadataBadgeAudioBitrateSportsChange) {
+      onEpgMetadataBadgeAudioBitrateSportsChange(enabled);
+    }
+    if (window.storage) {
+      await window.storage.updateSettings({ epgMetadataBadgeAudioBitrateSports: enabled });
     }
   };
 
@@ -1785,6 +2111,13 @@ export function Settings({
     }
   };
 
+  const handleEpgThreeColumnChange = async (enabled: boolean) => {
+    setEpgThreeColumn(enabled);
+    if (window.storage) {
+      await window.storage.updateSettings({ epgThreeColumn: enabled });
+    }
+  };
+
   const handleEpgVisibleHoursChange = async (hours: 'auto' | number) => {
     setEpgVisibleHoursState(hours);
     setEpgVisibleHours(hours);
@@ -1819,6 +2152,14 @@ export function Settings({
   const handleEpgBodyFontSizeChange = (size: number) => {
     setEpgBodyFontSize(size);
     useSettingsStore.getState().setEpgBodyFontSize(size);
+  };
+
+  const handleEpgProgramFontSizeChange = (size: number) => {
+    setEpgProgramFontSize(size);
+    // epgProgramFontSize lives in the settings store — the DOM applier owns
+    // --prog-title-font-size / --prog-desc-font-size and the setter persists
+    // (debounced).
+    useSettingsStore.getState().setEpgProgramFontSize(size);
   };
 
   const handleIncludeAllChannelsToPlaylistChange = async (enabled: boolean) => {
@@ -2526,6 +2867,16 @@ export function Settings({
             onShowWatchlistChange={handleShowWatchlistChange}
             showRecentlyViewed={showRecentlyViewed}
             onShowRecentlyViewedChange={handleShowRecentlyViewedChange}
+            showVodAll={showVodAll}
+            onShowVodAllChange={handleShowVodAllChange}
+            showVodFavorites={showVodFavorites}
+            onShowVodFavoritesChange={handleShowVodFavoritesChange}
+            showVodPlaylists={showVodPlaylists}
+            onShowVodPlaylistsChange={handleShowVodPlaylistsChange}
+            showVodLocal={showVodLocal}
+            onShowVodLocalChange={handleShowVodLocalChange}
+            showVodRecent={showVodRecent}
+            onShowVodRecentChange={handleShowVodRecentChange}
           />
         );
       case 'theme':
@@ -2602,6 +2953,12 @@ export function Settings({
             onVodAutoPlayNextEpisodeChange={handleVodAutoPlayNextEpisodeChange}
             vodShowSourceBadge={vodShowSourceBadge}
             onVodShowSourceBadgeChange={handleVodShowSourceBadgeChange}
+            blurUnwatchedEpisodes={blurUnwatchedEpisodes}
+            onBlurUnwatchedEpisodesChange={handleBlurUnwatchedEpisodesChange}
+            useScrollwheelSeek={useScrollwheelSeek}
+            onUseScrollwheelSeekChange={handleUseScrollwheelSeekChange}
+            useScrollwheelSeekInvert={useScrollwheelSeekInvert}
+            onUseScrollwheelSeekInvertChange={handleUseScrollwheelSeekInvertChange}
           />
         );
       case 'metadata':
@@ -2662,9 +3019,9 @@ export function Settings({
             epgBoldSourceCategories={epgBoldSourceCategories}
             onEpgBoldSourceCategoriesChange={handleEpgBoldSourceCategoriesChange}
             epgPreferEpgLogos={epgPreferEpgLogos}
-            onEpgPreferEpgLogosChange={handleEpgPreferEpgLogosChange}
+            onEpgPreferEpgLogosChange={setEpgPreferEpgLogos}
             epgLogoDisplay={epgLogoDisplay}
-            onEpgLogoDisplayChange={handleEpgLogoDisplayChange}
+            onEpgLogoDisplayChange={setEpgLogoDisplay}
             channelLogoSize={channelLogoSize}
             onChannelLogoSizeChange={setChannelLogoSize}
             channelLogoRoundEdges={channelLogoRoundEdges}
@@ -2675,22 +3032,56 @@ export function Settings({
             onLogoSmartTrimChange={setLogoSmartTrim}
             logoLightBackgroundDetection={logoLightBackgroundDetection}
             onLogoLightBackgroundDetectionChange={setLogoLightBackgroundDetection}
+            logoDefaultBackground={logoDefaultBackground}
+            onLogoDefaultBackgroundChange={setLogoDefaultBackground}
             sourceLogoDisplayOverrides={sourceLogoDisplayOverrides}
             onSetSourceLogoDisplayOverride={setSourceLogoDisplayOverride}
+            sourceLogoBackgroundOverrides={sourceLogoBackgroundOverrides}
+            onSetSourceLogoBackgroundOverride={setSourceLogoBackgroundOverride}
             epgMetadataBadgeResolution={epgMetadataBadgeResolution}
             onEpgMetadataBadgeResolutionChange={handleEpgMetadataBadgeResolutionChange}
             epgMetadataBadgeFps={epgMetadataBadgeFps}
             onEpgMetadataBadgeFpsChange={handleEpgMetadataBadgeFpsChange}
             epgMetadataBadgeFpsSuffix={epgMetadataBadgeFpsSuffix}
             onEpgMetadataBadgeFpsSuffixChange={handleEpgMetadataBadgeFpsSuffixChange}
+            epgMetadataBadgeFhdLabels={epgMetadataBadgeFhdLabels}
+            onEpgMetadataBadgeFhdLabelsChange={handleEpgMetadataBadgeFhdLabelsChange}
+            epgResolutionFilterEnabled={epgResolutionFilterEnabled}
+            onEpgResolutionFilterEnabledChange={handleEpgResolutionFilterEnabledChange}
             epgMetadataBadgeSound={epgMetadataBadgeSound}
             onEpgMetadataBadgeSoundChange={handleEpgMetadataBadgeSoundChange}
+            epgMetadataBadgeBitrate={epgMetadataBadgeBitrate}
+            onEpgMetadataBadgeBitrateChange={handleEpgMetadataBadgeBitrateChange}
+            epgMetadataBadgeAudioBitrate={epgMetadataBadgeAudioBitrate}
+            onEpgMetadataBadgeAudioBitrateChange={handleEpgMetadataBadgeAudioBitrateChange}
+            epgMetadataBadgeBitrateOverlay={epgMetadataBadgeBitrateOverlay}
+            onEpgMetadataBadgeBitrateOverlayChange={handleEpgMetadataBadgeBitrateOverlayChange}
+            epgMetadataBadgeAudioBitrateOverlay={epgMetadataBadgeAudioBitrateOverlay}
+            onEpgMetadataBadgeAudioBitrateOverlayChange={handleEpgMetadataBadgeAudioBitrateOverlayChange}
+            epgMetadataBadgeBitrateSearch={epgMetadataBadgeBitrateSearch}
+            onEpgMetadataBadgeBitrateSearchChange={handleEpgMetadataBadgeBitrateSearchChange}
+            epgMetadataBadgeAudioBitrateSearch={epgMetadataBadgeAudioBitrateSearch}
+            onEpgMetadataBadgeAudioBitrateSearchChange={handleEpgMetadataBadgeAudioBitrateSearchChange}
+            epgMetadataBadgeBitrateFailover={epgMetadataBadgeBitrateFailover}
+            onEpgMetadataBadgeBitrateFailoverChange={handleEpgMetadataBadgeBitrateFailoverChange}
+            epgMetadataBadgeAudioBitrateFailover={epgMetadataBadgeAudioBitrateFailover}
+            onEpgMetadataBadgeAudioBitrateFailoverChange={handleEpgMetadataBadgeAudioBitrateFailoverChange}
+            epgMetadataBadgeBitrateSports={epgMetadataBadgeBitrateSports}
+            onEpgMetadataBadgeBitrateSportsChange={handleEpgMetadataBadgeBitrateSportsChange}
+            epgMetadataBadgeAudioBitrateSports={epgMetadataBadgeAudioBitrateSports}
+            onEpgMetadataBadgeAudioBitrateSportsChange={handleEpgMetadataBadgeAudioBitrateSportsChange}
             epgView={epgView}
             onEpgViewChange={handleEpgViewChange}
+            epgThreeColumn={epgThreeColumn}
+            onEpgThreeColumnChange={handleEpgThreeColumnChange}
+            categorySidebarAutohide={categorySidebarAutohide}
+            onCategorySidebarAutohideChange={setCategorySidebarAutohide}
             epgTitleFontSize={epgTitleFontSize}
             onEpgTitleFontSizeChange={handleEpgTitleFontSizeChange}
             epgBodyFontSize={epgBodyFontSize}
             onEpgBodyFontSizeChange={handleEpgBodyFontSizeChange}
+            epgProgramFontSize={epgProgramFontSize}
+            onEpgProgramFontSizeChange={handleEpgProgramFontSizeChange}
             transparentGuideHeight={transparentGuideHeight}
             onTransparentGuideHeightChange={handleTransparentGuideHeightChange}
             transparentGuideHideHeader={transparentGuideHideHeader}
@@ -2764,6 +3155,8 @@ export function Settings({
         return <ScrobblingTab />;
       case 'simkl':
         return <SimklTab />;
+      case 'controllers':
+        return <ControllersTab />;
       default:
         return null;
     }

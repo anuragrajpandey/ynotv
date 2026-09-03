@@ -52,6 +52,9 @@ export interface BulkChannel {
   live?: number;
   is_adult?: boolean;
   xtream_stream_id?: string;
+  catchup_type?: string | null;
+  catchup_source?: string | null;
+  catchup_days?: number | null;
 }
 
 export interface BulkCategory {

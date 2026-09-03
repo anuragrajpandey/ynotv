@@ -307,7 +307,7 @@ fn bulk_upsert_channels_inner(db: &DvrDatabase, channels: Vec<BulkChannel>) -> R
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     // Prepare the upsert statement once
     let mut stmt = tx.prepare(
@@ -347,7 +347,7 @@ fn bulk_upsert_channels_inner(db: &DvrDatabase, channels: Vec<BulkChannel>) -> R
     let mut inserted = 0;
     let mut updated = 0;
 
-    for channel in channels {
+    for channel in &channels {
         match stmt.execute(params![
             channel.stream_id,
             channel.source_id,
@@ -381,6 +381,31 @@ fn bulk_upsert_channels_inner(db: &DvrDatabase, channels: Vec<BulkChannel>) -> R
     }
 
     stmt.finalize()?;
+
+    // Rebuild the channel_categories membership map for every affected source,
+    // derived from the (now current) channels table so it can never drift from
+    // category_ids. Atomic with the upsert; a full source sync is one indexed
+    // json_each scan per source.
+    let mut sources: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for ch in &channels {
+        if !ch.source_id.is_empty() {
+            sources.insert(ch.source_id.as_str());
+        }
+    }
+    for src in &sources {
+        tx.execute(
+            "DELETE FROM channel_categories WHERE source_id = ?1",
+            params![src],
+        )?;
+        tx.execute(
+            "INSERT OR IGNORE INTO channel_categories (stream_id, source_id, category_id)
+             SELECT stream_id, source_id, value
+             FROM channels, json_each(channels.category_ids)
+             WHERE source_id = ?1",
+            params![src],
+        )?;
+    }
+
     tx.commit()?;
 
     let duration_ms = start.elapsed().as_millis() as u64;
@@ -413,7 +438,7 @@ fn bulk_upsert_categories_inner(
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let mut stmt = tx.prepare(
         "INSERT INTO categories (
@@ -477,7 +502,7 @@ pub fn bulk_upsert_vod_categories(
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let mut stmt = tx.prepare(
         "INSERT INTO vodCategories (
@@ -544,7 +569,7 @@ fn bulk_replace_programs_inner(
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     // Delete existing programs for this source
     let deleted = tx.execute(
@@ -606,7 +631,7 @@ pub fn bulk_upsert_movies(db: &DvrDatabase, movies: Vec<BulkMovie>) -> Result<Bu
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let mut stmt = tx.prepare(
         "INSERT INTO vodMovies (
@@ -697,7 +722,7 @@ pub fn bulk_upsert_series(db: &DvrDatabase, series: Vec<BulkSeries>) -> Result<B
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let mut stmt = tx.prepare(
         "INSERT INTO vodSeries (
@@ -799,7 +824,7 @@ pub fn bulk_upsert_series(db: &DvrDatabase, series: Vec<BulkSeries>) -> Result<B
 /// Delete channels by stream_id
 pub fn bulk_delete_channels(db: &DvrDatabase, stream_ids: Vec<String>) -> Result<usize> {
     let mut conn = db.get_conn()?;
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let placeholders: Vec<String> = stream_ids.iter().map(|_| "?".to_string()).collect();
     let sql = format!(
@@ -815,6 +840,17 @@ pub fn bulk_delete_channels(db: &DvrDatabase, stream_ids: Vec<String>) -> Result
 
     let deleted = stmt.execute(rusqlite::params_from_iter(params.iter()))?;
     stmt.finalize()?;
+
+    // Keep the channel_categories membership map in sync with the deleted rows
+    // (no FK cascades are enabled, so this must be explicit).
+    let map_sql = format!(
+        "DELETE FROM channel_categories WHERE stream_id IN ({})",
+        placeholders.join(", ")
+    );
+    let mut map_stmt = tx.prepare(&map_sql)?;
+    map_stmt.execute(rusqlite::params_from_iter(params.iter()))?;
+    map_stmt.finalize()?;
+
     tx.commit()?;
 
     info!("Bulk deleted {} channels", deleted);
@@ -825,7 +861,7 @@ pub fn bulk_delete_channels(db: &DvrDatabase, stream_ids: Vec<String>) -> Result
 /// Delete categories by category_id
 pub fn bulk_delete_categories(db: &DvrDatabase, category_ids: Vec<String>) -> Result<usize> {
     let mut conn = db.get_conn()?;
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let placeholders: Vec<String> = category_ids.iter().map(|_| "?".to_string()).collect();
     let sql = format!(
@@ -884,7 +920,13 @@ pub fn update_source_meta(db: &DvrDatabase, meta: SourceMetaUpdate) -> Result<()
 
 fn update_source_meta_inner(db: &DvrDatabase, meta: SourceMetaUpdate) -> Result<()> {
     let mut conn = db.get_conn()?;
-    let tx = conn.transaction()?;
+    // IMMEDIATE: acquire the write lock at BEGIN instead of lazily at the
+    // first UPDATE. In WAL mode a deferred read-transaction that upgrades to a
+    // write gets SQLITE_BUSY_SNAPSHOT (stale snapshot) the moment another
+    // connection commits — busy_timeout can't fix that, and concurrent EPG
+    // inserts trigger it constantly. IMMEDIATE queues on the lock
+    // (busy_timeout waits) and never hits the stale-snapshot error.
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     // Try to update first - using COALESCE to preserve existing values when new values are NULL
     // This approach works for both partial updates and new records
@@ -963,6 +1005,12 @@ pub struct BulkChannelMetadata {
     pub fps: Option<f64>,
     pub audio_channels: Option<String>,
     pub quality_label: Option<String>,
+    #[serde(default)]
+    pub video_bitrate_kbps: Option<i64>,
+    #[serde(default)]
+    pub audio_bitrate_kbps: Option<i64>,
+    #[serde(default)]
+    pub bitrate_kbps: Option<i64>,
     pub last_updated: Option<String>,
 }
 
@@ -979,12 +1027,13 @@ fn bulk_upsert_channel_metadata_inner(
 ) -> Result<BulkResult> {
     let start = std::time::Instant::now();
     let mut conn = db.get_conn()?;
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     let mut stmt = tx.prepare(
         "INSERT INTO channelMetadata (
-            stream_id, source_id, resolution_width, resolution_height, fps, audio_channels, quality_label, last_updated
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            stream_id, source_id, resolution_width, resolution_height, fps, audio_channels, quality_label,
+            video_bitrate_kbps, audio_bitrate_kbps, bitrate_kbps, last_updated
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
         ON CONFLICT(stream_id) DO UPDATE SET
             source_id = excluded.source_id,
             resolution_width = COALESCE(excluded.resolution_width, channelMetadata.resolution_width),
@@ -992,6 +1041,9 @@ fn bulk_upsert_channel_metadata_inner(
             fps = COALESCE(excluded.fps, channelMetadata.fps),
             audio_channels = COALESCE(excluded.audio_channels, channelMetadata.audio_channels),
             quality_label = COALESCE(excluded.quality_label, channelMetadata.quality_label),
+            video_bitrate_kbps = COALESCE(excluded.video_bitrate_kbps, channelMetadata.video_bitrate_kbps),
+            audio_bitrate_kbps = COALESCE(excluded.audio_bitrate_kbps, channelMetadata.audio_bitrate_kbps),
+            bitrate_kbps = COALESCE(excluded.bitrate_kbps, channelMetadata.bitrate_kbps),
             last_updated = excluded.last_updated",
     )?;
 
@@ -1008,6 +1060,9 @@ fn bulk_upsert_channel_metadata_inner(
             item.fps,
             item.audio_channels,
             item.quality_label,
+            item.video_bitrate_kbps,
+            item.audio_bitrate_kbps,
+            item.bitrate_kbps,
             updated_time,
         ])?;
         upserted += 1;
@@ -1025,4 +1080,320 @@ fn bulk_upsert_channel_metadata_inner(
         deleted: 0,
         duration_ms,
     })
+}
+
+// ─── Generic bulk insert (renderer SqliteAdapter) ────────────────────────────
+
+/// Generic bulk insert/upsert request from the renderer's SqliteAdapter
+/// (`invoke('bulk_insert', { request })`). Mirrors the JS plugin fallback's
+/// semantics so `bulkPut`/`bulkAdd` stop doing per-batch JS SQL round-trips.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkInsertRequest {
+    pub table: String,
+    pub primary_key: String,
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<serde_json::Value>>,
+    /// "insert" (ignore conflicts, Dexie bulkAdd) or "replace" (upsert, Dexie bulkPut).
+    pub operation: String,
+}
+
+/// Quote a SQLite identifier defensively. The renderer only ever sends
+/// identifiers from its own schema (alphanumeric + underscore), so this is a
+/// cheap safety net rather than a full parser.
+fn quote_identifier(ident: &str) -> Result<String> {
+    if ident.is_empty()
+        || !ident
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err(anyhow::anyhow!("Invalid SQL identifier: {:?}", ident));
+    }
+    Ok(format!("\"{}\"", ident.replace('"', "\"\"")))
+}
+
+/// Convert a JSON value to a rusqlite value, mirroring the JS adapter's own
+/// conversions (booleans -> 0/1; objects/arrays -> JSON text).
+fn json_to_sqlite(v: &serde_json::Value) -> rusqlite::types::Value {
+    match v {
+        serde_json::Value::Null => rusqlite::types::Value::Null,
+        serde_json::Value::Bool(b) => {
+            rusqlite::types::Value::Integer(if *b { 1 } else { 0 })
+        }
+        serde_json::Value::Number(n) => match n.as_i64() {
+            Some(i) => rusqlite::types::Value::Integer(i),
+            None => rusqlite::types::Value::Real(n.as_f64().unwrap_or(0.0)),
+        },
+        serde_json::Value::String(s) => rusqlite::types::Value::Text(s.clone()),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+            rusqlite::types::Value::Text(serde_json::to_string(v).unwrap_or_default())
+        }
+    }
+}
+
+/// Generic bulk insert/upsert for the renderer's SqliteAdapter. One
+/// transaction per call; rows are chunked to stay under SQLite's variable
+/// limit when a wide table ships many rows in one chunk.
+pub fn bulk_insert_generic(
+    db: &DvrDatabase,
+    request: BulkInsertRequest,
+) -> Result<BulkResult> {
+    with_db_retry(|| {
+        let mut conn = db.get_conn()?;
+        bulk_insert_generic_conn(&mut conn, &request)
+    })
+}
+
+fn bulk_insert_generic_conn(
+    conn: &mut rusqlite::Connection,
+    request: &BulkInsertRequest,
+) -> Result<BulkResult> {
+    let start = std::time::Instant::now();
+
+    if request.columns.is_empty() {
+        return Err(anyhow::anyhow!("bulk_insert: no columns provided"));
+    }
+    if request.rows.is_empty() {
+        return Ok(BulkResult {
+            inserted: 0,
+            updated: 0,
+            deleted: 0,
+            duration_ms: 0,
+        });
+    }
+    for (i, row) in request.rows.iter().enumerate() {
+        if row.len() != request.columns.len() {
+            return Err(anyhow::anyhow!(
+                "bulk_insert: row {} has {} values, expected {}",
+                i,
+                row.len(),
+                request.columns.len()
+            ));
+        }
+    }
+
+    let table = quote_identifier(&request.table)?;
+    let pk = quote_identifier(&request.primary_key)?;
+    let columns: Vec<String> = request
+        .columns
+        .iter()
+        .map(|c| quote_identifier(c))
+        .collect::<Result<_>>()?;
+    let column_list = columns.join(", ");
+    let placeholders = vec!["?"; columns.len()].join(", ");
+
+    // Upsert must match the JS plugin fallback: REPLACE INTO deletes the old
+    // row first, which fires ON DELETE CASCADE on foreign keys (e.g.
+    // failover_group_members), so we use ON CONFLICT(pk) DO UPDATE for
+    // non-PK columns and OR IGNORE for the degenerate all-PK case.
+    let is_replace = request.operation.eq_ignore_ascii_case("replace");
+    // Quoted non-PK columns, aligned with `columns` (both quote and filter on
+    // the raw names so the ON CONFLICT ... DO UPDATE clause matches).
+    let non_pk: Vec<&String> = columns
+        .iter()
+        .zip(request.columns.iter())
+        .filter(|(_, raw)| *raw != &request.primary_key)
+        .map(|(quoted, _)| quoted)
+        .collect();
+
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+
+    // SQLITE_MAX_VARIABLE_NUMBER is 32766 on modern builds; the renderer sends
+    // 2000-row chunks, and a wide table (channels has 25+ columns) would blow
+    // past it in a single statement. Chunk inside the transaction instead.
+    const MAX_VARS: usize = 30000;
+    let max_rows_per_stmt = (MAX_VARS / columns.len()).max(1);
+
+    let mut written = 0usize;
+    let mut ignored = 0usize;
+
+    for chunk_start in (0..request.rows.len()).step_by(max_rows_per_stmt) {
+        let chunk_end = (chunk_start + max_rows_per_stmt).min(request.rows.len());
+        let chunk = &request.rows[chunk_start..chunk_end];
+        let row_placeholders = vec![format!("({})", placeholders); chunk.len()].join(", ");
+
+        let sql = if is_replace {
+            if non_pk.is_empty() {
+                format!(
+                    "INSERT OR IGNORE INTO {} ({}) VALUES {}",
+                    table, column_list, row_placeholders
+                )
+            } else {
+                let update_clause = non_pk
+                    .iter()
+                    .map(|c| format!("{} = excluded.{}", c, c))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "INSERT INTO {} ({}) VALUES {} ON CONFLICT({}) DO UPDATE SET {}",
+                    table, column_list, row_placeholders, pk, update_clause
+                )
+            }
+        } else {
+            format!(
+                "INSERT OR IGNORE INTO {} ({}) VALUES {}",
+                table, column_list, row_placeholders
+            )
+        };
+
+        let mut stmt = tx.prepare(&sql)?;
+        let mut param_idx = 1;
+        for row in chunk {
+            for v in row {
+                stmt.raw_bind_parameter(param_idx, json_to_sqlite(v))?;
+                param_idx += 1;
+            }
+        }
+        let affected = stmt.raw_execute()?;
+        written += affected;
+        ignored += chunk.len() - affected;
+        stmt.finalize()?;
+    }
+
+    tx.commit()?;
+
+    let duration_ms = start.elapsed().as_millis() as u64;
+    info!(
+        "[DB] Bulk {} into {}: {} rows written, {} ignored in {}ms",
+        if is_replace { "upsert" } else { "insert" },
+        request.table,
+        written,
+        ignored,
+        duration_ms
+    );
+
+    Ok(BulkResult {
+        inserted: written,
+        updated: ignored,
+        deleted: 0,
+        duration_ms,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn program_request(operation: &str, rows: Vec<Vec<serde_json::Value>>) -> BulkInsertRequest {
+        BulkInsertRequest {
+            table: "programs".to_string(),
+            primary_key: "id".to_string(),
+            columns: vec!["id".to_string(), "stream_id".to_string(), "title".to_string()],
+            rows,
+            operation: operation.to_string(),
+        }
+    }
+
+    #[test]
+    fn replace_upserts_duplicate_primary_keys_in_place() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE programs (id TEXT PRIMARY KEY, stream_id TEXT, title TEXT)",
+        )
+        .unwrap();
+
+        let req = program_request(
+            "replace",
+            vec![
+                vec![json!("p1"), json!("s1"), json!("Alpha")],
+                vec![json!("p2"), json!("s1"), json!("Beta")],
+                // Same primary key as p1 -> must update, not duplicate.
+                vec![json!("p1"), json!("s1"), json!("Alpha2")],
+            ],
+        );
+
+        let res = bulk_insert_generic_conn(&mut conn, &req).unwrap();
+        assert_eq!(res.inserted + res.updated, 3);
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM programs", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 2);
+        let title: String = conn
+            .query_row("SELECT title FROM programs WHERE id = 'p1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(title, "Alpha2");
+    }
+
+    #[test]
+    fn insert_operation_ignores_duplicate_primary_keys() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE programs (id TEXT PRIMARY KEY, stream_id TEXT, title TEXT)",
+        )
+        .unwrap();
+
+        let req = program_request(
+            "insert",
+            vec![
+                vec![json!("p1"), json!("s1"), json!("Alpha")],
+                vec![json!("p2"), json!("s1"), json!("Beta")],
+                vec![json!("p1"), json!("s1"), json!("ShouldBeIgnored")],
+            ],
+        );
+
+        let res = bulk_insert_generic_conn(&mut conn, &req).unwrap();
+        assert_eq!(res.inserted, 2);
+        assert_eq!(res.updated, 1); // the ignored duplicate
+
+        let title: String = conn
+            .query_row("SELECT title FROM programs WHERE id = 'p1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(title, "Alpha"); // unchanged by the ignored dup
+    }
+
+    #[test]
+    fn wide_chunks_stay_under_sqlite_variable_limit() {
+        // One column, so each statement holds up to MAX_VARS rows; push past
+        // the internal chunk boundary to prove the step_by chunking works.
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE t (id TEXT PRIMARY KEY)").unwrap();
+
+        let rows: Vec<Vec<serde_json::Value>> = (0..30005)
+            .map(|i| vec![json!(format!("id_{}", i))])
+            .collect();
+        let req = BulkInsertRequest {
+            table: "t".to_string(),
+            primary_key: "id".to_string(),
+            columns: vec!["id".to_string()],
+            rows,
+            operation: "replace".to_string(),
+        };
+
+        let res = bulk_insert_generic_conn(&mut conn, &req).unwrap();
+        assert_eq!(res.inserted, 30005);
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM t", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 30005);
+    }
+
+    #[test]
+    fn rejects_misaligned_rows_and_bad_identifiers() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE t (id TEXT PRIMARY KEY, v TEXT)").unwrap();
+
+        // Row with the wrong number of values.
+        let bad = program_request(
+            "replace",
+            vec![vec![json!("p1"), json!("s1")]], // missing title
+        );
+        assert!(bulk_insert_generic_conn(&mut conn, &bad).is_err());
+
+        // Identifiers with anything but [A-Za-z0-9_] are rejected.
+        let injection = BulkInsertRequest {
+            table: "programs; DROP TABLE programs --".to_string(),
+            primary_key: "id".to_string(),
+            columns: vec!["id".to_string()],
+            rows: vec![vec![json!("x")]],
+            operation: "replace".to_string(),
+        };
+        assert!(bulk_insert_generic_conn(&mut conn, &injection).is_err());
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM t", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0); // nothing was written by the rejected requests
+    }
 }

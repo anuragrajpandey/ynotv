@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import i18n, { translateNativeError } from '../i18n';
 import { dbEvents } from '../db/sqlite-adapter';
 import { useLiveQuery } from './useSqliteLiveQuery';
-import { db, type StoredMovie, type StoredSeries, type StoredEpisode, type VodCategory, type VodWatchHistory, getRecentlyWatchedByType } from '../db';
+import { db, type StoredMovie, type StoredSeries, type StoredEpisode, type VodCategory, type VodWatchHistory, type EpisodeWatchHistory, getRecentlyWatchedByType } from '../db';
 import { syncSeriesEpisodes, syncAllVod, type VodSyncResult } from '../db/sync';
 import type { Source } from '@ynotv/core';
 import { useEnabledSources } from './useChannels';
@@ -14,6 +14,8 @@ import {
   localEntryToStoredMovie,
   localGroupToStoredSeries,
   localEntryToStoredEpisode,
+  useLocalLibrary,
+  ensureLocalLibraryLoaded,
 } from '../services/local-library/local-library';
 import type { LocalEntry } from '../services/local-library/types';
 
@@ -1172,6 +1174,7 @@ export interface RecentlyWatchedItem<T> {
  */
 export function useRecentlyWatchedMovies(limit = 20) {
   const enabledSourceIds = useEnabledSources();
+  const localEntries = useLocalLibrary();
   const [movies, setMovies] = useState<RecentlyWatchedItem<StoredMovie>[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1197,22 +1200,40 @@ export function useRecentlyWatchedMovies(limit = 20) {
         return;
       }
 
-      // Build placeholders for SQL IN clause
-      const placeholders = mediaIds.map(() => '?').join(',');
-      const moviesData: StoredMovie[] = await dbInstance.select(
-        `SELECT * FROM vodMovies WHERE stream_id IN (${placeholders})`,
-        mediaIds
-      );
+      // Separate local and remote media IDs
+      const localMediaIds = new Set(mediaIds.filter(id => id.startsWith('local_')));
+      const remoteMediaIds = mediaIds.filter(id => !id.startsWith('local_'));
+
+      let remoteMoviesData: StoredMovie[] = [];
+      if (remoteMediaIds.length > 0) {
+        const placeholders = remoteMediaIds.map(() => '?').join(',');
+        remoteMoviesData = await dbInstance.select(
+          `SELECT * FROM vodMovies WHERE stream_id IN (${placeholders})`,
+          remoteMediaIds
+        );
+      }
 
       // Create a map for quick lookup
-      const movieMap = new Map(moviesData.map(m => [m.stream_id, m]));
+      const movieMap = new Map(remoteMoviesData.map(m => [m.stream_id, m]));
+
+      // Populate local movies
+      if (localMediaIds.size > 0) {
+        for (const entry of localEntries) {
+          if (entry.type === 'movie' || !entry.type) {
+            const streamId = `local_${entry.id}`;
+            if (localMediaIds.has(streamId)) {
+              movieMap.set(streamId, localEntryToStoredMovie(entry));
+            }
+          }
+        }
+      }
 
       // Order movies according to watch history order with progress
       const orderedMovies = history
         .map(h => {
           const movie = movieMap.get(h.media_id);
           if (!movie) return null;
-          if (enabledSourceIds && !enabledSourceIds.has(movie.source_id)) return null;
+          if (enabledSourceIds && movie.source_id !== 'local' && !enabledSourceIds.has(movie.source_id)) return null;
           const progressSeconds = h.progress_seconds ?? 0;
           const totalDuration = h.total_duration ?? 0;
           return {
@@ -1234,7 +1255,7 @@ export function useRecentlyWatchedMovies(limit = 20) {
     } finally {
       setLoading(false);
     }
-  }, [limit, enabledSourceIds]);
+  }, [limit, enabledSourceIds, localEntries]);
 
   // Initial load and reactive updates
   const historySignature = useLiveQuery(async () => {
@@ -1265,6 +1286,7 @@ export function useRecentlyWatchedMovies(limit = 20) {
  */
 export function useRecentlyWatchedSeries(limit = 20) {
   const enabledSourceIds = useEnabledSources();
+  const localEntries = useLocalLibrary();
   const [series, setSeries] = useState<RecentlyWatchedItem<StoredSeries>[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1290,22 +1312,59 @@ export function useRecentlyWatchedSeries(limit = 20) {
         return;
       }
 
-      // Build placeholders for SQL IN clause
-      const placeholders = mediaIds.map(() => '?').join(',');
-      const seriesData: StoredSeries[] = await dbInstance.select(
-        `SELECT * FROM vodSeries WHERE series_id IN (${placeholders})`,
-        mediaIds
-      );
+      // Separate local series IDs from remote series IDs
+      const localMediaIds = new Set(mediaIds.filter(id => id.startsWith('local_')));
+      const remoteMediaIds = mediaIds.filter(id => !id.startsWith('local_'));
+
+      let remoteSeriesData: StoredSeries[] = [];
+      if (remoteMediaIds.length > 0) {
+        const placeholders = remoteMediaIds.map(() => '?').join(',');
+        remoteSeriesData = await dbInstance.select(
+          `SELECT * FROM vodSeries WHERE series_id IN (${placeholders})`,
+          remoteMediaIds
+        );
+      }
 
       // Create a map for quick lookup
-      const seriesMap = new Map(seriesData.map(s => [s.series_id, s]));
+      const seriesMap = new Map(remoteSeriesData.map(s => [s.series_id, s]));
+
+      // For local series, group them and populate seriesMap & localSeriesEpisodesMap
+      const localSeriesEpisodesMap = new Map<string, StoredEpisode[]>();
+      if (localMediaIds.size > 0) {
+        const groups = groupLocal(localEntries);
+        for (const g of groups) {
+          if (g.kind === 'show') {
+            const seriesId = `local_${g.key}`;
+            const matchingMediaIds = Array.from(localMediaIds).filter(
+              id => id.toLowerCase() === seriesId.toLowerCase() ||
+                    id.toLowerCase().replace(/[^a-z0-9]+/g, '_') === seriesId.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+            );
+
+            const storedSeries = localGroupToStoredSeries(g);
+            seriesMap.set(seriesId, storedSeries);
+            for (const mid of matchingMediaIds) {
+              seriesMap.set(mid, storedSeries);
+            }
+
+            const storedEpisodes: StoredEpisode[] = g.episodes
+              .slice()
+              .sort((a, b) => (a.season ?? 1) - (b.season ?? 1) || (a.episode ?? 1) - (b.episode ?? 1))
+              .map(ep => localEntryToStoredEpisode(ep, seriesId, g.head.title));
+            
+            localSeriesEpisodesMap.set(seriesId, storedEpisodes);
+            for (const mid of matchingMediaIds) {
+              localSeriesEpisodesMap.set(mid, storedEpisodes);
+            }
+          }
+        }
+      }
 
       // Order series according to watch history order with dynamic next-episode resolution
       const resolvedSeries = await Promise.all(
         history.map(async (h) => {
           const seriesItem = seriesMap.get(h.media_id);
           if (!seriesItem) return null;
-          if (enabledSourceIds && !enabledSourceIds.has(seriesItem.source_id)) return null;
+          if (enabledSourceIds && seriesItem.source_id !== 'local' && !enabledSourceIds.has(seriesItem.source_id)) return null;
 
           let displaySeason = h.season_num;
           let displayEpisode = h.episode_num;
@@ -1314,38 +1373,61 @@ export function useRecentlyWatchedSeries(limit = 20) {
           let displayTotalDuration = h.total_duration ?? 0;
 
           try {
-            // Get all episodes for this series ordered by season and episode
-            const episodes: StoredEpisode[] = await dbInstance.select(
-              'SELECT * FROM vodEpisodes WHERE series_id = ? ORDER BY season_num, episode_num',
-              [h.media_id]
-            );
+            let episodes: StoredEpisode[] = [];
+            if (h.media_id.startsWith('local_')) {
+              episodes = localSeriesEpisodesMap.get(h.media_id) || [];
+            } else {
+              // Get all episodes for this series ordered by season and episode
+              episodes = await dbInstance.select(
+                'SELECT * FROM vodEpisodes WHERE series_id = ? ORDER BY season_num, episode_num',
+                [h.media_id]
+              );
+            }
 
-            // Get episode progress for this series
+            // Get episode progress for this series (match series_id flexibly)
             const episodeHistory: EpisodeWatchHistory[] = await dbInstance.select(
-              'SELECT * FROM episode_history WHERE series_id = ?',
-              [h.media_id]
+              'SELECT * FROM episode_history WHERE LOWER(series_id) = LOWER(?) OR LOWER(series_id) = LOWER(?)',
+              [h.media_id, `local_${h.media_id.replace(/^local_/, '').replace(/[^a-z0-9]+/g, '_')}`]
             );
 
             if (episodes && episodes.length > 0) {
               const epHistMap = new Map(episodeHistory.map(eh => [eh.episode_id, eh]));
 
-              // Find the first uncompleted episode, or if all completed, pick the last episode
+              // Prefer the exact episode saved in vod_history (e.g. S2 E7) so "Continue
+              // watching" resumes where the user actually left off, even when earlier
+              // episodes were skipped and have no completion record.
               let targetEp: StoredEpisode | null = null;
               let targetHist: EpisodeWatchHistory | null = null;
 
-              for (const ep of episodes) {
-                const eh = epHistMap.get(ep.id);
-                const dur = eh?.total_duration ?? 0;
-                const pos = eh?.progress_seconds ?? 0;
-                const isEpCompleted = eh ? (
-                  eh.completed === 1 || 
-                  (dur > 0 && (pos / dur) >= 0.90)
-                ) : false;
+              if (h.season_num && h.season_num > 0 && h.episode_num && h.episode_num > 0) {
+                const savedEp = episodes.find(
+                  ep => ep.season_num === h.season_num && ep.episode_num === h.episode_num
+                );
+                if (savedEp) {
+                  targetEp = savedEp;
+                  targetHist = epHistMap.get(savedEp.id) || null;
+                }
+              }
 
-                if (!isEpCompleted) {
-                  targetEp = ep;
-                  targetHist = eh || null;
-                  break;
+              // Fallback (only when the episode saved in vod_history is no longer in the
+              // catalog): find the first uncompleted episode (or the last episode if all
+              // are completed). Must NOT override the saved episode - that is what made
+              // "Recent" jump to S1E1 or an earlier skipped episode.
+              if (!targetEp) {
+                for (const ep of episodes) {
+                  const eh = epHistMap.get(ep.id);
+                  const dur = eh?.total_duration ?? ep.duration ?? 0;
+                  const pos = eh?.progress_seconds ?? 0;
+                  const isEpCompleted = eh ? (
+                    eh.completed === 1 || 
+                    (dur > 0 && (pos / dur) >= 0.90)
+                  ) : false;
+
+                  if (!isEpCompleted) {
+                    targetEp = ep;
+                    targetHist = eh || null;
+                    break;
+                  }
                 }
               }
 
@@ -1354,7 +1436,7 @@ export function useRecentlyWatchedSeries(limit = 20) {
                 displayEpisode = targetEp.episode_num;
                 displayTitle = targetEp.title || `Episode ${targetEp.episode_num}`;
                 displayProgressSeconds = targetHist?.progress_seconds ?? 0;
-                displayTotalDuration = targetHist?.total_duration ?? 0;
+                displayTotalDuration = targetHist?.total_duration || targetEp.duration || 0;
               } else {
                 // All episodes completed - show final episode with 100% progress
                 const lastEp = episodes[episodes.length - 1];
@@ -1363,7 +1445,7 @@ export function useRecentlyWatchedSeries(limit = 20) {
                 displayEpisode = lastEp.episode_num;
                 displayTitle = lastEp.title || `Episode ${lastEp.episode_num}`;
                 displayProgressSeconds = lastHist?.progress_seconds || 1;
-                displayTotalDuration = lastHist?.total_duration || 1;
+                displayTotalDuration = lastHist?.total_duration || lastEp.duration || 1;
               }
             }
           } catch (e) {
@@ -1396,18 +1478,20 @@ export function useRecentlyWatchedSeries(limit = 20) {
     } finally {
       setLoading(false);
     }
-  }, [limit, enabledSourceIds]);
+  }, [limit, enabledSourceIds, localEntries]);
 
   // Initial load and reactive updates
   const historySignature = useLiveQuery(async () => {
-    // Fetch count and latest timestamp to trigger updates on any change (including deletes)
+    // Fetch count and latest timestamp from both vod_history and episode_history to trigger updates
     const dbInstance = await (db as any).dbPromise;
     const result = await dbInstance.select(
       'SELECT COUNT(*) as count, MAX(watched_at) as latest FROM vod_history WHERE media_type = ?',
       ['series']
     );
-    // Combine count and latest into a signature that changes on any modification
-    return `${result?.[0]?.count || 0}-${result?.[0]?.latest || 0}`;
+    const epResult = await dbInstance.select(
+      'SELECT COUNT(*) as count, MAX(watched_at) as latest FROM episode_history'
+    );
+    return `${result?.[0]?.count || 0}-${result?.[0]?.latest || 0}-${epResult?.[0]?.count || 0}-${epResult?.[0]?.latest || 0}`;
   }, []);
 
   useEffect(() => {
@@ -1425,7 +1509,7 @@ export function useRecentlyWatchedSeries(limit = 20) {
 // Episode Progress Hooks
 // ============================================================================
 
-import { getSeriesEpisodeProgress, type EpisodeWatchHistory } from '../db';
+import { getSeriesEpisodeProgress } from '../db';
 
 export interface EpisodeProgress {
   episodeId: string;

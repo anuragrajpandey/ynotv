@@ -87,9 +87,11 @@ interface LiveSportsOverlayProps {
   mode: 'autohide' | 'persistent';
   showControls: boolean;
   activeView: string;
+  /** Resolves GameDetail's "Watch on" channel-name buttons into a play action. */
+  onChannelClickName?: (channelName: string) => void;
 }
 
-export function LiveSportsOverlay({ mode, showControls, activeView }: LiveSportsOverlayProps) {
+export function LiveSportsOverlay({ mode, showControls, activeView, onChannelClickName }: LiveSportsOverlayProps) {
   const [liveEvents, setLiveEvents] = useState<SportsEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<SportsEvent | null>(null);
   const [hiddenIds, setHiddenIds] = useState<string[]>(() => getHiddenEventIds());
@@ -351,6 +353,7 @@ export function LiveSportsOverlay({ mode, showControls, activeView }: LiveSports
           event={selectedEvent}
           onClose={() => setSelectedEvent(null)}
           variant="glass"
+          onChannelClick={onChannelClickName}
         />
       )}
     </>

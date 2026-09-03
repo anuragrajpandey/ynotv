@@ -23,6 +23,7 @@ import zhCN from './locales/zh-CN.json';
 import zhTW from './locales/zh-TW.json';
 import vi from './locales/vi.json';
 import hu from './locales/hu.json';
+import uk from './locales/uk.json';
 
 /** Locale registry. Locales ship with app code (Vite bundles the JSON imports). */
 export const SUPPORTED_LOCALES: { code: string; label: string }[] = [
@@ -49,6 +50,7 @@ export const SUPPORTED_LOCALES: { code: string; label: string }[] = [
   { code: 'zh-TW', label: '繁體中文' },
   { code: 'vi', label: 'Tiếng Việt' },
   { code: 'hu', label: 'Magyar' },
+  { code: 'uk', label: 'Українська' },
 ];
 
 // NOTE: Full RTL mirroring for Arabic is intentionally disabled. Setting
@@ -111,6 +113,7 @@ i18n.use(initReactI18next).init({
     'zh-TW': zhTW as any,
     vi: vi as any,
     hu: hu as any,
+    uk: uk as any,
   },
   lng: getInitialLanguage(),
   fallbackLng: 'en',

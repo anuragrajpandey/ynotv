@@ -5,11 +5,13 @@
   flex-direction: column;
   gap: 18px;
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  /* Critical for nested flex: the virtualized grid fills the remaining space
+     and scrolls internally instead of the page scrolling. */
   padding: 24px 32px 64px 32px;
   box-sizing: border-box;
-  overflow-y: auto;
-  overflow-x: hidden;
-  max-height: 100%;
+  overflow: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--surface-hover, rgba(255, 255, 255, 0.15)) transparent;
 }
@@ -18,8 +20,9 @@
   scrollbar-color: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff)) transparent;
 }
 
-.local-tab-container::-webkit-scrollbar {
-  width: 6px;
+.local-tab-container::-webkit-scrollbar,
+.local-tab-container *::-webkit-scrollbar {
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .local-tab-container::-webkit-scrollbar-track {
@@ -145,6 +148,12 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.local-add-folder-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .local-select-dropdown {
@@ -327,11 +336,139 @@
   margin: 0;
 }
 
-/* Grid Layout */
-.local-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--local-poster-size, 170px), 1fr));
-  gap: 20px 16px;
+.local-empty-state__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Grid Layout — virtualized (@tanstack/react-virtual): only visible items are mounted,
+   so 50k+ entry libraries stay instant. */
+.local-grid-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-hover, rgba(255, 255, 255, 0.15)) transparent;
+}
+
+.local-grid-scroll:hover {
+  scrollbar-color: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff)) transparent;
+}
+
+.local-grid-scroll::-webkit-scrollbar {
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
+}
+
+.local-grid-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.local-grid-scroll::-webkit-scrollbar-thumb {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.15));
+  border-radius: 3px;
+}
+
+.local-grid-scroll::-webkit-scrollbar-thumb:hover,
+.local-grid-scroll:hover::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff));
+}
+
+.local-grid-scroll .virtual-grid {
+  padding-top: 4px;
+}
+
+.local-grid-scroll .virtual-grid__cell .local-card {
+  width: 100%;
+  height: 100%;
+}
+
+/* Scan progress overlay */
+.local-scan-progress {
+  background: var(--surface-color, rgba(40, 40, 40, 0.8));
+  padding: 14px 20px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--surface-border);
+}
+
+.local-scan-progress__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12.5px;
+  margin-bottom: 6px;
+}
+
+.local-scan-progress__stats {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.local-scan-progress__eta,
+.local-scan-progress__queued {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+  font-size: 11.5px;
+}
+
+/* Waiting for a queued scan */
+.local-scan-waiting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-radius: 12px;
+  background: var(--surface-color, rgba(40, 40, 40, 0.8));
+  border: 1px solid var(--surface-border);
+  font-size: 12.5px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+}
+
+.local-scan-waiting__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent-primary, #00d4ff);
+  border-radius: 50%;
+  animation: local-scan-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes local-scan-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.local-scan-waiting__cancel {
+  margin-left: auto;
+}
+
+/* Interrupted-scan resume banner */
+.local-resume-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  font-size: 13px;
+  color: var(--text-primary, #ffffff);
+}
+
+.local-resume-banner__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 
@@ -348,6 +485,7 @@
 .local-card__poster-wrap {
   position: relative;
   aspect-ratio: 2/3;
+  flex-shrink: 0;
   border-radius: 12px;
   overflow: hidden;
   background: var(--surface-color, #1e1e1e);
@@ -453,6 +591,37 @@
   z-index: 2;
 }
 
+/* Rating badge on the poster (top-right corner) */
+.local-rating-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f5c518;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  z-index: 2;
+}
+
+.local-rating-badge svg {
+  fill: currentColor;
+  width: 10px;
+  height: 10px;
+}
+
+/* Move the watched check below the rating badge so they don't overlap */
+.local-watched-badge--below-rating {
+  top: 34px;
+}
+
 /* Progress bar on poster */
 .local-card__progress-track {
   position: absolute;
@@ -549,6 +718,17 @@
 }
 
 .local-card__action-btn.danger:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.local-card__action-btn.favorited {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.local-card__action-btn.favorited:hover {
   background: #ef4444;
   color: #ffffff;
 }
@@ -771,6 +951,69 @@
   }
 }
 
+/* Undo bar — appears after a user-initiated edit/removal */
+.local-undo-bar {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(24, 24, 26, 0.97);
+  color: var(--text-primary, #ffffff);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 8px 10px 8px 18px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  z-index: 1600;
+  animation: localToastFade 0.2s ease;
+}
+
+.local-undo-bar__text {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+  font-weight: 500;
+}
+
+.local-undo-bar__btn {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent-primary, #00d4ff);
+  color: #000000;
+  border: none;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.local-undo-bar__btn:hover {
+  filter: brightness(1.1);
+}
+
+.local-undo-bar__dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, rgba(255, 255, 255, 0.6));
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.local-undo-bar__dismiss:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary, #ffffff);
+}
+
 .local-spin {
   animation: localSpin 1s linear infinite;
 }
@@ -784,3 +1027,143 @@
   }
 }
 
+
+/* Batch match file selection modal */
+.local-batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.local-batch-toolbar__count {
+  font-size: 12.5px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+}
+
+.local-batch-toolbar__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.local-batch-list {
+  height: min(45vh, 400px);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  background: var(--surface-color, rgba(40, 40, 40, 0.5));
+  overflow: hidden;
+}
+
+.local-batch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  user-select: none;
+}
+
+.local-batch-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.local-batch-row.selected {
+  background: rgba(0, 212, 255, 0.07);
+}
+
+.local-batch-checkbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.local-batch-checkbox.checked {
+  background: var(--accent-primary, #00d4ff);
+  border-color: var(--accent-primary, #00d4ff);
+  color: #000000;
+}
+
+.local-batch-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.local-batch-row__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.local-batch-row__meta {
+  font-size: 11.5px;
+  color: var(--text-muted, rgba(255, 255, 255, 0.5));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Per-row actions in the review list (Skip / Remove) */
+.local-batch-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.local-batch-row:hover .local-batch-row__actions,
+.local-batch-row.selected .local-batch-row__actions {
+  opacity: 1;
+}
+
+.local-row-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #ffffff);
+  white-space: nowrap;
+  transition: background 0.12s ease;
+}
+
+.local-row-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.local-row-btn--remove {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.local-row-btn--remove:hover {
+  background: rgba(239, 68, 68, 0.24);
+}
+
+.local-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 16px;
+}

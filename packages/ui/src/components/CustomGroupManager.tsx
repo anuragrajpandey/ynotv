@@ -40,9 +40,23 @@ function SortableGroupChannelItem(props: {
     displaySource: boolean;
     getChannelSourceCategory: (ch: GroupChannel) => string;
     handleRemove: (streamId: string) => void;
+    handleMoveToTop: (streamId: string) => void;
+    handleMoveToBottom: (streamId: string) => void;
+    isFirst: boolean;
+    isLast: boolean;
     dropIndicator?: 'above' | 'below' | null;
 }) {
-    const { ch, displaySource, getChannelSourceCategory, handleRemove, dropIndicator = null } = props;
+    const {
+        ch,
+        displaySource,
+        getChannelSourceCategory,
+        handleRemove,
+        handleMoveToTop,
+        handleMoveToBottom,
+        isFirst,
+        isLast,
+        dropIndicator = null,
+    } = props;
     const {
         attributes,
         listeners,
@@ -78,11 +92,29 @@ function SortableGroupChannelItem(props: {
                     <span className="cgm-ch-source">{getChannelSourceCategory(ch)}</span>
                 )}
             </div>
-            <button
-                className="remove-btn"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => handleRemove(ch.stream_id)}
-            >✕</button>
+            <div className="cgm-item-actions" onPointerDown={(e) => e.stopPropagation()}>
+                <button
+                    className="cgm-order-btn"
+                    onClick={() => handleMoveToTop(ch.stream_id)}
+                    disabled={isFirst}
+                    title={i18n.t('common:moveToTop', { defaultValue: 'Move to top' })}
+                >
+                    ↑↑
+                </button>
+                <button
+                    className="cgm-order-btn"
+                    onClick={() => handleMoveToBottom(ch.stream_id)}
+                    disabled={isLast}
+                    title={i18n.t('common:moveToBottom', { defaultValue: 'Move to bottom' })}
+                >
+                    ↓↓
+                </button>
+                <button
+                    className="remove-btn"
+                    onClick={() => handleRemove(ch.stream_id)}
+                    title={i18n.t('common:remove', { defaultValue: 'Remove' })}
+                >✕</button>
+            </div>
         </div>
     );
 }
@@ -428,10 +460,16 @@ export function CustomGroupManager({ groupId, groupName, onClose }: CustomGroupM
         async function loadData() {
             try {
                 const mappings = await db.customGroupChannels.where('group_id').equals(groupId).sortBy('display_order');
-                const streamIds = mappings.map(m => m.stream_id);
+                const seenStreamIds = new Set<string>();
+                const uniqueMappings = mappings.filter(m => {
+                    if (seenStreamIds.has(m.stream_id)) return false;
+                    seenStreamIds.add(m.stream_id);
+                    return true;
+                });
+                const streamIds = uniqueMappings.map(m => m.stream_id);
                 const chs = streamIds.length > 0 ? await db.channels.where('stream_id').anyOf(streamIds).toArray() : [];
                 const channelMap = new Map(chs.map(c => [c.stream_id, c]));
-                const ordered: GroupChannel[] = mappings
+                const ordered: GroupChannel[] = uniqueMappings
                     .map((m, i) => ({ ...channelMap.get(m.stream_id)!, displayOrder: m.display_order ?? i }))
                     .filter(c => c.stream_id);
                 if (isMounted) setGroupChannels(ordered);
@@ -455,11 +493,17 @@ export function CustomGroupManager({ groupId, groupName, onClose }: CustomGroupM
     }, [groupId]);
 
     const handleAdd = useCallback(async (ch: StoredChannel) => {
-        if (groupChannelIds.has(ch.stream_id)) return;
-        setGroupChannels(prev => [...prev, { ...ch, displayOrder: prev.length }]);
-        try { await addChannelsToGroup(groupId, [ch.stream_id]); }
-        catch (e) { console.error('Failed to add:', e); setGroupChannels(prev => prev.filter(c => c.stream_id !== ch.stream_id)); }
-    }, [groupId, groupChannelIds]);
+        setGroupChannels(prev => {
+            if (prev.some(c => c.stream_id === ch.stream_id)) return prev;
+            return [...prev, { ...ch, displayOrder: prev.length }];
+        });
+        try {
+            await addChannelsToGroup(groupId, [ch.stream_id]);
+        } catch (e) {
+            console.error('Failed to add:', e);
+            setGroupChannels(prev => prev.filter(c => c.stream_id !== ch.stream_id));
+        }
+    }, [groupId]);
 
     const handleRemove = useCallback(async (streamId: string) => {
         setGroupChannels(prev => prev.filter(c => c.stream_id !== streamId));
@@ -471,6 +515,38 @@ export function CustomGroupManager({ groupId, groupName, onClose }: CustomGroupM
         setGroupChannels(newItems);
         try { await reorderGroupChannels(groupId, newItems.map(c => c.stream_id)); }
         catch (e) { console.error('Failed to reorder:', e); }
+    }, [groupId]);
+
+    const handleMoveToTop = useCallback(async (streamId: string) => {
+        setGroupChannels(prev => {
+            const oldIndex = prev.findIndex(c => c.stream_id === streamId);
+            if (oldIndex <= 0) return prev;
+            const item = prev[oldIndex];
+            const next = [item, ...prev.slice(0, oldIndex), ...prev.slice(oldIndex + 1)].map((c, i) => ({
+                ...c,
+                displayOrder: i,
+            }));
+            void reorderGroupChannels(groupId, next.map(c => c.stream_id)).catch(e => {
+                console.error('Failed to reorder to top:', e);
+            });
+            return next;
+        });
+    }, [groupId]);
+
+    const handleMoveToBottom = useCallback(async (streamId: string) => {
+        setGroupChannels(prev => {
+            const oldIndex = prev.findIndex(c => c.stream_id === streamId);
+            if (oldIndex === -1 || oldIndex >= prev.length - 1) return prev;
+            const item = prev[oldIndex];
+            const next = [...prev.slice(0, oldIndex), ...prev.slice(oldIndex + 1), item].map((c, i) => ({
+                ...c,
+                displayOrder: i,
+            }));
+            void reorderGroupChannels(groupId, next.map(c => c.stream_id)).catch(e => {
+                console.error('Failed to reorder to bottom:', e);
+            });
+            return next;
+        });
     }, [groupId]);
 
     const toggleNode = (nodeId: string) => setExpandedNodes(prev => ({ ...prev, [nodeId]: !prev[nodeId] }));
@@ -591,7 +667,7 @@ export function CustomGroupManager({ groupId, groupName, onClose }: CustomGroupM
                                         strategy={verticalListSortingStrategy}
                                     >
                                         <div className="channel-list-container">
-                                            {groupChannels.map((ch) => {
+                                            {groupChannels.map((ch, index) => {
                                                 const activeIndex = activeDragId ? groupChannels.findIndex(c => c.stream_id === activeDragId) : -1;
                                                 const overIndex = overDragId ? groupChannels.findIndex(c => c.stream_id === overDragId) : -1;
                                                 const isOver = overDragId === ch.stream_id && activeDragId !== overDragId;
@@ -603,6 +679,10 @@ export function CustomGroupManager({ groupId, groupName, onClose }: CustomGroupM
                                                         displaySource={displaySource}
                                                         getChannelSourceCategory={getChannelSourceCategory}
                                                         handleRemove={handleRemove}
+                                                        handleMoveToTop={handleMoveToTop}
+                                                        handleMoveToBottom={handleMoveToBottom}
+                                                        isFirst={index === 0}
+                                                        isLast={index === groupChannels.length - 1}
                                                         dropIndicator={dropIndicator}
                                                     />
                                                 );

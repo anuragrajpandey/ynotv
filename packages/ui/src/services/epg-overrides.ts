@@ -348,17 +348,18 @@ export async function copyProgramsFromEpgChannel(
 
   const sourceStreamId = rows[0].stream_id;
 
-  // 2. Copy future/current programs to the target stream with new IDs matching the sync format.
-  // INSERT OR REPLACE ensures the next sync can overwrite with official data seamlessly.
+  // 2. Copy the source channel's FULL EPG to the target stream (no time cutoff —
+  // the whole guide is what the user expects when they apply a match).
+  // IDs are built from the raw start string ({stream_id}_{start}) exactly like the
+  // sync writer, so INSERT OR REPLACE lets the next sync overwrite copies seamlessly.
   await dbInstance.execute(
     `INSERT OR REPLACE INTO programs (id, stream_id, title, subtitle, description, start, end, source_id)
      SELECT
-       $1 || '_' || CAST(CAST(strftime('%s', start) AS INTEGER) * 1000 AS TEXT) AS id,
+       $1 || '_' || start AS id,
        $1 AS stream_id,
        title, subtitle, description, start, end, source_id
      FROM programs
-     WHERE stream_id = $2
-       AND end >= datetime('now', '-1 hour')`,
+     WHERE stream_id = $2`,
     [targetStreamId, sourceStreamId]
   );
 
@@ -403,12 +404,11 @@ export async function resetChannelToDefault(streamId: string): Promise<void> {
       await dbInstance.execute(
         `INSERT OR REPLACE INTO programs (id, stream_id, title, subtitle, description, start, end, source_id)
          SELECT
-           $1 || '_' || CAST(CAST(strftime('%s', start) AS INTEGER) * 1000 AS TEXT) AS id,
+           $1 || '_' || start AS id,
            $1 AS stream_id,
            title, subtitle, description, start, end, source_id
          FROM programs
-         WHERE stream_id = $2
-           AND end >= datetime('now', '-1 hour')`,
+         WHERE stream_id = $2`,
         [streamId, sourceStreamId]
       );
     }

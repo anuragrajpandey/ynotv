@@ -53,24 +53,30 @@ export function HorizontalCarousel({
   const updateScrollButtons = useCallback(() => {
     const container = scrollContainerRef.current;
     if (container) {
-      setCanScrollLeft(container.scrollLeft > 0);
-      setCanScrollRight(
-        container.scrollLeft < container.scrollWidth - container.clientWidth - 1
-      );
+      const nextLeft = container.scrollLeft > 2;
+      const nextRight = container.scrollLeft + container.clientWidth < container.scrollWidth - 2;
+      setCanScrollLeft((prev) => (prev !== nextLeft ? nextLeft : prev));
+      setCanScrollRight((prev) => (prev !== nextRight ? nextRight : prev));
     }
   }, []);
 
   // Update on items change or load
   useEffect(() => {
     updateScrollButtons();
-  }, [items, loading, updateScrollButtons]);
+    window.addEventListener('resize', updateScrollButtons);
+    const timer = setTimeout(updateScrollButtons, 50);
+    return () => {
+      window.removeEventListener('resize', updateScrollButtons);
+      clearTimeout(timer);
+    };
+  }, [items.length, loading, updateScrollButtons]);
 
   const scroll = (direction: 'left' | 'right') => {
     const container = scrollContainerRef.current;
     if (container) {
       const scrollAmount = container.clientWidth * 0.75;
-      container.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
+      container.scrollTo({
+        left: container.scrollLeft + (direction === 'left' ? -scrollAmount : scrollAmount),
         behavior: 'smooth',
       });
     }
@@ -85,9 +91,9 @@ export function HorizontalCarousel({
     <section className={`carousel${hidden ? ' carousel--hidden' : ''}`}>
       <div className="carousel__header">
         <h2 className="carousel__title">{title}</h2>
-        <div className="carousel__controls">
+        <div className="carousel__nav">
           <button
-            className="carousel__arrow carousel__arrow--left"
+            className="carousel__nav-btn"
             onClick={() => scroll('left')}
             disabled={!canScrollLeft}
             aria-label={i18n.t('vod:scrollLeft')}
@@ -97,12 +103,12 @@ export function HorizontalCarousel({
             </svg>
           </button>
           <button
-            className="carousel__arrow carousel__arrow--right"
+            className="carousel__nav-btn"
             onClick={() => scroll('right')}
             disabled={!canScrollRight}
             aria-label={i18n.t('vod:scrollRight')}
           >
-            <svg viewBox="0 0 24 24" fill="currentColor" strokeWidth="2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M9 18l6-6-6-6" />
             </svg>
           </button>

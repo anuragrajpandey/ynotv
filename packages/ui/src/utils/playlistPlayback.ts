@@ -1,19 +1,242 @@
-import { recordVodWatch, recordEpisodeWatch, getEpisodeProgress } from '../db';
+import { recordVodWatch, recordEpisodeWatch, getEpisodeProgress, db } from '../db';
 import type { Playlist, PlaylistItem } from '../stores/vodPlaylistStore';
+import { useVodPlaylistStore } from '../stores/vodPlaylistStore';
 import { useActivePlaylistStore, isActivePlaylistItem } from '../stores/activePlaylistStore';
 import { useVodPlaylistProgressStore, type PlaylistItemProgressSnapshot } from '../stores/vodPlaylistProgressStore';
+import {
+  useVodMetadataOverridesStore,
+  overrideKey,
+  applyVodMetadataOverride,
+} from '../stores/vodMetadataOverridesStore';
 import type { PlaylistItemProgress } from '../hooks/usePlaylistProgress';
 import type { VodPlayInfo } from '../types/media';
+import {
+  ensureLocalLibraryLoaded,
+  readLocalLibrary,
+  groupLocal,
+  localEntryToStoredMovie,
+  localGroupToStoredSeries,
+  localEntryToStoredEpisode,
+} from '../services/local-library/local-library';
 
 /**
  * True when a playlist item's source has been removed or disabled, so the
  * item can't be played anymore. Items without a sourceId (rare/manual) stay
- * visible. While sources are still loading (null) nothing is treated as
- * hidden, so the UI never flashes items away during startup.
+ * visible. Local library items (sourceId 'local') are always playable — they
+ * don't depend on an IPTV source being enabled. While sources are still
+ * loading (null) nothing is treated as hidden, so the UI never flashes items
+ * away during startup.
  */
 export function isPlaylistItemHidden(item: PlaylistItem, enabledSources: Set<string> | null): boolean {
   if (!enabledSources) return false;
-  return !!item.sourceId && !enabledSources.has(item.sourceId);
+  return !!item.sourceId && item.sourceId !== 'local' && !enabledSources.has(item.sourceId);
+}
+
+/**
+ * How long an unresolvable playlist item is kept before it's auto-removed from
+ * every playlist. "Unresolvable" means the source row / local file is gone
+ * (source removed from the app, or re-synced away) — not merely a disabled
+ * source, which still resolves and is handled by isPlaylistItemHidden.
+ */
+export const PLAYLIST_STALE_REMOVAL_DAYS = 3;
+
+/**
+ * Rebuild a playlist item's display/playback data from the CURRENT source row
+ * (vodMovies / vodEpisodes+vodSeries) or the local library, so items stay in
+ * sync after source re-syncs, credential changes, or metadata edits — the same
+ * philosophy as Favorites, which resolve by id at render time. Falls back to
+ * the stored snapshot when the item can't be found (e.g. the source or file
+ * was removed).
+ *
+ * The stored `id`/`playlistId`/`mediaId`/`addedAt` are preserved so playlist
+ * order, progress tracking, and the play queue keep working unchanged.
+ *
+ * Items that can't be resolved get `unresolvableSince` set (the first time
+ * they fail); successful resolutions clear it. Transient errors (e.g. the DB
+ * not ready yet) return the snapshot WITHOUT marking it, so a boot hiccup can't
+ * age an item toward auto-removal.
+ */
+export async function resolvePlaylistItem(item: PlaylistItem): Promise<PlaylistItem> {
+  try {
+    if (item.sourceId === 'local') return await resolveLocalPlaylistItem(item);
+
+    if (item.itemType === 'movie') {
+      const row = await db.vodMovies.get(item.mediaId);
+      if (!row) return unresolved(item);
+      // Apply user-corrected metadata (title/poster/plot) on top of the fresh row.
+      const movie = applyVodMetadataOverride(
+        row,
+        useVodMetadataOverridesStore.getState().overrides[overrideKey(row.stream_id, 'movie')],
+      );
+      return {
+        ...item,
+        unresolvableSince: undefined,
+        title: movie.title || movie.name || item.title,
+        poster: movie.stream_icon || movie.backdrop_path || item.poster,
+        backdropUrl: movie.backdrop_path || item.backdropUrl,
+        directUrl: movie.direct_url || item.directUrl,
+        sourceId: movie.source_id || item.sourceId,
+        duration: movie.duration ? movie.duration * 60 : item.duration,
+      };
+    }
+
+    // Episode: refresh the episode row (fresh stream URL) plus the series row
+    // (fresh title/poster). Filtered by series_id too, so id collisions across
+    // sources can't resolve to the wrong series' episode.
+    const [series, ep] = await Promise.all([
+      item.seriesId ? db.vodSeries.get(item.seriesId) : Promise.resolve(undefined),
+      item.seriesId
+        ? db.vodEpisodes.whereRaw('id = $1 AND series_id = $2', [item.mediaId, item.seriesId]).first()
+        : db.vodEpisodes.get(item.mediaId),
+    ]);
+    if (!ep) return unresolved(item);
+
+    const seriesRow = series
+      ? applyVodMetadataOverride(
+          series,
+          useVodMetadataOverridesStore.getState().overrides[overrideKey(series.series_id, 'series')],
+        )
+      : undefined;
+    const seriesTitle = seriesRow?.title || seriesRow?.name || item.seriesTitle || item.title;
+    const epTitle = ep.title || item.episodeTitle || '';
+    return {
+      ...item,
+      unresolvableSince: undefined,
+      title: `${seriesTitle} - S${String(ep.season_num).padStart(2, '0')}E${String(ep.episode_num).padStart(2, '0')}${epTitle ? `: ${epTitle}` : ''}`,
+      seriesTitle,
+      episodeTitle: epTitle || undefined,
+      seasonNum: ep.season_num,
+      episodeNum: ep.episode_num,
+      poster: seriesRow?.cover || item.poster,
+      backdropUrl: seriesRow?.backdrop_path || item.backdropUrl,
+      directUrl: ep.direct_url || item.directUrl,
+      sourceId: seriesRow?.source_id || item.sourceId,
+      duration: ep.duration ? ep.duration * 60 : item.duration,
+    };
+  } catch (err) {
+    // Transient failure (DB not ready, etc.) — keep the snapshot unmarked so
+    // a boot hiccup can't age the item toward auto-removal.
+    console.warn('[Playlist] Failed to resolve item, keeping snapshot:', err);
+    return item;
+  }
+}
+
+/** Mark an item as unresolvable (first failure sets the timestamp). */
+function unresolved(item: PlaylistItem): PlaylistItem {
+  return { ...item, unresolvableSince: item.unresolvableSince ?? Date.now() };
+}
+
+/** Resolve a local-library playlist item against the current library cache. */
+async function resolveLocalPlaylistItem(item: PlaylistItem): Promise<PlaylistItem> {
+  await ensureLocalLibraryLoaded();
+  const entries = readLocalLibrary();
+  if (entries.length === 0) return unresolved(item);
+
+  // Local movies store `local_<path>` as mediaId; local episodes store the
+  // file path directly (the episode entry id).
+  const entry =
+    item.itemType === 'movie'
+      ? entries.find((e) => e.type === 'movie' && `local_${e.id}` === item.mediaId)
+      : entries.find((e) => e.id === item.mediaId);
+  if (!entry) return unresolved(item);
+
+  if (item.itemType === 'movie') {
+    const movie = localEntryToStoredMovie(entry);
+    return {
+      ...item,
+      unresolvableSince: undefined,
+      title: movie.title || movie.name || item.title,
+      poster: movie.stream_icon || item.poster,
+      backdropUrl: movie.backdrop_path || item.backdropUrl,
+      directUrl: movie.direct_url || item.directUrl,
+      duration: movie.duration ? movie.duration * 60 : item.duration,
+      sourceName: 'Local',
+    };
+  }
+
+  // Episode: re-derive the series group so the poster/title follow the show.
+  const key = item.seriesId ? item.seriesId.slice('local_'.length) : undefined;
+  const group = key ? groupLocal(entries).find((g) => g.kind === 'show' && g.key === key) : undefined;
+  if (!group || group.kind !== 'show') return unresolved(item);
+
+  const series = localGroupToStoredSeries(group);
+  const ep = localEntryToStoredEpisode(entry, series.series_id, group.head.title);
+  const epTitle = ep.title && !ep.title.startsWith('Episode ') ? ep.title : '';
+  return {
+    ...item,
+    unresolvableSince: undefined,
+    title: `${series.title || item.seriesTitle || item.title} - S${String(ep.season_num).padStart(2, '0')}E${String(ep.episode_num).padStart(2, '0')}${epTitle ? `: ${epTitle}` : ''}`,
+    seriesTitle: series.title || item.seriesTitle,
+    episodeTitle: epTitle || item.episodeTitle,
+    seasonNum: ep.season_num,
+    episodeNum: ep.episode_num,
+    poster: series.cover || item.poster,
+    backdropUrl: series.backdrop_path || item.backdropUrl,
+    directUrl: ep.direct_url || item.directUrl,
+    duration: ep.duration ? ep.duration * 60 : item.duration,
+    sourceName: 'Local',
+  };
+}
+
+// Display/playback fields that may be refreshed from the live source. Identity
+// (id/playlistId/mediaId/addedAt) and order are never touched.
+const RESOLVABLE_FIELDS: (keyof PlaylistItem)[] = [
+  'title',
+  'poster',
+  'backdropUrl',
+  'directUrl',
+  'sourceId',
+  'sourceName',
+  'seriesTitle',
+  'episodeTitle',
+  'seasonNum',
+  'episodeNum',
+  'duration',
+  'unresolvableSince',
+];
+
+/**
+ * Persist resolved metadata back into the stored playlist items, so the
+ * persisted blob (and therefore exports/imports) carries fresh titles,
+ * posters, and stream URLs instead of the add-time snapshot. Also prunes items
+ * that have been unresolvable (source/file gone) for PLAYLIST_STALE_REMOVAL_DAYS
+ * days. Item ids, playlist membership, and order are preserved.
+ */
+export function applyPlaylistResolutions(resolvedItems: PlaylistItem[]): void {
+  if (resolvedItems.length === 0) return;
+  const store = useVodPlaylistStore.getState();
+  const byId = new Map(resolvedItems.map((i) => [i.id, i]));
+  const staleCutoff = Date.now() - PLAYLIST_STALE_REMOVAL_DAYS * 24 * 60 * 60 * 1000;
+  const staleIds = new Set<string>();
+
+  for (const pl of store.playlists) {
+    for (const stored of pl.items) {
+      const resolved = byId.get(stored.id);
+      if (!resolved) continue;
+
+      if (resolved.unresolvableSince != null && resolved.unresolvableSince < staleCutoff) {
+        staleIds.add(stored.id);
+        continue;
+      }
+
+      const patch: Partial<PlaylistItem> = {};
+      for (const field of RESOLVABLE_FIELDS) {
+        if (resolved[field] !== stored[field]) {
+          (patch as Record<string, unknown>)[field] = resolved[field];
+        }
+      }
+      if (Object.keys(patch).length > 0) {
+        store.updatePlaylistItem(pl.id, stored.id, patch);
+      }
+    }
+  }
+
+  if (staleIds.size > 0) {
+    for (const pl of store.playlists) {
+      const toRemove = pl.items.filter((i) => staleIds.has(i.id)).map((i) => i.id);
+      if (toRemove.length > 0) store.removeItemsFromPlaylist(pl.id, toRemove);
+    }
+  }
 }
 
 /**
@@ -190,7 +413,9 @@ export async function recordPlaylistItemWatch(item: PlaylistItem): Promise<void>
   let duration = 0;
   try {
     const progress = await getEpisodeProgress(item.mediaId);
-    if (progress && (progress.progress_seconds ?? 0) > 10 && (progress.total_duration ?? 0) > 0) {
+    const isCompleted = progress?.completed === 1 || 
+      (progress && (progress.total_duration ?? 0) > 0 && ((progress.progress_seconds ?? 0) / (progress.total_duration ?? 1)) >= 0.95);
+    if (!isCompleted && progress && (progress.progress_seconds ?? 0) > 10 && (progress.total_duration ?? 0) > 0) {
       resumePosition = progress.progress_seconds ?? 0;
       duration = progress.total_duration ?? 0;
     }

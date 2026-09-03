@@ -9,6 +9,49 @@ import './PlaybackTab.css'; // Reuse existing tab styles
 
 export type MetadataSubTabId = 'tmdb' | 'rpdb';
 
+// TMDB-supported locales shown in the metadata language picker. Labels are
+// native language names (standard practice — no i18n needed).
+const TMDB_LANGUAGES: Array<{ code: string; label: string }> = [
+  { code: 'en-US', label: 'English' },
+  { code: 'es-ES', label: 'Español' },
+  { code: 'fr-FR', label: 'Français' },
+  { code: 'de-DE', label: 'Deutsch' },
+  { code: 'it-IT', label: 'Italiano' },
+  { code: 'pt-BR', label: 'Português (Brasil)' },
+  { code: 'pt-PT', label: 'Português (Portugal)' },
+  { code: 'ru-RU', label: 'Русский' },
+  { code: 'uk-UA', label: 'Українська' },
+  { code: 'pl-PL', label: 'Polski' },
+  { code: 'nl-NL', label: 'Nederlands' },
+  { code: 'tr-TR', label: 'Türkçe' },
+  { code: 'ar-SA', label: 'العربية' },
+  { code: 'fa-IR', label: 'فارسی' },
+  { code: 'hi-IN', label: 'हिन्दी' },
+  { code: 'ur-PK', label: 'اردو' },
+  { code: 'zh-CN', label: '简体中文' },
+  { code: 'zh-TW', label: '繁體中文' },
+  { code: 'ja-JP', label: '日本語' },
+  { code: 'ko-KR', label: '한국어' },
+  { code: 'el-GR', label: 'Ελληνικά' },
+  { code: 'hr-HR', label: 'Hrvatski' },
+  { code: 'bs-BA', label: 'Bosanski' },
+  { code: 'sr-RS', label: 'Српски' },
+  { code: 'sq-AL', label: 'Shqip' },
+  { code: 'vi-VN', label: 'Tiếng Việt' },
+  { code: 'sv-SE', label: 'Svenska' },
+  { code: 'da-DK', label: 'Dansk' },
+  { code: 'fi-FI', label: 'Suomi' },
+  { code: 'no-NO', label: 'Norsk' },
+  { code: 'cs-CZ', label: 'Čeština' },
+  { code: 'hu-HU', label: 'Magyar' },
+  { code: 'ro-RO', label: 'Română' },
+  { code: 'bg-BG', label: 'Български' },
+  { code: 'he-IL', label: 'עברית' },
+  { code: 'th-TH', label: 'ไทย' },
+  { code: 'id-ID', label: 'Bahasa Indonesia' },
+  { code: 'ms-MY', label: 'Bahasa Melayu' },
+];
+
 interface TmdbTabProps {
   initialSubTab?: MetadataSubTabId;
   tmdbApiKey: string;
@@ -49,6 +92,8 @@ export function TmdbTab({
   onEnabledStreamingServicesChange,
 }: TmdbTabProps) {
   useTranslation();
+  const tmdbLanguage = useSettingsStore((s) => s.tmdbLanguage);
+  const setTmdbLanguage = useSettingsStore((s) => s.setTmdbLanguage);
   const [activeSubTab, setActiveSubTab] = useState<MetadataSubTabId>('tmdb');
   const [tmdbValidating, setTmdbValidating] = useState(false);
   const [rpdbValidating, setRpdbValidating] = useState(false);
@@ -208,6 +253,25 @@ export function TmdbTab({
                 </a>
               </p>
             </div>
+
+            {/* Metadata Language */}
+            <div className="form-group inline" style={{ marginTop: '18px' }}>
+              <label>{i18n.t('settings:tmdb.languageLabel')}</label>
+              <select
+                className="tmdb-language-select"
+                value={tmdbLanguage}
+                onChange={(e) => setTmdbLanguage(e.target.value)}
+              >
+                {TMDB_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="form-hint" style={{ marginTop: '-8px' }}>
+              {i18n.t('settings:tmdb.languageHint')}
+            </p>
 
             {/* Streaming Catalogs Section */}
             <div className={`streaming-catalogs-section ${tmdbKeyValid !== true ? 'disabled' : ''}`} style={{ marginTop: '2rem' }}>

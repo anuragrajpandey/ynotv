@@ -850,6 +850,7 @@ export function TVCalendarPage({ onClose, onPlayChannel }: Props) {
                         <div
                           key={i}
                           className="tvcp-episode"
+                          data-key={ep.tvmaze_episode_id ?? `${ep.airdate ?? ''}|${ep.show_name}|${ep.season ?? ''}|${ep.episode ?? ''}`}
                           onClick={() => handleEpisodeClick(ep)}
                           style={{ cursor: 'pointer' }}
                           title={`${ep.show_name} S${ep.season ?? '?'}E${ep.episode ?? '?'}${ep.channel_name ? ` ${t('onChannel', { channel: ep.channel_name })}` : ''} - ${t('clickForDetails')}`}
@@ -967,7 +968,7 @@ export function TVCalendarPage({ onClose, onPlayChannel }: Props) {
                       const isTracked = shows.some(s => s.tvmaze_id === show?.id);
 
                       return (
-                        <div key={episode.id} className="tvcp-upcoming-card">
+                        <div key={episode.id} className="tvcp-upcoming-card" data-key={episode.id}>
                           <div
                             className="tvcp-upcoming-card-content"
                             onClick={() => show && setSelectedShow({
@@ -1251,6 +1252,7 @@ export function TVCalendarPage({ onClose, onPlayChannel }: Props) {
         <div className="tvcp-topbar-center">
           <button
             className={`tvcp-topbar-item ${activeTab === 'search' ? 'active' : ''}`}
+            data-key="search"
             onClick={() => setActiveTab('search')}
           >
             <span className="tvcp-topbar-icon"><SearchIcon /></span>
@@ -1258,6 +1260,7 @@ export function TVCalendarPage({ onClose, onPlayChannel }: Props) {
           </button>
           <button
             className={`tvcp-topbar-item ${activeTab === 'calendar' ? 'active' : ''}`}
+            data-key="calendar"
             onClick={() => setActiveTab('calendar')}
           >
             <span className="tvcp-topbar-icon"><CalendarIcon /></span>
@@ -1265,6 +1268,7 @@ export function TVCalendarPage({ onClose, onPlayChannel }: Props) {
           </button>
           <button
             className={`tvcp-topbar-item ${activeTab === 'upcoming' ? 'active' : ''}`}
+            data-key="upcoming"
             onClick={() => setActiveTab('upcoming')}
           >
             <span className="tvcp-topbar-icon"><UpcomingIcon /></span>
@@ -1272,6 +1276,7 @@ export function TVCalendarPage({ onClose, onPlayChannel }: Props) {
           </button>
           <button
             className={`tvcp-topbar-item ${activeTab === 'myshows' ? 'active' : ''}`}
+            data-key="myshows"
             onClick={() => setActiveTab('myshows')}
           >
             <span className="tvcp-topbar-icon"><ShowsIcon /></span>
@@ -1280,6 +1285,7 @@ export function TVCalendarPage({ onClose, onPlayChannel }: Props) {
           </button>
           <button
             className={`tvcp-topbar-item ${activeTab === 'settings' ? 'active' : ''}`}
+            data-key="settings"
             onClick={() => setActiveTab('settings')}
           >
             <span className="tvcp-topbar-icon"><SettingsIcon /></span>

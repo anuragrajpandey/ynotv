@@ -1,10 +1,12 @@
-import { type ChangeEvent, useEffect, useState, useRef, useCallback } from 'react';
+import { type ChangeEvent, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import type { StoredChannel } from '../db';
 import type { VodPlayInfo } from '../types/media';
 import { useCurrentProgram, parseCategoryIds } from '../hooks/useChannels';
+import { normalizeBoolean } from '../utils/db-helpers';
+import { FavoriteButton } from './FavoriteButton';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MetadataBadge } from './MetadataBadge';
 import { scheduleRecording, getDvrSettings, updatePlayingStream, detectScheduleConflicts, db, type DvrSchedule } from '../db';
@@ -15,6 +17,7 @@ import { SourcePickerModal } from './SourcePickerModal';
 import type { StremioStream, StremioStreamBadge } from '../types/stremio';
 import type { VisualizerMode } from './AudioVisualizer';
 import { useActivePlaylistStore, isActivePlaylistItem } from '../stores/activePlaylistStore';
+import { getLocalEpisodeList } from '../services/local-library/local-library';
 import { TeamChannelOverlay } from './sports/TeamChannelOverlay';
 import { FailoverChannelOverlay } from './FailoverChannelOverlay';
 import './NowPlayingBar.css';
@@ -165,7 +168,18 @@ export function NowPlayingBar({
   const { t } = useTranslation('player');
   const showVolumePercentSetting = useSettingsStore((s) => s.showVolumePercent);
   const showFailoverMediaBarWidget = useSettingsStore((s) => s.showFailoverMediaBarWidget);
-  const showVolumePercent = propShowVolumePercent ?? showVolumePercentSetting ?? false;
+  const maxVolume = useSettingsStore((s) => s.subtitleSettings?.audioMaxVolume || 100);
+  const showVolumePercent = propShowVolumePercent ?? showVolumePercentSetting ?? true;
+
+  const showHdrQuickToggle = useSettingsStore((s) => s.showHdrQuickToggle);
+  const hdrTonemapToSdr = useSettingsStore((s) => s.hdrTonemapToSdr);
+  const setHdrTonemapToSdr = useSettingsStore((s) => s.setHdrTonemapToSdr);
+
+  const handleToggleHdrTonemap = () => {
+    const nextVal = !hdrTonemapToSdr;
+    setHdrTonemapToSdr(nextVal);
+    (window as any).Bridge?.applyHdrSettings?.(nextVal);
+  };
 
   // scrubMode: 'timeshift' | 'epgcatchup' — local toggle when channel supports both
   const [scrubMode, setScrubMode] = useState<'timeshift' | 'epgcatchup'>('timeshift');
@@ -173,6 +187,7 @@ export function NowPlayingBar({
   const [recording, setRecording] = useState(false);
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [recordDuration, setRecordDuration] = useState(5);
+  const [recordUntilStop, setRecordUntilStop] = useState(false);
   const [recordTitle, setRecordTitle] = useState('');
   const [isStopAndRecord, setIsStopAndRecord] = useState(false);
   const canControl = mpvReady && channel !== null;
@@ -194,6 +209,19 @@ export function NowPlayingBar({
   const showPrevNav = isPlaylistActive ? !!onPlaylistPreviousItem : !!(onChannelUp && (!isVod || vodInfo?.type === 'series'));
   const showNextNav = isPlaylistActive ? !!onPlaylistNextItem : !!(onChannelDown && (!isVod || vodInfo?.type === 'series'));
   const isEpisodeNav = !isPlaylistActive && isVod && vodInfo?.type === 'series';
+
+  // Local series episodes live in the local library (not the VOD DB), so the
+  // boundaries are resolved here to grey out prev/next at the series start/end.
+  // Non-boundary clicks still go through onChannelUp/onChannelDown, which
+  // App.tsx resolves against the local library (next season's first episode is
+  // reached naturally via the flat season→episode ordering).
+  const localEpisodeNav = useMemo(() => {
+    if (!isEpisodeNav || vodInfo?.source_id !== 'local') return null;
+    const episodes = getLocalEpisodeList(vodInfo.episodeId);
+    if (!episodes) return null;
+    const idx = episodes.findIndex((ep) => ep.id === vodInfo.episodeId);
+    return { canPrev: idx > 0, canNext: idx >= 0 && idx < episodes.length - 1 };
+  }, [isEpisodeNav, vodInfo]);
   const handleNavPrev = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -341,6 +369,7 @@ export function NowPlayingBar({
     const defaultTitle = currentProgram?.title || t('quickRecordTitle', { name: channel.name });
     setRecordTitle(defaultTitle);
     setIsStopAndRecord(false);
+    setRecordUntilStop(false);
 
     const now = Math.floor(Date.now() / 1000);
     const tempSchedule: Omit<DvrSchedule, 'id' | 'created_at' | 'status'> = {
@@ -397,13 +426,17 @@ export function NowPlayingBar({
       const defaultTitle = currentProgram?.title || t('quickRecordTitle', { name: channel.name });
       const finalTitle = recordTitle.trim() || defaultTitle;
 
+      // "Record until Stop": scheduled_end = 0 tells the DVR backend there
+      // is no fixed end time — it records until the user stops it manually.
+      const scheduledEnd = recordUntilStop ? 0 : now + (recordDuration * 60);
+
       const schedule: Omit<DvrSchedule, 'id' | 'created_at' | 'status'> = {
         source_id: channel.source_id,
         channel_id: channel.stream_id,
         channel_name: channel.name,
         program_title: finalTitle,
         scheduled_start: now,
-        scheduled_end: now + (recordDuration * 60),
+        scheduled_end: scheduledEnd,
         start_padding_sec: 0,
         end_padding_sec: 0, // Quick recording has 0 padding
         series_match_title: undefined,
@@ -418,7 +451,9 @@ export function NowPlayingBar({
       }
       showSuccess(
         t('recordingScheduled'),
-        t('recordingScheduledMsg', { minutes: recordDuration })
+        recordUntilStop
+          ? t('recordUntilStopScheduled')
+          : t('recordingScheduledMsg', { minutes: recordDuration })
       );
     } catch (error: any) {
       console.error('Failed to start quick record:', error);
@@ -746,7 +781,7 @@ export function NowPlayingBar({
                   type="range"
                   className="npb-clean-volume-slider"
                   min="0"
-                  max="100"
+                  max={maxVolume}
                   value={volume}
                   onChange={onVolumeChange}
                   onMouseDown={onVolumeDragStart}
@@ -812,7 +847,7 @@ export function NowPlayingBar({
                   <button
                     className="npb-clean-sm-btn"
                     onClick={handleNavPrev}
-                    disabled={!canControl}
+                    disabled={!canControl || (localEpisodeNav !== null && !localEpisodeNav.canPrev)}
                     title={isPlaylistActive ? t('previousPlaylistItem') : (isEpisodeNav ? t('previousEpisode') : t('previousChannel'))}
                   >
                     {isPlaylistActive || isEpisodeNav ? <PrevIcon /> : <ChannelUpIcon />}
@@ -823,7 +858,7 @@ export function NowPlayingBar({
                   <button
                     className="npb-clean-sm-btn"
                     onClick={handleNavNext}
-                    disabled={!canControl}
+                    disabled={!canControl || (localEpisodeNav !== null && !localEpisodeNav.canNext)}
                     title={isPlaylistActive ? t('nextPlaylistItem') : (isEpisodeNav ? t('nextEpisode') : t('nextChannel'))}
                   >
                     {isPlaylistActive || isEpisodeNav ? <NextIcon /> : <ChannelDownIcon />}
@@ -889,6 +924,14 @@ export function NowPlayingBar({
                       </div>
                     )}
                   </div>
+                )}
+
+                {channel && channel.stream_id !== 'vod' && !channel.stream_id?.startsWith('recording_') && (
+                  <FavoriteButton
+                    streamId={channel.stream_id}
+                    isFavorite={normalizeBoolean(channel.is_favorite)}
+                    svg
+                  />
                 )}
 
                 {!isVod && !vodInfo && onToggleTransparentGuide && (
@@ -1000,6 +1043,32 @@ export function NowPlayingBar({
                 >
                   <SubtitleIcon />
                 </button>
+
+                {showHdrQuickToggle && (
+                  <button
+                    className={`npb-clean-btn npb-hdr-btn ${hdrTonemapToSdr ? 'active' : ''}`}
+                    onClick={handleToggleHdrTonemap}
+                    disabled={!canControl}
+                    title={hdrTonemapToSdr ? t('hdrToSdrOn', 'HDR to SDR: On') : t('hdrToSdrOff', 'HDR to SDR: Off')}
+                    style={{
+                      fontWeight: 700,
+                      fontSize: '0.72rem',
+                      letterSpacing: '0.5px',
+                      padding: '0 6px',
+                      minWidth: '32px',
+                      height: '28px',
+                      borderRadius: '4px',
+                      border: hdrTonemapToSdr ? '1px solid var(--accent-color, #00d4ff)' : '1px solid rgba(255, 255, 255, 0.2)',
+                      color: hdrTonemapToSdr ? 'var(--accent-color, #00d4ff)' : 'rgba(255, 255, 255, 0.7)',
+                      background: hdrTonemapToSdr ? 'rgba(0, 212, 255, 0.15)' : 'transparent',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    HDR
+                  </button>
+                )}
 
                 {isStremioNuvio && onSwitchStream && stremioSourceId && stremioSourceType && (
                   <button
@@ -1321,7 +1390,7 @@ export function NowPlayingBar({
                   <button
                     className="npb-btn npb-channel-up-btn"
                     onClick={handleNavPrev}
-                    disabled={!canControl}
+                    disabled={!canControl || (localEpisodeNav !== null && !localEpisodeNav.canPrev)}
                     title={isPlaylistActive ? t('previousPlaylistItem') : (isEpisodeNav ? t('previousEpisode') : t('previousChannelUp'))}
                   >
                     {isPlaylistActive || isEpisodeNav ? <PrevIcon /> : <ChannelUpIcon />}
@@ -1331,7 +1400,7 @@ export function NowPlayingBar({
                   <button
                     className="npb-btn npb-channel-down-btn"
                     onClick={handleNavNext}
-                    disabled={!canControl}
+                    disabled={!canControl || (localEpisodeNav !== null && !localEpisodeNav.canNext)}
                     title={isPlaylistActive ? t('nextPlaylistItem') : (isEpisodeNav ? t('nextEpisode') : t('nextChannelDown'))}
                   >
                     {isPlaylistActive || isEpisodeNav ? <NextIcon /> : <ChannelDownIcon />}
@@ -1375,6 +1444,31 @@ export function NowPlayingBar({
                 >
                   <SubtitleIcon />
                 </button>
+                {showHdrQuickToggle && (
+                  <button
+                    className={`npb-btn npb-hdr-btn ${hdrTonemapToSdr ? 'active' : ''}`}
+                    onClick={handleToggleHdrTonemap}
+                    disabled={!canControl}
+                    title={hdrTonemapToSdr ? t('hdrToSdrOn', 'HDR to SDR: On') : t('hdrToSdrOff', 'HDR to SDR: Off')}
+                    style={{
+                      fontWeight: 700,
+                      fontSize: '0.72rem',
+                      letterSpacing: '0.5px',
+                      padding: '0 6px',
+                      minWidth: '32px',
+                      height: '28px',
+                      borderRadius: '4px',
+                      border: hdrTonemapToSdr ? '1px solid var(--accent-color, #00d4ff)' : '1px solid rgba(255, 255, 255, 0.2)',
+                      color: hdrTonemapToSdr ? 'var(--accent-color, #00d4ff)' : 'rgba(255, 255, 255, 0.7)',
+                      background: hdrTonemapToSdr ? 'rgba(0, 212, 255, 0.15)' : 'transparent',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    HDR
+                  </button>
+                )}
                 <button
                   className={`npb-btn${hasAudioDelay ? ' has-badge' : ''}`}
                   onClick={onShowAudioModal}
@@ -1544,7 +1638,7 @@ export function NowPlayingBar({
                   type="range"
                   className="npb-volume-slider"
                   min="0"
-                  max="100"
+                  max={maxVolume}
                   value={volume}
                   onChange={onVolumeChange}
                   onMouseDown={onVolumeDragStart}
@@ -1607,12 +1701,23 @@ export function NowPlayingBar({
                   />
                 </div>
                 <div className="npb-form-group">
+                  <label className="npb-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={recordUntilStop}
+                      onChange={(e) => setRecordUntilStop(e.target.checked)}
+                    />
+                    {t('recordUntilStop')}
+                  </label>
+                </div>
+                <div className="npb-form-group">
                   <label>{t('durationMinutes')}</label>
                   <input
                     type="number"
                     min="1"
                     max="180"
                     value={recordDuration}
+                    disabled={recordUntilStop}
                     onChange={(e) => setRecordDuration(Math.max(1, Math.min(180, parseInt(e.target.value) || 1)))}
                   />
                 </div>
@@ -1660,7 +1765,7 @@ export function NowPlayingBar({
               type="range"
               className="npb-volume-slider"
               min="0"
-              max="100"
+              max={maxVolume}
               value={volume}
               onChange={onVolumeChange}
               onMouseDown={onVolumeDragStart}

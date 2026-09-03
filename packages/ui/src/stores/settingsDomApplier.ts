@@ -262,6 +262,17 @@ export function applySettingsDom(state: SettingsState): void {
   if (sectionChanged('epgBodyFontSize', { v: state.epgBodyFontSize })) {
     setStyle('--epg-body-font-size', `${state.epgBodyFontSize}px`);
   }
+  // Program text in the EPG time grid (ProgramBlock title/desc). The theme
+  // tokens live under .modern-ui / .modern-ui-v3 on the same element, so the
+  // inline override wins. The description scales proportionally to keep the
+  // block's title/desc hierarchy when the user changes the program size.
+  if (sectionChanged('epgProgramFontSize', { v: state.epgProgramFontSize })) {
+    setStyle('--prog-title-font-size', `${state.epgProgramFontSize}px`);
+    setStyle(
+      '--prog-desc-font-size',
+      `${Math.max(8, Math.round(state.epgProgramFontSize * 0.85))}px`
+    );
+  }
 
   // Stremio/Nuvio detail badge scale (was written inline by App + Settings)
   if (sectionChanged('stremioBadgeSize', { v: state.stremioBadgeSize })) {
@@ -275,7 +286,7 @@ export function applySettingsDom(state: SettingsState): void {
   // availableWidth under the new zoom (was done inline in the autosync boot).
   if (sectionChanged('uiScale', { v: state.uiScale })) {
     setStyle('--app-zoom', String(state.uiScale / 100));
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(new Event('resize'));
     }
   }
@@ -308,9 +319,11 @@ export function applySettingsDom(state: SettingsState): void {
       if (state.enableCustomScrollbarWidth) {
         el.dataset.customScrollbar = 'true';
         el.style.setProperty('--app-scrollbar-width', `${state.customScrollbarWidth}px`);
+        el.style.setProperty('--scrollbar-width', `${state.customScrollbarWidth}px`);
       } else {
         delete el.dataset.customScrollbar;
         el.style.removeProperty('--app-scrollbar-width');
+        el.style.removeProperty('--scrollbar-width');
       }
     }
   }

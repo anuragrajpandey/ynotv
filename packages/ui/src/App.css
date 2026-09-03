@@ -5,6 +5,7 @@
   --epg-title-font-size: 32px;
   --epg-body-font-size: 16px;
   --app-zoom: 1;
+  --scrollbar-width: var(--app-scrollbar-width, 6px);
 }
 
 /* Main container - full screen, TRANSPARENT so mpv video shows through */
@@ -313,6 +314,12 @@ html[data-ui-version="v2"] .view-transition-container {
 }
 
 /* Title Bar Search History Dropdown */
+/* Controller/remote users get the dedicated controller search modal, so the
+   titlebar history dropdown is hidden while TV navigation is active. */
+body.tv-nav-active .title-bar-search-history {
+  display: none !important;
+}
+
 .title-bar-search-history {
   position: absolute;
   top: 100%;
@@ -1068,20 +1075,68 @@ html[data-ui-version="v2"] .view-transition-container {
 }
 
 /* ─── Custom Scrollbar Width & Visibility Override ─────────────────────────── */
+/* Chrome 121+ ignores the legacy ::-webkit-scrollbar pseudo-elements as soon as
+   EITHER standard property is non-auto (see css-scrollbars spec). Component CSS
+   sets `scrollbar-width: thin` AND a custom `scrollbar-color` on VOD/local/
+   playlist containers, so we must reset both to `auto` here or the
+   `::-webkit-scrollbar { width: var(--app-scrollbar-width) }` override below is
+   never applied and the scrollbar never expands. */
+html[data-custom-scrollbar="true"],
+html[data-custom-scrollbar="true"] * {
+  scrollbar-width: auto !important;
+  scrollbar-color: auto !important;
+}
+
 html[data-custom-scrollbar="true"] ::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] *::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .modern-ui ::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .modern-ui-v3 ::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .vertical-sidebar__scrollable::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .vertical-sidebar__scrollable *::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .vod-browse::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .vod-browse *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .vod-browse__grid::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .vod-browse__grid *::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .vod-page__content::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .vod-page__content *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .vod-page__home::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .vod-page__home *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .playlists-view::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .playlists-view *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .local-tab-container::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .local-tab-container *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .stremio-service-view::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .stremio-service-view *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .streaming-service-view::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .streaming-service-view *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .stremio-person-detail::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .stremio-person-detail *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .h-category-strip__scroll::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .category-strip-scrollable::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .category-strip-scrollable *::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .category-strip-list::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .category-list::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .category-list *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .cm-bulk-scroll-list::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .cm-bulk-col::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .cm-bulk-modal *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .add-to-playlist-modal__body::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .add-to-playlist-list::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .add-to-playlist-episodes-list::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .vod-metadata-edit-modal__body::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .vod-metadata-tmdb-results::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .playlist-queue-modal__body::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .playlist-queue-list::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .guide-channels::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .guide-channels *::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .search-virtuoso::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .search-virtuoso *::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .series-detail::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .series-detail *::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .movie-detail::-webkit-scrollbar,
+html[data-custom-scrollbar="true"] .movie-detail *::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .stremio-detail::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .stremio-detail-left::-webkit-scrollbar,
 html[data-custom-scrollbar="true"] .stremio-detail-video-list::-webkit-scrollbar {
@@ -1093,10 +1148,47 @@ html[data-custom-scrollbar="true"] ::-webkit-scrollbar-track,
 html[data-custom-scrollbar="true"] *::-webkit-scrollbar-track,
 html[data-custom-scrollbar="true"] .modern-ui ::-webkit-scrollbar-track,
 html[data-custom-scrollbar="true"] .modern-ui-v3 ::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vertical-sidebar__scrollable::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vertical-sidebar__scrollable *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vod-browse::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vod-browse *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vod-page__content::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vod-page__content *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vod-page__home::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vod-page__home *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .playlists-view::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .playlists-view *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .local-tab-container::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .local-tab-container *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .stremio-service-view::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .stremio-service-view *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .streaming-service-view::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .streaming-service-view *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .stremio-person-detail::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .stremio-person-detail *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .h-category-strip__scroll::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .category-strip-scrollable::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .category-strip-list::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .category-list::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .category-list *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .cm-bulk-scroll-list::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .cm-bulk-col::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .cm-bulk-modal *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .add-to-playlist-modal__body::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .add-to-playlist-list::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .add-to-playlist-episodes-list::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vod-metadata-edit-modal__body::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .vod-metadata-tmdb-results::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .playlist-queue-modal__body::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .playlist-queue-list::-webkit-scrollbar-track,
 html[data-custom-scrollbar="true"] .series-detail::-webkit-scrollbar-track,
-html[data-custom-scrollbar="true"] .movie-detail::-webkit-scrollbar-track {
-  background: rgba(15, 15, 25, 0.7) !important;
-  border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
+html[data-custom-scrollbar="true"] .series-detail *::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .movie-detail::-webkit-scrollbar-track,
+html[data-custom-scrollbar="true"] .movie-detail *::-webkit-scrollbar-track {
+  background: transparent !important;
+  border: none !important;
   box-shadow: none !important;
 }
 
@@ -1104,24 +1196,148 @@ html[data-custom-scrollbar="true"] ::-webkit-scrollbar-thumb,
 html[data-custom-scrollbar="true"] *::-webkit-scrollbar-thumb,
 html[data-custom-scrollbar="true"] .modern-ui ::-webkit-scrollbar-thumb,
 html[data-custom-scrollbar="true"] .modern-ui-v3 ::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vertical-sidebar__scrollable::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vertical-sidebar__scrollable *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-browse::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-browse *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-page__content::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-page__content *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-page__home::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-page__home *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .playlists-view::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .playlists-view *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .local-tab-container::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .local-tab-container *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .stremio-service-view::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .stremio-service-view *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .streaming-service-view::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .streaming-service-view *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .stremio-person-detail::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .stremio-person-detail *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .h-category-strip__scroll::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .category-strip-scrollable::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .category-strip-list::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .category-list::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .category-list *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .cm-bulk-scroll-list::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .cm-bulk-col::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .cm-bulk-modal *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .add-to-playlist-modal__body::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .add-to-playlist-list::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .add-to-playlist-episodes-list::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-metadata-edit-modal__body::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-metadata-tmdb-results::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .playlist-queue-modal__body::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .playlist-queue-list::-webkit-scrollbar-thumb,
 html[data-custom-scrollbar="true"] .series-detail::-webkit-scrollbar-thumb,
-html[data-custom-scrollbar="true"] .movie-detail::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.45) !important;
-  border-radius: 6px !important;
-  border: 1px solid rgba(0, 0, 0, 0.3) !important;
+html[data-custom-scrollbar="true"] .series-detail *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .movie-detail::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .movie-detail *::-webkit-scrollbar-thumb {
+  background: var(--vs-scrollbar-thumb-bg, var(--scrollbar-thumb-bg, rgba(255, 255, 255, 0.15))) !important;
+  border-radius: 4px !important;
+  border: none !important;
 }
 
+html[data-custom-scrollbar="true"] :hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] *:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vertical-sidebar:hover .vertical-sidebar__scrollable::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vertical-sidebar__scrollable:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vertical-sidebar__scrollable *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-browse:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-browse *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-browse:hover *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-page__content:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-page__content *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-page__content:hover *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-page__home:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-page__home *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-page__home:hover *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .playlists-view:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .playlists-view *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .playlists-view:hover *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .local-tab-container:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .local-tab-container *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .local-tab-container:hover *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .stremio-service-view:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .stremio-service-view *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .stremio-service-view:hover *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .streaming-service-view:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .streaming-service-view *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .streaming-service-view:hover *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .stremio-person-detail:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .stremio-person-detail *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .stremio-person-detail:hover *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay:hover *::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .h-category-strip__scroll:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .category-strip:hover .category-strip-scrollable::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .category-strip-scrollable:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .category-strip-list:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .category-list:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .category-list *:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .cm-bulk-scroll-list:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .cm-bulk-col:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .cm-bulk-modal *:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .add-to-playlist-modal__body:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .add-to-playlist-list:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .add-to-playlist-episodes-list:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-metadata-edit-modal__body:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .vod-metadata-tmdb-results:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .playlist-queue-modal__body:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .playlist-queue-list:hover::-webkit-scrollbar-thumb,
 html[data-custom-scrollbar="true"] .series-detail:hover::-webkit-scrollbar-thumb,
-html[data-custom-scrollbar="true"] .movie-detail:hover::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.45) !important;
+html[data-custom-scrollbar="true"] .series-detail *:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .movie-detail:hover::-webkit-scrollbar-thumb,
+html[data-custom-scrollbar="true"] .movie-detail *:hover::-webkit-scrollbar-thumb {
+  background: var(--vs-scrollbar-thumb-hover-bg, var(--scrollbar-thumb-container-hover-bg, var(--surface-hover, rgba(255, 255, 255, 0.25)))) !important;
 }
 
 html[data-custom-scrollbar="true"] ::-webkit-scrollbar-thumb:hover,
 html[data-custom-scrollbar="true"] *::-webkit-scrollbar-thumb:hover,
 html[data-custom-scrollbar="true"] .modern-ui ::-webkit-scrollbar-thumb:hover,
 html[data-custom-scrollbar="true"] .modern-ui-v3 ::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vertical-sidebar__scrollable::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vertical-sidebar__scrollable *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-browse::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-browse *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-page__content::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-page__content *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-page__home::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-page__home *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .playlists-view::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .playlists-view *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .local-tab-container::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .local-tab-container *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .stremio-service-view::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .stremio-service-view *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .streaming-service-view::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .streaming-service-view *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .stremio-person-detail::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .stremio-person-detail *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-cast-detail-overlay *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .h-category-strip__scroll::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .category-strip-scrollable::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .category-strip-list::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .category-list::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .category-list *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .cm-bulk-scroll-list::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .cm-bulk-col::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .cm-bulk-modal *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .add-to-playlist-modal__body::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .add-to-playlist-list::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .add-to-playlist-episodes-list::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-metadata-edit-modal__body::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .vod-metadata-tmdb-results::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .playlist-queue-modal__body::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .playlist-queue-list::-webkit-scrollbar-thumb:hover,
 html[data-custom-scrollbar="true"] .series-detail::-webkit-scrollbar-thumb:hover,
-html[data-custom-scrollbar="true"] .movie-detail::-webkit-scrollbar-thumb:hover {
+html[data-custom-scrollbar="true"] .series-detail *::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .movie-detail::-webkit-scrollbar-thumb:hover,
+html[data-custom-scrollbar="true"] .movie-detail *::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff)) !important;
 }
 

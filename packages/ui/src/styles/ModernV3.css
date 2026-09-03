@@ -769,7 +769,7 @@ html.modern-ui-v3 {
   --scrollbar-thumb-hover-bg: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff));
   --scrollbar-thumb-container-hover-bg: var(--surface-hover, rgba(255, 255, 255, 0.25));
   --scrollbar-track-bg: transparent;
-  --scrollbar-width: 6px;
+  --scrollbar-width: var(--app-scrollbar-width, 6px);
   --scrollbar-color: rgba(255, 255, 255, 0.08);
   --scrollbar-color-hover: var(--scrollbar-hover-color, var(--accent-primary, rgba(0, 212, 255, 0.5)));
   --sm-item-move-bg: color-mix(in srgb, var(--accent-primary, #8b5cf6) 12%, rgba(255, 255, 255, 0.04));

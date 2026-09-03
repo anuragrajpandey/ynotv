@@ -62,6 +62,31 @@ const notifySportsCacheUpdate = (cache: SportsCache) => {
   });
 };
 
+// ---- Shared-cache accessors for passive consumers (e.g. Phone Remote companion) ----
+
+/** Latest events from the shared sports cache, without triggering any fetch. */
+export function getSportsCacheEvents(): SportsEvent[] {
+  return getSportsCache().events;
+}
+
+/** True when the shared cache is fresh enough to serve without refetching. */
+export function isSportsCacheFresh(): boolean {
+  const cache = getSportsCache();
+  if (!cache.lastUpdated) return false;
+  const age = Date.now() - cache.lastUpdated.getTime();
+  const hasLive = cache.events.some(isEventLiveOrPastStart);
+  return age < (hasLive ? CACHE_FRESH_LIVE : CACHE_FRESH_NO_LIVE);
+}
+
+/** Subscribe to shared-cache updates pushed by any active hook instance. Returns an unsubscribe fn. */
+export function subscribeSportsCache(cb: (events: SportsEvent[]) => void): () => void {
+  const listener = (cache: SportsCache) => cb(cache.events);
+  getListeners().add(listener);
+  return () => {
+    getListeners().delete(listener);
+  };
+}
+
 // Global flag to prevent multiple hook instances from fetching simultaneously
 const isGlobalFetching = (): boolean => {
   return !!(window as unknown as { __sportsFetching?: boolean }).__sportsFetching;

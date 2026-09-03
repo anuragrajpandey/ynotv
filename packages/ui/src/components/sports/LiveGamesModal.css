@@ -1,0 +1,215 @@
+/* Live Games Modal — controller/remote-friendly full-screen game picker */
+
+.lgm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 12, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: lgm-fade-in 0.18s ease-out;
+}
+
+@keyframes lgm-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lgm-modal {
+  width: min(760px, 94vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(12, 14, 22, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  color: var(--text-primary, #fff);
+}
+
+.lgm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.lgm-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lgm-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.lgm-count {
+  background: var(--accent-primary, #00d4ff);
+  color: #000;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 10px;
+  line-height: 1.3;
+}
+
+.lgm-header .game-detail-close {
+  width: 34px;
+  height: 34px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* League filter bar */
+.lgm-leagues-bar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 10px 20px 0;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.lgm-leagues-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.lgm-league-pill {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 6px 14px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lgm-league-pill:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.lgm-league-pill.active {
+  background: rgba(0, 212, 255, 0.16);
+  border-color: rgba(0, 212, 255, 0.45);
+  color: var(--accent-primary, #00d4ff);
+}
+
+.lgm-league-pill-count {
+  font-size: 0.72rem;
+  opacity: 0.75;
+}
+
+/* Game list */
+.lgm-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-hover, rgba(255, 255, 255, 0.18)) transparent;
+}
+
+.lgm-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lgm-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lgm-body::-webkit-scrollbar-thumb {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.18));
+  border-radius: 3px;
+}
+
+/* Scale up the compact sidebar cards for the modal */
+.lgm-body .slg-card {
+  padding: 14px 16px;
+  gap: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.lgm-body .slg-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.lgm-body .slg-card-header {
+  font-size: 0.78rem;
+}
+
+.lgm-body .slg-card-league {
+  font-size: 0.72rem;
+}
+
+.lgm-body .slg-card-status {
+  font-size: 0.76rem;
+}
+
+.lgm-body .slg-team-logo,
+.lgm-body .slg-team-logo-fallback {
+  width: 28px;
+  height: 28px;
+}
+
+.lgm-body .slg-team-logo-fallback {
+  font-size: 0.68rem;
+}
+
+.lgm-body .slg-team-name {
+  font-size: 1rem;
+}
+
+.lgm-body .slg-team-score {
+  font-size: 1.05rem;
+  min-width: 28px;
+}
+
+/* Play controls always visible & comfortably tappable in the modal */
+.lgm-body .slg-team-play-control {
+  height: 26px;
+  opacity: 1;
+}
+
+.lgm-body .slg-team-play-main {
+  width: 26px;
+  height: 24px;
+}
+
+.lgm-body .slg-team-play-caret {
+  width: 18px;
+  height: 24px;
+}
+
+.lgm-body .slg-team-unlinked-btn {
+  width: 24px;
+  height: 24px;
+  opacity: 1;
+}
+
+/* Find-streams hover button always visible in the modal */
+.lgm-body .slg-card-hover-search {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}

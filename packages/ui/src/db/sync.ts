@@ -5,12 +5,58 @@ import type { Source, Channel, Category, Movie, Series } from '@ynotv/core';
 import { useUIStore } from '../stores/uiStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { bulkOps, type BulkChannel, type BulkCategory } from '../services/bulk-ops';
-import { epgStreaming, type EpgProgressCallback, type EpgParseResult } from '../services/epg-streaming';
-import { dbEvents } from './sqlite-adapter';
+import { epgStreaming, getEpgUrlCandidates, type EpgProgressCallback, type EpgParseResult } from '../services/epg-streaming';
+import { dbEvents, withSyncGate } from './sqlite-adapter';
 import { matchAllMoviesLazy, matchAllSeriesLazy } from '../services/title-match';
 import type { GlobalEpgLink } from '../types/app';
 
 import { invoke } from '@tauri-apps/api/core';
+
+// Slowest per-source bulk EPG alignment of the current sync-all run, reported
+// in the run summary row written by epgStreaming.timingRunEnd().
+let lastRunAlignmentMaxMs = 0;
+
+// ── Staggered bulk EPG alignment scheduler (sync-all only) ────────────────
+// Each source's alignment is queued the moment its own EPG lands, so the work
+// overlaps the remaining sources' downloads/inserts instead of forming a
+// post-sync tail. The concurrency cap keeps queued alignments from retrying
+// 15x against each other on the single-writer SQLite connection.
+const ALIGNMENT_MAX_CONCURRENT = 2;
+let alignmentQueue: string[] = [];
+let alignmentInFlight = 0;
+let alignmentDrainResolve: (() => void) | null = null;
+
+function pumpAlignmentQueue(): void {
+  while (alignmentInFlight < ALIGNMENT_MAX_CONCURRENT && alignmentQueue.length > 0) {
+    const sourceId = alignmentQueue.shift()!;
+    alignmentInFlight++;
+    alignOverriddenChannelPrograms(sourceId)
+      .finally(() => {
+        alignmentInFlight--;
+        pumpAlignmentQueue();
+      })
+      .catch(() => {});
+  }
+  if (alignmentQueue.length === 0 && alignmentInFlight === 0 && alignmentDrainResolve) {
+    const resolve = alignmentDrainResolve;
+    alignmentDrainResolve = null;
+    resolve();
+  }
+}
+
+function queueAlignment(sourceId: string): void {
+  alignmentQueue.push(sourceId);
+  pumpAlignmentQueue();
+}
+
+function drainAlignments(): Promise<void> {
+  if (alignmentQueue.length === 0 && alignmentInFlight === 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    alignmentDrainResolve = resolve;
+  });
+}
 
 // Debug logging helper - logs to console and optionally to debug file
 function debugLog(message: string, category = 'sync'): void {
@@ -257,6 +303,36 @@ function sanitizeSeries(series: any, existingSeries?: any): any {
   return clean;
 }
 
+/**
+ * Persists a working fallback EPG URL so subsequent syncs and the UI
+ * automatically use the working URL as default.
+ */
+async function persistWorkingEpgUrl(source: Source, workingUrl: string, originalUrl?: string): Promise<void> {
+  if (!workingUrl || !source?.id) return;
+
+  try {
+    // 1. Update sourcesMeta table in DB so UI immediately reflects working EPG URL
+    await bulkOps.updateSourceMeta({
+      source_id: source.id,
+      epg_url: workingUrl,
+    });
+    dbEvents.notify('sourcesMeta', 'update');
+
+    // 2. If source.epg_url was explicitly set or differs from workingUrl, update source storage
+    if (window.storage?.saveSource && source.epg_url !== workingUrl) {
+      const updatedSource = {
+        ...source,
+        epg_url: workingUrl,
+      };
+      await window.storage.saveSource(updatedSource);
+      console.log(`[EPG] Persisted working EPG URL as default for source "${source.name || source.id}": ${workingUrl}`);
+      debugLog(`Persisted working EPG URL as default for source "${source.name || source.id}": ${workingUrl}`, 'epg');
+    }
+  } catch (err) {
+    console.warn(`[EPG] Failed to persist working EPG URL for source "${source.name || source.id}":`, err);
+  }
+}
+
 // Sync EPG from XMLTV URL(s) for M3U sources using streaming parser
 async function syncEpgFromUrl(
   source: Source,
@@ -313,7 +389,7 @@ async function syncEpgFromUrl(
       return 0;
     }
 
-    // Use streaming EPG parser
+    // Use streaming EPG parser with candidate fallback
     const result = await epgStreaming.streamParseEpg(
       source.id,
       source.name || source.id,
@@ -331,6 +407,11 @@ async function syncEpgFromUrl(
       source.user_agent
     );
 
+    // If a working URL was found, persist it as the default EPG URL for this source
+    if (result.working_url) {
+      await persistWorkingEpgUrl(source, result.working_url, epgUrl);
+    }
+
     debugLog(
       `Matched ${result.matched_programs}/${result.total_programs} programs (${result.unmatched_channels} unmatched EPG channels)`,
       'epg'
@@ -338,7 +419,7 @@ async function syncEpgFromUrl(
 
     console.log(`[EPG] Streaming parser result: ${result.matched_programs}/${result.total_programs} programs matched`);
     console.log(`[EPG] ${result.inserted_programs} programs inserted, ${result.unmatched_channels} unmatched EPG channels`);
-    console.log(`[EPG] Duration: ${result.duration_ms}ms`);
+    console.log(`[EPG] Duration: ${result.duration_ms}ms (download ${result.download_ms}ms, decompress ${result.decompress_ms}ms, parse ${result.parse_ms}ms, insert ${result.insert_ms}ms, lock-wait ${result.lock_wait_ms ?? 0}ms)`);
 
     if (result.inserted_programs === 0) {
       console.warn(`[EPG] WARNING: No programs inserted! Check if EPG channel IDs match M3U tvg-id values.`);
@@ -379,17 +460,11 @@ async function syncEpgForSource(source: Source, channels: Channel[], epgUrl?: st
   debugLog(`Starting EPG sync with Rust streaming parser for source: ${source.name || source.id}`, 'epg');
 
   // Use the provided EPG URL or construct from source.url
-  let xmltvUrl = epgUrl || `${source.url}/xmltv.php?username=${encodeURIComponent(source.username)}&password=${encodeURIComponent(source.password)}`;
-  
-  // Convert HTTPS to HTTP for EPG URLs to avoid TLS certificate issues
-  // Many IPTV providers have misconfigured HTTPS on their EPG endpoints
-  if (xmltvUrl.startsWith('https://')) {
-    xmltvUrl = xmltvUrl.replace('https://', 'http://');
-    console.log(`[EPG] Converted HTTPS to HTTP for EPG URL: ${xmltvUrl.substring(0, 80)}...`);
-  }
-  
-  console.log(`[EPG] Streaming XMLTV from: ${xmltvUrl.substring(0, 80)}...`);
-  debugLog(`Streaming XMLTV from: ${xmltvUrl}`, 'epg');
+  const primaryXmltvUrl = epgUrl || `${source.url}/xmltv.php?username=${encodeURIComponent(source.username)}&password=${encodeURIComponent(source.password)}`;
+  const candidateUrls = getEpgUrlCandidates(primaryXmltvUrl, source.url, source.username, source.password);
+
+  console.log(`[EPG] Candidate URLs for ${source.name || source.id}:`, candidateUrls);
+  debugLog(`Streaming XMLTV from candidates: ${candidateUrls[0]} (total ${candidateUrls.length} candidate(s))`, 'epg');
 
   try {
     // Load user-applied EPG channel ID overrides so they win over the raw channel value
@@ -407,24 +482,30 @@ async function syncEpgForSource(source: Source, channels: Channel[], epgUrl?: st
     console.log(`[EPG] Channels with EPG mapping (tvg-id or name): ${channelMappings.length}/${channels.length}`);
     debugLog(`${channelMappings.length}/${channels.length} channels have epg_channel_id`, 'epg');
 
-    // Use native Rust streaming parser for maximum performance
-    // This downloads, parses, matches, and inserts all in Rust
-    const result = await invoke<EpgParseResult>('stream_parse_epg', {
-      sourceId: source.id,
-      sourceName: source.name || source.id,
-      epgUrl: xmltvUrl,
+    // Use native Rust streaming parser for maximum performance with automatic fallback retry
+    const result = await epgStreaming.streamParseEpg(
+      source.id,
+      source.name || source.id,
+      primaryXmltvUrl,
       channelMappings,
-      advancedEpgMatching: source.advanced_epg_matching ?? false,
-      timeshiftHours: source.epg_timeshift_hours ?? 0,
-      clearExisting: true,
-      userAgent: source.user_agent || null,
-    });
+      undefined,
+      source.advanced_epg_matching ?? false,
+      source.epg_timeshift_hours ?? 0,
+      true,
+      source.user_agent,
+      candidateUrls
+    );
+
+    // If a working URL was found, persist it as the default EPG URL for this source
+    if (result.working_url) {
+      await persistWorkingEpgUrl(source, result.working_url, epgUrl);
+    }
 
     console.log(`[EPG] Rust streaming parser COMPLETE:`);
     console.log(`  - Total programs in XML: ${result.total_programs}`);
     console.log(`  - Matched to channels: ${result.matched_programs}`);
     console.log(`  - Inserted to DB: ${result.inserted_programs}`);
-    console.log(`  - Duration: ${result.duration_ms}ms`);
+    console.log(`  - Duration: ${result.duration_ms}ms (download ${result.download_ms}ms, decompress ${result.decompress_ms}ms, parse ${result.parse_ms}ms, insert ${result.insert_ms}ms, lock-wait ${result.lock_wait_ms ?? 0}ms)`);
 
     debugLog(`EPG sync complete: ${result.inserted_programs} programs stored (${result.duration_ms}ms)`, 'epg');
 
@@ -690,6 +771,18 @@ export async function syncStalkerShortEpg(
   onProgress?: (completed: number, total: number) => void,
   force: boolean = false
 ): Promise<number> {
+  // Gate program notifications: this fetches EPG per-channel in a loop and
+  // each batch would otherwise re-run every program query mid-fetch.
+  return withSyncGate(() => syncStalkerShortEpgInternal(source, channels, categoryId, onProgress, force));
+}
+
+async function syncStalkerShortEpgInternal(
+  source: any,
+  channels: any[],
+  categoryId: string | null = null,
+  onProgress?: (completed: number, total: number) => void,
+  force: boolean = false
+): Promise<number> {
   source = await resolveSourceUserAgent(source);
   if (!source || !source.mac || channels.length === 0) return 0;
 
@@ -856,19 +949,6 @@ export async function syncStalkerShortEpg(
 
 
 
-/**
- * Normalize a channel name for fuzzy EPG matching.
- * Mirrors the Rust normalize_channel_name logic.
- */
-function normalizeChannelName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/^prime:\s*|^il:\s*|^f:\s*|^ss:\s*|^##+\s*/g, '')
-    .replace(/[\[\](){}]/g, '')
-    .replace(/[\u{1d3f}\u{1d2c}\u{1d42}\u{1d34}\u{1d35}\u{2076}\u{2070}\u{1da0}\u{1d56}\u{02e2}]/gu, '')
-    .replace(/[^a-z0-9+]/g, '');
-}
-
 // ─── Additional EPG waterfall helper ─────────────────────────────────────────
 /**
  * Get the set of stream_ids that currently have at least one program for a source.
@@ -927,17 +1007,22 @@ async function syncAdditionalEpgUrls(
   const epgOverrideMap = await loadEpgChannelOverrideMap();
   let totalInserted = 0;
 
-  for (let i = 0; i < source.additional_epg_urls.length; i++) {
+  const additionalUrls = source.additional_epg_urls;
+  if (!additionalUrls || additionalUrls.length === 0) {
+    return 0;
+  }
+
+  for (let i = 0; i < additionalUrls.length; i++) {
     if (channelsNeedingEpg.length === 0) break;
 
-    const epgUrl = source.additional_epg_urls[i].trim();
+    const epgUrl = additionalUrls[i].trim();
     if (!epgUrl) continue;
 
     debugLog(
-      `Additional EPG ${i + 1}/${source.additional_epg_urls.length}: ${epgUrl.substring(0, 80)}...`,
+      `Additional EPG ${i + 1}/${additionalUrls.length}: ${epgUrl.substring(0, 80)}...`,
       'epg'
     );
-    onProgress?.(`Updating EPG (additional ${i + 1}/${source.additional_epg_urls.length})...`);
+    onProgress?.(`Updating EPG (additional ${i + 1}/${additionalUrls.length})...`);
 
     try {
       // Build channel mappings for Rust parser
@@ -975,12 +1060,31 @@ async function syncAdditionalEpgUrls(
         source.user_agent
       );
 
-      console.log(`[EPG] Additional EPG ${i + 1}: Matched ${result.matched_programs}/${result.total_programs} programs. Inserted: ${result.inserted_programs}`);
+      console.log(`[EPG] Additional EPG ${i + 1}: Matched ${result.matched_programs}/${result.total_programs} programs. Inserted: ${result.inserted_programs}. Duration: ${result.duration_ms}ms (download ${result.download_ms}ms, decompress ${result.decompress_ms}ms, parse ${result.parse_ms}ms, insert ${result.insert_ms}ms, lock-wait ${result.lock_wait_ms ?? 0}ms)`);
 
       debugLog(
         `Additional EPG ${i + 1}: inserted ${result.inserted_programs} programs`,
         'epg'
       );
+
+      // If a fallback URL was used and differs from the configured URL, persist it
+      if (result.working_url && result.working_url !== epgUrl) {
+        const updatedAdditional: string[] = [...additionalUrls];
+        updatedAdditional[i] = result.working_url;
+        source.additional_epg_urls = updatedAdditional;
+        try {
+          if (window.storage?.saveSource) {
+            await window.storage.saveSource({
+              ...source,
+              additional_epg_urls: updatedAdditional,
+            });
+            console.log(`[EPG] Persisted working additional EPG URL (${i + 1}): ${result.working_url}`);
+            debugLog(`Persisted working additional EPG URL (${i + 1}): ${result.working_url}`, 'epg');
+          }
+        } catch (saveErr) {
+          console.warn('[EPG] Failed to persist working additional EPG URL:', saveErr);
+        }
+      }
 
       if (result.inserted_programs === 0) {
         console.warn(`[EPG] Additional EPG ${i + 1}: No programs inserted!`);
@@ -1070,8 +1174,6 @@ export async function applyGlobalEpgToSource(
       return 0;
     }
 
-    // Load user-applied EPG channel ID overrides
-    const epgOverrideMap = await loadEpgChannelOverrideMap();
     let totalInserted = 0;
     // Track per-link insertion counts so we can update lastSyncResult in settings
     const linkResultCounts = new Map<string, { programs: number; channels: number; matchedStreamIds: string[] }>();
@@ -1090,182 +1192,56 @@ export async function applyGlobalEpgToSource(
       onProgress?.(`Updating EPG (global ${i + 1}/${linksForSource.length})...`);
 
       try {
-        // Build channel mappings for Rust parser
-        // We only pass channels that STILL need EPGs
-        const channelMappings = channelsNeedingEpg
-          .filter((ch) => epgOverrideMap.has(ch.stream_id) || ch.epg_channel_id || ch.name)
-          .map((ch) => ({
-            epg_channel_id: epgOverrideMap.get(ch.stream_id) || ch.epg_channel_id || ch.name || '',
-            stream_id: ch.stream_id,
-            channel_name: ch.name || '',
-          }));
-
-        if (channelMappings.length === 0) {
-          debugLog(`No channels with EPG IDs remaining for global EPG ${i + 1}`, 'epg');
-          continue;
-        }
-
-        console.log(`[EPG] Global EPG ${i + 1}: Built channel map with ${channelMappings.length} unique mappings`);
-
+        // The needing-EPG channel mappings are computed in Rust for both
+        // branches below (channels minus already-filled stream ids, user
+        // overrides applied), so no mapping payload crosses IPC on this path
+        // either. Sources with nothing needing EPG yield empty results and the
+        // 0-insert `continue` below handles the skip.
         let resultInsertedPrograms = 0;
         let resultMatchedChannels = 0;
 
         if (link.saveEntireEpg) {
-          console.log(`[EPG] Global EPG ${i + 1}: Querying from local SQLite cache...`);
-          onProgress?.(`Querying EPG from local cache...`);
           try {
-            const cacheDbName = `epg_cache_${link.id}`;
-            const Database = (await import('@tauri-apps/plugin-sql')).default;
-            const cacheDb = await Database.load(`sqlite:${cacheDbName}.db`);
-
-            // 1. Fetch EPG channels from cacheDb
-            const epgChannels = await cacheDb.select('SELECT id, display_name FROM epg_channels') as { id: string, display_name: string }[];
-            
-            // 2. Build displayNameToEpgIdMap
-            const displayNameToEpgIdMap = new Map<string, string>();
-            const epgChannelIdsSet = new Set<string>();
-            for (const ec of epgChannels) {
-              const lowerId = ec.id.toLowerCase();
-              displayNameToEpgIdMap.set(lowerId, ec.id);
-              epgChannelIdsSet.add(lowerId);
-              
-              if (ec.display_name) {
-                const lowerName = ec.display_name.toLowerCase();
-                displayNameToEpgIdMap.set(lowerName, ec.id);
-                const normEpg = normalizeChannelName(ec.display_name);
-                if (normEpg) {
-                  displayNameToEpgIdMap.set(normEpg, ec.id);
-                }
-              }
-            }
-
-            // 3. Map M3U channels to EPG channel IDs
-            const epgIdToStreamIdMap = new Map<string, string[]>();
-            const advancedEpgMatching = source.advanced_epg_matching ?? false;
-            const overridesToSave: any[] = [];
-
-            for (const ch of channelsNeedingEpg) {
-              let matchedEpgId: string | undefined = undefined;
-
-              // Override always wins first
-              const overrideId = epgOverrideMap.get(ch.stream_id);
-              if (overrideId) {
-                const lowerOverride = overrideId.toLowerCase();
-                if (epgChannelIdsSet.has(lowerOverride)) {
-                  matchedEpgId = displayNameToEpgIdMap.get(lowerOverride);
-                } else {
-                  matchedEpgId = overrideId; // Pass through override even if not in cache (could be synced later/fallback)
-                }
-              } else {
-                // Try tvg-id (epg_channel_id)
-                const tvgId = ch.epg_channel_id?.trim();
-                if (tvgId) {
-                  const lowerTvg = tvgId.toLowerCase();
-                  if (epgChannelIdsSet.has(lowerTvg)) {
-                    matchedEpgId = displayNameToEpgIdMap.get(lowerTvg);
-                  } else if (advancedEpgMatching) {
-                    const normTvg = normalizeChannelName(tvgId);
-                    matchedEpgId = displayNameToEpgIdMap.get(lowerTvg) || displayNameToEpgIdMap.get(normTvg);
-                  }
-                }
-
-                // Try channel name if tvg-id didn't match
-                if (!matchedEpgId && ch.name?.trim()) {
-                  const name = ch.name.trim();
-                  const lowerName = name.toLowerCase();
-                  if (epgChannelIdsSet.has(lowerName)) {
-                    matchedEpgId = displayNameToEpgIdMap.get(lowerName);
-                  } else if (advancedEpgMatching) {
-                    const normName = normalizeChannelName(name);
-                    matchedEpgId = displayNameToEpgIdMap.get(lowerName) || displayNameToEpgIdMap.get(normName);
-                  }
-                }
-              }
-
-              if (matchedEpgId) {
-                if (!epgIdToStreamIdMap.has(matchedEpgId)) {
-                  epgIdToStreamIdMap.set(matchedEpgId, []);
-                }
-                epgIdToStreamIdMap.get(matchedEpgId)!.push(ch.stream_id);
-
-                if (!epgOverrideMap.has(ch.stream_id)) {
-                  overridesToSave.push({
-                    stream_id: ch.stream_id,
-                    epg_channel_id: matchedEpgId
-                  });
-                }
-              }
-            }
-
-            if (overridesToSave.length > 0) {
-              await db.epgChannelOverrides.bulkPut(overridesToSave);
-            }
-
-            const uniqueEpgIds = Array.from(epgIdToStreamIdMap.keys());
-            const programsToInsert: any[] = [];
-            const matchedStreamIdsSet = new Set<string>();
-
-            const CHUNK_SIZE = 500;
-            for (let idx = 0; idx < uniqueEpgIds.length; idx += CHUNK_SIZE) {
-              const chunk = uniqueEpgIds.slice(idx, idx + CHUNK_SIZE);
-              const placeholders = chunk.map((_, i) => `$${i + 1}`).join(',');
-              
-              const progs = await cacheDb.select(
-                `SELECT * FROM programs WHERE stream_id IN (${placeholders})`,
-                chunk
-              ) as any[];
-
-              for (const p of progs) {
-                const streamIds = epgIdToStreamIdMap.get(p.stream_id);
-                if (streamIds) {
-                  for (const streamId of streamIds) {
-                    if (!matchedStreamIdsSet.has(streamId)) {
-                      matchedStreamIdsSet.add(streamId);
-                      resultMatchedChannels++;
-                    }
-                    programsToInsert.push({
-                      id: `${streamId}_${p.start}`,
-                      stream_id: streamId,
-                      title: p.title,
-                      subtitle: p.subtitle,
-                      description: p.description,
-                      start: p.start,
-                      end: p.end,
-                      source_id: source.id
-                    });
-                  }
-                }
-              }
-            }
-
-            if (programsToInsert.length > 0) {
-              await db.programs.bulkPut(programsToInsert);
-              dbEvents.notify('programs', 'add');
-              resultInsertedPrograms = programsToInsert.length;
-            }
+            // Rust cache pass: computes the needing-EPG mappings for this source
+            // from the main DB, writes the full feed to the local cache, and
+            // inserts matched programmes directly — no JS read-back or bulkPut
+            // in this path anymore.
+            const results = await invoke('cache_entire_epg_db', {
+              epgUrl,
+              epgLinkId: link.id,
+              userAgent: source.user_agent || null,
+              sources: [{
+                sourceId: source.id,
+                sourceName: source.name || source.id,
+                advancedEpgMatching: source.advanced_epg_matching ?? false,
+                timeshiftHours: source.epg_timeshift_hours ?? 0,
+                clearExisting: false,
+              }],
+            }) as { source_id: string; inserted_programs: number; matched_channels?: number }[];
+            const result = results[0];
+            resultInsertedPrograms = result?.inserted_programs ?? 0;
+            resultMatchedChannels = result?.matched_channels ?? 0;
           } catch (e) {
-            console.error(`[EPG] Failed to map from SQLite cache for global EPG ${link.name}:`, e);
+            console.error(`[EPG] Failed to apply EPG from local cache for ${link.name}:`, e);
           }
         } else {
-          // Use streaming EPG parser (with clearExisting = false to preserve waterfall)
-          const result = await epgStreaming.streamParseEpg(
-            source.id,
-            source.name || source.id,
+          // Rust multi-source parser with a single source ref (clearExisting =
+          // false preserves the waterfall) — it computes the needing-EPG
+          // mappings from the main DB and downloads/parses/inserts in one pass.
+          const results = await epgStreaming.streamParseEpgMulti(
             epgUrl,
-            channelMappings,
-            onProgress
-              ? (progress) => {
-                  debugLog(epgStreaming.formatProgress(progress), 'epg');
-                  onProgress(epgStreaming.formatProgress(progress));
-                }
-              : undefined,
-            source.advanced_epg_matching,
-            source.epg_timeshift_hours ?? 0,
-            false, // clearExisting = false
-            source.user_agent
+            [{
+              sourceId: source.id,
+              sourceName: source.name || source.id,
+              advancedEpgMatching: source.advanced_epg_matching ?? false,
+              timeshiftHours: source.epg_timeshift_hours ?? 0,
+              clearExisting: false,
+            }],
+            source.user_agent || undefined
           );
-          resultInsertedPrograms = result.inserted_programs;
-          resultMatchedChannels = result.matched_channels ?? 0;
+          const result = results[0];
+          resultInsertedPrograms = result?.inserted_programs ?? 0;
+          resultMatchedChannels = result?.matched_channels ?? 0;
         }
 
         console.log(`[EPG] Global EPG ${i + 1}: Matched/inserted: ${resultInsertedPrograms} programs`);
@@ -1280,11 +1256,13 @@ export async function applyGlobalEpgToSource(
           continue;
         }
 
+        // Newly-filled channels = stream ids that gained programmes during this
+        // link's pass (after − before). No mapping payload needed in JS.
         const newlyMatched: string[] = [];
         const channelsWithProgramsAfter = await getStreamIdsWithPrograms(source.id);
-        for (const mapping of channelMappings) {
-          if (channelsWithProgramsAfter.has(mapping.stream_id)) {
-            newlyMatched.push(mapping.stream_id);
+        for (const streamId of channelsWithProgramsAfter) {
+          if (!channelsWithPrograms.has(streamId)) {
+            newlyMatched.push(streamId);
           }
         }
 
@@ -1385,10 +1363,14 @@ export async function applyGlobalEpgToSource(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Sync all stale global EPG links.
+ * Sync all global EPG links that need it.
  * Intended as a post-batch-sync step: after all sources have synced their primary EPGs,
- * this downloads each stale global EPG once and applies it to all linked sources.
- * Skips links that were synced recently (within GLOBAL_EPG_FRESH_MS).
+ * this downloads each global EPG once and applies it to all linked sources.
+ * A link is attempted when it's stale (within GLOBAL_EPG_FRESH_MS it's considered
+ * fresh) OR its last sync inserted programs (it can fill gaps again) — the
+ * per-link impl skips the download cheaply when no channels currently need EPG,
+ * and links whose last sync matched nothing are backed off by the freshness
+ * window so a no-match feed isn't re-downloaded every cycle.
  */
 let globalEpgPostSyncInFlight: Promise<number> | null = null;
 const globalEpgLinkSyncsInFlight = new Map<string, Promise<number>>();
@@ -1403,7 +1385,9 @@ export async function syncAllStaleGlobalEpgLinks(
     return globalEpgPostSyncInFlight;
   }
 
-  globalEpgPostSyncInFlight = syncAllStaleGlobalEpgLinksImpl(onProgress, sourceIds).finally(() => {
+  // Gate live-query notifications: a global EPG sync streams thousands of
+  // program batches, and each batch would otherwise re-run every program query.
+  globalEpgPostSyncInFlight = withSyncGate(() => syncAllStaleGlobalEpgLinksImpl(onProgress, sourceIds)).finally(() => {
     globalEpgPostSyncInFlight = null;
   });
 
@@ -1422,29 +1406,35 @@ async function syncAllStaleGlobalEpgLinksImpl(
   try {
     const globalEpgLinks = useSettingsStore.getState().globalEpgLinks;
     const sourceIdFilter = sourceIds && sourceIds.length > 0 ? new Set(sourceIds) : null;
+    // A link is attempted when it's stale (feed may have new data) OR the last
+    // sync actually inserted programs (it can fill gaps again — e.g. right
+    // after a playlist sync wiped the sources). Links synced recently whose
+    // last attempt matched nothing are backed off by the freshness window so a
+    // no-match feed isn't re-downloaded every cycle. The per-link impl also
+    // skips the download entirely when no channels currently need EPG.
     // Sort by display_order so higher priority EPGs are synced first
-    const staleLinks = globalEpgLinks
+    const linksToSync = globalEpgLinks
       .filter(link => !sourceIdFilter || link.sourceIds.some(sourceId => sourceIdFilter.has(sourceId)))
-      .filter(link => !isGlobalEpgFresh(link))
+      .filter(link => !isGlobalEpgFresh(link) || (link.lastSyncResult?.totalInserted ?? 0) > 0)
       .sort((a, b) => (a.display_order ?? Number.MAX_SAFE_INTEGER) - (b.display_order ?? Number.MAX_SAFE_INTEGER));
 
-    if (staleLinks.length === 0) {
+    if (linksToSync.length === 0) {
       debugLog(
         sourceIdFilter
-          ? 'No stale global EPG links are tied to the synced sources, skipping post-sync'
-          : 'All global EPG links are fresh, skipping post-sync',
+          ? 'No global EPG links tied to the synced sources need sync, skipping post-sync'
+          : 'All global EPG links are fresh with no recent fills, skipping post-sync',
         'epg'
       );
       return 0;
     }
 
-    console.log(`[Global EPG] Post-sync: ${staleLinks.length} stale global EPG link(s)`);
-    debugLog(`Post-syncing ${staleLinks.length} stale global EPG links (waterfall order)`, 'epg');
+    console.log(`[Global EPG] Post-sync: ${linksToSync.length} global EPG link(s) need sync`);
+    debugLog(`Post-syncing ${linksToSync.length} global EPG links (waterfall order)`, 'epg');
 
     let totalInserted = 0;
-    for (let i = 0; i < staleLinks.length; i++) {
-      const link = staleLinks[i];
-      onProgress?.(`Syncing global EPG ${i + 1}/${staleLinks.length}: ${link.name}...`);
+    for (let i = 0; i < linksToSync.length; i++) {
+      const link = linksToSync[i];
+      onProgress?.(`Syncing global EPG ${i + 1}/${linksToSync.length}: ${link.name}...`);
       try {
         const count = await syncGlobalEpgLinkStandalone(link, (msg) => {
           onProgress?.(`[${link.name}] ${msg}`);
@@ -1483,7 +1473,8 @@ export async function syncGlobalEpgLinkStandalone(
     return inFlight;
   }
 
-  const syncPromise = syncGlobalEpgLinkStandaloneImpl(epgLink, onProgress).finally(() => {
+  // Gate live-query notifications while the streaming parser inserts programs.
+  const syncPromise = withSyncGate(() => syncGlobalEpgLinkStandaloneImpl(epgLink, onProgress)).finally(() => {
     globalEpgLinkSyncsInFlight.delete(epgLink.id);
   });
   globalEpgLinkSyncsInFlight.set(epgLink.id, syncPromise);
@@ -1515,12 +1506,12 @@ async function syncGlobalEpgLinkStandaloneImpl(
   const allSources = sourcesResult.data || [];
   const sourceMap = new Map(allSources.map(s => [s.id, s]));
 
-  // Load user-applied EPG channel ID overrides (shared across all sources)
-  const epgOverrideMap = await loadEpgChannelOverrideMap();
-
-  // Build per-source channel mappings (only channels that still need EPG)
-  const sourceConfigs: import('../services/epg-streaming').SourceEpgConfig[] = [];
-  const channelsNeedingEpgMap = new Map<string, string[]>();
+  // Per-source refs — the needing-EPG channel mappings are computed in Rust
+  // (channels minus already-filled stream ids, user overrides taking priority),
+  // so the renderer no longer fetches every channel or ships ~20k-row mapping
+  // payloads across IPC. Sources with nothing needing EPG are skipped inside
+  // the Rust pass.
+  const sourceRefs: import('../services/epg-streaming').EpgSourceRef[] = [];
 
   for (const sourceId of epgLink.sourceIds) {
     const source = sourceMap.get(sourceId);
@@ -1529,41 +1520,9 @@ async function syncGlobalEpgLinkStandaloneImpl(
       continue;
     }
 
-    const sourceChannels = await db.channels.where('source_id').equals(sourceId).toArray();
-    if (sourceChannels.length === 0) {
-      debugLog(`Source ${sourceId} has no channels, skipping`, 'epg');
-      continue;
-    }
-
-    const channelsWithPrograms = await getStreamIdsWithPrograms(sourceId);
-    const channelsNeedingEpg = sourceChannels.filter(ch => !channelsWithPrograms.has(ch.stream_id));
-
-    if (channelsNeedingEpg.length === 0) {
-      console.log(`[Global EPG] Source ${sourceId}: all channels already have EPG`);
-      debugLog(`Source ${sourceId}: all ${sourceChannels.length} channels already have EPG`, 'epg');
-      continue;
-    }
-
-    const channelMappings = channelsNeedingEpg
-      .filter((ch) => epgOverrideMap.has(ch.stream_id) || ch.epg_channel_id || ch.name)
-      .map((ch) => ({
-        epg_channel_id: epgOverrideMap.get(ch.stream_id) || ch.epg_channel_id || ch.name || '',
-        stream_id: ch.stream_id,
-        channel_name: ch.name || '',
-      }));
-
-    if (channelMappings.length === 0) {
-      debugLog(`Source ${sourceId}: no channels have EPG IDs`, 'epg');
-      continue;
-    }
-
-    console.log(`[Global EPG] Source ${sourceId}: ${channelMappings.length} channel mappings prepared`);
-    channelsNeedingEpgMap.set(sourceId, channelMappings.map(m => m.stream_id));
-
-    sourceConfigs.push({
+    sourceRefs.push({
       sourceId,
       sourceName: source.name || sourceId,
-      channelMappings,
       advancedEpgMatching: source.advanced_epg_matching ?? false,
       timeshiftHours: source.epg_timeshift_hours ?? 0,
       clearExisting: false,
@@ -1591,14 +1550,14 @@ async function syncGlobalEpgLinkStandaloneImpl(
     }
   }
 
-  if (sourceConfigs.length === 0) {
+  if (sourceRefs.length === 0) {
     console.log(`[Global EPG] No sources need EPG from ${epgLink.name}`);
     // Mark as synced so we don't retry every 10 min, but only for 30 min freshness window
     await updateGlobalEpgLastSynced(epgLink.id, 0, {});
     return 0;
   }
 
-  onProgress?.(`Applying EPG to ${sourceConfigs.length} source(s)...`);
+  onProgress?.(`Applying EPG to ${sourceRefs.length} source(s)...`);
 
   let totalInserted = 0;
   const perSourceCounts: Record<string, number> = {};
@@ -1606,185 +1565,54 @@ async function syncGlobalEpgLinkStandaloneImpl(
   const perSourceChannels: Record<string, number> = {};
   let syncSucceeded = false;
 
+  // Snapshot which stream ids already have programmes so newly-filled channels
+  // can be attributed to this link afterwards (lastSyncResult.matchedStreamIds).
+  const beforeSets = new Map<string, Set<string>>();
+  for (const ref of sourceRefs) {
+    beforeSets.set(ref.sourceId, await getStreamIdsWithPrograms(ref.sourceId));
+  }
+
   if (epgLink.saveEntireEpg) {
     onProgress?.(`Caching entire EPG database locally...`);
 
-    // 1. Refresh the local cache DB (best effort). If the remote EPG is
-    // unreachable we still fall back to the last-known-good cached copy below.
+    // Download, cache the ENTIRE feed, and apply matched programmes in ONE
+    // Rust pass (cache_entire_epg_db computes the needing-EPG mappings from
+    // the main DB and matches/inserts with the multi-source parser's exact
+    // routing). There is no JS cache read-back fallback — the cache DB is only
+    // ever written by this pass, so a failed refresh keeps the last-good cache
+    // file intact and syncSucceeded stays false (link retried next cycle).
     try {
-      await invoke('cache_entire_epg_db', {
+      const results = await invoke('cache_entire_epg_db', {
         epgUrl: url,
         epgLinkId: epgLink.id,
-        userAgent
-      });
+        userAgent,
+        sources: sourceRefs
+      }) as { source_id: string; inserted_programs: number; matched_channels?: number }[];
       syncSucceeded = true;
       console.log(`[Global EPG] Entire EPG cached locally for link ${epgLink.id}`);
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.warn(`[Global EPG] Failed to refresh EPG cache for ${epgLink.name}; will try existing cache: ${errMsg}`);
-      debugLog(`Cache refresh failed, will try existing cache: ${errMsg}`, 'epg');
-    }
 
-    // 2. Load the SQLite cache database (freshly written or last-known-good)
-    try {
-      const cacheDbName = `epg_cache_${epgLink.id}`;
-      const Database = (await import('@tauri-apps/plugin-sql')).default;
-      const cacheDb = await Database.load(`sqlite:${cacheDbName}.db`);
-
-      // Fetch EPG channels once
-      const epgChannels = await cacheDb.select('SELECT id, display_name FROM epg_channels') as { id: string, display_name: string }[];
-      const displayNameToEpgIdMap = new Map<string, string>();
-      const epgChannelIdsSet = new Set<string>();
-      for (const ec of epgChannels) {
-        const lowerId = ec.id.toLowerCase();
-        displayNameToEpgIdMap.set(lowerId, ec.id);
-        epgChannelIdsSet.add(lowerId);
-        
-        if (ec.display_name) {
-          const lowerName = ec.display_name.toLowerCase();
-          displayNameToEpgIdMap.set(lowerName, ec.id);
-          const normEpg = normalizeChannelName(ec.display_name);
-          if (normEpg) {
-            displayNameToEpgIdMap.set(normEpg, ec.id);
-          }
-        }
-      }
-
-      // 3. For each source, extract matched programs from the cache DB
-      for (const sourceId of epgLink.sourceIds) {
-        const source = sourceMap.get(sourceId);
-        if (!source) continue;
-
-        const sourceChannels = await db.channels.where('source_id').equals(sourceId).toArray();
-        if (sourceChannels.length === 0) continue;
-
-        const channelsWithPrograms = await getStreamIdsWithPrograms(sourceId);
-        const channelsNeedingEpg = sourceChannels.filter(ch => !channelsWithPrograms.has(ch.stream_id));
-        if (channelsNeedingEpg.length === 0) continue;
-
-        const epgIdToStreamIdMap = new Map<string, string[]>();
-        const advancedEpgMatching = source.advanced_epg_matching ?? false;
-        const overridesToSave: any[] = [];
-
-        for (const ch of channelsNeedingEpg) {
-          let matchedEpgId: string | undefined = undefined;
-
-          // Override always wins first
-          const overrideId = epgOverrideMap.get(ch.stream_id);
-          if (overrideId) {
-            const lowerOverride = overrideId.toLowerCase();
-            if (epgChannelIdsSet.has(lowerOverride)) {
-              matchedEpgId = displayNameToEpgIdMap.get(lowerOverride);
-            } else {
-              matchedEpgId = overrideId;
-            }
-          } else {
-            // Try tvg-id (epg_channel_id)
-            const tvgId = ch.epg_channel_id?.trim();
-            if (tvgId) {
-              const lowerTvg = tvgId.toLowerCase();
-              if (epgChannelIdsSet.has(lowerTvg)) {
-                matchedEpgId = displayNameToEpgIdMap.get(lowerTvg);
-              } else if (advancedEpgMatching) {
-                const normTvg = normalizeChannelName(tvgId);
-                matchedEpgId = displayNameToEpgIdMap.get(lowerTvg) || displayNameToEpgIdMap.get(normTvg);
-              }
-            }
-
-            // Try channel name if tvg-id didn't match
-            if (!matchedEpgId && ch.name?.trim()) {
-              const name = ch.name.trim();
-              const lowerName = name.toLowerCase();
-              if (epgChannelIdsSet.has(lowerName)) {
-                matchedEpgId = displayNameToEpgIdMap.get(lowerName);
-              } else if (advancedEpgMatching) {
-                const normName = normalizeChannelName(name);
-                matchedEpgId = displayNameToEpgIdMap.get(lowerName) || displayNameToEpgIdMap.get(normName);
-              }
-            }
-          }
-
-          if (matchedEpgId) {
-            if (!epgIdToStreamIdMap.has(matchedEpgId)) {
-              epgIdToStreamIdMap.set(matchedEpgId, []);
-            }
-            epgIdToStreamIdMap.get(matchedEpgId)!.push(ch.stream_id);
-
-            if (!epgOverrideMap.has(ch.stream_id)) {
-              overridesToSave.push({
-                stream_id: ch.stream_id,
-                epg_channel_id: matchedEpgId
-              });
-            }
-          }
-        }
-
-        if (overridesToSave.length > 0) {
-          await db.epgChannelOverrides.bulkPut(overridesToSave);
-        }
-
-        const uniqueEpgIds = Array.from(epgIdToStreamIdMap.keys());
-        const programsToInsert: any[] = [];
-        let channelsMatchedCount = 0;
-        const matchedStreamIdsSet = new Set<string>();
-
-        const CHUNK_SIZE = 500;
-        for (let idx = 0; idx < uniqueEpgIds.length; idx += CHUNK_SIZE) {
-          const chunk = uniqueEpgIds.slice(idx, idx + CHUNK_SIZE);
-          const placeholders = chunk.map((_, i) => `$${i + 1}`).join(',');
-          
-          const progs = await cacheDb.select(
-            `SELECT * FROM programs WHERE stream_id IN (${placeholders})`,
-            chunk
-          ) as any[];
-
-          for (const p of progs) {
-            const streamIds = epgIdToStreamIdMap.get(p.stream_id);
-            if (streamIds) {
-              for (const streamId of streamIds) {
-                if (!matchedStreamIdsSet.has(streamId)) {
-                  matchedStreamIdsSet.add(streamId);
-                  channelsMatchedCount++;
-                }
-                programsToInsert.push({
-                  id: `${streamId}_${p.start}`,
-                  stream_id: streamId,
-                  title: p.title,
-                  subtitle: p.subtitle,
-                  description: p.description,
-                  start: p.start,
-                  end: p.end,
-                  source_id: sourceId
-                });
-              }
-            }
-          }
-        }
-
-        if (programsToInsert.length > 0) {
-          await db.programs.bulkPut(programsToInsert);
+      for (const result of results) {
+        totalInserted += result.inserted_programs;
+        perSourceCounts[result.source_id] = result.inserted_programs;
+        const channelsMatched = result.matched_channels ?? 0;
+        perSourceChannels[result.source_id] = channelsMatched;
+        totalChannelsMatched += channelsMatched;
+        console.log(`[Global EPG] Source ${result.source_id}: ${result.inserted_programs} programs inserted, ${channelsMatched} channels matched`);
+        if (result.inserted_programs > 0) {
           dbEvents.notify('programs', 'add');
-          
-          totalInserted += programsToInsert.length;
-          perSourceCounts[sourceId] = programsToInsert.length;
-          perSourceChannels[sourceId] = channelsMatchedCount;
-          totalChannelsMatched += channelsMatchedCount;
         }
       }
-
-      // Applied EPG from the cache (even when the refresh above failed), so mark
-      // the link as synced to avoid re-downloading a down URL every cycle.
-      if (totalInserted > 0) {
-        syncSucceeded = true;
+      if (results.length === 0) {
+        console.log(`[Global EPG] No sources need EPG from ${epgLink.name}`);
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[Global EPG] Failed to read EPG cache: ${errMsg}`);
-      debugLog(`Failed to read EPG cache: ${errMsg}`, 'epg');
+      console.warn(`[Global EPG] Failed to refresh EPG cache for ${epgLink.name}: ${errMsg}`);
+      debugLog(`EPG cache refresh failed: ${errMsg}`, 'epg');
     }
   } else {
     try {
-      const results = await epgStreaming.streamParseEpgMulti(url, sourceConfigs, userAgent);
+      const results = await epgStreaming.streamParseEpgMulti(url, sourceRefs, userAgent);
       syncSucceeded = true;
 
       for (const result of results) {
@@ -1810,14 +1638,17 @@ async function syncGlobalEpgLinkStandaloneImpl(
   if (syncSucceeded) {
     let matchedStreamIds: string[] | undefined = undefined;
     try {
+      // Newly-filled channels = stream ids that gained programmes during this
+      // link's pass (after − before), attributed per source. This no longer
+      // needs the needing-EPG pool (which is computed in Rust now).
       const newlyMatchedStreamIds: string[] = [];
-      for (const sourceId of epgLink.sourceIds) {
-        const neededIds = channelsNeedingEpgMap.get(sourceId) || [];
-        if (neededIds.length === 0) continue;
-        
-        const channelsWithProgramsAfter = await getStreamIdsWithPrograms(sourceId);
-        for (const streamId of neededIds) {
-          if (channelsWithProgramsAfter.has(streamId)) {
+      for (const ref of sourceRefs) {
+        const inserted = perSourceCounts[ref.sourceId] ?? 0;
+        if (inserted <= 0) continue;
+        const before = beforeSets.get(ref.sourceId) || new Set<string>();
+        const channelsWithProgramsAfter = await getStreamIdsWithPrograms(ref.sourceId);
+        for (const streamId of channelsWithProgramsAfter) {
+          if (!before.has(streamId)) {
             newlyMatchedStreamIds.push(streamId);
           }
         }
@@ -1843,7 +1674,7 @@ async function syncGlobalEpgLinkStandaloneImpl(
   }
 
   console.log(`[Global EPG] Standalone sync complete for ${epgLink.name}: ${totalInserted} total programs inserted`);
-  debugLog(`Standalone sync complete: ${totalInserted} programs across ${sourceConfigs.length} sources`, 'epg');
+  debugLog(`Standalone sync complete: ${totalInserted} programs across ${sourceRefs.length} sources`, 'epg');
   return totalInserted;
 }
 
@@ -2069,10 +1900,18 @@ export async function enrichM3uWithXtreamCatchup(
   }
 }
 
-export async function syncSource(source: Source, onProgress?: (msg: string) => void): Promise<SyncResult> {
+export async function syncSource(source: Source, onProgress?: (msg: string) => void, staggerAlignment = false): Promise<SyncResult> {
+  // Gate live-query notifications for the duration of the sync: bulk channel +
+  // EPG writes happen throughout, and we don't want every batch write to
+  // re-run the channel/program queries mid-sync. One coalesced refresh fires
+  // when the gate closes.
+  return withSyncGate(() => syncSourceInternal(source, onProgress, staggerAlignment));
+}
+
+async function syncSourceInternal(source: Source, onProgress?: (msg: string) => void, staggerAlignment = false): Promise<SyncResult> {
   source = await resolveSourceUserAgent(source);
   // Try primary URL first
-  const result = await _doSyncSourceImpl(source, onProgress);
+  const result = await _doSyncSourceImpl(source, onProgress, staggerAlignment);
   if (result.success) return result;
 
   // If primary failed and we have backup URLs, try them in order
@@ -2085,7 +1924,7 @@ export async function syncSource(source: Source, onProgress?: (msg: string) => v
       onProgress?.(i18n.t('common:primaryUrlFailedTryingBackup', { url: trimmedUrl }));
 
       const backupSource: Source = { ...source, url: trimmedUrl };
-      const backupResult = await _doSyncSourceImpl(backupSource, onProgress);
+      const backupResult = await _doSyncSourceImpl(backupSource, onProgress, staggerAlignment);
 
       if (backupResult.success) {
         // Swap: working backup becomes primary, old primary moves to backup list
@@ -2115,11 +1954,16 @@ export async function syncSource(source: Source, onProgress?: (msg: string) => v
 }
 
 // Internal sync implementation
-async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => void): Promise<SyncResult> {
+async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => void, staggerAlignment = false): Promise<SyncResult> {
   debugLog(`Starting sync for source: ${source.name} (${source.type})`, 'sync');
   onProgress?.(`Starting sync for ${source.name}...`);
   const startTime = performance.now();
-  console.time('sync-total');
+  // console.time labels are process-global: with sources syncing concurrently,
+  // the same label collides (Chrome warns "Timer 'sync-total' already exists"
+  // and the first timer's duration gets reported for the wrong source). Scope
+  // the label per source so each concurrent sync gets its own timer.
+  const timerLabel = (label: string) => `${label}: ${source.name}`;
+  console.time(timerLabel('sync-total'));
   try {
     // Wait, we need to fetch settings BEFORE clearing data
 
@@ -2226,7 +2070,14 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
             if (!url.startsWith('http://') && !url.startsWith('https://')) {
               url = `${server_protocol === 'https' ? 'https' : 'http'}://${url}`;
             }
-            epgUrl = `${url}:${port}/xmltv.php?username=${source.username}&password=${source.password}`;
+            if (url.startsWith('https://') && port === '80') {
+              url = url.replace('https://', 'http://');
+            } else if (url.startsWith('http://') && port === '443') {
+              url = url.replace('http://', 'https://');
+            }
+            const isStandardPort = (url.startsWith('https://') && port === '443') || (url.startsWith('http://') && port === '80');
+            const portSuffix = port && !isStandardPort ? `:${port}` : '';
+            epgUrl = `${url}${portSuffix}/xmltv.php?username=${source.username}&password=${source.password}`;
           }
 
           debugLog(`Native Rust Sync for Xtream: ${source.url}`, 'sync');
@@ -2263,7 +2114,10 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
           nativeSyncComplete = true;
         }
       } catch (err: any) {
-         debugLog(`Native sync failed: ${err.message}, falling back to legacy JS parser...`, 'sync');
+         // Tauri v2 rejects with a string, not always an Error — extract the
+         // real reason so lock failures aren't logged as "undefined".
+         const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err ?? 'unknown error');
+         debugLog(`Native sync failed: ${msg}, falling back to legacy JS parser...`, 'sync');
       }
     }
 
@@ -2362,8 +2216,15 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
           const scheme = server_protocol === 'https' ? 'https' : 'http';
           url = `${scheme}://${url}`;
         }
+        if (url.startsWith('https://') && port === '80') {
+          url = url.replace('https://', 'http://');
+        } else if (url.startsWith('http://') && port === '443') {
+          url = url.replace('http://', 'https://');
+        }
+        const isStandardPort = (url.startsWith('https://') && port === '443') || (url.startsWith('http://') && port === '80');
+        const portSuffix = port && !isStandardPort ? `:${port}` : '';
         // Xtream typically serves EPG at /xmltv.php
-        epgUrl = `${url}:${port}/xmltv.php?username=${source.username}&password=${source.password}`;
+        epgUrl = `${url}${portSuffix}/xmltv.php?username=${source.username}&password=${source.password}`;
         debugLog(`Constructed EPG URL from server_info: ${epgUrl}`, 'sync');
       }
     } else if (source.type === 'stalker') {
@@ -2567,6 +2428,9 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
       series_no: ch.series_no ?? null,
       live: ch.live ?? 1,
       xtream_stream_id: ch.xtream_stream_id ?? null,
+      catchup_type: ch.catchup_type ?? null,
+      catchup_source: ch.catchup_source ?? null,
+      catchup_days: ch.catchup_days ?? null,
     });
 
     // Convert to BulkCategory format
@@ -2654,18 +2518,26 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
       }
     }
 
-    // Write channel/category counts and connection metadata — but NOT last_synced yet
-    await bulkOps.updateSourceMeta({
-      source_id: meta.source_id,
-      epg_url: meta.epg_url,
-      channel_count: meta.channel_count,
-      category_count: meta.category_count,
-      expiry_date: meta.expiry_date,
-      active_cons: meta.active_cons,
-      max_connections: meta.max_connections,
-      error: meta.error,
-      epg_timeshift_hours: source.epg_timeshift_hours ?? 0,
-    });
+    // Write channel/category counts and connection metadata — but NOT last_synced yet.
+    // This is status bookkeeping only: a failure here must NOT abort the sync — the
+    // channels/categories are already stored, and aborting skips the EPG (the previous
+    // symptom: sources marked FAILED with 0 counts even though the data landed, because
+    // the status write raced a lock).
+    try {
+      await bulkOps.updateSourceMeta({
+        source_id: meta.source_id,
+        epg_url: meta.epg_url,
+        channel_count: meta.channel_count,
+        category_count: meta.category_count,
+        expiry_date: meta.expiry_date,
+        active_cons: meta.active_cons,
+        max_connections: meta.max_connections,
+        error: meta.error,
+        epg_timeshift_hours: source.epg_timeshift_hours ?? 0,
+      });
+    } catch (metaErr) {
+      debugLog(`Failed to persist channel counts for ${meta.source_id}: ${metaErr}`, 'sync');
+    }
     debugLog('Channels and categories stored successfully', 'sync');
 
     // Notify UI that categories, channels, and sourcesMeta updated so in-memory index & live queries refresh
@@ -2696,26 +2568,26 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
       console.log(`[EPG] Starting Xtream EPG sync...`);
       debugLog('Syncing EPG for Xtream source...', 'epg');
       onProgress?.(i18n.t('common:updatingEpgShort'));
-      console.time('sync-epg-insert');
+      console.time(timerLabel('sync-epg-insert'));
       // Pass the correctly constructed EPG URL (with server info from connection test)
       programCount = await syncEpgForSource(source, channels, epgUrl);
-      console.timeEnd('sync-epg-insert');
+      console.timeEnd(timerLabel('sync-epg-insert'));
       debugLog(`EPG sync complete: ${programCount} programs`, 'epg');
     } else if (shouldLoadEpg && source.type === 'stalker' && source.mac) {
       // Stalker: use get_epg_info endpoint
       debugLog('Syncing EPG for Stalker source...', 'epg');
       onProgress?.(i18n.t('common:updatingEpgShort'));
-      console.time('sync-epg-insert');
+      console.time(timerLabel('sync-epg-insert'));
       programCount = await syncEpgForStalker(source, channels);
-      console.timeEnd('sync-epg-insert');
+      console.timeEnd(timerLabel('sync-epg-insert'));
       debugLog(`Stalker EPG sync complete: ${programCount} programs`, 'epg');
     } else if (shouldLoadEpg && epgUrl) {
       // M3U with EPG URL: fetch XMLTV from the EPG URL
       debugLog('Syncing EPG for M3U source...', 'epg');
       onProgress?.(i18n.t('common:updatingEpgShort'));
-      console.time('sync-epg-insert');
+      console.time(timerLabel('sync-epg-insert'));
       programCount = await syncEpgFromUrl(source, epgUrl, channels);
-      console.timeEnd('sync-epg-insert');
+      console.timeEnd(timerLabel('sync-epg-insert'));
       debugLog(`M3U EPG sync complete: ${programCount} programs`, 'epg');
     }
 
@@ -2725,9 +2597,9 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
       debugLog('Syncing EPG from manual URL override...', 'epg');
       console.log(`[EPG] Debug - About to call syncEpgFromUrl with manual URL: ${fixedEpgUrl}`);
       onProgress?.(i18n.t('common:updatingEpgManualUrl'));
-      console.time('sync-epg-manual');
+      console.time(timerLabel('sync-epg-manual'));
       programCount = await syncEpgFromUrl(source, fixedEpgUrl, channels);
-      console.timeEnd('sync-epg-manual');
+      console.timeEnd(timerLabel('sync-epg-manual'));
       debugLog(`Manual EPG sync complete: ${programCount} programs`, 'epg');
     }
 
@@ -2735,29 +2607,43 @@ async function _doSyncSourceImpl(source: Source, onProgress?: (msg: string) => v
     if (!source.vod_only && source.additional_epg_urls && source.additional_epg_urls.length > 0) {
       debugLog('Syncing additional EPG URLs (waterfall)...', 'epg');
       onProgress?.(i18n.t('common:updatingEpgAdditional'));
-      console.time('sync-epg-additional');
+      console.time(timerLabel('sync-epg-additional'));
       const additionalCount = await syncAdditionalEpgUrls(source, channels, onProgress);
-      console.timeEnd('sync-epg-additional');
+      console.timeEnd(timerLabel('sync-epg-additional'));
       programCount += additionalCount;
       debugLog(`Additional EPG waterfall complete: ${additionalCount} programs`, 'epg');
     }
 
     debugLog(`Sync complete for ${source.name}: ${channels.length} channels, ${categories.length} categories, ${programCount} programs`, 'sync');
-    console.timeEnd('sync-total');
+    console.timeEnd(timerLabel('sync-total'));
     debugLog(`Total sync time: ${((performance.now() - startTime) / 1000).toFixed(2)}s`, 'sync');
 
     // NOW stamp last_synced — EPG sync has completed (or was skipped for sources without EPG).
     // Writing this after EPG ensures a failed/empty EPG sync will cause the next autosync
     // cycle to retry the source rather than treating it as fresh.
-    await bulkOps.updateSourceMeta({
-      source_id: source.id,
-      last_synced: new Date().toISOString(),
-    });
-    dbEvents.notify('sourcesMeta', 'update');
+    // Non-fatal: the EPG data is already stored — a bookkeeping failure here must not flip
+    // a fully-synced source to FAILED (it previously did, via lock contention).
+    try {
+      await bulkOps.updateSourceMeta({
+        source_id: source.id,
+        last_synced: new Date().toISOString(),
+      });
+      dbEvents.notify('sourcesMeta', 'update');
+    } catch (metaErr) {
+      debugLog(`Failed to mark source ${source.id} as synced: ${metaErr}`, 'sync');
+    }
     debugLog('Source marked as synced after EPG step completed', 'sync');
 
-    // Automatically align/fill programs for manually overridden channels in this source
-    await alignOverriddenChannelPrograms(source.id);
+    // Automatically align/fill programs for manually overridden channels in this source.
+    // In sync-all the alignment is queued the moment this source's EPG lands so it
+    // overlaps the remaining sources' downloads/inserts (staggered, capped at 2
+    // concurrent) instead of forming a post-sync tail. Single-source syncs still
+    // align inline so their result reflects the full work.
+    if (staggerAlignment) {
+      queueAlignment(source.id);
+    } else {
+      await alignOverriddenChannelPrograms(source.id);
+    }
 
     // Checkpoint WAL after sync completes to reclaim space
     // TRUNCATE mode = wait for all readers/writers, then checkpoint and truncate WAL to 0
@@ -2841,8 +2727,19 @@ export async function syncStalkerCategory(
 
   try {
     const fetchType = type === 'movies' ? 'vod' : 'series';
-    // Use the new getCategoryItems method with progress
-    const items = await client.getCategoryItems(categoryId, fetchType, onProgress);
+    // Use the new getCategoryItems method with progress. The client reports
+    // page counts (1-indexed); localize them here so the UI can show
+    // "Loading page X of Y..." while a Stalker category paginates (14/page).
+    const items = await client.getCategoryItems(categoryId, fetchType, (percent, currentPage, totalPages) => {
+      if (!onProgress) return;
+      let msg = '';
+      if (currentPage != null) {
+        msg = totalPages != null
+          ? i18n.t('vod:loadingPageOf', { current: currentPage, total: totalPages })
+          : i18n.t('vod:loadingPage', { current: currentPage });
+      }
+      onProgress(percent, msg);
+    });
 
     if (items.length === 0) {
       debugLog(`[LazyLoad] No items found in category ${categoryId}`, 'sync');
@@ -2852,49 +2749,46 @@ export async function syncStalkerCategory(
     debugLog(`[LazyLoad] Storing ${items.length} items for category ${categoryId}`, 'sync');
     if (onProgress) onProgress(100, i18n.t('common:savingToDatabase'));
 
-    // Removed db.transaction mock wrapper to prevent inner lock deadlocks
-    if (true) {
-      if (type === 'movies') {
-        // Sanitize items to ensure they match StoredMovie schema
-        const movieItems = items.map((item: any) => sanitizeMovie(item));
-        await db.vodMovies.bulkPut(movieItems);
-      } else {
-        // Map Channel items to StoredSeries
-        const seriesItems = items.map((item: any) => {
-          // Destructure to exclude movie-specific fields from series object
-          const { stream_id: _stream_id, epg_channel_id: _epg_channel_id, channel_num: _channel_num, container_extension: _container_extension, ...rest } = item;
-          // Extract raw Stalker ID from direct_url for episode fetching
-          // Some portals use compound IDs like "15754:15754" - use first part
-          const rawIdFromUrl = item.direct_url?.replace('stalker_series:', '') || item.id;
-          const rawStalkerId = rawIdFromUrl?.toString().split(':')[0];
+    if (type === 'movies') {
+      // Sanitize items to ensure they match StoredMovie schema
+      const movieItems = items.map((item: any) => sanitizeMovie(item));
+      await db.vodMovies.bulkPut(movieItems);
+    } else {
+      // Map Channel items to StoredSeries
+      const seriesItems = items.map((item: any) => {
+        // Destructure to exclude movie-specific fields from series object
+        const { stream_id: _stream_id, epg_channel_id: _epg_channel_id, channel_num: _channel_num, container_extension: _container_extension, ...rest } = item;
+        // Extract raw Stalker ID from direct_url for episode fetching
+        // Some portals use compound IDs like "15754:15754" - use first part
+        const rawIdFromUrl = item.direct_url?.replace('stalker_series:', '') || item.id;
+        const rawStalkerId = rawIdFromUrl?.toString().split(':')[0];
 
-          return {
-            ...rest,
-            series_id: item.series_id || item.stream_id?.toString() || '',
-            cover: item.cover || item.stream_icon || '',
-            plot: item.plot || '',
-            cast: item.cast || '',
-            director: item.director || '',
-            genre: item.genre || '',
-            releaseDate: item.releaseDate || '',
-            last_modified: item.last_modified || '',
-            rating: item.rating || '',
-            rating_5based: item.rating_5based || 0,
-            backdrop_path: item.backdrop_path || undefined,
-            youtube_trailer: item.youtube_trailer || '',
-            episode_run_time: item.episode_run_time || '',
-            // category_ids is already set by Stalker client as an array, just need to stringify it
-            category_ids: Array.isArray(item.category_ids)
-              ? JSON.stringify(item.category_ids)
-              : JSON.stringify([categoryId]),
-            // Store raw Stalker ID for episode fetching
-            _stalker_raw_id: rawStalkerId
-          };
-        });
+        return {
+          ...rest,
+          series_id: item.series_id || item.stream_id?.toString() || '',
+          cover: item.cover || item.stream_icon || '',
+          plot: item.plot || '',
+          cast: item.cast || '',
+          director: item.director || '',
+          genre: item.genre || '',
+          releaseDate: item.releaseDate || '',
+          last_modified: item.last_modified || '',
+          rating: item.rating || '',
+          rating_5based: item.rating_5based || 0,
+          backdrop_path: item.backdrop_path || undefined,
+          youtube_trailer: item.youtube_trailer || '',
+          episode_run_time: item.episode_run_time || '',
+          // category_ids is already set by Stalker client as an array, just need to stringify it
+          category_ids: Array.isArray(item.category_ids)
+            ? JSON.stringify(item.category_ids)
+            : JSON.stringify([categoryId]),
+          // Store raw Stalker ID for episode fetching
+          _stalker_raw_id: rawStalkerId
+        };
+      });
 
-        await db.vodSeries.bulkPut(seriesItems as any[]);
-      }
-    } // End removed transaction block
+      await db.vodSeries.bulkPut(seriesItems as any[]);
+    }
 
     debugLog(`[LazyLoad] Sync complete`, 'sync');
     return items.length;
@@ -2915,6 +2809,10 @@ export async function syncAllSources(
   debugLog('Starting syncAllSources...', 'sync');
   onProgress?.(i18n.t('common:initializingSync'));
   const results = new Map<string, SyncResult>();
+  // Reset the alignment scheduler from any previous interrupted run.
+  alignmentQueue = [];
+  alignmentInFlight = 0;
+  alignmentDrainResolve = null;
 
   // Get sources from Tauri Store
   if (!window.storage) {
@@ -2937,65 +2835,116 @@ export async function syncAllSources(
   // SQLite WAL mode handles concurrent writes by serializing them internally — no lock errors.
   const CONCURRENCY_LIMIT = concurrency > 0 ? concurrency : enabledSources.length || 1;
 
-  for (let i = 0; i < enabledSources.length; i += CONCURRENCY_LIMIT) {
-    const batch = enabledSources.slice(i, i + CONCURRENCY_LIMIT);
-    const batchNum = Math.floor(i / CONCURRENCY_LIMIT) + 1;
-    const totalBatches = Math.ceil(enabledSources.length / CONCURRENCY_LIMIT);
-
-    debugLog(`Processing batch ${batchNum}/${totalBatches} (${batch.length} sources)`, 'sync');
-    onProgress?.(`Batch ${batchNum}/${totalBatches}: ${batch.map(s => s.name).join(', ')}`);
-
-    // Process batch in parallel
-    const batchResults = await Promise.all(
-      batch.map(async (source, batchIndex) => {
-        const overallIndex = i + batchIndex + 1;
-        const prefix = `[${overallIndex}/${enabledSources.length}] ${source.name}`;
-
-        debugLog(`Syncing source: ${source.name} (${source.type})`, 'sync');
-
-        // Create a specific progress handler for this source
-        const sourceProgress = (msg: string) => {
-          onProgress?.(`${prefix}: ${msg}`);
-        };
-
-        const result = await syncSource(source, sourceProgress);
-        debugLog(`Source ${source.name}: ${result.success ? 'OK' : 'FAILED'} - ${result.channelCount} channels, ${result.categoryCount} categories`, 'sync');
-        return { sourceId: source.id, result };
-      })
-    );
-
-    // Store results
-    for (const { sourceId, result } of batchResults) {
-      results.set(sourceId, result);
-    }
-  }
-
-  debugLog('syncAllSources complete', 'sync');
-  const syncedSourceIds = Array.from(results.entries())
-    .filter(([, result]) => result.success)
-    .map(([sourceId]) => sourceId);
-
-  // Post-sync: apply stale global EPG links to all linked sources
-  // (primary EPGs have already cleared + inserted; now fill gaps with shared EPGs)
-  if (syncedSourceIds.length > 0) {
-    try {
-      debugLog('Running post-sync global EPG...', 'sync');
-      onProgress?.(i18n.t('common:updatingGlobalEpgLinks'));
-      const globalCount = await syncAllStaleGlobalEpgLinks(onProgress, syncedSourceIds);
-      if (globalCount > 0) {
-        debugLog(`Post-sync global EPG: ${globalCount} programs inserted`, 'sync');
-      }
-    } catch (err) {
-      console.error('[Sync] Post-sync global EPG failed:', err);
-    }
-  }
-
-  // Final checkpoint after all sources synced
-  // TRUNCATE mode ensures WAL file is actually truncated to 0 bytes
+  // Bulk-load mode: drop the `programs` secondary indexes for the duration of
+  // the run so every insert/update touches ONE B-tree per row instead of five
+  // (the dominant cost of the serialized insert queue — ~1.7M rows this run),
+  // then rebuild them once in the finally block. A failed drop is non-fatal
+  // (just a slower run); a failed rebuild is logged loudly — the schema init
+  // on next app start recreates them anyway (CREATE INDEX IF NOT EXISTS).
   try {
-    await db.checkpoint('TRUNCATE');
+    await epgStreaming.bulkLoadStart();
+    debugLog('[Sync] Dropped programs indexes for bulk EPG load', 'epg');
   } catch (err) {
-    console.error('[Sync] Final TRUNCATE checkpoint failed:', err);
+    console.warn('[Sync] Failed to drop programs indexes (continuing without bulk load):', err);
+  }
+
+  try {
+    for (let i = 0; i < enabledSources.length; i += CONCURRENCY_LIMIT) {
+      const batch = enabledSources.slice(i, i + CONCURRENCY_LIMIT);
+      const batchNum = Math.floor(i / CONCURRENCY_LIMIT) + 1;
+      const totalBatches = Math.ceil(enabledSources.length / CONCURRENCY_LIMIT);
+
+      debugLog(`Processing batch ${batchNum}/${totalBatches} (${batch.length} sources)`, 'sync');
+      onProgress?.(`Batch ${batchNum}/${totalBatches}: ${batch.map(s => s.name).join(', ')}`);
+
+      // Process batch in parallel
+      const batchResults = await Promise.all(
+        batch.map(async (source, batchIndex) => {
+          const overallIndex = i + batchIndex + 1;
+          const prefix = `[${overallIndex}/${enabledSources.length}] ${source.name}`;
+
+          debugLog(`Syncing source: ${source.name} (${source.type})`, 'sync');
+
+          // Create a specific progress handler for this source
+          const sourceProgress = (msg: string) => {
+            onProgress?.(`${prefix}: ${msg}`);
+          };
+
+          const result = await syncSource(source, sourceProgress, true);
+          debugLog(`Source ${source.name}: ${result.success ? 'OK' : 'FAILED'} - ${result.channelCount} channels, ${result.categoryCount} categories`, 'sync');
+          return { sourceId: source.id, result };
+        })
+      );
+
+      // Store results
+      for (const { sourceId, result } of batchResults) {
+        results.set(sourceId, result);
+      }
+    }
+
+    // Staggered per-source EPG alignments: most finished in the background while
+    // the remaining sources were still downloading/inserting. Wait for any
+    // stragglers so the summary row and final checkpoint see all writes.
+    const pendingAlignments = alignmentQueue.length + alignmentInFlight;
+    if (pendingAlignments > 0) {
+      debugLog(`[Sync] Waiting for ${pendingAlignments} staggered bulk EPG alignment(s) to finish...`, 'epg');
+    }
+    await drainAlignments();
+
+    debugLog('syncAllSources complete', 'sync');
+    const syncedSourceIds = Array.from(results.entries())
+      .filter(([, result]) => result.success)
+      .map(([sourceId]) => sourceId);
+
+    // Post-sync: apply stale global EPG links to all linked sources
+    // (primary EPGs have already cleared + inserted; now fill gaps with shared EPGs)
+    if (syncedSourceIds.length > 0) {
+      try {
+        debugLog('Running post-sync global EPG...', 'sync');
+        onProgress?.(i18n.t('common:updatingGlobalEpgLinks'));
+        const globalCount = await syncAllStaleGlobalEpgLinks(onProgress, syncedSourceIds);
+        if (globalCount > 0) {
+          debugLog(`Post-sync global EPG: ${globalCount} programs inserted`, 'sync');
+        }
+      } catch (err) {
+        console.error('[Sync] Post-sync global EPG failed:', err);
+      }
+    }
+
+    // Final checkpoint after all sources synced
+    // TRUNCATE mode ensures WAL file is actually truncated to 0 bytes
+    try {
+      await db.checkpoint('TRUNCATE');
+    } catch (err) {
+      console.error('[Sync] Final TRUNCATE checkpoint failed:', err);
+    }
+  } finally {
+    // Per-run summary row in epg_timings.jsonl (kind: "run") — written first,
+    // before the index rebuild, so it reflects the sync itself rather than the
+    // rebuild tail. Still inside the finally so even failed runs get a row.
+    const runOk = Array.from(results.values()).filter(r => r.success).length;
+    try {
+      await epgStreaming.timingRunEnd({
+        alignmentMaxMs: Math.round(lastRunAlignmentMaxMs),
+        sourcesOk: runOk,
+        sourcesFailed: results.size - runOk,
+      });
+    } catch (err) {
+      console.error('[Sync] Failed to write run timing summary:', err);
+    } finally {
+      lastRunAlignmentMaxMs = 0;
+    }
+
+    // Always schedule the index rebuild, even when a source throws out of the
+    // loop. Runs on a background Rust thread (non-blocking) so syncAllSources
+    // resolves ~10s sooner; if the app exits before it completes, the schema
+    // init recreates the indexes on next app start (self-healing).
+    try {
+      await epgStreaming.bulkLoadFinish();
+      debugLog('[Sync] Scheduled programs index rebuild (background)', 'epg');
+    } catch (err) {
+      console.error('[Sync] Failed to schedule programs index rebuild (recreated on next app start):', err);
+    }
   }
 
   return results;
@@ -3725,6 +3674,12 @@ export async function fetchVodProviderTrailerInfo(
 
 // Exported VOD sync wrapper with backup URL failover support
 export async function syncVodForSource(source: Source): Promise<VodSyncResult> {
+  // Same gate as syncSource: bulk VOD writes shouldn't re-run live queries
+  // (movies/series/episodes tables) on every batch, only once at the end.
+  return withSyncGate(() => syncVodForSourceInternal(source));
+}
+
+async function syncVodForSourceInternal(source: Source): Promise<VodSyncResult> {
   source = await resolveSourceUserAgent(source);
   if (source.live_tv_only) {
     return {
@@ -4019,24 +3974,27 @@ export async function alignOverriddenChannelPrograms(sourceId: string): Promise<
   try {
     const dbInstance = await (db as any).dbPromise;
     
-    // Check if there are any overrides that target or are sourced by this source ID (using index-friendly UNION)
-    const countResult = await selectWithRetry(
+    // Check if there are any overrides that target or are sourced by this source ID.
+    // EXISTS short-circuits on the first match, unlike COUNT(*) over a deduped UNION.
+    const existsResult = await selectWithRetry(
       dbInstance,
-      `SELECT COUNT(*) as count FROM (
-         SELECT eco.stream_id FROM epg_channel_overrides eco
-         JOIN channels tc ON tc.stream_id = eco.stream_id
-         JOIN channels sc ON sc.epg_channel_id = eco.epg_channel_id AND sc.stream_id != eco.stream_id
-         WHERE tc.source_id = $1 OR sc.source_id = $1
-         UNION
-         SELECT eco.stream_id FROM epg_channel_overrides eco
-         JOIN channels tc ON tc.stream_id = eco.stream_id
-         JOIN channels sc ON sc.name = eco.epg_channel_id AND sc.stream_id != eco.stream_id
-         WHERE tc.source_id = $1 OR sc.source_id = $1
-       )`,
+      `SELECT
+         EXISTS(SELECT 1 FROM epg_channel_overrides eco
+                JOIN channels tc ON tc.stream_id = eco.stream_id
+                JOIN channels sc ON sc.epg_channel_id = eco.epg_channel_id AND sc.stream_id != eco.stream_id
+                WHERE tc.source_id = $1 OR sc.source_id = $1)
+         OR
+         EXISTS(SELECT 1 FROM epg_channel_overrides eco
+                JOIN channels tc ON tc.stream_id = eco.stream_id
+                JOIN channels sc ON sc.name = eco.epg_channel_id AND sc.stream_id != eco.stream_id
+                WHERE tc.source_id = $1 OR sc.source_id = $1) AS has_overrides`,
       [sourceId]
-    ) as { count: number }[];
+    ) as { has_overrides: number }[];
     
-    if (countResult[0]?.count === 0) return;
+    if (!existsResult[0]?.has_overrides) {
+      debugLog(`[Sync] Skipping bulk EPG alignment for source: ${sourceId} (no overrides)`, 'epg');
+      return;
+    }
 
     const start = performance.now();
     debugLog(`[Sync] Starting bulk EPG alignment for source: ${sourceId}...`, 'epg');
@@ -4102,7 +4060,10 @@ export async function alignOverriddenChannelPrograms(sourceId: string): Promise<
       [sourceId]
     );
     
-    debugLog(`[Sync] Bulk EPG alignment complete in ${(performance.now() - start).toFixed(2)}ms`, 'epg');
+    const alignmentMs = performance.now() - start;
+    // Track the slowest alignment of the run for the per-run timing summary.
+    lastRunAlignmentMaxMs = Math.max(lastRunAlignmentMaxMs, alignmentMs);
+    debugLog(`[Sync] Bulk EPG alignment complete in ${alignmentMs.toFixed(2)}ms`, 'epg');
     const { dbEvents } = await import('./sqlite-adapter');
     dbEvents.notify('programs', 'clear');
     dbEvents.notify('programs', 'add');

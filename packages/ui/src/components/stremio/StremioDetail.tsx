@@ -93,6 +93,7 @@ export function StremioDetail({
 
   const episodeProgress = useStremioWatchStore((s) => s.episodeProgress || {});
   const toggleEpisodeWatched = useStremioWatchStore((s) => s.toggleEpisodeWatched);
+  const blurUnwatchedEpisodes = useSettingsStore((s) => s.blurUnwatchedEpisodes);
   const preselectVideoId = useStremioPreselectVideoId();
   const setPreselectVideoId = useSetStremioPreselectVideoId();
 
@@ -893,6 +894,7 @@ export function StremioDetail({
                     const epProg = episodeProgress[ep.id];
                     const epFraction = epProg?.progressFraction ?? 0;
                     const epFinished = epProg?.finished ?? false;
+                    const isBlurred = blurUnwatchedEpisodes && !epFinished;
                     const showEpProgress = epFraction > 0.02 && !epFinished;
                     return (
                       <div
@@ -902,7 +904,7 @@ export function StremioDetail({
                       >
                         <div className="stremio-detail-video-thumb-container stremio-ep-thumb-wrap">
                           {ep.thumbnail ? (
-                            <img className="stremio-detail-video-thumb" src={ep.thumbnail} alt="" loading="lazy" />
+                            <img className={`stremio-detail-video-thumb${isBlurred ? ' stremio-detail-video-thumb--blurred' : ''}`} src={ep.thumbnail} alt="" loading="lazy" />
                           ) : (
                             <div className="stremio-detail-video-thumb-placeholder">E{ep.episode}</div>
                           )}

@@ -1,7 +1,9 @@
-import { useSettingsStore, DEFAULT_SUBTITLE_SETTINGS, DEFAULT_MAX_SEARCH_RESULTS, clampMaxSearchResults } from './settingsStore';
+import { useSettingsStore, DEFAULT_SUBTITLE_SETTINGS, DEFAULT_MAX_SEARCH_RESULTS, DEFAULT_CONTROLLER_MAPPINGS, DEFAULT_CONTROLLER_CHORDS, DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS, clampMaxSearchResults } from './settingsStore';
 import type { SettingsState } from './settingsStore';
 import type { SavedLayoutState } from '../hooks/useLayoutPersistence';
 import type { ThemeId } from '../types/app';
+import type { PhoneRemoteConfig } from '../types/phoneRemote';
+import { DEFAULT_PHONE_REMOTE_CONFIG } from '../types/phoneRemote';
 import i18n, { isSupportedLocale } from '../i18n';
 
 /* ---------------------------------------------------------------------------
@@ -46,13 +48,17 @@ const BOOLEAN_KEYS = new Set([
   'channelInfoOverlayHideTimer', 'transparentGuideOnZap', 'categoriesHidden', 'categoriesHiddenTransparent',
   'overlayOnClickOnly', 'showVolumePercent', 'popoutStopMain', 'popoutAlwaysOnTop', 'popoutHwdecEnabled',
   'popoutMpvParamsEnabled', 'externalPlayerReuse', 'catchupContinuePlaying', 'vodAutoPlayNextEpisode',
-  'vodShowSourceBadge', 'failoverGroupShowSource', 'showFailoverLiveTvWidget', 'showFailoverMediaBarWidget',
+  'vodShowSourceBadge', 'blurUnwatchedEpisodes', 'useScrollwheelSeek', 'useScrollwheelSeekInvert', 'failoverGroupShowSource', 'failoverAlwaysPlayPrimary', 'failoverKeepView', 'showFailoverLiveTvWidget', 'showFailoverMediaBarWidget',
   'castEnabled', 'castRewriteTs', 'discordRichPresence',
   'discordHideTitle', 'discordShowWhenPaused', 'discordShowWhenBrowsing', 'discordShowPoster',
   'discordShowTimestamp', 'enableCustomScrollbarWidth', 'hardwareAcceleration', 'disableThemeBackdropBlur',
   'reduceEffectsWhileScrolling', 'oledBlack', 'epgLazyLoadingEnabled', 'disableEpgTransitions', 'epgReduceGpuLayers',
   'epgDisableChannelFade', 'flatChrome', 'epgPreferEpgLogos', 'logoSmartTrim', 'logoLightBackgroundDetection',
-  'epgMetadataBadgeResolution', 'epgMetadataBadgeFps', 'epgMetadataBadgeFpsSuffix', 'epgMetadataBadgeSound',
+  'epgMetadataBadgeResolution', 'epgMetadataBadgeFps', 'epgMetadataBadgeFpsSuffix', 'epgMetadataBadgeFhdLabels', 'epgResolutionFilterEnabled', 'epgMetadataBadgeSound', 'epgMetadataBadgeBitrate', 'epgMetadataBadgeAudioBitrate',
+  'epgMetadataBadgeBitrateOverlay', 'epgMetadataBadgeAudioBitrateOverlay',
+  'epgMetadataBadgeBitrateSearch', 'epgMetadataBadgeAudioBitrateSearch',
+  'epgMetadataBadgeBitrateFailover', 'epgMetadataBadgeAudioBitrateFailover',
+  'epgMetadataBadgeBitrateSports', 'epgMetadataBadgeAudioBitrateSports',
   'logoCacheEnabled', 'epgDarkenCurrent', 'epgHighlightBorderCurrent',
   'epgBoldChannelNames', 'epgBoldTopCategories', 'epgBoldSourceCategories',
   'autoBackupEnabled', 'streamingCatalogsEnabled', 'streamingNuvioCatalogsEnabled',
@@ -60,8 +66,10 @@ const BOOLEAN_KEYS = new Set([
   'traktCatalogsBeforeAddon', 'traktNuvioCatalogsBeforeAddon', 'simklEnabled',
   'simklScrobbleEnabled', 'tvCalendarAutoSync', 'showAllChannels', 'showFavorites',
   'showWatchlist', 'showRecentlyViewed', 'collapseSourceCategoriesOnStartup',
+  'showVodAll', 'showVodFavorites', 'showVodPlaylists', 'showVodLocal', 'showVodRecent',
   'useEventBasedReconnect', 'stallDetectionEnabled', 'showLoadingScreen',
-  'transparentGuideHideHeader', 'allowLanSources', 'v3DefaultMigrated',
+  'transparentGuideHideHeader', 'allowLanSources', 'categorySidebarAutohide', 'v3DefaultMigrated', 'volumePercentDefaultMigrated', 'subAssOverrideDefaultMigrated', 'epgLazyLoadingDefaultMigrated', 'collapseSourceCategoriesOnStartupDefaultMigrated',
+  'hdrTonemapToSdr', 'showHdrQuickToggle', 'controllerEnabled', 'controllerBackgroundListening', 'remoteControlEnabled',
 ] as const);
 
 const NUMBER_KEYS = new Set([
@@ -73,7 +81,7 @@ const NUMBER_KEYS = new Set([
   'streamMaxRetries', 'streamWatchdogSeconds', 'channelFontSize', 'categoryFontSize',
   'epgTitleFontSize', 'epgBodyFontSize', 'uiScale', 'transparentGuideHeight',
   'transparentGuideOverlayOpacity', 'transparentGuideSidebarOpacity',
-  'stremioBadgeSize', 'nuvioBadgeSize',
+  'stremioBadgeSize', 'nuvioBadgeSize', 'controllerDeadzone', 'remoteControlPort',
 ]);
 
 /** Coerce type-sensitive stored values; leave everything else untouched. */
@@ -137,6 +145,29 @@ function isEmptyData(data: Record<string, any>): boolean {
 let hydrationStarted = false;
 
 /** Kick off the single boot load once (idempotent, race-free). */
+export function sanitizeHydratedSettings(data: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = { ...data };
+  if (data.phoneRemoteConfig && typeof data.phoneRemoteConfig === 'object') {
+    result.phoneRemoteConfig = {
+      ...DEFAULT_PHONE_REMOTE_CONFIG,
+      ...data.phoneRemoteConfig,
+      cornerButtons: {
+        ...DEFAULT_PHONE_REMOTE_CONFIG.cornerButtons,
+        ...(data.phoneRemoteConfig.cornerButtons || {}),
+      },
+      centerButtons: {
+        ...DEFAULT_PHONE_REMOTE_CONFIG.centerButtons,
+        ...(data.phoneRemoteConfig.centerButtons || {}),
+      },
+      layout: {
+        ...DEFAULT_PHONE_REMOTE_CONFIG.layout,
+        ...(data.phoneRemoteConfig.layout || {}),
+      },
+    };
+  }
+  return result;
+}
+
 export function ensureSettingsHydration(): void {
   if (hydrationStarted) return;
   hydrationStarted = true;
@@ -187,6 +218,72 @@ async function hydrateSettingsStore(): Promise<void> {
         }
       }
 
+      // showVolumePercent default ON migration: runs once for users upgrading or installing.
+      // If the flag is missing, turn on showVolumePercent once and mark migration done.
+      // If a user later turns it off, showVolumePercent will be false and volumePercentDefaultMigrated will be true,
+      // so it will never turn back on automatically.
+      if (!data.volumePercentDefaultMigrated) {
+        data.showVolumePercent = true;
+        data.volumePercentDefaultMigrated = true;
+        try {
+          window.storage.updateSettings({ showVolumePercent: true, volumePercentDefaultMigrated: true }).catch(() => {});
+        } catch (e) {
+          console.warn('[settingsHydration] Failed to persist volumePercentDefaultMigrated:', e);
+        }
+      }
+
+      // subAssOverride default 'yes' migration: runs once for users upgrading.
+      // Sets subAssOverride to 'yes' so Closed Captions / ASS subtitles immediately inherit player styling & resizing.
+      // If a user later explicitly changes it to 'no', 'scale', or 'force', subAssOverrideDefaultMigrated remains true,
+      // so it will never overwrite their preference.
+      if (!data.subAssOverrideDefaultMigrated) {
+        data.subtitleSettings = {
+          ...(data.subtitleSettings ?? {}),
+          subAssOverride: 'yes',
+        };
+        data.subAssOverrideDefaultMigrated = true;
+        try {
+          window.storage.updateSettings({
+            subtitleSettings: data.subtitleSettings,
+            subAssOverrideDefaultMigrated: true,
+          }).catch(() => {});
+        } catch (e) {
+          console.warn('[settingsHydration] Failed to persist subAssOverrideDefaultMigrated:', e);
+        }
+      }
+
+      // EPG lazy loading default ON migration: runs once for users upgrading or
+      // installing. If the flag is missing, force epgLazyLoadingEnabled ON once
+      // and mark the migration done. If a user later turns it off, the flag
+      // stays true, so it will never be forced back on automatically.
+      if (!data.epgLazyLoadingDefaultMigrated) {
+        data.epgLazyLoadingEnabled = true;
+        data.epgLazyLoadingDefaultMigrated = true;
+        try {
+          window.storage
+            .updateSettings({ epgLazyLoadingEnabled: true, epgLazyLoadingDefaultMigrated: true })
+            .catch(() => {});
+        } catch (e) {
+          console.warn('[settingsHydration] Failed to persist epgLazyLoadingDefaultMigrated:', e);
+        }
+      }
+
+      // collapseSourceCategoriesOnStartup default ON migration: runs once for
+      // users upgrading or installing. If the flag is missing, force it ON once
+      // and mark the migration done. If a user later turns it off, the flag
+      // stays true, so it will never be forced back on automatically.
+      if (!data.collapseSourceCategoriesOnStartupDefaultMigrated) {
+        data.collapseSourceCategoriesOnStartup = true;
+        data.collapseSourceCategoriesOnStartupDefaultMigrated = true;
+        try {
+          window.storage
+            .updateSettings({ collapseSourceCategoriesOnStartup: true, collapseSourceCategoriesOnStartupDefaultMigrated: true })
+            .catch(() => {});
+        } catch (e) {
+          console.warn('[settingsHydration] Failed to persist collapseSourceCategoriesOnStartupDefaultMigrated:', e);
+        }
+      }
+
       if (data.savedVolume !== undefined) {
         try {
           if (localStorage.getItem('ynotv_volume') === null) {
@@ -219,9 +316,14 @@ async function hydrateSettingsStore(): Promise<void> {
         transparentGuideHideHeader: data.transparentGuideHideHeader ?? false,
         transparentGuideOverlayOpacity: data.transparentGuideOverlayOpacity ?? 55,
         transparentGuideSidebarOpacity: data.transparentGuideSidebarOpacity ?? 55,
+        categorySidebarAutohide: data.categorySidebarAutohide ?? false,
         allowLanSources: data.allowLanSources ?? false,
         modernUiEnabled: data.modernUiEnabled ?? 'v3',
         v3DefaultMigrated: data.v3DefaultMigrated ?? false,
+        volumePercentDefaultMigrated: data.volumePercentDefaultMigrated ?? false,
+        subAssOverrideDefaultMigrated: data.subAssOverrideDefaultMigrated ?? false,
+        epgLazyLoadingDefaultMigrated: data.epgLazyLoadingDefaultMigrated ?? false,
+        collapseSourceCategoriesOnStartupDefaultMigrated: data.collapseSourceCategoriesOnStartupDefaultMigrated ?? false,
         categorySortOrder: data.categorySortOrder ?? 'default',
         includeAllChannelsToPlaylist: data.includeAllChannelsToPlaylist ?? false,
         hideDisabledSources: data.hideDisabledSources ?? false,
@@ -233,8 +335,8 @@ async function hydrateSettingsStore(): Promise<void> {
         channelInfoOverlayEnabled: data.channelInfoOverlayEnabled ?? false,
         channelInfoOverlayFontSize: data.channelInfoOverlayFontSize ?? 16,
         channelInfoOverlayLogoSize: data.channelInfoOverlayLogoSize ?? 42,
-        channelInfoOverlayBoxWidth: data.channelInfoOverlayBoxWidth ?? 380,
-        channelInfoOverlayOpacity: data.channelInfoOverlayOpacity ?? 55,
+        channelInfoOverlayBoxWidth: data.channelInfoOverlayBoxWidth ?? 350,
+        channelInfoOverlayOpacity: data.channelInfoOverlayOpacity ?? 70,
         channelInfoOverlayHideDescription: data.channelInfoOverlayHideDescription ?? false,
         channelInfoOverlayHideMetaBadge: data.channelInfoOverlayHideMetaBadge ?? false,
         channelInfoOverlayHideLogo: data.channelInfoOverlayHideLogo ?? false,
@@ -247,7 +349,10 @@ async function hydrateSettingsStore(): Promise<void> {
         overlayAutohideTimer: data.overlayAutohideTimer ?? 3,
         overlayOnClickOnly: data.overlayOnClickOnly ?? false,
         playerControlDesign: data.playerControlDesign ?? 'clean',
-        showVolumePercent: data.showVolumePercent ?? false,
+        showVolumePercent: data.showVolumePercent ?? true,
+        playerEngine: data.playerEngine ?? 'sidecar',
+        hdrTonemapToSdr: data.hdrTonemapToSdr ?? false,
+        showHdrQuickToggle: data.showHdrQuickToggle ?? false,
         popoutStopMain: data.popoutStopMain ?? true,
         popoutAlwaysOnTop: data.popoutAlwaysOnTop ?? false,
         popoutHwdecEnabled: data.popoutHwdecEnabled ?? true,
@@ -261,7 +366,12 @@ async function hydrateSettingsStore(): Promise<void> {
         catchupContinuePlaying: data.catchupContinuePlaying ?? false,
         vodAutoPlayNextEpisode: data.vodAutoPlayNextEpisode ?? true,
         vodShowSourceBadge: data.vodShowSourceBadge ?? false,
+        blurUnwatchedEpisodes: data.blurUnwatchedEpisodes ?? false,
+        useScrollwheelSeek: data.useScrollwheelSeek ?? false,
+        useScrollwheelSeekInvert: data.useScrollwheelSeekInvert ?? false,
         failoverGroupShowSource: data.failoverGroupShowSource ?? false,
+        failoverAlwaysPlayPrimary: data.failoverAlwaysPlayPrimary ?? false,
+        failoverKeepView: data.failoverKeepView ?? false,
         showFailoverLiveTvWidget: data.showFailoverLiveTvWidget ?? true,
         showFailoverMediaBarWidget: data.showFailoverMediaBarWidget ?? true,
         navHiddenTabs: data.navHiddenTabs ?? [],
@@ -310,7 +420,12 @@ async function hydrateSettingsStore(): Promise<void> {
         showWatchlist: data.showWatchlist ?? true,
         showRecentlyViewed: data.showRecentlyViewed ?? true,
         favoritesMode: data.favoritesMode === 'perSource' || data.favoritesMode === 'both' || data.favoritesMode === 'global' ? data.favoritesMode : 'global',
-        collapseSourceCategoriesOnStartup: data.collapseSourceCategoriesOnStartup ?? false,
+        collapseSourceCategoriesOnStartup: data.collapseSourceCategoriesOnStartup ?? true,
+        showVodAll: data.showVodAll ?? true,
+        showVodFavorites: data.showVodFavorites ?? true,
+        showVodPlaylists: data.showVodPlaylists ?? true,
+        showVodLocal: data.showVodLocal ?? true,
+        showVodRecent: data.showVodRecent ?? true,
         streamMaxRetries: typeof data.streamMaxRetries === 'number' ? data.streamMaxRetries : 20,
         streamWatchdogSeconds: typeof data.streamWatchdogSeconds === 'number' ? data.streamWatchdogSeconds : 10,
         useEventBasedReconnect: data.useEventBasedReconnect ?? false,
@@ -326,13 +441,46 @@ async function hydrateSettingsStore(): Promise<void> {
         discordShowWhenBrowsing: data.discordShowWhenBrowsing ?? true,
         discordShowPoster: data.discordShowPoster ?? true,
         discordShowTimestamp: data.discordShowTimestamp ?? true,
+        controllerEnabled: data.controllerEnabled ?? false,
+        controllerBackgroundListening: data.controllerBackgroundListening ?? false,
+        controllerDeadzone: typeof data.controllerDeadzone === 'number' ? data.controllerDeadzone : 0.45,
+        controllerMappings: data.controllerMappings && typeof data.controllerMappings === 'object'
+          ? { ...DEFAULT_CONTROLLER_MAPPINGS, ...data.controllerMappings }
+          : { ...DEFAULT_CONTROLLER_MAPPINGS },
+        keyboardControllerEnabled: data.keyboardControllerEnabled ?? false,
+        keyboardControllerMappings: data.keyboardControllerMappings && typeof data.keyboardControllerMappings === 'object'
+          ? { ...DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS, ...data.keyboardControllerMappings }
+          : { ...DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS },
+        controllerChords: data.controllerChords && typeof data.controllerChords === 'object'
+          ? { ...DEFAULT_CONTROLLER_CHORDS, ...data.controllerChords }
+          : { ...DEFAULT_CONTROLLER_CHORDS },
+        remoteControlEnabled: data.remoteControlEnabled ?? false,
+        remoteControlPort: typeof data.remoteControlPort === 'number' ? data.remoteControlPort : 11470,
+        phoneRemoteConfig: data.phoneRemoteConfig && typeof data.phoneRemoteConfig === 'object'
+          ? {
+              ...DEFAULT_PHONE_REMOTE_CONFIG,
+              ...data.phoneRemoteConfig,
+              cornerButtons: {
+                ...DEFAULT_PHONE_REMOTE_CONFIG.cornerButtons,
+                ...(data.phoneRemoteConfig.cornerButtons || {}),
+              },
+              centerButtons: {
+                ...DEFAULT_PHONE_REMOTE_CONFIG.centerButtons,
+                ...(data.phoneRemoteConfig.centerButtons || {}),
+              },
+              layout: {
+                ...DEFAULT_PHONE_REMOTE_CONFIG.layout,
+                ...(data.phoneRemoteConfig.layout || {}),
+              },
+            }
+          : { ...DEFAULT_PHONE_REMOTE_CONFIG },
         enableCustomScrollbarWidth: data.enableCustomScrollbarWidth ?? false,
         customScrollbarWidth: data.customScrollbarWidth ?? 12,
         hardwareAcceleration: data.hardwareAcceleration ?? true,
         disableThemeBackdropBlur: data.disableThemeBackdropBlur ?? false,
         reduceEffectsWhileScrolling: data.reduceEffectsWhileScrolling ?? false,
         oledBlack: data.oledBlack ?? false,
-        epgLazyLoadingEnabled: data.epgLazyLoadingEnabled ?? false,
+        epgLazyLoadingEnabled: data.epgLazyLoadingEnabled ?? true,
         disableEpgTransitions: data.disableEpgTransitions ?? false,
         epgReduceGpuLayers: data.epgReduceGpuLayers ?? false,
         epgDisableChannelFade: data.epgDisableChannelFade ?? false,
@@ -344,11 +492,25 @@ async function hydrateSettingsStore(): Promise<void> {
         channelLogoPadding: data.channelLogoPadding ?? 'none',
         logoSmartTrim: data.logoSmartTrim ?? false,
         logoLightBackgroundDetection: data.logoLightBackgroundDetection ?? true,
+        logoDefaultBackground: (data.logoDefaultBackground ?? 'auto') as 'auto' | 'light' | 'dark',
         sourceLogoDisplayOverrides: data.sourceLogoDisplayOverrides ?? {},
+        sourceLogoBackgroundOverrides: data.sourceLogoBackgroundOverrides ?? {},
         epgMetadataBadgeResolution: data.epgMetadataBadgeResolution ?? true,
         epgMetadataBadgeFps: data.epgMetadataBadgeFps ?? true,
         epgMetadataBadgeFpsSuffix: data.epgMetadataBadgeFpsSuffix ?? true,
+        epgMetadataBadgeFhdLabels: data.epgMetadataBadgeFhdLabels ?? false,
+        epgResolutionFilterEnabled: data.epgResolutionFilterEnabled ?? true,
         epgMetadataBadgeSound: data.epgMetadataBadgeSound ?? true,
+        epgMetadataBadgeBitrate: data.epgMetadataBadgeBitrate ?? false,
+        epgMetadataBadgeAudioBitrate: data.epgMetadataBadgeAudioBitrate ?? false,
+        epgMetadataBadgeBitrateOverlay: data.epgMetadataBadgeBitrateOverlay ?? false,
+        epgMetadataBadgeAudioBitrateOverlay: data.epgMetadataBadgeAudioBitrateOverlay ?? false,
+        epgMetadataBadgeBitrateSearch: data.epgMetadataBadgeBitrateSearch ?? false,
+        epgMetadataBadgeAudioBitrateSearch: data.epgMetadataBadgeAudioBitrateSearch ?? false,
+        epgMetadataBadgeBitrateFailover: data.epgMetadataBadgeBitrateFailover ?? false,
+        epgMetadataBadgeAudioBitrateFailover: data.epgMetadataBadgeAudioBitrateFailover ?? false,
+        epgMetadataBadgeBitrateSports: data.epgMetadataBadgeBitrateSports ?? false,
+        epgMetadataBadgeAudioBitrateSports: data.epgMetadataBadgeAudioBitrateSports ?? false,
         logoCacheEnabled: data.logoCacheEnabled ?? false,
         logoCacheMaxMb: data.logoCacheMaxMb ?? 250,
         logoCacheTtlDays: data.logoCacheTtlDays ?? 30,

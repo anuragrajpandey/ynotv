@@ -61,7 +61,7 @@
 
 .vod-browse::-webkit-scrollbar,
 .vod-browse *::-webkit-scrollbar {
-  width: 6px;
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .vod-browse::-webkit-scrollbar-track,
@@ -82,40 +82,22 @@
   background: var(--scrollbar-hover-color, var(--accent-primary, #00d4ff));
 }
 
-/* Virtuoso Grid */
-.vod-browse__grid {
+/* Virtual Grid */
+.vod-browse__grid-scroll {
   flex: 1;
   min-height: 0;
-  /* Allow flex shrink */
-  /* Margin shrinks what Virtuoso measures - ensures column count matches */
-  /* Increased right margin to push scrollbar left, making room for alphabet rail */
   margin-left: 24px;
   margin-right: 60px;
+  padding-bottom: 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.vod-browse__grid-list {
-  /* Virtuoso uses absolute positioning - flexbox is for fallback only */
-  display: flex;
-  flex-wrap: wrap;
-  padding: 8px 0 16px;
+.vod-browse__grid-scroll .virtual-grid {
+  padding-top: 8px;
 }
 
-.vod-browse__grid-item {
-  /* Dynamic dimensions based on CSS variables */
-  /* padding: 2px all around = 4px horizontal gap, 4px vertical gap */
-  width: var(--vod-item-width, 164px);
-  height: var(--vod-item-height, 276px);
-  padding: 2px;
-  box-sizing: border-box;
-  margin: 0 !important;
-}
-
-.vod-browse__grid-item * {
-  margin: 0;
-}
-
-/* Ensure the card fills the tightly fitted slot regardless of its default size variant */
-.vod-browse__grid-item .media-card {
+.vod-browse__grid-scroll .virtual-grid__cell .media-card {
   width: var(--vod-card-width, 160px);
   height: var(--vod-card-height, 276px);
 }
@@ -374,6 +356,45 @@
   align-items: center;
   gap: 20px;
   flex-shrink: 0;
+}
+
+/* Inline "Loading page X of Y" status shown in the toolbar while a cached
+   Stalker category re-syncs in the background (grid stays visible). */
+.vod-browse__sync-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.vod-browse__sync-status .vod-browse__spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.vod-browse__sync-progress {
+  width: 80px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.vod-browse__sync-progress-fill {
+  height: 100%;
+  background: var(--primary, #007bff);
+  transition: width 0.3s ease;
+}
+
+@media (max-width: 640px) {
+  .vod-browse__sync-status {
+    display: none;
+  }
 }
 
 .vod-browse__sort-container {

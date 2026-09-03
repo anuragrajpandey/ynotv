@@ -23,6 +23,7 @@ import {
 import { db, type StoredChannel, type TeamChannelLink } from '../../db';
 import { useTeamLinks } from '../../stores/teamChannelLinksStore';
 import { searchGameStreams } from '../../services/sports/gameStreamSearcher';
+import { buildTeamSearchQuery, buildTeamSearchQueries } from '../../services/sports/teamChannelMatcher';
 import { TeamDetail } from './TeamDetail';
 import { GameDetail } from './GameDetail';
 import { TeamPlayButton } from './GameCard';
@@ -88,46 +89,7 @@ const getInFlightMap = (): Map<string, Promise<TeamDetails | null>> => {
   return w.__sportsFavoritesInFlight;
 };
 
-/**
- * Common city/location prefixes to strip for optimal team search query building.
- */
-const TEAM_CITY_PREFIXES: string[] = [
-  'St. Louis', 'St Louis', 'New York', 'Los Angeles', 'San Francisco', 'San Diego',
-  'San Jose', 'Kansas City', 'Oklahoma City', 'Salt Lake', 'New Orleans',
-  'Las Vegas', 'Green Bay', 'Tampa Bay', 'Bay Area', 'Golden State',
-  'New England', 'Carolina', 'Rhode Island',
-  'Fort Worth', 'Fort Lauderdale', 'El Paso', 'San Antonio', 'Little Rock',
-  'Baton Rouge', 'West Ham', 'Crystal Palace', 'Brighton', 'Sheffield',
-  'Nottingham', 'Wolverhampton', 'Aston', 'Porto Alegre',
-  'Porto', 'Real Madrid', 'Real Sociedad', 'Real Betis', 'Real Valladolid',
-  'Atletico', 'Athletic',
-  'Atlanta', 'Baltimore', 'Boston', 'Buffalo', 'Charlotte', 'Chicago',
-  'Cincinnati', 'Cleveland', 'Colorado', 'Columbus', 'Dallas', 'Denver',
-  'Detroit', 'Edmonton', 'Florida', 'Houston', 'Indiana', 'Jacksonville',
-  'Louisville', 'Memphis', 'Miami', 'Milwaukee', 'Minnesota', 'Montreal',
-  'Nashville', 'Newark', 'Oakland', 'Orlando', 'Ottawa', 'Philadelphia',
-  'Phoenix', 'Pittsburgh', 'Portland', 'Sacramento', 'Seattle', 'Toronto',
-  'Utah', 'Vancouver', 'Washington', 'Winnipeg', 'Arizona', 'Tennessee',
-  'Arsenal', 'Chelsea', 'Everton', 'Liverpool', 'Fulham', 'Brentford',
-  'Bayern', 'Dortmund', 'Barcelona', 'Juventus', 'Napoli', 'Milan', 'Roma', 'Inter',
-  'Paris', 'Lyon', 'Marseille', 'Monaco', 'Ajax', 'Lisbon', 'Porto'
-].sort((a, b) => b.length - a.length);
 
-function stripCityPrefix(name: string): string {
-  const trimmed = name.trim();
-  for (const city of TEAM_CITY_PREFIXES) {
-    if (trimmed.toLowerCase().startsWith(city.toLowerCase() + ' ')) {
-      const nickname = trimmed.slice(city.length).trim();
-      if (nickname.length > 0) return nickname;
-    }
-  }
-  return trimmed;
-}
-
-function buildTeamSearchQuery(homeTeam: string, awayTeam?: string): string {
-  if (!awayTeam) return stripCityPrefix(homeTeam);
-  return `${stripCityPrefix(homeTeam)} ${stripCityPrefix(awayTeam)}`;
-}
 
 // -----------------------------------------------------------------------------
 // Memo comparison helpers — a poll that didn't change a card's displayed data
@@ -222,6 +184,7 @@ interface SortableFavoriteCardProps {
   nextEvent?: SportsEvent;
   isLive: boolean;
   searchQuery: string;
+  searchQueries?: string[];
   isSearching: boolean;
   streamsList: StoredChannel[] | null | undefined;
   epgClockFormat: string;
@@ -229,7 +192,7 @@ interface SortableFavoriteCardProps {
   onTogglePin: (teamId: string) => void;
   onRemove: (teamId: string) => void;
   onSearchClick: (query: string) => void;
-  onToggleInlineStreams: (cardKey: string, query: string, leagueId?: string) => void;
+  onToggleInlineStreams: (cardKey: string, query: string | string[], leagueId?: string) => void;
   onStreamClick: (channel: StoredChannel) => void;
   dropIndicator?: 'above' | 'below' | null;
 }
@@ -243,6 +206,7 @@ const SortableFavoriteCard = memo(
     nextEvent,
     isLive,
     searchQuery,
+    searchQueries,
     isSearching,
     streamsList,
     epgClockFormat,
@@ -429,7 +393,7 @@ const SortableFavoriteCard = memo(
           className={`favorite-action-text-btn list-btn ${streamsList && streamsList.length > 0 ? 'active' : ''}`}            title={streamsList ? i18n.t('sports:hideStreams') : i18n.t('sports:findMatchingLiveStreams')}
           onClick={(e) => {
             e.stopPropagation();
-            onToggleInlineStreams(cardKey, searchQuery, team.leagueId || liveEvent?.league?.id || nextEvent?.league?.id);
+            onToggleInlineStreams(cardKey, searchQueries || searchQuery, team.leagueId || liveEvent?.league?.id || nextEvent?.league?.id);
           }}
         >
           {isSearching ? (
@@ -514,14 +478,15 @@ const YourTeamsTodayCard = memo(
   onSelectEvent: (event: SportsEvent) => void;
   onChannelClick: (channelName: string) => void;
   onPlayChannel?: (channel: any) => void;
-  onToggleInlineStreams: (cardKey: string, query: string, leagueId?: string) => void;
+  onToggleInlineStreams: (cardKey: string, query: string | string[], leagueId?: string) => void;
   onStreamClick: (ch: StoredChannel) => void;
 }) {
   const cardKey = `today-${event.id}`;
-  const searchQuery = buildTeamSearchQuery(event.homeTeam.name, event.awayTeam.name);
+  const leagueId = event.league?.id || team.leagueId || '';
+  const searchQueries = buildTeamSearchQueries(event.homeTeam.name, event.awayTeam.name, leagueId);
+  const primaryQuery = buildTeamSearchQuery(event.homeTeam.name, event.awayTeam.name, leagueId);
   const isSearching = searchingKeys[cardKey] || false;
   const streamsList = inlineStreams[cardKey];
-  const leagueId = event.league?.id || team.leagueId || '';
 
   const homeLinks = useTeamLinks(leagueId, event.homeTeam.id || '');
   const awayLinks = useTeamLinks(leagueId, event.awayTeam.id || '');
@@ -589,7 +554,7 @@ const YourTeamsTodayCard = memo(
           title={i18n.t('sports:searchEpgForTeam', { home: event.homeTeam.name, away: event.awayTeam.name })}
           onClick={(e) => {
             e.stopPropagation();
-            onChannelClick(searchQuery);
+            onChannelClick(primaryQuery);
           }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -604,7 +569,7 @@ const YourTeamsTodayCard = memo(
           title={streamsList ? i18n.t('sports:hideStreams') : i18n.t('sports:listStreamsForGame')}
           onClick={(e) => {
             e.stopPropagation();
-            onToggleInlineStreams(cardKey, searchQuery, leagueId);
+            onToggleInlineStreams(cardKey, searchQueries, leagueId);
           }}
         >
           {isSearching ? (
@@ -831,7 +796,7 @@ export function FavoritesTab({ onSearchChannels, onPlayChannel, onSetTab }: Favo
     }
   };
 
-  const toggleInlineStreams = useCallback(async (cardKey: string, searchQuery: string, leagueId?: string) => {
+  const toggleInlineStreams = useCallback(async (cardKey: string, searchQuery: string | string[], leagueId?: string) => {
     if (inlineStreams[cardKey] !== undefined && inlineStreams[cardKey] !== null) {
       // Toggle hide
       setInlineStreams((prev) => ({ ...prev, [cardKey]: null }));
@@ -1053,8 +1018,12 @@ export function FavoritesTab({ onSearchChannels, onPlayChannel, onSetTab }: Favo
                   : null;
 
                 const activeGame = liveEvent || nextEvent;
+                const leagueId = team.leagueId || activeGame?.league?.id;
+                const searchQueries = activeGame 
+                  ? buildTeamSearchQueries(activeGame.homeTeam.name, activeGame.awayTeam.name, leagueId)
+                  : buildTeamSearchQueries(team.name, '', leagueId);
                 const searchQuery = activeGame 
-                  ? buildTeamSearchQuery(activeGame.homeTeam.name, activeGame.awayTeam.name)
+                  ? buildTeamSearchQuery(activeGame.homeTeam.name, activeGame.awayTeam.name, leagueId)
                   : buildTeamSearchQuery(team.name);
 
                 const isSearching = searchingKeys[cardKey] || false;
@@ -1069,6 +1038,7 @@ export function FavoritesTab({ onSearchChannels, onPlayChannel, onSetTab }: Favo
                     nextEvent={nextEvent}
                     isLive={isLive}
                     searchQuery={searchQuery}
+                    searchQueries={searchQueries}
                     isSearching={isSearching}
                     streamsList={streamsList}
                     epgClockFormat={epgClockFormat}

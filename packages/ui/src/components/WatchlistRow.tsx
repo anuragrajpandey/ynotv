@@ -4,6 +4,7 @@ import { removeFromWatchlist, updateWatchlistOptions } from '../db';
 import { WatchlistOptionsModal } from './WatchlistOptionsModal';
 import { FavoriteButton } from './FavoriteButton';
 import { ChannelLogo } from './ChannelLogo';
+import { useSettingsStore } from '../stores/settingsStore';
 import { useEpgClockFormat } from '../stores/uiStore';
 import { formatTime, formatDate } from '../utils/dateTime';
 import { useTranslation } from 'react-i18next';
@@ -40,6 +41,12 @@ export function WatchlistRow({
   const rowRef = useRef<HTMLDivElement>(null);
 
   useTranslation();
+
+  // Per-source logo overrides are read straight from the store so changes
+  // apply live without re-running the channel query. Must be before the early
+  // return below (hooks are unconditional).
+  const sourceLogoDisplayOverrides = useSettingsStore((s) => s.sourceLogoDisplayOverrides);
+  const sourceLogoBackgroundOverrides = useSettingsStore((s) => s.sourceLogoBackgroundOverrides);
 
   const now = new Date();
 
@@ -159,7 +166,9 @@ export function WatchlistRow({
             name={channel.alias || channel.name}
             className="guide-channel-logo"
             background={channel.logo_background as 'auto' | 'light' | 'dark' | undefined}
+            defaultBackground={sourceLogoBackgroundOverrides[channel.source_id]}
             padding={channel.logo_padding as 'default' | 'none' | undefined}
+            shape={sourceLogoDisplayOverrides[channel.source_id]}
           />
           <div className="guide-channel-name-container">
             <span className="guide-channel-name" title={channel.alias || channel.name}>

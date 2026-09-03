@@ -22,6 +22,7 @@ use crate::dvr::stream_resolver::resolve_stream_url;
 use crate::dvr::thumbnail::generate_thumbnail;
 use rusqlite::OptionalExtension;
 use tauri::Emitter;
+use tauri_plugin_store::StoreExt;
 
 use tokio::sync::watch;
 
@@ -203,6 +204,12 @@ impl RecordingManager {
         // Generate unique filename to avoid database file_path collision
         let (filename, output_path) = generate_unique_filename(&self.db, &storage_path, &schedule, &channel_name);
 
+        // "Record until Stop" schedules are stored with scheduled_end == 0:
+        // there is no fixed end time — only a user cancel (stop_recording)
+        // ends them. FFmpeg gets no -t limit and the end-time waiter below
+        // never fires.
+        let is_manual_stop = schedule.scheduled_end == 0;
+
         // Calculate recording duration
         let duration_secs = schedule.actual_end() - schedule.actual_start();
 
@@ -242,9 +249,14 @@ impl RecordingManager {
             || stream_url.contains("replay")
             || stream_url.contains("timeshift");
 
+        // Resolve appropriate User-Agent (Source UA -> MAC/Stalker default -> Global Live TV UA -> VLC fallback)
+        let user_agent = resolve_user_agent(&self.app_handle, &schedule.source_id);
+        info!("[DVR Recorder] Using User-Agent for schedule #{} (source '{}'): {}", schedule.id, schedule.source_id, user_agent);
+        println!("[DVR Recorder] Using User-Agent: {}", user_agent);
+
         // HTTP reconnection & User-Agent flags (must be specified before the input -i)
         if stream_url.starts_with("http://") || stream_url.starts_with("https://") {
-            cmd.arg("-user_agent").arg("VLC/3.0.18 LibVLC/3.0.18");
+            cmd.arg("-user_agent").arg(&user_agent);
             cmd.arg("-reconnect").arg("1")
                 .arg("-reconnect_delay_max").arg("5")
                 .arg("-reconnect_on_network_error").arg("1");
@@ -281,13 +293,19 @@ impl RecordingManager {
         cmd.arg("-timeout").arg("30000000")  // 30 second read timeout (microseconds)
             .arg("-i").arg(&stream_url)
             .arg("-c").arg("copy")              // Zero transcoding
-            .arg("-t").arg(duration_secs.to_string())
             .arg("-fflags").arg("+flush_packets")  // Flush packets immediately
             .arg("-y")                           // Overwrite if exists
             .arg(&output_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+
+        // Record-until-stop schedules have no fixed duration, so FFmpeg must
+        // not receive a -t limit — it keeps recording until the user stops it
+        // (cancel sends 'q' and/or kills the process).
+        if !is_manual_stop {
+            cmd.arg("-t").arg(duration_secs.to_string());
+        }
 
         // Hide console window on Windows (CREATE_NO_WINDOW = 0x08000000)
         #[cfg(windows)]
@@ -324,6 +342,7 @@ impl RecordingManager {
             schedule.id,
             recording_id,
             duration_secs,
+            is_manual_stop,
             cancel_rx,
             progress_seconds,
             progress_bytes,
@@ -469,6 +488,7 @@ impl RecordingManager {
         schedule_id: i64,
         recording_id: i64,
         expected_duration: i64,
+        manual_stop: bool,
         mut cancel_rx: watch::Receiver<bool>,
         progress_seconds: Arc<parking_lot::Mutex<f64>>,
         progress_bytes: Arc<parking_lot::Mutex<u64>>,
@@ -552,8 +572,12 @@ impl RecordingManager {
         // Take stdin to send 'q' signal for graceful stopping
         let stdin = child.stdin.take();
 
-        // Calculate absolute end time, using DB schedule if possible
-        let mut actual_end_time = if let Ok(Some(s)) = self.db.get_schedule(schedule_id) {
+        // Calculate absolute end time, using DB schedule if possible.
+        // Record-until-stop schedules (scheduled_end == 0) have no end: the
+        // waiter is pointed ~100 years out so only a user cancel can stop it.
+        let mut actual_end_time = if manual_stop {
+            chrono::Utc::now().timestamp() + 100 * 365 * 24 * 3600
+        } else if let Ok(Some(s)) = self.db.get_schedule(schedule_id) {
             s.actual_end()
         } else {
             chrono::Utc::now().timestamp() + expected_duration
@@ -638,7 +662,14 @@ impl RecordingManager {
                     // Poll database to check if schedule end time / padding changed
                     match self.db.get_schedule(schedule_id) {
                         Ok(Some(updated_schedule)) => {
-                            let new_end = updated_schedule.actual_end();
+                            // Manual (record-until-stop) schedules keep their
+                            // far-future end — padding edits must not let the
+                            // end-time waiter fire and cut the recording.
+                            let new_end = if updated_schedule.scheduled_end == 0 {
+                                actual_end_time
+                            } else {
+                                updated_schedule.actual_end()
+                            };
                             if new_end != actual_end_time {
                                 info!("Recording #{} scheduled end time updated dynamically: {} -> {}", 
                                       recording_id, actual_end_time, new_end);
@@ -1089,3 +1120,191 @@ fn parse_ffmpeg_line(line: &str) -> (Option<f64>, Option<u64>) {
     
     (secs, size_bytes)
 }
+
+/// Helper to resolve the appropriate User-Agent string from sources and settings JSON data
+pub fn resolve_user_agent_from_values(
+    sources_val: Option<&serde_json::Value>,
+    settings_val: Option<&serde_json::Value>,
+    source_id: &str,
+) -> String {
+    let mut source_ua: Option<String> = None;
+    let mut source_type: Option<String> = None;
+
+    if let Some(sources) = sources_val.and_then(|v| v.as_array()) {
+        for src in sources {
+            if src.get("id").and_then(|v| v.as_str()) == Some(source_id) {
+                source_type = src.get("type").and_then(|v| v.as_str()).map(|s| s.to_string());
+                if let Some(ua) = src.get("user_agent").and_then(|v| v.as_str()) {
+                    let trimmed = ua.trim();
+                    if !trimmed.is_empty() {
+                        source_ua = Some(trimmed.to_string());
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    // 1. If source has a custom configured User-Agent, use it
+    if let Some(ua) = source_ua {
+        return ua;
+    }
+
+    // 2. If it's a MAC/Stalker source with no custom UA, use the standard MAG/Stalker default UA
+    let is_stalker = source_type.as_deref() == Some("stalker") || source_id.starts_with("stalker_");
+    if is_stalker {
+        return "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3".to_string();
+    }
+
+    // 3. Check global Live TV User-Agent from settings
+    if let Some(settings) = settings_val {
+        let nested = settings.get("settings").and_then(|v| v.as_object());
+        let global_ua = nested
+            .and_then(|obj| obj.get("globalLiveTvUserAgent"))
+            .or_else(|| settings.get("globalLiveTvUserAgent"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+
+        if let Some(ua) = global_ua {
+            return ua;
+        }
+    }
+
+    // 4. Default fallback
+    "VLC/3.0.18 LibVLC/3.0.18".to_string()
+}
+
+/// Resolve the appropriate User-Agent for a recording given the app handle and source ID
+pub fn resolve_user_agent(app_handle: &tauri::AppHandle, source_id: &str) -> String {
+    match app_handle.store(".settings.dat") {
+        Ok(store) => {
+            let sources_val = store.get("sources");
+            let settings_val = store.get("settings").or_else(|| {
+                let mut map = serde_json::Map::new();
+                if let Some(global_ua) = store.get("globalLiveTvUserAgent") {
+                    map.insert("globalLiveTvUserAgent".to_string(), global_ua);
+                }
+                Some(serde_json::Value::Object(map))
+            });
+
+            resolve_user_agent_from_values(sources_val.as_ref(), settings_val.as_ref(), source_id)
+        }
+        Err(e) => {
+            warn!("[DVR Recorder] Could not access .settings.dat store: {}. Falling back to default User-Agent.", e);
+            if source_id.starts_with("stalker_") {
+                "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3".to_string()
+            } else {
+                "VLC/3.0.18 LibVLC/3.0.18".to_string()
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_resolve_user_agent_source_custom() {
+        let sources = json!([
+            {
+                "id": "src_1",
+                "type": "xtream",
+                "user_agent": "TiviMate/4.6.0"
+            }
+        ]);
+        let settings = json!({
+            "settings": {
+                "globalLiveTvUserAgent": "GlobalUA/1.0"
+            }
+        });
+
+        let ua = resolve_user_agent_from_values(Some(&sources), Some(&settings), "src_1");
+        assert_eq!(ua, "TiviMate/4.6.0");
+    }
+
+    #[test]
+    fn test_resolve_user_agent_stalker_default() {
+        let sources = json!([
+            {
+                "id": "src_stalker",
+                "type": "stalker",
+                "user_agent": ""
+            }
+        ]);
+        let settings = json!({
+            "settings": {
+                "globalLiveTvUserAgent": "GlobalUA/1.0"
+            }
+        });
+
+        let ua = resolve_user_agent_from_values(Some(&sources), Some(&settings), "src_stalker");
+        assert_eq!(ua, "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3");
+    }
+
+    #[test]
+    fn test_resolve_user_agent_stalker_custom() {
+        let sources = json!([
+            {
+                "id": "src_stalker",
+                "type": "stalker",
+                "user_agent": "CustomMAG/3.0"
+            }
+        ]);
+        let settings = json!({
+            "settings": {
+                "globalLiveTvUserAgent": "GlobalUA/1.0"
+            }
+        });
+
+        let ua = resolve_user_agent_from_values(Some(&sources), Some(&settings), "src_stalker");
+        assert_eq!(ua, "CustomMAG/3.0");
+    }
+
+    #[test]
+    fn test_resolve_user_agent_global_fallback() {
+        let sources = json!([
+            {
+                "id": "src_xtream",
+                "type": "xtream"
+            }
+        ]);
+        let settings = json!({
+            "settings": {
+                "globalLiveTvUserAgent": "TiviMate/4.6.0"
+            }
+        });
+
+        let ua = resolve_user_agent_from_values(Some(&sources), Some(&settings), "src_xtream");
+        assert_eq!(ua, "TiviMate/4.6.0");
+    }
+
+    #[test]
+    fn test_resolve_user_agent_vlc_fallback() {
+        let sources = json!([
+            {
+                "id": "src_xtream",
+                "type": "xtream"
+            }
+        ]);
+        let settings = json!({});
+
+        let ua = resolve_user_agent_from_values(Some(&sources), Some(&settings), "src_xtream");
+        assert_eq!(ua, "VLC/3.0.18 LibVLC/3.0.18");
+    }
+
+    #[test]
+    fn test_resolve_user_agent_unknown_source_with_global() {
+        let sources = json!([]);
+        let settings = json!({
+            "globalLiveTvUserAgent": "CustomGlobal/2.0"
+        });
+
+        let ua = resolve_user_agent_from_values(Some(&sources), Some(&settings), "unknown_src");
+        assert_eq!(ua, "CustomGlobal/2.0");
+    }
+}
+

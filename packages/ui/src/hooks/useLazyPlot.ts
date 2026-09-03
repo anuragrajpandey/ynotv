@@ -48,13 +48,13 @@ export function useLazyPlot(
   // Get item ID for tracking
   const itemId = item ? (isMovie(item) ? item.stream_id : item.series_id) : null;
 
-  // Reset fetched details when item changes
-  if (itemId !== lastItemIdRef.current) {
+  // Reset fetched details when item changes. Must live in an effect, not the
+  // render body — a render-phase setState is what triggers React's
+  // "Maximum update depth exceeded" loop.
+  useEffect(() => {
     lastItemIdRef.current = itemId;
-    if (fetchedDetails.plot !== null || fetchedDetails.genre !== null || fetchedDetails.rating !== null) {
-      setFetchedDetails({ plot: null, genre: null, rating: null });
-    }
-  }
+    setFetchedDetails({ plot: null, genre: null, rating: null });
+  }, [itemId]);
 
   useEffect(() => {
     if (!item) {

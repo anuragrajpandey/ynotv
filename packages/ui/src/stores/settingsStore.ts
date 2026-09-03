@@ -4,6 +4,8 @@ import type { ThemeId, CustomThemeConfig, ShortcutsMap, GlobalEpgLink } from '..
 import type { SubtitleSettings } from '../components/settings/SubtitlesTab';
 import type { AutoBackupSettings } from '../services/autoBackup';
 import type { TrailerSource, VodPlayerMode } from '../components/vod/SplitPlayButton';
+import type { PhoneRemoteConfig } from '../types/phoneRemote';
+import { DEFAULT_PHONE_REMOTE_CONFIG } from '../types/phoneRemote';
 import i18n, { isSupportedLocale } from '../i18n';
 
 /* ---------------------------------------------------------------------------
@@ -110,6 +112,14 @@ export interface CategorySettings {
   favoritesMode: 'global' | 'perSource' | 'both';
 }
 
+export interface VodNavigationSettings {
+  showVodAll: boolean;
+  showVodFavorites: boolean;
+  showVodPlaylists: boolean;
+  showVodLocal: boolean;
+  showVodRecent: boolean;
+}
+
 export interface RetrySettings {
   streamMaxRetries: number;
   streamWatchdogSeconds: number;
@@ -136,6 +146,7 @@ export interface SettingsState {
   // Timeshift
   timeshiftEnabled: boolean;
   timeshiftCacheBytes: number;
+  setTimeshiftCacheBytes: (bytes: number) => void;
   liveBufferOffset: number;
 
   // Search
@@ -161,6 +172,9 @@ export interface SettingsState {
   setEpgTitleFontSize: (size: number) => void;
   epgBodyFontSize: number;
   setEpgBodyFontSize: (size: number) => void;
+  // Program text size in the EPG time grid (--prog-title-font-size / --prog-desc-font-size)
+  epgProgramFontSize: number;
+  setEpgProgramFontSize: (size: number) => void;
 
   // UI scale (--app-zoom)
   uiScale: number;
@@ -176,6 +190,12 @@ export interface SettingsState {
   transparentGuideSidebarOpacity: number;
   setTransparentGuideSidebarOpacity: (opacity: number) => void;
 
+  // Auto-hide the category sidebar in LiveTV: hidden by default, pops open
+  // over the guide on left-edge hover, and hides again after a category click
+  // or when the mouse leaves it. When off, the classic persistent sidebar.
+  categorySidebarAutohide: boolean;
+  setCategorySidebarAutohide: (enabled: boolean) => void;
+
   // LAN source security gate (SourcesTab save-time check)
   allowLanSources: boolean;
   setAllowLanSources: (allowed: boolean) => void;
@@ -184,6 +204,14 @@ export interface SettingsState {
   modernUiEnabled: 'v1' | 'v2' | 'v3' | false;
   setModernUiEnabled: (value: 'v1' | 'v2' | 'v3' | false) => void;
   v3DefaultMigrated: boolean;
+  volumePercentDefaultMigrated: boolean;
+  subAssOverrideDefaultMigrated: boolean;
+  // One-time flag: first boot after EPG lazy loading became the default forces
+  // it ON once, then never overrides the user's choice again.
+  epgLazyLoadingDefaultMigrated: boolean;
+  // One-time flag: first boot after "collapse source categories" became the
+  // default forces it ON once, then never overrides the user's choice again.
+  collapseSourceCategoriesOnStartupDefaultMigrated: boolean;
 
   // Category display
   categorySortOrder: 'default' | 'alphabetical';
@@ -294,6 +322,8 @@ export interface SettingsState {
   // Metadata APIs
   tmdbApiKey: string;
   setTmdbApiKey: (key: string) => void;
+  tmdbLanguage: string;
+  setTmdbLanguage: (language: string) => void;
   posterDbApiKey: string;
   setPosterDbApiKey: (key: string) => void;
   rpdbBackdropsEnabled: boolean;
@@ -348,6 +378,21 @@ export interface SettingsState {
   setCategorySettings: (partial: Partial<CategorySettings>) => void;
   setCollapseSourceCategoriesOnStartup: (enabled: boolean) => void;
 
+  // Default category opened when LiveTV loads: '__last__' (last opened, the
+  // default behavior) or a concrete sidebar category id — '__all__' for All
+  // Channels, '__favorites__', '__watchlist__', '__recent__', a 'custom:...'
+  // group id, or a native category id.
+  defaultCategory: string;
+  setDefaultCategory: (mode: string) => void;
+
+  // VOD category sidebar visibility (Movies and Series sidebar)
+  showVodAll: boolean;
+  showVodFavorites: boolean;
+  showVodPlaylists: boolean;
+  showVodLocal: boolean;
+  showVodRecent: boolean;
+  setVodNavigationSettings: (partial: Partial<VodNavigationSettings>) => void;
+
   // Playback retry / stream-tuning knobs (read once at usePlayback mount)
   streamMaxRetries: number;
   streamWatchdogSeconds: number;
@@ -381,6 +426,16 @@ export interface SettingsState {
   setPlayerControlDesign: (design: 'default' | 'clean') => void;
   showVolumePercent: boolean;
   setShowVolumePercent: (enabled: boolean) => void;
+
+  // Video / MPV tuning
+  playerEngine: 'libmpv' | 'sidecar';
+  setPlayerEngine: (engine: 'libmpv' | 'sidecar') => Promise<void> | void;
+  hdrTonemapToSdr: boolean;
+  setHdrTonemapToSdr: (enabled: boolean) => void;
+  showHdrQuickToggle: boolean;
+  setShowHdrQuickToggle: (enabled: boolean) => void;
+  mpvQuality: 'performance' | 'balanced' | 'quality';
+  setMpvQuality: (quality: 'performance' | 'balanced' | 'quality') => Promise<void> | void;
 
   // Widget scale
   widgetScale: number;
@@ -461,16 +516,44 @@ export interface SettingsState {
   setLogoSmartTrim: (enabled: boolean) => void;
   logoLightBackgroundDetection: boolean;
   setLogoLightBackgroundDetection: (enabled: boolean) => void;
+  logoDefaultBackground: 'auto' | 'light' | 'dark';
+  setLogoDefaultBackground: (background: 'auto' | 'light' | 'dark') => void;
   sourceLogoDisplayOverrides: Record<string, 'square' | 'rectangle'>;
   setSourceLogoDisplayOverride: (sourceId: string, display: 'square' | 'rectangle' | 'default') => void;
+  sourceLogoBackgroundOverrides: Record<string, 'auto' | 'light' | 'dark'>;
+  setSourceLogoBackgroundOverride: (sourceId: string, background: 'auto' | 'light' | 'dark' | 'default') => void;
   epgMetadataBadgeResolution: boolean;
   setEpgMetadataBadgeResolution: (enabled: boolean) => void;
   epgMetadataBadgeFps: boolean;
   setEpgMetadataBadgeFps: (enabled: boolean) => void;
   epgMetadataBadgeFpsSuffix: boolean;
   setEpgMetadataBadgeFpsSuffix: (enabled: boolean) => void;
+  epgMetadataBadgeFhdLabels: boolean;
+  setEpgMetadataBadgeFhdLabels: (enabled: boolean) => void;
+  epgResolutionFilterEnabled: boolean;
+  setEpgResolutionFilterEnabled: (enabled: boolean) => void;
   epgMetadataBadgeSound: boolean;
   setEpgMetadataBadgeSound: (enabled: boolean) => void;
+  epgMetadataBadgeBitrate: boolean;
+  setEpgMetadataBadgeBitrate: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrate: boolean;
+  setEpgMetadataBadgeAudioBitrate: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateOverlay: boolean;
+  setEpgMetadataBadgeBitrateOverlay: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateOverlay: boolean;
+  setEpgMetadataBadgeAudioBitrateOverlay: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSearch: boolean;
+  setEpgMetadataBadgeBitrateSearch: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSearch: boolean;
+  setEpgMetadataBadgeAudioBitrateSearch: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateFailover: boolean;
+  setEpgMetadataBadgeBitrateFailover: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateFailover: boolean;
+  setEpgMetadataBadgeAudioBitrateFailover: (enabled: boolean) => void;
+  epgMetadataBadgeBitrateSports: boolean;
+  setEpgMetadataBadgeBitrateSports: (enabled: boolean) => void;
+  epgMetadataBadgeAudioBitrateSports: boolean;
+  setEpgMetadataBadgeAudioBitrateSports: (enabled: boolean) => void;
   logoCacheEnabled: boolean;
   setLogoCacheEnabled: (enabled: boolean) => void;
   logoCacheMaxMb: number;
@@ -491,8 +574,18 @@ export interface SettingsState {
   setVodAutoPlayNextEpisode: (enabled: boolean) => void;
   vodShowSourceBadge: boolean;
   setVodShowSourceBadge: (enabled: boolean) => void;
+  blurUnwatchedEpisodes: boolean;
+  setBlurUnwatchedEpisodes: (enabled: boolean) => void;
+  useScrollwheelSeek: boolean;
+  setUseScrollwheelSeek: (enabled: boolean) => void;
+  useScrollwheelSeekInvert: boolean;
+  setUseScrollwheelSeekInvert: (enabled: boolean) => void;
   failoverGroupShowSource: boolean;
   setFailoverGroupShowSource: (enabled: boolean) => void;
+  failoverAlwaysPlayPrimary: boolean;
+  setFailoverAlwaysPlayPrimary: (enabled: boolean) => void;
+  failoverKeepView: boolean;
+  setFailoverKeepView: (enabled: boolean) => void;
   showFailoverLiveTvWidget: boolean;
   setShowFailoverLiveTvWidget: (enabled: boolean) => void;
   showFailoverMediaBarWidget: boolean;
@@ -507,6 +600,43 @@ export interface SettingsState {
   // Misc
   globalLiveTvUserAgent: string;
   setGlobalLiveTvUserAgent: (ua: string) => void;
+
+  // Controller & Gamepad
+  controllerEnabled: boolean;
+  setControllerEnabled: (enabled: boolean) => void;
+  controllerBackgroundListening: boolean;
+  setControllerBackgroundListening: (enabled: boolean) => void;
+  controllerDeadzone: number;
+  setControllerDeadzone: (deadzone: number) => void;
+  controllerRepeatDelayMs: number;
+  setControllerRepeatDelayMs: (ms: number) => void;
+  controllerRepeatIntervalMs: number;
+  setControllerRepeatIntervalMs: (ms: number) => void;
+  controllerMappings: Record<string, string>;
+  setControllerMappings: (mappings: Record<string, string>) => void;
+  resetControllerMappings: () => void;
+  keyboardControllerEnabled: boolean;
+  setKeyboardControllerEnabled: (enabled: boolean) => void;
+  keyboardControllerMappings: Record<string, string>;
+  setKeyboardControllerMappings: (mappings: Record<string, string>) => void;
+  resetKeyboardControllerMappings: () => void;
+  controllerChords: Record<string, string>;
+  setControllerChords: (chords: Record<string, string>) => void;
+  resetControllerChords: () => void;
+  controllerVisualizerLayout: 'auto' | 'xbox' | 'playstation';
+  setControllerVisualizerLayout: (layout: 'auto' | 'xbox' | 'playstation') => void;
+  customGamepadProfiles: Record<string, Record<string, string>>;
+  saveCustomGamepadProfile: (deviceId: string, mapping: Record<string, string>) => void;
+  deleteCustomGamepadProfile: (deviceId: string) => void;
+
+  // Phone Remote Server & Customization
+  remoteControlEnabled: boolean;
+  setRemoteControlEnabled: (enabled: boolean) => void;
+  remoteControlPort: number;
+  setRemoteControlPort: (port: number) => void;
+  phoneRemoteConfig: PhoneRemoteConfig;
+  setPhoneRemoteConfig: (config: Partial<PhoneRemoteConfig>) => void;
+  resetPhoneRemoteConfig: () => void;
 
   // EPG cosmetic classes (load-time only — hydrated, no setters)
   epgDarkenCurrent: boolean;
@@ -570,6 +700,65 @@ export const DEFAULT_SUBTITLE_SETTINGS: SubtitleSettings = {
   subAssOverride: 'yes',
   subAlign: 'center',
   audioDevice: 'auto',
+  audioNormalize: false,
+  audioProfile: 'off',
+  audioDownmixStereo: false,
+  audioMaxVolume: 100,
+};
+
+export const DEFAULT_CONTROLLER_MAPPINGS: Record<string, string> = {
+  south: 'select',
+  east: 'back',
+  north: 'search',
+  west: 'subtitles',
+  dpad_up: 'nav_up',
+  dpad_down: 'nav_down',
+  dpad_left: 'nav_left',
+  dpad_right: 'nav_right',
+  left_stick_up: 'nav_up',
+  left_stick_down: 'nav_down',
+  left_stick_left: 'nav_left',
+  left_stick_right: 'nav_right',
+  left_bumper: 'prev_channel',
+  right_bumper: 'next_channel',
+  left_trigger: 'seek_backward',
+  right_trigger: 'seek_forward',
+  left_stick_click: 'toggle_fullscreen',
+  right_stick_click: 'toggle_mute',
+  start: 'play_pause',
+  select: 'toggle_livetv',
+  guide: 'toggle_livetv',
+};
+
+// Keyboard-as-controller: physical keys (e.code) mapped to controller buttons.
+// When keyboardControllerEnabled is on, a mapped key is translated into the
+// controller button's action through the same pipeline as a gamepad press
+// (controllerMappings + chords), so an HTPC wireless keyboard/remote can drive
+// the controller UI. Keys use e.code (physical position) so layouts don't
+// matter; the values are controller button ids (same vocabulary as
+// DEFAULT_CONTROLLER_MAPPINGS).
+export const DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS: Record<string, string> = {
+  ArrowUp: 'dpad_up',
+  ArrowDown: 'dpad_down',
+  ArrowLeft: 'dpad_left',
+  ArrowRight: 'dpad_right',
+  Enter: 'south',
+  Escape: 'east',
+};
+
+// Button-combination chords: hold a modifier (shoulder/trigger) and press a
+// base button to trigger a different action instead of the button's normal
+// one. Keys are `${modifier}+${base}` and values are app actions (same
+// vocabulary as DEFAULT_CONTROLLER_MAPPINGS / AVAILABLE_ACTIONS).
+export const DEFAULT_CONTROLLER_CHORDS: Record<string, string> = {
+  'left_bumper+west': 'toggle_overlay',
+  'right_bumper+west': 'toggle_transparent_overlay',
+  'left_bumper+east': 'open_movies',
+  'left_bumper+north': 'open_series',
+  'right_bumper+east': 'open_sports',
+  'left_trigger+north': 'open_settings',
+  'left_trigger+east': 'toggle_live_game_sidebar',
+  'right_trigger+south': 'search',
 };
 
 function getInitialTheme(): ThemeId {
@@ -630,7 +819,14 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   // Timeshift
   timeshiftEnabled: true,
-  timeshiftCacheBytes: 268_435_456, // Default 256MB
+  timeshiftCacheBytes: (cachedSettings?.timeshiftCacheBytes as number) ?? 268_435_456, // Default 256MB
+  setTimeshiftCacheBytes: (bytes) => {
+    set({ timeshiftCacheBytes: bytes });
+    persistSettings({ timeshiftCacheBytes: bytes });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mpv-cache-size-changed', { detail: { bytes } }));
+    }
+  },
   liveBufferOffset: 0,
 
   // Search
@@ -677,6 +873,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ epgBodyFontSize: size });
     persistSettings({ epgBodyFontSize: size }, true);
   },
+  epgProgramFontSize: (cachedSettings?.epgProgramFontSize as number) ?? 14,
+  setEpgProgramFontSize: (size) => {
+    set({ epgProgramFontSize: size });
+    persistSettings({ epgProgramFontSize: size }, true);
+  },
 
   // UI scale (--app-zoom)
   uiScale: (cachedSettings?.uiScale as number) ?? 100,
@@ -707,6 +908,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     persistSettings({ transparentGuideSidebarOpacity: opacity });
   },
 
+  categorySidebarAutohide: (cachedSettings?.categorySidebarAutohide as boolean) ?? false,
+  setCategorySidebarAutohide: (enabled) => {
+    set({ categorySidebarAutohide: enabled });
+    persistSettings({ categorySidebarAutohide: enabled });
+  },
+
   // LAN source security gate
   allowLanSources: (cachedSettings?.allowLanSources as boolean) ?? false,
   setAllowLanSources: (allowed) => {
@@ -721,6 +928,10 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     persistSettings({ modernUiEnabled: value });
   },
   v3DefaultMigrated: (cachedSettings?.v3DefaultMigrated as boolean) ?? false,
+  volumePercentDefaultMigrated: (cachedSettings?.volumePercentDefaultMigrated as boolean) ?? false,
+  subAssOverrideDefaultMigrated: (cachedSettings?.subAssOverrideDefaultMigrated as boolean) ?? false,
+  epgLazyLoadingDefaultMigrated: (cachedSettings?.epgLazyLoadingDefaultMigrated as boolean) ?? false,
+  collapseSourceCategoriesOnStartupDefaultMigrated: (cachedSettings?.collapseSourceCategoriesOnStartupDefaultMigrated as boolean) ?? false,
 
   // Category display
   categorySortOrder: 'default',
@@ -931,10 +1142,31 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ playerControlDesign: design });
     persistSettings({ playerControlDesign: design });
   },
-  showVolumePercent: false,
+  showVolumePercent: (cachedSettings?.showVolumePercent as boolean) ?? true,
   setShowVolumePercent: (enabled) => {
     set({ showVolumePercent: enabled });
     persistSettings({ showVolumePercent: enabled });
+  },
+  // Video / MPV tuning
+  playerEngine: (cachedSettings?.playerEngine as 'libmpv' | 'sidecar') || 'sidecar',
+  setPlayerEngine: (engine) => {
+    set({ playerEngine: engine });
+    return persistSettings({ playerEngine: engine });
+  },
+  hdrTonemapToSdr: (cachedSettings?.hdrTonemapToSdr as boolean) ?? false,
+  setHdrTonemapToSdr: (enabled) => {
+    set({ hdrTonemapToSdr: enabled });
+    persistSettings({ hdrTonemapToSdr: enabled });
+  },
+  showHdrQuickToggle: (cachedSettings?.showHdrQuickToggle as boolean) ?? false,
+  setShowHdrQuickToggle: (enabled) => {
+    set({ showHdrQuickToggle: enabled });
+    persistSettings({ showHdrQuickToggle: enabled });
+  },
+  mpvQuality: (cachedSettings?.mpvQuality as 'performance' | 'balanced' | 'quality') || 'balanced',
+  setMpvQuality: (quality) => {
+    set({ mpvQuality: quality });
+    return persistSettings({ mpvQuality: quality });
   },
 
   // Widget scale
@@ -1055,7 +1287,10 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ oledBlack: enabled });
     persistSettings({ oledBlack: enabled });
   },
-  epgLazyLoadingEnabled: false,
+  // Default ON: load only the visible EPG window (visible channels x visible
+  // time range) instead of every program for every channel — essential for
+  // large libraries where the full EPG is hundreds of MB.
+  epgLazyLoadingEnabled: true,
   setEpgLazyLoadingEnabled: (enabled) => {
     set({ epgLazyLoadingEnabled: enabled });
     persistSettings({ epgLazyLoadingEnabled: enabled });
@@ -1112,6 +1347,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ logoLightBackgroundDetection: enabled });
     persistSettings({ logoLightBackgroundDetection: enabled });
   },
+  logoDefaultBackground: (cachedSettings?.logoDefaultBackground as 'auto' | 'light' | 'dark') ?? 'auto',
+  setLogoDefaultBackground: (background) => {
+    set({ logoDefaultBackground: background });
+    persistSettings({ logoDefaultBackground: background });
+  },
   sourceLogoDisplayOverrides: (cachedSettings?.sourceLogoDisplayOverrides as Record<string, 'square' | 'rectangle'>) ?? {},
   setSourceLogoDisplayOverride: (sourceId, display) => {
     const next = { ...get().sourceLogoDisplayOverrides };
@@ -1122,6 +1362,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     }
     set({ sourceLogoDisplayOverrides: next });
     persistSettings({ sourceLogoDisplayOverrides: next });
+  },
+  sourceLogoBackgroundOverrides: (cachedSettings?.sourceLogoBackgroundOverrides as Record<string, 'auto' | 'light' | 'dark'>) ?? {},
+  setSourceLogoBackgroundOverride: (sourceId, background) => {
+    const next = { ...get().sourceLogoBackgroundOverrides };
+    if (background === 'default') {
+      delete next[sourceId];
+    } else {
+      next[sourceId] = background;
+    }
+    set({ sourceLogoBackgroundOverrides: next });
+    persistSettings({ sourceLogoBackgroundOverrides: next });
   },
   epgMetadataBadgeResolution: (cachedSettings?.epgMetadataBadgeResolution as boolean) ?? true,
   setEpgMetadataBadgeResolution: (enabled) => {
@@ -1138,10 +1389,70 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ epgMetadataBadgeFpsSuffix: enabled });
     persistSettings({ epgMetadataBadgeFpsSuffix: enabled });
   },
+  epgMetadataBadgeFhdLabels: (cachedSettings?.epgMetadataBadgeFhdLabels as boolean) ?? false,
+  setEpgMetadataBadgeFhdLabels: (enabled) => {
+    set({ epgMetadataBadgeFhdLabels: enabled });
+    persistSettings({ epgMetadataBadgeFhdLabels: enabled });
+  },
+  epgResolutionFilterEnabled: (cachedSettings?.epgResolutionFilterEnabled as boolean) ?? true,
+  setEpgResolutionFilterEnabled: (enabled) => {
+    set({ epgResolutionFilterEnabled: enabled });
+    persistSettings({ epgResolutionFilterEnabled: enabled });
+  },
   epgMetadataBadgeSound: (cachedSettings?.epgMetadataBadgeSound as boolean) ?? true,
   setEpgMetadataBadgeSound: (enabled) => {
     set({ epgMetadataBadgeSound: enabled });
     persistSettings({ epgMetadataBadgeSound: enabled });
+  },
+  epgMetadataBadgeBitrate: (cachedSettings?.epgMetadataBadgeBitrate as boolean) ?? false,
+  setEpgMetadataBadgeBitrate: (enabled) => {
+    set({ epgMetadataBadgeBitrate: enabled });
+    persistSettings({ epgMetadataBadgeBitrate: enabled });
+  },
+  epgMetadataBadgeAudioBitrate: (cachedSettings?.epgMetadataBadgeAudioBitrate as boolean) ?? false,
+  setEpgMetadataBadgeAudioBitrate: (enabled) => {
+    set({ epgMetadataBadgeAudioBitrate: enabled });
+    persistSettings({ epgMetadataBadgeAudioBitrate: enabled });
+  },
+  epgMetadataBadgeBitrateOverlay: (cachedSettings?.epgMetadataBadgeBitrateOverlay as boolean) ?? false,
+  setEpgMetadataBadgeBitrateOverlay: (enabled) => {
+    set({ epgMetadataBadgeBitrateOverlay: enabled });
+    persistSettings({ epgMetadataBadgeBitrateOverlay: enabled });
+  },
+  epgMetadataBadgeAudioBitrateOverlay: (cachedSettings?.epgMetadataBadgeAudioBitrateOverlay as boolean) ?? false,
+  setEpgMetadataBadgeAudioBitrateOverlay: (enabled) => {
+    set({ epgMetadataBadgeAudioBitrateOverlay: enabled });
+    persistSettings({ epgMetadataBadgeAudioBitrateOverlay: enabled });
+  },
+  epgMetadataBadgeBitrateSearch: (cachedSettings?.epgMetadataBadgeBitrateSearch as boolean) ?? false,
+  setEpgMetadataBadgeBitrateSearch: (enabled) => {
+    set({ epgMetadataBadgeBitrateSearch: enabled });
+    persistSettings({ epgMetadataBadgeBitrateSearch: enabled });
+  },
+  epgMetadataBadgeAudioBitrateSearch: (cachedSettings?.epgMetadataBadgeAudioBitrateSearch as boolean) ?? false,
+  setEpgMetadataBadgeAudioBitrateSearch: (enabled) => {
+    set({ epgMetadataBadgeAudioBitrateSearch: enabled });
+    persistSettings({ epgMetadataBadgeAudioBitrateSearch: enabled });
+  },
+  epgMetadataBadgeBitrateFailover: (cachedSettings?.epgMetadataBadgeBitrateFailover as boolean) ?? false,
+  setEpgMetadataBadgeBitrateFailover: (enabled) => {
+    set({ epgMetadataBadgeBitrateFailover: enabled });
+    persistSettings({ epgMetadataBadgeBitrateFailover: enabled });
+  },
+  epgMetadataBadgeAudioBitrateFailover: (cachedSettings?.epgMetadataBadgeAudioBitrateFailover as boolean) ?? false,
+  setEpgMetadataBadgeAudioBitrateFailover: (enabled) => {
+    set({ epgMetadataBadgeAudioBitrateFailover: enabled });
+    persistSettings({ epgMetadataBadgeAudioBitrateFailover: enabled });
+  },
+  epgMetadataBadgeBitrateSports: (cachedSettings?.epgMetadataBadgeBitrateSports as boolean) ?? false,
+  setEpgMetadataBadgeBitrateSports: (enabled) => {
+    set({ epgMetadataBadgeBitrateSports: enabled });
+    persistSettings({ epgMetadataBadgeBitrateSports: enabled });
+  },
+  epgMetadataBadgeAudioBitrateSports: (cachedSettings?.epgMetadataBadgeAudioBitrateSports as boolean) ?? false,
+  setEpgMetadataBadgeAudioBitrateSports: (enabled) => {
+    set({ epgMetadataBadgeAudioBitrateSports: enabled });
+    persistSettings({ epgMetadataBadgeAudioBitrateSports: enabled });
   },
   logoCacheEnabled: (cachedSettings?.logoCacheEnabled as boolean) ?? false,
   setLogoCacheEnabled: (enabled) => {
@@ -1192,11 +1503,41 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     persistSettings({ vodShowSourceBadge: enabled });
     dispatchAppEvent('ynotv:vod-settings-changed', { vodShowSourceBadge: enabled });
   },
+  blurUnwatchedEpisodes: false,
+  setBlurUnwatchedEpisodes: (enabled) => {
+    set({ blurUnwatchedEpisodes: enabled });
+    persistSettings({ blurUnwatchedEpisodes: enabled });
+    dispatchAppEvent('ynotv:vod-settings-changed', { blurUnwatchedEpisodes: enabled });
+  },
+  useScrollwheelSeek: false,
+  setUseScrollwheelSeek: (enabled) => {
+    set({ useScrollwheelSeek: enabled });
+    persistSettings({ useScrollwheelSeek: enabled });
+    dispatchAppEvent('ynotv:vod-settings-changed', { useScrollwheelSeek: enabled });
+  },
+  useScrollwheelSeekInvert: false,
+  setUseScrollwheelSeekInvert: (enabled) => {
+    set({ useScrollwheelSeekInvert: enabled });
+    persistSettings({ useScrollwheelSeekInvert: enabled });
+    dispatchAppEvent('ynotv:vod-settings-changed', { useScrollwheelSeekInvert: enabled });
+  },
   failoverGroupShowSource: false,
   setFailoverGroupShowSource: (enabled) => {
     set({ failoverGroupShowSource: enabled });
     persistSettings({ failoverGroupShowSource: enabled });
     dispatchAppEvent('ynotv:livetv-settings-changed', { failoverGroupShowSource: enabled });
+  },
+  failoverAlwaysPlayPrimary: false,
+  setFailoverAlwaysPlayPrimary: (enabled) => {
+    set({ failoverAlwaysPlayPrimary: enabled });
+    persistSettings({ failoverAlwaysPlayPrimary: enabled });
+    dispatchAppEvent('ynotv:livetv-settings-changed', { failoverAlwaysPlayPrimary: enabled });
+  },
+  failoverKeepView: false,
+  setFailoverKeepView: (enabled) => {
+    set({ failoverKeepView: enabled });
+    persistSettings({ failoverKeepView: enabled });
+    dispatchAppEvent('ynotv:livetv-settings-changed', { failoverKeepView: enabled });
   },
   showFailoverLiveTvWidget: true,
   setShowFailoverLiveTvWidget: (enabled) => {
@@ -1285,6 +1626,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ tmdbApiKey: key });
     persistSettings({ tmdbApiKey: key });
     dispatchAppEvent('ynotv:tmdb-key-changed', {});
+  },
+  tmdbLanguage: cachedSettings?.tmdbLanguage ?? 'en-US',
+  setTmdbLanguage: (language) => {
+    set({ tmdbLanguage: language });
+    persistSettings({ tmdbLanguage: language });
   },
   posterDbApiKey: '',
   setPosterDbApiKey: (key) => {
@@ -1386,6 +1732,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   showWatchlist: true,
   showRecentlyViewed: true,
   favoritesMode: 'global',
+  defaultCategory: (cachedSettings?.defaultCategory as string) ?? '__last__',
+  setDefaultCategory: (mode) => {
+    set({ defaultCategory: mode });
+    persistSettings({ defaultCategory: mode }, true);
+  },
   setCategorySettings: (partial) => {
     const patch: Record<string, any> = {};
     if (partial.showAllChannels !== undefined) patch.showAllChannels = partial.showAllChannels;
@@ -1399,10 +1750,30 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       dispatchAppEvent('ynotv:category-settings-changed', patch);
     }
   },
-  collapseSourceCategoriesOnStartup: false,
+  collapseSourceCategoriesOnStartup: true,
   setCollapseSourceCategoriesOnStartup: (enabled) => {
     set({ collapseSourceCategoriesOnStartup: enabled });
     persistSettings({ collapseSourceCategoriesOnStartup: enabled });
+  },
+
+  // VOD category sidebar visibility (Movies and Series sidebar)
+  showVodAll: true,
+  showVodFavorites: true,
+  showVodPlaylists: true,
+  showVodLocal: true,
+  showVodRecent: true,
+  setVodNavigationSettings: (partial) => {
+    const patch: Record<string, any> = {};
+    if (partial.showVodAll !== undefined) patch.showVodAll = partial.showVodAll;
+    if (partial.showVodFavorites !== undefined) patch.showVodFavorites = partial.showVodFavorites;
+    if (partial.showVodPlaylists !== undefined) patch.showVodPlaylists = partial.showVodPlaylists;
+    if (partial.showVodLocal !== undefined) patch.showVodLocal = partial.showVodLocal;
+    if (partial.showVodRecent !== undefined) patch.showVodRecent = partial.showVodRecent;
+    set(patch);
+    persistSettings(patch);
+    if (Object.keys(patch).length > 0) {
+      dispatchAppEvent('ynotv:vod-navigation-settings-changed', patch);
+    }
   },
 
   // Playback retry / stream-tuning knobs — the setter dispatches the legacy
@@ -1449,6 +1820,144 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set(patch);
     persistSettings(patch);
     dispatchAppEvent('ynotv:auto-backup-settings-changed', {});
+  },
+
+  // Controller & Gamepad — controller support is opt-in, so it's OFF unless
+  // the user explicitly enables it (previously it defaulted to on).
+  controllerEnabled: cachedSettings?.controllerEnabled ?? false,
+  setControllerEnabled: (enabled) => {
+    set({ controllerEnabled: enabled });
+    persistSettings({ controllerEnabled: enabled });
+  },
+  // Background listening is also opt-in — inputs are ignored while the app
+  // window is not focused unless this is enabled.
+  controllerBackgroundListening: cachedSettings?.controllerBackgroundListening ?? false,
+  setControllerBackgroundListening: (enabled) => {
+    set({ controllerBackgroundListening: enabled });
+    persistSettings({ controllerBackgroundListening: enabled });
+  },
+  controllerDeadzone: cachedSettings?.controllerDeadzone ?? 0.45,
+  setControllerDeadzone: (deadzone) => {
+    set({ controllerDeadzone: deadzone });
+    persistSettings({ controllerDeadzone: deadzone }, true);
+  },
+  // D-pad hold-to-repeat. Defaults mirror the phone remote's timings
+  // (NAV_REPEAT_HOLD_MS / NAV_REPEAT_START_MS). controllerRepeatIntervalMs is
+  // the base speed of the accelerating curve — the faster (interval) it is, the
+  // quicker repeats fire.
+  controllerRepeatDelayMs: cachedSettings?.controllerRepeatDelayMs ?? 350,
+  setControllerRepeatDelayMs: (ms) => {
+    set({ controllerRepeatDelayMs: ms });
+    persistSettings({ controllerRepeatDelayMs: ms }, true);
+  },
+  controllerRepeatIntervalMs: cachedSettings?.controllerRepeatIntervalMs ?? 220,
+  setControllerRepeatIntervalMs: (ms) => {
+    set({ controllerRepeatIntervalMs: ms });
+    persistSettings({ controllerRepeatIntervalMs: ms }, true);
+  },
+  controllerMappings: cachedSettings?.controllerMappings ?? DEFAULT_CONTROLLER_MAPPINGS,
+  setControllerMappings: (mappings) => {
+    set({ controllerMappings: mappings });
+    persistSettings({ controllerMappings: mappings });
+  },
+  resetControllerMappings: () => {
+    set({ controllerMappings: { ...DEFAULT_CONTROLLER_MAPPINGS } });
+    persistSettings({ controllerMappings: { ...DEFAULT_CONTROLLER_MAPPINGS } });
+  },
+  // Keyboard-as-controller is opt-in and independent of physical controller
+  // support — an HTPC remote can drive the controller UI on its own.
+  keyboardControllerEnabled: cachedSettings?.keyboardControllerEnabled ?? false,
+  setKeyboardControllerEnabled: (enabled) => {
+    set({ keyboardControllerEnabled: enabled });
+    persistSettings({ keyboardControllerEnabled: enabled });
+  },
+  keyboardControllerMappings: cachedSettings?.keyboardControllerMappings ?? DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS,
+  setKeyboardControllerMappings: (mappings) => {
+    set({ keyboardControllerMappings: mappings });
+    persistSettings({ keyboardControllerMappings: mappings });
+  },
+  resetKeyboardControllerMappings: () => {
+    set({ keyboardControllerMappings: { ...DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS } });
+    persistSettings({ keyboardControllerMappings: { ...DEFAULT_KEYBOARD_CONTROLLER_MAPPINGS } });
+  },
+  controllerChords: cachedSettings?.controllerChords ?? DEFAULT_CONTROLLER_CHORDS,
+  setControllerChords: (chords) => {
+    set({ controllerChords: chords });
+    persistSettings({ controllerChords: chords });
+  },
+  resetControllerChords: () => {
+    set({ controllerChords: { ...DEFAULT_CONTROLLER_CHORDS } });
+    persistSettings({ controllerChords: { ...DEFAULT_CONTROLLER_CHORDS } });
+  },
+  controllerVisualizerLayout: cachedSettings?.controllerVisualizerLayout ?? 'xbox',
+  setControllerVisualizerLayout: (layout) => {
+    set({ controllerVisualizerLayout: layout });
+    persistSettings({ controllerVisualizerLayout: layout });
+  },
+  customGamepadProfiles: cachedSettings?.customGamepadProfiles ?? {},
+  saveCustomGamepadProfile: (deviceId, mapping) => {
+    set((state) => {
+      const updated = { ...state.customGamepadProfiles, [deviceId]: mapping };
+      persistSettings({ customGamepadProfiles: updated });
+      return { customGamepadProfiles: updated };
+    });
+  },
+  deleteCustomGamepadProfile: (deviceId) => {
+    set((state) => {
+      const updated = { ...state.customGamepadProfiles };
+      delete updated[deviceId];
+      persistSettings({ customGamepadProfiles: updated });
+      return { customGamepadProfiles: updated };
+    });
+  },
+
+  // Phone Remote Server (opt-in — off unless the user explicitly enables it)
+  remoteControlEnabled: cachedSettings?.remoteControlEnabled ?? false,
+  setRemoteControlEnabled: (enabled) => {
+    set({ remoteControlEnabled: enabled });
+    persistSettings({ remoteControlEnabled: enabled });
+  },
+  remoteControlPort: cachedSettings?.remoteControlPort ?? 11470,
+  setRemoteControlPort: (port) => {
+    set({ remoteControlPort: port });
+    persistSettings({ remoteControlPort: port });
+  },
+  phoneRemoteConfig: cachedSettings?.phoneRemoteConfig
+    ? {
+        ...DEFAULT_PHONE_REMOTE_CONFIG,
+        ...cachedSettings.phoneRemoteConfig,
+        cornerButtons: {
+          ...DEFAULT_PHONE_REMOTE_CONFIG.cornerButtons,
+          ...(cachedSettings.phoneRemoteConfig.cornerButtons || {}),
+        },
+        layout: {
+          ...DEFAULT_PHONE_REMOTE_CONFIG.layout,
+          ...(cachedSettings.phoneRemoteConfig.layout || {}),
+        },
+      }
+    : { ...DEFAULT_PHONE_REMOTE_CONFIG },
+  setPhoneRemoteConfig: (config) => {
+    set((state) => {
+      const updated: PhoneRemoteConfig = {
+        ...state.phoneRemoteConfig,
+        ...config,
+        cornerButtons: config.cornerButtons
+          ? { ...state.phoneRemoteConfig.cornerButtons, ...config.cornerButtons }
+          : state.phoneRemoteConfig.cornerButtons,
+        centerButtons: config.centerButtons
+          ? { ...state.phoneRemoteConfig.centerButtons, ...config.centerButtons }
+          : state.phoneRemoteConfig.centerButtons,
+        layout: config.layout
+          ? { ...state.phoneRemoteConfig.layout, ...config.layout }
+          : state.phoneRemoteConfig.layout,
+      };
+      persistSettings({ phoneRemoteConfig: updated });
+      return { phoneRemoteConfig: updated };
+    });
+  },
+  resetPhoneRemoteConfig: () => {
+    set({ phoneRemoteConfig: { ...DEFAULT_PHONE_REMOTE_CONFIG } });
+    persistSettings({ phoneRemoteConfig: { ...DEFAULT_PHONE_REMOTE_CONFIG } });
   },
 
   // EPG cosmetic classes (load-time only — hydrated from settings, no setters)

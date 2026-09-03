@@ -14,7 +14,10 @@ import {
   type CachedCastMember as CastMember,
   type CachedSeasonEpisode as TmdbSeasonEpisode,
 } from '../../services/local-library/metadata-cache';
+import { updateLocalEntries } from '../../services/local-library/local-library';
 import { useActiveTmdbToken } from '../../hooks/useTmdbLists';
+import { useVodFavoritesStore } from '../../stores/vodFavoritesStore';
+import { EditEpisodeMetadataModal } from './EditEpisodeMetadataModal';
 import './LocalDetail.css';
 
 interface LocalDetailProps {
@@ -22,7 +25,9 @@ interface LocalDetailProps {
   onClose: () => void;
   onPlay: (entry: LocalEntry, seriesGroup?: { key: string; head: LocalEntry }) => void;
   onFixMatch: (entries: LocalEntry[]) => void;
+  onRefreshMetadata: (entries: LocalEntry[]) => void;
   onRemove: (ids: string[]) => void;
+  onAddToPlaylist: (group: LocalGroup) => void;
 }
 
 function LocalEpisodeCard({
@@ -31,12 +36,14 @@ function LocalEpisodeCard({
   tmdbEpisode,
   seriesBackdrop,
   onPlay,
+  onContextMenu,
 }: {
   episode: LocalEntry;
   seriesTitle: string;
   tmdbEpisode?: TmdbSeasonEpisode | null;
   seriesBackdrop?: string | null;
   onPlay: (episode: LocalEntry) => void;
+  onContextMenu: (e: React.MouseEvent, episode: LocalEntry) => void;
 }) {
   const { t } = useTranslation('vod');
   const watchStatus = useLocalEpisodeWatchStatus(episode);
@@ -96,6 +103,7 @@ function LocalEpisodeCard({
     <div
       className="local-detail__episode-card"
       onClick={() => onPlay(episode)}
+      onContextMenu={(e) => onContextMenu(e, episode)}
       title={`${displayTitle} (${episode.filename})`}
     >
       {/* 16:9 Thumbnail Screen Cap */}
@@ -222,7 +230,9 @@ export const LocalDetail = memo(function LocalDetail({
   onClose,
   onPlay,
   onFixMatch,
+  onRefreshMetadata,
   onRemove,
+  onAddToPlaylist,
 }: LocalDetailProps) {
   const { t } = useTranslation('vod');
   const tmdbToken = useActiveTmdbToken();
@@ -232,12 +242,19 @@ export const LocalDetail = memo(function LocalDetail({
   const episodes = isMovie ? [] : group.episodes;
   const allEntries = isMovie ? [group.entry] : episodes;
 
+  const favoriteId = group.kind === 'movie' ? `local_${group.entry.id}` : `local_${group.key}`;
+  const isFavorite = useVodFavoritesStore((s) =>
+    s.favorites.some((f) => f.id === favoriteId && f.type === (group.kind === 'movie' ? 'movie' : 'series')),
+  );
+
   const movieWatchStatus = useLocalMovieWatchStatus(isMovie ? group.entry : null);
 
   const [selectedSeason, setSelectedSeason] = useState<number>(1);
   const [cast, setCast] = useState<CastMember[]>([]);
   const [seasonEpisodesMap, setSeasonEpisodesMap] = useState<Map<number, TmdbSeasonEpisode>>(new Map());
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; entry: LocalEntry } | null>(null);
+  const [editTarget, setEditTarget] = useState<LocalEntry | null>(null);
 
   // Group series episodes by season
   const seasonsMap = useMemo(() => {
@@ -263,14 +280,36 @@ export const LocalDetail = memo(function LocalDetail({
     }
   }, [seasonsList, seasonsMap, selectedSeason]);
 
-  // Escape key handler
+  // Escape key handler — close the context menu / edit modal before the page
+  const handleCloseContextMenu = useCallback(() => setCtxMenu(null), []);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (ctxMenu) setCtxMenu(null);
+        else if (editTarget) setEditTarget(null);
+        else onClose();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [ctxMenu, editTarget, onClose]);
+
+  const handleEpisodeContextMenu = useCallback((e: React.MouseEvent, entry: LocalEntry) => {
+    e.preventDefault();
+    setEditTarget(null);
+    setCtxMenu({ x: e.clientX, y: e.clientY, entry });
+  }, []);
+
+  const handleEditSave = useCallback(
+    (patch: { season: number | null; episode: number; title: string }) => {
+      if (!editTarget) return;
+      // Lock the entry so a re-scan or auto-sync can't overwrite the manual
+      // season/episode/title.
+      updateLocalEntries([editTarget.id], { ...patch, metadataLocked: true });
+      setEditTarget(null);
+    },
+    [editTarget],
+  );
 
   // Fetch & Cache TMDB Cast
   useEffect(() => {
@@ -353,6 +392,25 @@ export const LocalDetail = memo(function LocalDetail({
     if (!isMovie) return;
     await markLocalMovieWatched(head, !movieWatchStatus.completed);
   }, [isMovie, head, movieWatchStatus.completed]);
+
+  const handleToggleFavorite = useCallback(() => {
+    const favStore = useVodFavoritesStore.getState();
+    if (isFavorite) {
+      favStore.removeFavorite(favoriteId, isMovie ? 'movie' : 'series');
+    } else {
+      favStore.addFavorite({
+        id: favoriteId,
+        type: isMovie ? 'movie' : 'series',
+        title: head.title || head.filename,
+        poster: head.poster || head.localArt?.poster || undefined,
+        year: head.year != null ? String(head.year) : undefined,
+      });
+    }
+  }, [isFavorite, favoriteId, isMovie, head.title, head.filename, head.poster, head.localArt, head.year]);
+
+  const handleAddToPlaylist = useCallback(() => {
+    onAddToPlaylist(group);
+  }, [group, onAddToPlaylist]);
 
   const handleDelete = useCallback(() => {
     if (confirmDelete) {
@@ -469,6 +527,34 @@ export const LocalDetail = memo(function LocalDetail({
 
               <button
                 type="button"
+                className={`local-detail__action-btn ${isFavorite ? 'favorited' : ''}`}
+                onClick={handleToggleFavorite}
+                title={isFavorite ? t('removeFavorite', 'Remove from favorites') : t('addFavorite', 'Add to favorites')}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {isFavorite ? t('removeFavorite', 'Remove from favorites') : t('addFavorite', 'Add to favorites')}
+              </button>
+
+              <button
+                type="button"
+                className="local-detail__action-btn"
+                onClick={handleAddToPlaylist}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6" />
+                  <line x1="8" y1="12" x2="21" y2="12" />
+                  <line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" />
+                  <line x1="3" y1="12" x2="3.01" y2="12" />
+                  <line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
+                {t('addToPlaylist', 'Add to playlist')}
+              </button>
+
+              <button
+                type="button"
                 className="local-detail__action-btn"
                 onClick={() => onFixMatch(allEntries)}
               >
@@ -476,6 +562,19 @@ export const LocalDetail = memo(function LocalDetail({
                   <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5" />
                 </svg>
                 {t('fixMatch', 'Fix match')}
+              </button>
+
+              <button
+                type="button"
+                className="local-detail__action-btn"
+                onClick={() => onRefreshMetadata(allEntries)}
+                title={t('refreshMetadataDetailTitle', 'Re-run TMDB matching for this title, bypassing cached results')}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <polyline points="21 3 21 9 15 9" />
+                </svg>
+                {t('refreshMetadata', 'Refresh Metadata')}
               </button>
 
               <button
@@ -499,7 +598,7 @@ export const LocalDetail = memo(function LocalDetail({
                   <polyline points="3 6 5 6 21 6" />
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                 </svg>
-                {confirmDelete ? t('confirmRemove', 'Click again to remove') : t('remove', 'Remove')}
+                {confirmDelete ? t('confirmRemove', 'Click again to remove') : t('common:remove', 'Remove')}
               </button>
             </div>
 
@@ -549,6 +648,7 @@ export const LocalDetail = memo(function LocalDetail({
                 tmdbEpisode={seasonEpisodesMap.get(ep.episode ?? 1)}
                 seriesBackdrop={backdropSrc}
                 onPlay={(selectedEp) => onPlay(selectedEp, { key: group.key, head })}
+                onContextMenu={handleEpisodeContextMenu}
               />
             ))}
           </div>
@@ -581,6 +681,61 @@ export const LocalDetail = memo(function LocalDetail({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Right-click context menu on an episode card */}
+      {ctxMenu && (
+        <>
+          <div
+            className="local-ctx-overlay"
+            onClick={handleCloseContextMenu}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              handleCloseContextMenu();
+            }}
+          />
+          <div
+            className="local-ctx-menu"
+            style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          >
+            <button
+              type="button"
+              className="local-ctx-menu__item"
+              onClick={() => {
+                setEditTarget(ctxMenu.entry);
+                handleCloseContextMenu();
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+              {t('editMetadata', 'Edit metadata')}
+            </button>
+            <button
+              type="button"
+              className="local-ctx-menu__item"
+              onClick={() => {
+                const entry = ctxMenu.entry;
+                handleCloseContextMenu();
+                onFixMatch([entry]);
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5" />
+              </svg>
+              {t('fixMatch', 'Fix match')}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Edit episode metadata modal */}
+      {editTarget && (
+        <EditEpisodeMetadataModal
+          entry={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={handleEditSave}
+        />
       )}
     </div>
   );

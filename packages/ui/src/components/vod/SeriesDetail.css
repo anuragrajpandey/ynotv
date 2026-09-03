@@ -74,9 +74,10 @@
   z-index: 0;
 }
 
-.series-detail::-webkit-scrollbar {
+.series-detail::-webkit-scrollbar,
+.series-detail *::-webkit-scrollbar {
   display: block;
-  width: 6px;
+  width: var(--app-scrollbar-width, var(--scrollbar-width, 6px));
 }
 
 .series-detail::-webkit-scrollbar-track {
@@ -427,6 +428,15 @@
 
 .series-detail__episode-card:hover .series-detail__episode-image img {
   transform: scale(1.03);
+}
+
+.series-detail__episode-image img.series-detail__episode-image--blurred {
+  filter: blur(10px);
+  transform: scale(1.08);
+}
+
+.series-detail__episode-card:hover .series-detail__episode-image img.series-detail__episode-image--blurred {
+  transform: scale(1.12);
 }
 
 .series-detail__episode-image-placeholder {

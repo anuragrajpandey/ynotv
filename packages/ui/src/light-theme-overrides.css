@@ -11,6 +11,10 @@
   /* VOD scrollbars — light solid values replace the v2 accent gradient */
   --vs-scrollbar-thumb-bg: #cbd5e1;
   --vs-scrollbar-thumb-hover-bg: #94a3b8;
+  --guide-scroll-strip-thumb-bg: #cbd5e1;
+  --guide-scroll-strip-thumb-hover-bg: #94a3b8;
+  --guide-scroll-ch-thumb-bg: #cbd5e1;
+  --guide-scroll-ch-thumb-hover-bg: #94a3b8;
   /* VOD sidebar active-item icon glows — light solid pastels replace the v2
      dark per-icon glows (consumed by the light icon rules below; redefining
      the tokens here is what makes those rules take effect in v2/v3) */
@@ -537,6 +541,22 @@
   color: var(--lt-text-inverse, #ffffff) !important;
 }
 
+[data-theme="light"] .epg-resolution-menu {
+  background: var(--lt-bg-surface, #ffffff) !important;
+  border-color: var(--lt-bd-color, #cbd5e1) !important;
+  box-shadow: var(--lt-shadow-lg-15, 0 8px 24px rgba(0, 0, 0, 0.15)) !important;
+}
+
+[data-theme="light"] .epg-resolution-item {
+  background: var(--lt-bg-hover, #f1f5f9) !important;
+  color: var(--lt-text-primary, #0f172a) !important;
+}
+
+[data-theme="light"] .epg-resolution-item:hover {
+  background: var(--accent-primary, #0066cc) !important;
+  color: var(--lt-text-inverse, #ffffff) !important;
+}
+
 [data-theme="light"] .category-item,
 html[data-theme="light"] .category-item,
 html.modern-ui-v3[data-theme="light"] .category-item {
@@ -989,6 +1009,18 @@ html.modern-ui-v3[data-theme="light"] .guide-channel-logo .logo-placeholder {
 
 [data-theme="light"] .channel-row-metadata .metadata-badge.detailed .audio {
   color: var(--lt-text-success, #059669) !important;
+}
+
+[data-theme="light"] .channel-row-metadata .metadata-badge.detailed .bitrate {
+  color: #7c3aed !important;
+}
+
+[data-theme="light"] .channel-row-metadata .metadata-badge.detailed .audio-bitrate {
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .channel-row-metadata .metadata-badge.detailed .bitrate-sep {
+  color: rgba(0, 0, 0, 0.4) !important;
 }
 
 [data-theme="light"] .npb-channel-text .metadata-badge {
@@ -6109,4 +6141,19 @@ html.modern-ui-v3[data-theme="light"] .add-to-playlist-modal__body::-webkit-scro
 html.modern-ui-v3[data-theme="light"] .add-to-playlist-list::-webkit-scrollbar-thumb:hover,
 html.modern-ui-v3[data-theme="light"] .add-to-playlist-episodes-list::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-hover-color, var(--accent-primary, #0066cc)) !important;
+}
+
+/* TV focus ring: deeper blue for contrast on light themes */
+[data-theme="light"] body.tv-nav-active .tv-focused,
+html[data-theme="light"] body.tv-nav-active .tv-focused,
+html.modern-ui-v3[data-theme="light"] body.tv-nav-active .tv-focused {
+  outline-color: #0284c7 !important;
+}
+[data-theme="light"] body.tv-nav-active .guide-channel-info.tv-focused,
+[data-theme="light"] body.tv-nav-active .guide-channel-item.tv-focused,
+[data-theme="light"] body.tv-nav-active .program-block.tv-focused,
+[data-theme="light"] body.tv-nav-active .movie-card.tv-focused,
+[data-theme="light"] body.tv-nav-active .series-card.tv-focused {
+  background: rgba(2, 132, 199, 0.14) !important;
+  box-shadow: 0 0 16px rgba(2, 132, 199, 0.45), inset 0 0 8px rgba(2, 132, 199, 0.18) !important;
 }

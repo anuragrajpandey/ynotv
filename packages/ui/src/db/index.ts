@@ -3,6 +3,23 @@ import Database from '@tauri-apps/plugin-sql';
 import { invoke } from '@tauri-apps/api/core';
 import type { Channel, Category, Movie, Series, Episode } from '@ynotv/core';
 
+// Debug logging helper - logs to console only when the global debug flag is
+// enabled (matches the pattern in db/sync.ts). Hot paths like episode watch
+// progress must not spam the production console on every save.
+function debugLog(message: string | (() => string), category = 'db'): void {
+  if (typeof window === 'undefined' || !(window as any).__debugLoggingEnabled) {
+    return;
+  }
+  // Lazy message: string-building (e.g. JSON.stringify of DB rows) only runs
+  // when debug logging is actually enabled.
+  const msg = typeof message === 'function' ? message() : message;
+  const logMsg = `[${category}] ${msg}`;
+  console.log(logMsg);
+  if (window.debug?.logFromRenderer) {
+    window.debug.logFromRenderer(logMsg).catch(() => { });
+  }
+}
+
 // Extended channel with local metadata
 export interface StoredChannel extends Omit<Channel, 'stream_icon' | 'epg_channel_id' | 'tv_archive'> {
   name: string;
@@ -40,8 +57,6 @@ export interface StoredChannel extends Omit<Channel, 'stream_icon' | 'epg_channe
   logo_background?: string;
   // Manual logo padding override ('default' | 'none') applied from epg_channel_overrides
   logo_padding?: string;
-  // Per-source logo display override ('square' | 'rectangle') applied from sourceLogoDisplayOverrides
-  logo_display?: 'square' | 'rectangle';
   // Filter words that were applied to this channel's name/alias for the current
   // view (used to explain trimmed names on hover).
   applied_filter_words?: string[];
@@ -87,6 +102,7 @@ export interface StoredMovie extends Omit<Movie, 'category_ids'> {
   match_attempted?: Date | string; // When TMDB matching was last attempted (even if no match found)
   category_ids?: string; // stored as JSON/string in SQLite
   category_id?: string; // Singular category ID (Xtream mainly)
+  youtube_trailer?: string;
 }
 
 // VOD Series with TMDB enrichment
@@ -170,6 +186,9 @@ export interface ChannelMetadata {
   fps: number;                 // e.g., 30
   audio_channels: string;      // e.g., "Stereo", "5.1"
   quality_label: string;       // e.g., "4K", "1080p", "720p", "SD"
+  video_bitrate_kbps?: number | null; // e.g. 4500 (kbps)
+  audio_bitrate_kbps?: number | null; // e.g. 192 (kbps)
+  bitrate_kbps?: number | null;       // e.g. 4692 (total or probed bitrate kbps)
   last_updated: Date | string;
 }
 
@@ -423,6 +442,8 @@ export interface LocalEntryRow {
   needsReview: boolean | null;
   source: 'tmdb' | 'nfo' | null;
   localArt: { poster?: string; logo?: string; backdrop?: string } | null;
+  metadataLocked: boolean | null;
+  reviewSkipped: boolean | null;
 }
 
 class YnotvDatabase extends SqliteDatabase {
@@ -503,6 +524,10 @@ class YnotvDatabase extends SqliteDatabase {
     const rawPromise = this.dbPromise;
     this.dbPromise = rawPromise.then(async (db) => {
       await this.initSchema(db);
+      // One-time background backfill of channel_categories for existing DBs
+      // (new syncs maintain it incrementally). Not awaited — must not block
+      // startup; missing rows are harmless and rebuilt on the next sync.
+      void backfillChannelCategories(db);
       return db;
     });
 
@@ -587,11 +612,24 @@ class YnotvDatabase extends SqliteDatabase {
         catchup_days INTEGER
       )`);
 
+    // ── channel_categories: denormalized category membership map ──────────────
+    // (stream_id, source_id, category_id) rows used for indexed category lookups
+    // and counts instead of a per-row json_each scan over the source's channels.
+    // Always derived FROM channels.category_ids (rebuilt by the bulk write paths
+    // and the one-time startup backfill below), so it can never drift.
+    await db.execute(`CREATE TABLE IF NOT EXISTS channel_categories (
+        stream_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        category_id TEXT NOT NULL,
+        PRIMARY KEY (stream_id, category_id)
+      )`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_channel_categories_lookup ON channel_categories(source_id, category_id)`);
+
     // ─── Versioned migrations via PRAGMA user_version ─────────────────────────
     // Each version block runs exactly ONCE. To add new columns in the future,
     // increment DB_VERSION and add a new case (do NOT modify existing cases).
     // ─────────────────────────────────────────────────────────────────────────
-    const DB_VERSION = 25;
+    const DB_VERSION = 27;
     const versionResult = await db.select('PRAGMA user_version') as Array<{ user_version: number }>;
     const currentVersion = versionResult[0]?.user_version ?? 0;
 
@@ -1000,6 +1038,29 @@ class YnotvDatabase extends SqliteDatabase {
         console.log('[DB] v25 migration: VOD metadata overrides table added');
       }
 
+      // v26: Add video_bitrate_kbps, audio_bitrate_kbps, bitrate_kbps to channelMetadata
+      if (currentVersion < 26) {
+        console.log('[DB] v26 migration: Adding bitrate columns to channelMetadata');
+        const addColumn = async (table: string, col: string, type: string) => {
+          try { await db.execute(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`); } catch { /* already exists */ }
+        };
+        await addColumn('channelMetadata', 'video_bitrate_kbps', 'INTEGER');
+        await addColumn('channelMetadata', 'audio_bitrate_kbps', 'INTEGER');
+        await addColumn('channelMetadata', 'bitrate_kbps', 'INTEGER');
+      }
+
+      // v27: Purge stale trailer entries from watch history. Trailers are
+      // previews, not watch history; the recordVodWatch gate + query filters
+      // prevent new ones, this removes the rows written before that existed.
+      if (currentVersion < 27) {
+        console.log('[DB] v27 migration: Removing trailer entries from watch history');
+        try {
+          await db.execute("DELETE FROM vod_history WHERE source_id = 'trailer'");
+        } catch (e) {
+          console.error('[DB] v27 migration failed:', e);
+        }
+      }
+
       // Bump the stored version so these migrations never run again
       await db.execute(`PRAGMA user_version = ${DB_VERSION}`);
       console.log(`[DB] Migration to v${DB_VERSION} complete`);
@@ -1110,8 +1171,13 @@ class YnotvDatabase extends SqliteDatabase {
         addedAt INTEGER NOT NULL,
         needsReview INTEGER,
         source TEXT,
-        localArt TEXT
+        localArt TEXT,
+        metadataLocked INTEGER,
+        reviewSkipped INTEGER
       )`);
+    // Migrations for installs created before these columns existed.
+    try { await db.execute('ALTER TABLE local_entries ADD COLUMN metadataLocked INTEGER'); } catch { /* already exists */ }
+    try { await db.execute('ALTER TABLE local_entries ADD COLUMN reviewSkipped INTEGER'); } catch { /* already exists */ }
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_local_entries_path ON local_entries(path)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_local_entries_title ON local_entries(title COLLATE NOCASE)`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_team_channel_links_league ON team_channel_links(league_id)`);
@@ -1168,7 +1234,8 @@ class YnotvDatabase extends SqliteDatabase {
         stream_icon TEXT,
         direct_url TEXT,
         release_date TEXT,
-        title TEXT
+        title TEXT,
+        youtube_trailer TEXT
       )`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_vodMovies_source ON vodMovies(source_id)`);
     // Add index on category_ids for faster category filtering (LIKE queries benefit from index)
@@ -1259,7 +1326,10 @@ class YnotvDatabase extends SqliteDatabase {
         fps REAL,
         audio_channels TEXT,
         quality_label TEXT,
-      last_updated TEXT
+        video_bitrate_kbps INTEGER,
+        audio_bitrate_kbps INTEGER,
+        bitrate_kbps INTEGER,
+        last_updated TEXT
       )`);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_metadata_source ON channelMetadata(source_id)`);
 
@@ -1432,6 +1502,7 @@ class YnotvDatabase extends SqliteDatabase {
     try { await db.execute(`ALTER TABLE vodMovies ADD COLUMN genre TEXT`); } catch (e) {}
     try { await db.execute(`ALTER TABLE vodMovies ADD COLUMN release_date TEXT`); } catch (e) {}
     try { await db.execute(`ALTER TABLE vodMovies ADD COLUMN title TEXT`); } catch (e) {}
+    try { await db.execute(`ALTER TABLE vodMovies ADD COLUMN youtube_trailer TEXT`); } catch (e) {}
 
     try { await db.execute(`ALTER TABLE vodSeries ADD COLUMN year TEXT`); } catch (e) {}
     try { await db.execute(`ALTER TABLE vodSeries ADD COLUMN stream_icon TEXT`); } catch (e) {}
@@ -1456,6 +1527,9 @@ class YnotvDatabase extends SqliteDatabase {
     try { await db.execute(`ALTER TABLE programs ADD COLUMN subtitle TEXT`); } catch (e) {}
     try { await db.execute(`ALTER TABLE epg_program_overrides ADD COLUMN subtitle TEXT`); } catch (e) {}
     try { await db.execute(`ALTER TABLE team_channel_links ADD COLUMN priority INTEGER DEFAULT 0`); } catch (e) {}
+    try { await db.execute(`ALTER TABLE channelMetadata ADD COLUMN video_bitrate_kbps INTEGER`); } catch (e) {}
+    try { await db.execute(`ALTER TABLE channelMetadata ADD COLUMN audio_bitrate_kbps INTEGER`); } catch (e) {}
+    try { await db.execute(`ALTER TABLE channelMetadata ADD COLUMN bitrate_kbps INTEGER`); } catch (e) {}
 
     // ── EPG Editor: Override Tables ───────────────────────────────────────────
 
@@ -1643,8 +1717,13 @@ class YnotvDatabase extends SqliteDatabase {
         DELETE FROM custom_group_channels 
         WHERE group_id NOT IN (SELECT group_id FROM custom_groups)
            OR stream_id NOT IN (SELECT stream_id FROM channels)
+           OR id NOT IN (
+             SELECT MIN(id)
+             FROM custom_group_channels
+             GROUP BY group_id, stream_id
+           )
       `);
-      console.log('[DB] Cleaned up orphaned/invalid custom group channels');
+      console.log('[DB] Cleaned up orphaned/invalid/duplicate custom group channels');
     } catch (e) {
       console.warn('[DB] Failed to clean up orphaned custom group channels:', e);
     }
@@ -1654,6 +1733,45 @@ class YnotvDatabase extends SqliteDatabase {
 }
 
 export const db = new YnotvDatabase();
+
+/**
+ * One-time backfill of channel_categories for existing databases (new syncs
+ * maintain the map incrementally via the bulk write paths). Runs in the
+ * background so startup isn't blocked; chunked per source so a huge library
+ * doesn't do one giant statement. Missing rows are harmless — the next sync
+ * of a source rebuilds its slice.
+ */
+async function backfillChannelCategories(db: Database): Promise<void> {
+  try {
+    // Per-source existence check (NOT a global count): a concurrent sync may
+    // have populated some sources, or a previous backfill may have been
+    // interrupted — either way we only skip sources that already have rows, so
+    // the map can never be permanently left incomplete.
+    const mappedSources = await db.select(
+      'SELECT DISTINCT source_id FROM channel_categories'
+    ) as { source_id: string }[];
+    const mappedSet = new Set(mappedSources.map(r => r.source_id));
+
+    const sources = await db.select('SELECT DISTINCT source_id FROM channels WHERE source_id IS NOT NULL') as { source_id: string }[];
+    for (const { source_id } of sources) {
+      if (mappedSet.has(source_id)) continue; // already mapped (by sync or prior run)
+      await db.execute(
+        `INSERT OR IGNORE INTO channel_categories (stream_id, source_id, category_id)
+         SELECT stream_id, source_id, value FROM channels, json_each(channels.category_ids)
+         WHERE source_id = ?`,
+        [source_id]
+      );
+      // Yield between sources so the UI stays responsive during backfill.
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    console.log('[DB] channel_categories backfill complete');
+    // Wake up the category/count live queries so they re-read the now-complete map.
+    dbEvents.notify('categories', 'update');
+    dbEvents.notify('channels', 'update');
+  } catch (e) {
+    console.warn('[DB] channel_categories backfill failed (rebuilt on next sync):', e);
+  }
+}
 
 // Helper to clear all data for a source (before re-sync or on delete)
 export async function clearSourceData(sourceId: string): Promise<void> {
@@ -1668,6 +1786,7 @@ export async function clearSourceData(sourceId: string): Promise<void> {
   await dbInstance.execute('DELETE FROM dvr_schedules WHERE source_id = $1', [sourceId]);
 
   await dbInstance.execute('DELETE FROM channels WHERE source_id = $1', [sourceId]);
+  await dbInstance.execute('DELETE FROM channel_categories WHERE source_id = $1', [sourceId]);
   await dbInstance.execute('DELETE FROM categories WHERE source_id = $1', [sourceId]);
   await dbInstance.execute('DELETE FROM sourcesMeta WHERE source_id = $1', [sourceId]);
   await dbInstance.execute('DELETE FROM programs WHERE source_id = $1', [sourceId]);
@@ -2341,9 +2460,19 @@ export async function cancelRecording(scheduleId: number): Promise<void> {
   console.log('[DVR] Recording canceled:', scheduleId);
 }
 
-/** Delete a recording file and DB entry */
-export async function deleteRecording(recordingId: number): Promise<void> {
-  await db.dvrRecordings.delete(recordingId);
+/**
+ * Delete a recording from the DVR list.
+ *
+ * @param deleteFile - true to also delete the file from the hard drive;
+ * false to only remove the entry from the list (keep the file on disk).
+ */
+export async function deleteRecording(recordingId: number, deleteFile = false): Promise<void> {
+  try {
+    await invoke('delete_recording', { id: recordingId, deleteFile });
+  } catch (err) {
+    console.warn('[DVR] Backend delete_recording failed, falling back to local DB delete:', err);
+    await db.dvrRecordings.delete(recordingId);
+  }
   dbEvents.notify('dvr_recordings', 'delete');
 }
 
@@ -2897,6 +3026,8 @@ export async function recordVodWatch(
   episodeNum?: number,
   episodeTitle?: string
 ): Promise<void> {
+  // Trailers are short previews, not watch history — never record them.
+  if (sourceId === 'trailer') return;
   try {
     const watchedAt = Date.now();
 
@@ -2957,7 +3088,7 @@ export async function getRecentlyWatched(limit = 20): Promise<VodWatchHistory[]>
   try {
     const dbInstance = await (db as any).dbPromise;
     const result = await dbInstance.select(
-      `SELECT * FROM vod_history ORDER BY watched_at DESC LIMIT ?`,
+      `SELECT * FROM vod_history WHERE source_id != 'trailer' ORDER BY watched_at DESC LIMIT ?`,
       [limit]
     );
     return result || [];
@@ -2978,7 +3109,7 @@ export async function getRecentlyWatchedByType(
     console.log('[VOD History] getRecentlyWatchedByType called:', { mediaType, limit });
     const dbInstance = await (db as any).dbPromise;
     const result = await dbInstance.select(
-      `SELECT * FROM vod_history WHERE media_type = ? ORDER BY watched_at DESC LIMIT ?`,
+      `SELECT * FROM vod_history WHERE media_type = ? AND source_id != 'trailer' ORDER BY watched_at DESC LIMIT ?`,
       [mediaType, limit]
     );
     return result || [];
@@ -3005,20 +3136,23 @@ export async function clearVodWatchHistory(mediaId: string, mediaType: 'movie' |
 }
 
 /**
- * Update progress for a watched item
+ * Update progress for a watched item (upsert: updates if exists, inserts if not)
  */
 export async function updateVodWatchProgress(
   mediaId: string,
   mediaType: 'movie' | 'series',
   progressSeconds: number,
-  totalDuration?: number
+  totalDuration?: number,
+  sourceId?: string,
+  title?: string,
+  posterUrl?: string
 ): Promise<void> {
   try {
     const dbInstance = await (db as any).dbPromise;
     
     // Get existing record to check current duration
     const existing = await dbInstance.select(
-      'SELECT total_duration FROM vod_history WHERE media_id = ? AND media_type = ? LIMIT 1',
+      'SELECT id, total_duration FROM vod_history WHERE media_id = ? AND media_type = ? LIMIT 1',
       [mediaId, mediaType]
     );
     
@@ -3030,11 +3164,20 @@ export async function updateVodWatchProgress(
       console.log('[VOD History] Preserving existing duration:', effectiveDuration, '(new value was:', totalDuration + ')');
     }
     
-    await dbInstance.execute(
-      `UPDATE vod_history SET progress_seconds = ?, total_duration = ?, watched_at = ? WHERE media_id = ? AND media_type = ?`,
-      [progressSeconds, effectiveDuration, Date.now(), mediaId, mediaType]
-    );
-    dbEvents.notify('vod_history', 'update');
+    if (existing && existing.length > 0) {
+      await dbInstance.execute(
+        `UPDATE vod_history SET progress_seconds = ?, total_duration = ?, watched_at = ? WHERE media_id = ? AND media_type = ?`,
+        [progressSeconds, effectiveDuration, Date.now(), mediaId, mediaType]
+      );
+      dbEvents.notify('vod_history', 'update');
+    } else {
+      // Entry does not exist yet; insert it so progress is never lost
+      await dbInstance.execute(
+        `INSERT INTO vod_history (media_id, media_type, source_id, title, watched_at, progress_seconds, total_duration, poster_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [mediaId, mediaType, sourceId || 'unknown', title || 'Unknown', Date.now(), progressSeconds, effectiveDuration ?? null, posterUrl ?? null]
+      );
+      dbEvents.notify('vod_history', 'add');
+    }
   } catch (error) {
     console.error('[VOD History] Failed to update progress:', error);
     throw error;
@@ -3086,14 +3229,6 @@ export async function recordEpisodeWatch(
 ): Promise<void> {
   try {
     const watchedAt = Date.now();
-    // Mark as completed if watched >= 90%, within 5s of end, or explicitly marked (e.g. 1/1)
-    const isCompletedCalc = (totalDuration > 0 && (progressSeconds / totalDuration) >= 0.90) ||
-                           (totalDuration > 0 && progressSeconds >= totalDuration - 5) ||
-                           (totalDuration === 1 && progressSeconds === 1);
-    let completed = isCompletedCalc ? 1 : 0;
-
-    console.log('[DB] recordEpisodeWatch called:', { episodeId, progressSeconds, totalDuration, completed });
-
     const dbInstance = await (db as any).dbPromise;
     
     // Check if entry exists
@@ -3102,29 +3237,26 @@ export async function recordEpisodeWatch(
       [episodeId]
     );
     
+    let effectiveDuration = totalDuration;
+    let completed = 0;
+
     if (existingRecord && existingRecord.length > 0) {
-      // Update existing entry - preserve duration if new value is 0 or invalid, and preserve completed state
-      console.log('[DB] Updating existing episode record:', episodeId);
+      // Update existing entry - preserve duration if new value is 0 or invalid
+      debugLog(`Updating existing episode record: ${episodeId}`, 'DB');
       
-      let effectiveDuration = totalDuration;
       if ((totalDuration === 0 || totalDuration === undefined || totalDuration === null) && 
           existingRecord[0].total_duration > 0) {
         effectiveDuration = existingRecord[0].total_duration;
-        console.log('[DB] Preserving existing duration:', effectiveDuration, '(new value was:', totalDuration + ')');
+        debugLog(`Preserving existing duration: ${effectiveDuration} (new value was: ${totalDuration})`, 'DB');
       }
 
-      // If existing record was already completed, keep it completed when the user
-      // scrubs back into a mostly-watched episode (progress >= 50%). This avoids
-      // un-marking a finished episode on a brief rewatch of the ending, while still
-      // letting a genuine re-watch restarting from the beginning clear the flag.
-      const progressRatio = effectiveDuration > 0 ? progressSeconds / effectiveDuration : 0;
-      if (
-        existingRecord[0].completed === 1 &&
-        progressSeconds > 0 &&
-        progressRatio >= 0.5
-      ) {
-        completed = 1;
-      }
+      // Mark as completed if watched >= 90%, within 5s of end, or explicitly marked (e.g. 1/1)
+      const isCompletedCalc = (effectiveDuration > 0 && (progressSeconds / effectiveDuration) >= 0.90) ||
+                             (effectiveDuration > 0 && progressSeconds >= effectiveDuration - 5) ||
+                             (effectiveDuration === 1 && progressSeconds === 1);
+      completed = isCompletedCalc ? 1 : 0;
+
+      debugLog(`recordEpisodeWatch update: ${episodeId} progress=${progressSeconds}/${effectiveDuration} completed=${completed}`, 'DB');
       
       await dbInstance.execute(
         `UPDATE episode_history SET 
@@ -3137,7 +3269,12 @@ export async function recordEpisodeWatch(
       );
     } else {
       // Create new entry
-      console.log('[DB] Creating new episode record:', episodeId);
+      const isCompletedCalc = (totalDuration > 0 && (progressSeconds / totalDuration) >= 0.90) ||
+                             (totalDuration > 0 && progressSeconds >= totalDuration - 5) ||
+                             (totalDuration === 1 && progressSeconds === 1);
+      completed = isCompletedCalc ? 1 : 0;
+
+      debugLog(`Creating new episode record: ${episodeId} progress=${progressSeconds}/${totalDuration} completed=${completed}`, 'DB');
       await dbInstance.execute(
         `INSERT INTO episode_history (episode_id, series_id, source_id, season_num, episode_num, title, watched_at, progress_seconds, total_duration, completed) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -3146,7 +3283,7 @@ export async function recordEpisodeWatch(
     }
     
     dbEvents.notify('episode_history', 'update');
-    console.log('[DB] Episode watch recorded successfully');
+    debugLog('Episode watch recorded successfully', 'DB');
 
     // If this episode completed, advance series-level vod_history to the next episode if one exists
     if (completed === 1 && seriesId && seasonNum > 0 && episodeNum > 0) {
@@ -3203,9 +3340,9 @@ export async function getEpisodeProgress(episodeId: string): Promise<EpisodeWatc
       'SELECT * FROM episode_history WHERE episode_id = ?',
       [episodeId]
     );
-    console.log('[DB] getEpisodeProgress raw result:', result);
+    debugLog(() => `getEpisodeProgress raw result: ${JSON.stringify(result)}`, 'DB');
     if (result && result.length > 0) {
-      console.log('[DB] getEpisodeProgress found record:', result[0]);
+      debugLog(() => `getEpisodeProgress found record: ${JSON.stringify(result[0])}`, 'DB');
       return result[0];
     }
     return null;
@@ -3374,6 +3511,28 @@ export async function isEpisodeCompleted(episodeId: string): Promise<boolean> {
  */
 export async function getSeriesEpisodes(seriesId: string): Promise<StoredEpisode[]> {
   try {
+    if (seriesId.startsWith('local_')) {
+      const { readLocalLibrary, groupLocal, localEntryToStoredEpisode } = await import(
+        '../services/local-library/local-library'
+      );
+      const localEntries = readLocalLibrary();
+      const groups = groupLocal(localEntries);
+      const targetKey = seriesId.replace(/^local_/, '').toLowerCase();
+      const matchingGroup = groups.find(
+        (g) => g.kind === 'show' && (
+          g.key.toLowerCase() === targetKey ||
+          g.key.toLowerCase().replace(/[^a-z0-9]+/g, '_') === targetKey.replace(/[^a-z0-9]+/g, '_')
+        )
+      );
+      if (matchingGroup && matchingGroup.kind === 'show') {
+        return matchingGroup.episodes
+          .slice()
+          .sort((a, b) => (a.season ?? 1) - (b.season ?? 1) || (a.episode ?? 1) - (b.episode ?? 1))
+          .map((ep) => localEntryToStoredEpisode(ep, seriesId, matchingGroup.head.title));
+      }
+      return [];
+    }
+
     const dbInstance = await (db as any).dbPromise;
     const result = await dbInstance.select(
       'SELECT * FROM vodEpisodes WHERE series_id = ? ORDER BY season_num, episode_num',

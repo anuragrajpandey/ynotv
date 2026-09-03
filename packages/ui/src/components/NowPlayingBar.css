@@ -716,6 +716,22 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
+/* "Record until Stop" checkbox row in the Quick Record modal */
+.npb-form-group label.npb-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  cursor: pointer;
+  color: var(--text-primary, #fff);
+}
+
+.npb-form-group label.npb-checkbox-label input[type="checkbox"] {
+  width: auto;
+  flex-shrink: 0;
+  accent-color: var(--accent-color, #007acc);
+}
+
 .npb-form-group input {
   width: 100%;
   padding: 10px 12px;

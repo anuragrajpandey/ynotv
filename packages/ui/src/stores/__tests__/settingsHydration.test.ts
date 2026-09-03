@@ -205,11 +205,13 @@ describe('settings store hydration', () => {
     expect(s.categoryFontSize).toBe(13);
     expect(s.epgTitleFontSize).toBe(32);
     expect(s.epgBodyFontSize).toBe(16);
+    expect(s.epgProgramFontSize).toBe(14);
     expect(s.uiScale).toBe(100);
     expect(s.transparentGuideHeight).toBe(40);
     expect(s.transparentGuideHideHeader).toBe(false);
     expect(s.transparentGuideOverlayOpacity).toBe(55);
     expect(s.transparentGuideSidebarOpacity).toBe(55);
+    expect(s.defaultCategory).toBe('__last__');
     expect(s.allowLanSources).toBe(false);
   });
 

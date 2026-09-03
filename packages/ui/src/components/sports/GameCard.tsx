@@ -4,7 +4,7 @@ import type { SportsEvent } from '@ynotv/core';
 import { formatEventTime } from '../../services/sports';
 import { db } from '../../db';
 import type { StoredChannel, TeamChannelLink } from '../../db';
-import { splitTeamName, buildTeamSearchQuery } from '../../services/sports/teamChannelMatcher';
+import { splitTeamName, buildTeamSearchQuery, buildTeamSearchQueries } from '../../services/sports/teamChannelMatcher';
 import { searchGameStreams } from '../../services/sports/gameStreamSearcher';
 import { useTeamChannelLinks, useTeamLinks } from '../../stores/teamChannelLinksStore';
 import { useSportsSelectedChannels, useSetSportsSelectedChannel, useEpgClockFormat } from '../../stores/uiStore';
@@ -299,8 +299,8 @@ export const GameCard = memo(
 
     setIsSearching(true);
     try {
-      const query = buildTeamSearchQuery(event.homeTeam.name, event.awayTeam.name, event.league.id);
-      const results = await searchGameStreams(query, event.league.id, 15);
+      const queries = buildTeamSearchQueries(event.homeTeam.name, event.awayTeam.name, event.league.id, event.title);
+      const results = await searchGameStreams(queries, event.league.id, 15);
       inlineSearchCache.set(event.id, results);
       setLocalSearchChannels(results);
     } catch (err) {
@@ -310,7 +310,7 @@ export const GameCard = memo(
     } finally {
       setIsSearching(false);
     }
-  }, [event.id, event.homeTeam.name, event.awayTeam.name, event.league.id, localSearchChannels]);
+  }, [event.id, event.homeTeam.name, event.awayTeam.name, event.league.id, event.title, localSearchChannels]);
 
   const getStatusBelow = (): string => {
     if (isScheduled) return '';
@@ -346,6 +346,7 @@ export const GameCard = memo(
   const compactView = (
     <div
       className={`game-card compact ${event.status}`}
+      data-key={event.id}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}
@@ -391,6 +392,7 @@ export const GameCard = memo(
   const fullView = (
     <div
       className={`game-card ${event.status} ${isUFC ? 'ufc-card' : ''} ${isRacing ? 'racing-card' : ''} ${isGolf ? 'golf-card' : ''} ${isTennis ? 'tennis-card' : ''}`}
+      data-key={event.id}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}

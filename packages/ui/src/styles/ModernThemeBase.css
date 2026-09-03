@@ -155,6 +155,26 @@ html, body, button, input, select, textarea {
   transition: opacity 0.5s ease;
 }
 
+/* v1/v2 solid cover behind the guide's multiview grid (2x2/bigbottom). The
+   guide keeps its opaque surface via `--guide-solid-bg` on .guide-grid-section
+   and .guide-info-pane, but the 1x4 multiview top section renders with no info
+   pane and is intentionally transparent so the primary MPV video shows through.
+   App.tsx punches the same preview clip-path hole into this layer, so it fills
+   the gaps around the cells without covering the main video (slots 2-4 are DOM
+   overlays at z-index 1000, above this). Sits at the same z-index as the v3
+   glass backdrop — above the page, below the guide panel (z-index: 80). */
+.livetv-multiview-solid-cover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  overflow: hidden;
+  background: var(--guide-solid-bg, var(--bg-primary, #050505));
+  pointer-events: none;
+}
+
 .livetv-liquid-glass-bg::before {
   content: '';
   position: absolute;
@@ -727,13 +747,22 @@ html.disable-theme-backdrop-blur * {
   -webkit-backdrop-filter: none !important;
 }
 
-/* ==========================================================================
-   THEME OPTIMIZATION OVERRIDES
-   ========================================================================== */
-/* 1. Disable Glass Backdrop Blur */
-html.disable-theme-backdrop-blur * {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+/* With the blur gone, glass surfaces can no longer mask the layers sitting
+   behind them, so anything meant for the hero screen would show sharp
+   through the transparent page panels (Movies/Series/DVR/Sports/Stremio/
+   Nuvio/Calendar): the hero SVG placeholder, the channel info overlay, and
+   the floating overlay widgets (Recent/Favorites/What's Next bar, live
+   sports ticker, live game sidebar). Actively hide them on non-hero views.
+   The guide is excluded so its own overlay behavior (channel-info during
+   transparent-guide zapping, live game sidebar) keeps working. */
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .placeholder,
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .channel-info-overlay,
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .widget-bar,
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .live-sports-overlay,
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .slg-tab-trigger,
+html.disable-theme-backdrop-blur .app:not(.active-view-none):not(.active-view-guide) .slg-drawer {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* 2. Scroll Turbo — active only while scrolling (see utils/scrollTurbo.ts).
