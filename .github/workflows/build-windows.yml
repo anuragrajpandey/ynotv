@@ -185,7 +185,7 @@ jobs:
           echo "OK: mpv.lib"
 
       - name: Build Windows app
-        run: pnpm tauri build
+        run: pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
