@@ -73,8 +73,10 @@ jobs:
       - name: Read release notes
         id: release-notes
         run: |
+          # Try to read CHANGELOG.md for this version
           VERSION=${{ github.ref_name }}
           if [ -f CHANGELOG.md ]; then
+            # Extract notes for this version (everything between this version and the next)
             NOTES=$(sed -n "/^ *## *$VERSION/,/^ *## /p" CHANGELOG.md | sed '$d' | tail -n +2)
             if [ -z "$NOTES" ]; then
               NOTES="See CHANGELOG.md for full release notes."
@@ -87,12 +89,11 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         shell: bash
 
-      - name: Build Tauri App and publish release
+      - name: Build Tauri App
         id: tauri-build
         uses: tauri-apps/tauri-action@v0
         env:
-          # This token must have Contents: write access to the release repository.
-          GITHUB_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VITE_TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
@@ -102,11 +103,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Release ${{ github.ref_name }}'
           releaseBody: ${{ steps.release-notes.outputs.body }}
-          releaseDraft: false
           prerelease: false
-          owner: anuragrajpandey
-          repo: EliteStocksTV-Player
-          releaseCommitish: main
 
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@v1
