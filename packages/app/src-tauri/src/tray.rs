@@ -63,12 +63,12 @@ pub fn show_main_window(app: &AppHandle<impl Runtime>) {
 pub fn setup<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     app.manage(TrayState::default());
 
-    let show_item = MenuItem::with_id(app, "show", "Show ynoTV", true, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "show", "Show EliteStocks TV", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
     let mut builder = TrayIconBuilder::with_id("main")
-        .tooltip("ynoTV")
+        .tooltip("EliteStocks TV")
         .menu(&menu)
         .on_menu_event(|app_handle, event| match event.id().as_ref() {
             "show" => show_main_window(app_handle),

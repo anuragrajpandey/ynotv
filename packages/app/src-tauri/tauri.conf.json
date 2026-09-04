@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ynoTV",
+  "productName": "EliteStocks TV",
   "version": "2.5.2",
   "identifier": "com.ynotv.app",
   "build": {
@@ -14,7 +14,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "ynoTV",
+        "title": "EliteStocks TV",
         "width": 1920,
         "height": 1080,
         "minWidth": 400,
